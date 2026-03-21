@@ -6,3 +6,4 @@ export { useCashStore } from './cashStore';
 export { useSettingsStore } from './settingsStore';
 export { useUIStore } from './uiStore';
 export { useRecipesStore } from './recipesStore';
+export { useVariacionesStore } from './variacionesStore';

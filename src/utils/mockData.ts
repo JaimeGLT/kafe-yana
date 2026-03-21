@@ -145,7 +145,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 200,
     locationId: locAlmacen.id,
     isActive: true,
-    isService: false,
   });
 
   const prodAmericano = inventory.addProduct({
@@ -160,7 +159,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 200,
     locationId: locAlmacen.id,
     isActive: true,
-    isService: false,
   });
 
   const prodCafeLche = inventory.addProduct({
@@ -175,7 +173,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 200,
     locationId: locAlmacen.id,
     isActive: true,
-    isService: false,
   });
 
   const prodCappuccino = inventory.addProduct({
@@ -190,7 +187,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 200,
     locationId: locAlmacen.id,
     isActive: true,
-    isService: false,
   });
 
   const prodLatte = inventory.addProduct({
@@ -205,7 +201,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 200,
     locationId: locAlmacen.id,
     isActive: true,
-    isService: false,
   });
 
   const prodMocha = inventory.addProduct({
@@ -220,7 +215,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 200,
     locationId: locAlmacen.id,
     isActive: true,
-    isService: false,
   });
 
   const prodCafeHelado = inventory.addProduct({
@@ -235,7 +229,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 150,
     locationId: locRefrigerador.id,
     isActive: true,
-    isService: false,
   });
 
   const prodFrappe = inventory.addProduct({
@@ -250,7 +243,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 120,
     locationId: locRefrigerador.id,
     isActive: true,
-    isService: false,
   });
 
   const prodJugoNaranja = inventory.addProduct({
@@ -264,7 +256,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 100,
     locationId: locRefrigerador.id,
     isActive: true,
-    isService: false,
   });
 
   const prodLimonada = inventory.addProduct({
@@ -278,7 +269,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 100,
     locationId: locRefrigerador.id,
     isActive: true,
-    isService: false,
   });
 
   const prodAguaMineral = inventory.addProduct({
@@ -292,7 +282,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 200,
     locationId: locAlmacen.id,
     isActive: true,
-    isService: false,
   });
 
   const prodCroissant = inventory.addProduct({
@@ -306,7 +295,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 50,
     locationId: locMostrador.id,
     isActive: true,
-    isService: false,
   });
 
   const prodMuffinChoco = inventory.addProduct({
@@ -320,7 +308,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 60,
     locationId: locMostrador.id,
     isActive: true,
-    isService: false,
   });
 
   const prodCheesecake = inventory.addProduct({
@@ -334,7 +321,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 30,
     locationId: locRefrigerador.id,
     isActive: true,
-    isService: false,
   });
 
   const prodPieLimon = inventory.addProduct({
@@ -348,7 +334,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 30,
     locationId: locRefrigerador.id,
     isActive: true,
-    isService: false,
   });
 
   const prodSandwichClub = inventory.addProduct({
@@ -362,7 +347,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 50,
     locationId: locRefrigerador.id,
     isActive: true,
-    isService: false,
   });
 
   const prodSandwichJH = inventory.addProduct({
@@ -376,7 +360,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 50,
     locationId: locRefrigerador.id,
     isActive: true,
-    isService: false,
   });
 
   const prodChips = inventory.addProduct({
@@ -390,7 +373,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 100,
     locationId: locAlmacen.id,
     isActive: true,
-    isService: false,
   });
 
   const prodBrownie = inventory.addProduct({
@@ -404,7 +386,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 40,
     locationId: locMostrador.id,
     isActive: true,
-    isService: false,
   });
 
   const prodTeVerde = inventory.addProduct({
@@ -418,7 +399,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 150,
     locationId: locAlmacen.id,
     isActive: true,
-    isService: false,
   });
 
   const prodChocolateCaliente = inventory.addProduct({
@@ -432,7 +412,6 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 150,
     locationId: locAlmacen.id,
     isActive: true,
-    isService: false,
   });
 
   inventory.addProduct({
@@ -446,7 +425,7 @@ export function initializeMockData(stores: Stores): void {
     maxStock: 100,
     locationId: locRefrigerador.id,
     isActive: true,
-    isService: true,
+    tipo: 'comprado',
   });
 
   // ─── Suppliers ─────────────────────────────────────────────────────────────

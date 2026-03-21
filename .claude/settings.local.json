@@ -13,7 +13,15 @@
       "Bash(for f:*)",
       "Bash(do echo:*)",
       "Bash(/dev/null cat:*)",
-      "Bash(ls /c/Users/jaime/Desktop/kafe-yana/src/components/ui/*.tsx)"
+      "Bash(ls /c/Users/jaime/Desktop/kafe-yana/src/components/ui/*.tsx)",
+      "Bash(unzip -p \"manual-modulo-inventario.docx\" word/document.xml)",
+      "Bash(grep -v '^ *$')",
+      "Bash(python:*)",
+      "Bash(cd /tmp)",
+      "Bash(unzip -q \"C:/Users/jaime/Desktop/kafe-yana/productos-elaborados.docx\" -d docx_extract)",
+      "Bash(unzip -p \"productos-combo.docx\" word/document.xml)",
+      "Bash(unzip -q \"C:/Users/jaime/Desktop/kafe-yana/productos-variaciones.docx\" -d extracted_docx)",
+      "Bash(echo \"Exit code: $?\")"
     ]
   }
 }

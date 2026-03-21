@@ -84,11 +84,13 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
   // Product actions
   addProduct: (input) => {
     const state = get();
+    const tipo = input.tipo ?? 'comprado';
     const newProduct: Product = {
       id: uuidv4(),
       code: input.code || generateCode('PROD', state.products.length + 1),
       name: input.name,
       description: input.description || '',
+      tipo,
       categoryId: input.categoryId,
       categoryName: state.categories.find(c => c.id === input.categoryId)?.name || '',
       brandId: input.brandId,
@@ -116,7 +118,6 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
       barcode: input.barcode,
       image: input.image,
       isActive: input.isActive ?? true,
-      isService: input.isService ?? false,
       hasVariations: (input.variations?.length || 0) > 0,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -292,39 +293,74 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
 
   // Combo actions
   addCombo: (input) => {
+    const state = get();
+    const items = input.items.map(item => {
+      const prod = state.products.find(p => p.id === item.productId);
+      return {
+        id: uuidv4(),
+        productId: item.productId,
+        productName: prod?.name ?? '',
+        productTipo: prod?.tipo ?? 'comprado',
+        quantity: item.quantity,
+        unitCost: prod?.costPrice ?? 0,
+        esOpcional: item.esOpcional ?? false,
+      };
+    });
+    const costoTotal = items.reduce((s, i) => s + i.unitCost * i.quantity, 0);
+
     const newCombo: Combo = {
       id: uuidv4(),
       name: input.name,
       description: input.description,
-      products: input.products.map(p => ({
-        id: uuidv4(),
-        ...p,
-        productName: get().products.find(prod => prod.id === p.productId)?.name || '',
-      })),
+      items,
       price: input.price,
-      discount: input.discount,
+      costoTotal,
       image: input.image,
       isActive: input.isActive ?? true,
-      validFrom: input.validFrom,
-      validTo: input.validTo,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
-    set((state) => ({
-      combos: [...state.combos, newCombo],
-    }));
-
+    set((s) => ({ combos: [...s.combos, newCombo] }));
     return newCombo;
   },
 
   updateCombo: (id, input) => {
-    set((state) => ({
-      combos: state.combos.map((combo) =>
+    const state = get();
+    const items = input.items
+      ? input.items.map(item => {
+          const prod = state.products.find(p => p.id === item.productId);
+          return {
+            id: uuidv4(),
+            productId: item.productId,
+            productName: prod?.name ?? '',
+            productTipo: prod?.tipo ?? 'comprado',
+            quantity: item.quantity,
+            unitCost: prod?.costPrice ?? 0,
+            esOpcional: item.esOpcional ?? false,
+          };
+        })
+      : undefined;
+    const costoTotal = items
+      ? items.reduce((s, i) => s + i.unitCost * i.quantity, 0)
+      : undefined;
+
+    set((s) => ({
+      combos: s.combos.map((combo) =>
         combo.id === id
-          ? { ...combo, ...input, updatedAt: new Date() }
+          ? {
+              ...combo,
+              ...(input.name !== undefined && { name: input.name }),
+              ...(input.description !== undefined && { description: input.description }),
+              ...(items && { items }),
+              ...(costoTotal !== undefined && { costoTotal }),
+              ...(input.price !== undefined && { price: input.price }),
+              ...(input.image !== undefined && { image: input.image }),
+              ...(input.isActive !== undefined && { isActive: input.isActive }),
+              updatedAt: new Date(),
+            }
           : combo
-      ) as Combo[],
+      ),
     }));
   },
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -6,15 +6,43 @@ import { Select } from '../ui/Select';
 import { toast } from '../ui/Toast';
 import { useRecipesStore } from '../../stores';
 import type { Insumo, InsumoInput } from '../../types';
+import { formatCurrency } from '../../utils';
 
-const UNIT_OPTIONS = [
-  { value: 'ml', label: 'Mililitros (ml)' },
-  { value: 'l', label: 'Litros (l)' },
+const CATEGORIAS = [
+  'Lácteos', 'Cafés', 'Harinas', 'Bebidas', 'Condimentos',
+  'Azúcares', 'Aceites', 'Proteínas', 'Verduras', 'Frutas',
+  'Descartables', 'Otros',
+].map((c) => ({ value: c, label: c }));
+
+const UNIDADES_MINIMAS = [
   { value: 'g', label: 'Gramos (g)' },
-  { value: 'kg', label: 'Kilogramos (kg)' },
+  { value: 'ml', label: 'Mililitros (ml)' },
   { value: 'unidad', label: 'Unidad' },
+  { value: 'taza', label: 'Taza' },
   { value: 'porcion', label: 'Porción' },
 ];
+
+const UNIDADES_COMPRA = [
+  { value: 'bolsa', label: 'Bolsa' },
+  { value: 'caja', label: 'Caja' },
+  { value: 'botella', label: 'Botella' },
+  { value: 'kg', label: 'Kilogramo (kg)' },
+  { value: 'litro', label: 'Litro' },
+  { value: 'unidad', label: 'Unidad' },
+  { value: 'paquete', label: 'Paquete' },
+];
+
+const empty: InsumoInput = {
+  name: '',
+  categoriaInsumo: '',
+  unidadMinima: 'g',
+  unidadCompra: 'bolsa',
+  factorConversion: 0,
+  costoCompra: 0,
+  stock: 0,
+  stockMinimo: 0,
+  isActive: true,
+};
 
 interface Props {
   isOpen: boolean;
@@ -25,30 +53,47 @@ interface Props {
 export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo }) => {
   const { addInsumo, updateInsumo } = useRecipesStore();
   const [isLoading, setIsLoading] = useState(false);
-
-  const [form, setForm] = useState<InsumoInput>({
-    name: '',
-    unit: 'g',
-    unitCost: 0,
-    isActive: true,
-  });
-
+  const [form, setForm] = useState<InsumoInput>(empty);
   const [errors, setErrors] = useState<Partial<Record<keyof InsumoInput, string>>>({});
 
   useEffect(() => {
     if (insumo) {
-      setForm({ name: insumo.name, unit: insumo.unit, unitCost: insumo.unitCost, isActive: insumo.isActive });
+      setForm({
+        name: insumo.name,
+        categoriaInsumo: insumo.categoriaInsumo,
+        unidadMinima: insumo.unidadMinima,
+        unidadCompra: insumo.unidadCompra,
+        factorConversion: insumo.factorConversion,
+        costoCompra: insumo.costoCompra,
+        stock: insumo.stock,
+        stockMinimo: insumo.stockMinimo,
+        proveedorId: insumo.proveedorId,
+        isActive: insumo.isActive,
+      });
     } else {
-      setForm({ name: '', unit: 'g', unitCost: 0, isActive: true });
+      setForm(empty);
     }
     setErrors({});
   }, [insumo, isOpen]);
 
+  // Calculated cost per unit (read-only)
+  const costoUnitario = useMemo(
+    () => (form.factorConversion > 0 ? form.costoCompra / form.factorConversion : 0),
+    [form.costoCompra, form.factorConversion]
+  );
+
+  const set = (field: keyof InsumoInput, value: unknown) =>
+    setForm((prev) => ({ ...prev, [field]: value }));
+
   const validate = (): boolean => {
     const e: typeof errors = {};
     if (!form.name.trim()) e.name = 'Nombre requerido';
-    if (!form.unit) e.unit = 'Unidad requerida';
-    if (form.unitCost <= 0) e.unitCost = 'El costo debe ser mayor a 0';
+    if (!form.categoriaInsumo) e.categoriaInsumo = 'Categoría requerida';
+    if (!form.unidadMinima) e.unidadMinima = 'Unidad de uso requerida';
+    if (!form.unidadCompra) e.unidadCompra = 'Unidad de compra requerida';
+    if (form.factorConversion <= 0) e.factorConversion = 'El factor debe ser mayor a 0';
+    if (form.costoCompra <= 0) e.costoCompra = 'El costo debe ser mayor a 0';
+    if (form.stockMinimo < 0) e.stockMinimo = 'El mínimo debe ser ≥ 0';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -60,10 +105,16 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo }) => {
     try {
       if (insumo) {
         updateInsumo(insumo.id, form);
-        toast.success('Insumo actualizado', `"${form.name}" fue actualizado. Los costos se recalcularon automáticamente.`);
+        toast.success(
+          'Insumo actualizado',
+          `"${form.name}" actualizado. Costo/unidad: ${formatCurrency(costoUnitario)}/${form.unidadMinima}. Los costos de las recetas se recalcularon automáticamente.`
+        );
       } else {
         addInsumo(form);
-        toast.success('Insumo creado', `"${form.name}" fue agregado con costo Bs. ${form.unitCost}/${form.unit}.`);
+        toast.success(
+          'Insumo creado',
+          `"${form.name}" — ${formatCurrency(costoUnitario)} por ${form.unidadMinima}.`
+        );
       }
       onClose();
     } finally {
@@ -72,54 +123,137 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo }) => {
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={insumo ? 'Editar Insumo' : 'Nuevo Insumo'}
-      size="sm"
-    >
+    <Modal isOpen={isOpen} onClose={onClose} title={insumo ? 'Editar Insumo' : 'Nuevo Insumo'} size="lg">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-coffee-700 mb-1">
-            Nombre
-          </label>
-          <Input
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="Ej: Leche entera, Café molido…"
-            autoFocus
-          />
-          {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+        {/* Nombre + Categoría */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-coffee-700 mb-1">Nombre <span className="text-red-500">*</span></label>
+            <Input
+              value={form.name}
+              onChange={(e) => set('name', e.target.value)}
+              placeholder="Ej: Leche entera, Café molido…"
+              autoFocus
+            />
+            {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-coffee-700 mb-1">Categoría <span className="text-red-500">*</span></label>
+            <Select
+              value={form.categoriaInsumo}
+              onChange={(v) => set('categoriaInsumo', v)}
+              options={CATEGORIAS}
+              placeholder="Seleccionar…"
+            />
+            {errors.categoriaInsumo && <p className="text-red-500 text-xs mt-1">{errors.categoriaInsumo}</p>}
+          </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-coffee-700 mb-1">
-            Unidad de medida
-          </label>
-          <Select
-            value={form.unit}
-            onChange={(e) => setForm({ ...form, unit: e.target.value })}
-            options={UNIT_OPTIONS}
-          />
-          {errors.unit && <p className="text-red-500 text-xs mt-1">{errors.unit}</p>}
+        {/* Unidades */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-coffee-700 mb-1">
+              Unidad mínima de uso <span className="text-red-500">*</span>
+            </label>
+            <Select
+              value={form.unidadMinima}
+              onChange={(v) => set('unidadMinima', v)}
+              options={UNIDADES_MINIMAS}
+            />
+            <p className="text-xs text-coffee-400 mt-1">La unidad con la que se mide en recetas.</p>
+            {errors.unidadMinima && <p className="text-red-500 text-xs mt-1">{errors.unidadMinima}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-coffee-700 mb-1">
+              Unidad de compra <span className="text-red-500">*</span>
+            </label>
+            <Select
+              value={form.unidadCompra}
+              onChange={(v) => set('unidadCompra', v)}
+              options={UNIDADES_COMPRA}
+            />
+            <p className="text-xs text-coffee-400 mt-1">Con qué presentación se compra al proveedor.</p>
+            {errors.unidadCompra && <p className="text-red-500 text-xs mt-1">{errors.unidadCompra}</p>}
+          </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-coffee-700 mb-1">
-            Costo por {form.unit || 'unidad'} (Bs.)
-          </label>
-          <Input
-            type="number"
-            min="0"
-            step="0.001"
-            value={form.unitCost === 0 ? '' : form.unitCost}
-            onChange={(e) => setForm({ ...form, unitCost: parseFloat(e.target.value) || 0 })}
-            placeholder="0.000"
-          />
-          {errors.unitCost && <p className="text-red-500 text-xs mt-1">{errors.unitCost}</p>}
-          <p className="text-xs text-coffee-400 mt-1">
-            Registra el costo en la unidad mínima que usas en cocina.
-          </p>
+        {/* Factor + Costo compra */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-coffee-700 mb-1">
+              Factor de conversión <span className="text-red-500">*</span>
+            </label>
+            <Input
+              type="number"
+              min="0"
+              step="0.001"
+              value={form.factorConversion === 0 ? '' : form.factorConversion}
+              onChange={(e) => set('factorConversion', parseFloat(e.target.value) || 0)}
+              placeholder="Ej: 250"
+            />
+            <p className="text-xs text-coffee-400 mt-1">
+              ¿Cuántos {form.unidadMinima} hay en 1 {form.unidadCompra}?
+            </p>
+            {errors.factorConversion && <p className="text-red-500 text-xs mt-1">{errors.factorConversion}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-coffee-700 mb-1">
+              Costo por {form.unidadCompra} (Bs.) <span className="text-red-500">*</span>
+            </label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.costoCompra === 0 ? '' : form.costoCompra}
+              onChange={(e) => set('costoCompra', parseFloat(e.target.value) || 0)}
+              placeholder="0.00"
+            />
+            {errors.costoCompra && <p className="text-red-500 text-xs mt-1">{errors.costoCompra}</p>}
+          </div>
+        </div>
+
+        {/* Calculated unit cost */}
+        {costoUnitario > 0 && (
+          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5">
+            <span className="text-sm text-emerald-700">
+              → Costo por {form.unidadMinima}:
+            </span>
+            <span className="font-bold text-emerald-800">
+              {formatCurrency(costoUnitario)} / {form.unidadMinima}
+            </span>
+            <span className="text-xs text-emerald-500 ml-1">
+              ({formatCurrency(form.costoCompra)} ÷ {form.factorConversion})
+            </span>
+          </div>
+        )}
+
+        {/* Stock */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-coffee-700 mb-1">
+              Stock actual ({form.unidadMinima})
+            </label>
+            <Input
+              type="number"
+              min="0"
+              value={form.stock === 0 ? '' : form.stock}
+              onChange={(e) => set('stock', parseFloat(e.target.value) || 0)}
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-coffee-700 mb-1">
+              Stock mínimo ({form.unidadMinima}) — alerta
+            </label>
+            <Input
+              type="number"
+              min="0"
+              value={form.stockMinimo === 0 ? '' : form.stockMinimo}
+              onChange={(e) => set('stockMinimo', parseFloat(e.target.value) || 0)}
+              placeholder="0"
+            />
+            {errors.stockMinimo && <p className="text-red-500 text-xs mt-1">{errors.stockMinimo}</p>}
+          </div>
         </div>
 
         <div className="flex justify-end gap-3 pt-2">

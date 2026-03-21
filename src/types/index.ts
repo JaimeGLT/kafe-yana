@@ -6,3 +6,4 @@ export * from './sales';
 export * from './purchases';
 export * from './cash';
 export * from './settings';
+export * from './variations';

@@ -1,11 +1,13 @@
 import React from 'react';
 import { clsx } from 'clsx';
+import { HelpTooltip } from '../ui/Tooltip';
 
 interface FormFieldProps {
   label: string;
   required?: boolean;
   error?: string;
   helpText?: string;
+  tooltip?: string;          // ← hover ? tooltip text
   children: React.ReactNode;
   className?: string;
 }
@@ -15,22 +17,20 @@ export const FormField: React.FC<FormFieldProps> = ({
   required = false,
   error,
   helpText,
+  tooltip,
   children,
   className,
 }) => {
   return (
     <div className={clsx('space-y-1', className)}>
-      <label className="block text-sm font-medium text-coffee-700">
-        {label}
+      <label className="flex items-center text-sm font-medium text-coffee-700">
+        <span>{label}</span>
         {required && <span className="text-red-500 ml-1">*</span>}
+        {tooltip && <HelpTooltip text={tooltip} />}
       </label>
       {children}
-      {error && (
-        <p className="text-sm text-red-600">{error}</p>
-      )}
-      {helpText && !error && (
-        <p className="text-sm text-coffee-500">{helpText}</p>
-      )}
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {helpText && !error && <p className="text-sm text-coffee-500">{helpText}</p>}
     </div>
   );
 };

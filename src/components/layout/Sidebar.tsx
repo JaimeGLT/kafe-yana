@@ -38,7 +38,7 @@ const navItems: NavItem[] = [
     path: '/inventory',
     children: [
       { id: 'products', label: 'Productos', icon: null, path: '/inventory/products' },
-      { id: 'services', label: 'Servicios', icon: null, path: '/inventory/services' },
+      { id: 'elaborados', label: 'Elaborados', icon: null, path: '/inventory/elaborados' },
       { id: 'combos', label: 'Combos', icon: null, path: '/inventory/combos' },
       { id: 'categories', label: 'Categorías', icon: null, path: '/inventory/categories' },
       { id: 'variations', label: 'Variaciones', icon: null, path: '/inventory/variations' },

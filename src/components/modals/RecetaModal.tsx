@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Copy } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -12,15 +12,23 @@ import { formatCurrency } from '../../utils';
 interface IngredienteLine {
   insumoId: string;
   quantity: number;
+  merma: number;
 }
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   receta?: Receta;
-  // If provided, locks the product selector to this product
   preselectedProductId?: string;
+  onDuplicate?: (receta: Receta) => void;
 }
+
+// Profitability semaphore
+const getMarginLabel = (pct: number) => {
+  if (pct >= 60) return { label: '🟢 Rentable', color: 'text-emerald-700 bg-emerald-50' };
+  if (pct >= 30) return { label: '🟡 Aceptable', color: 'text-amber-700 bg-amber-50' };
+  return { label: '🔴 Revisar precio', color: 'text-red-700 bg-red-50' };
+};
 
 export const RecetaModal: React.FC<Props> = ({
   isOpen,
@@ -33,16 +41,19 @@ export const RecetaModal: React.FC<Props> = ({
   const [isLoading, setIsLoading] = useState(false);
 
   const [productId, setProductId] = useState('');
-  const [ingredientes, setIngredientes] = useState<IngredienteLine[]>([{ insumoId: '', quantity: 0 }]);
+  const [porcionesBase, setPorcionesBase] = useState(1);
+  const [ingredientes, setIngredientes] = useState<IngredienteLine[]>([
+    { insumoId: '', quantity: 0, merma: 0 },
+  ]);
   const [notas, setNotas] = useState('');
   const [errors, setErrors] = useState<string[]>([]);
 
-  // Only non-service products
+  // Only elaborado products
   const productOptions = useMemo(
     () =>
-      [{ value: '', label: 'Seleccionar producto…' }].concat(
+      [{ value: '', label: 'Seleccionar producto elaborado…' }].concat(
         products
-          .filter((p) => p.isActive && !p.isService)
+          .filter((p) => p.isActive && p.tipo === 'elaborado')
           .map((p) => ({ value: p.id, label: p.name }))
       ),
     [products]
@@ -53,7 +64,7 @@ export const RecetaModal: React.FC<Props> = ({
       [{ value: '', label: 'Seleccionar insumo…' }].concat(
         insumos
           .filter((i) => i.isActive)
-          .map((i) => ({ value: i.id, label: `${i.name} (${i.unit})` }))
+          .map((i) => ({ value: i.id, label: `${i.name} (${i.unidadMinima})` }))
       ),
     [insumos]
   );
@@ -61,43 +72,52 @@ export const RecetaModal: React.FC<Props> = ({
   useEffect(() => {
     if (receta) {
       setProductId(receta.productId);
+      setPorcionesBase(receta.porcionesBase);
       setIngredientes(
         receta.ingredientes.map((ing) => ({
           insumoId: ing.insumoId,
           quantity: ing.quantity,
+          merma: ing.merma,
         }))
       );
       setNotas(receta.notas ?? '');
     } else {
       setProductId(preselectedProductId ?? '');
-      setIngredientes([{ insumoId: '', quantity: 0 }]);
+      setPorcionesBase(1);
+      setIngredientes([{ insumoId: '', quantity: 0, merma: 0 }]);
       setNotas('');
     }
     setErrors([]);
   }, [receta, preselectedProductId, isOpen]);
 
-  // Live cost preview
-  const costoPreview = useMemo(() => {
-    return ingredientes.reduce((sum, ing) => {
-      const insumo = insumos.find((i) => i.id === ing.insumoId);
-      if (!insumo || ing.quantity <= 0) return sum;
-      return sum + insumo.unitCost * ing.quantity;
-    }, 0);
-  }, [ingredientes, insumos]);
+  // Live cost calculations
+  const costoTotalReceta = useMemo(
+    () =>
+      ingredientes.reduce((sum, ing) => {
+        const insumo = insumos.find((i) => i.id === ing.insumoId);
+        if (!insumo || ing.quantity <= 0) return sum;
+        return sum + insumo.costoUnitario * ing.quantity * (1 + ing.merma / 100);
+      }, 0),
+    [ingredientes, insumos]
+  );
+
+  const porciones = porcionesBase > 0 ? porcionesBase : 1;
+  const costoPorPorcion = costoTotalReceta / porciones;
 
   const selectedProduct = useMemo(
     () => products.find((p) => p.id === productId),
     [products, productId]
   );
 
-  const margen = selectedProduct ? selectedProduct.salePrice - costoPreview : null;
+  const margen = selectedProduct ? selectedProduct.salePrice - costoPorPorcion : null;
   const margenPct =
     selectedProduct && selectedProduct.salePrice > 0
-      ? ((margen! / selectedProduct.salePrice) * 100).toFixed(1)
+      ? (margen! / selectedProduct.salePrice) * 100
       : null;
+  const semaforo = margenPct !== null ? getMarginLabel(margenPct) : null;
 
   const addLine = () =>
-    setIngredientes((prev) => [...prev, { insumoId: '', quantity: 0 }]);
+    setIngredientes((prev) => [...prev, { insumoId: '', quantity: 0, merma: 0 }]);
 
   const removeLine = (idx: number) =>
     setIngredientes((prev) => prev.filter((_, i) => i !== idx));
@@ -109,7 +129,8 @@ export const RecetaModal: React.FC<Props> = ({
 
   const validate = (): boolean => {
     const errs: string[] = [];
-    if (!productId) errs.push('Selecciona un producto.');
+    if (!productId) errs.push('Selecciona un producto elaborado.');
+    if (porcionesBase <= 0) errs.push('Las porciones deben ser ≥ 1.');
     if (ingredientes.length === 0) errs.push('Agrega al menos un ingrediente.');
     ingredientes.forEach((ing, i) => {
       if (!ing.insumoId) errs.push(`Fila ${i + 1}: selecciona un insumo.`);
@@ -126,11 +147,14 @@ export const RecetaModal: React.FC<Props> = ({
     const productName = products.find((p) => p.id === productId)?.name ?? '';
     try {
       if (receta) {
-        updateReceta(receta.id, { productId, ingredientes, notas }, productName);
+        updateReceta(receta.id, { productId, porcionesBase, ingredientes, notas }, productName);
         toast.success('Receta actualizada', `La receta de "${productName}" fue actualizada.`);
       } else {
-        addReceta({ productId, ingredientes, notas }, productName);
-        toast.success('Receta creada', `La receta de "${productName}" fue creada. Costo: ${formatCurrency(costoPreview)}`);
+        addReceta({ productId, porcionesBase, ingredientes, notas }, productName);
+        toast.success(
+          'Receta creada',
+          `"${productName}" — costo/porción: ${formatCurrency(costoPorPorcion)}`
+        );
       }
       onClose();
     } finally {
@@ -146,58 +170,102 @@ export const RecetaModal: React.FC<Props> = ({
       size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Product selector */}
-        <div>
-          <label className="block text-sm font-medium text-coffee-700 mb-1">Producto elaborado</label>
-          <Select
-            value={productId}
-            onChange={(e) => setProductId(e.target.value)}
-            options={productOptions}
-            disabled={!!preselectedProductId && !receta}
-          />
+        {/* Product + Porciones */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-coffee-700 mb-1">
+              Producto elaborado <span className="text-red-500">*</span>
+            </label>
+            <Select
+              value={productId}
+              onChange={(v) => setProductId(v)}
+              options={productOptions}
+              disabled={!!preselectedProductId && !receta}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-coffee-700 mb-1">
+              Porciones que produce <span className="text-red-500">*</span>
+            </label>
+            <Input
+              type="number"
+              min="1"
+              value={porcionesBase}
+              onChange={(e) => setPorcionesBase(parseInt(e.target.value) || 1)}
+            />
+            <p className="text-xs text-coffee-400 mt-1">Ej: 1 torta = 8 porciones</p>
+          </div>
         </div>
 
-        {/* Ingredients */}
+        {/* Ingredients table */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="block text-sm font-medium text-coffee-700">Ingredientes</label>
-            <Button type="button" variant="ghost" size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={addLine}>
+            <label className="block text-sm font-medium text-coffee-700">
+              Ingredientes <span className="text-red-500">*</span>
+            </label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              leftIcon={<Plus className="h-4 w-4" />}
+              onClick={addLine}
+            >
               Agregar
             </Button>
+          </div>
+
+          {/* Header */}
+          <div className="grid grid-cols-[1fr_90px_60px_56px_20px] gap-2 text-xs text-coffee-400 font-medium mb-1 px-1">
+            <span>Insumo</span>
+            <span className="text-right">Cantidad</span>
+            <span className="text-right">Merma %</span>
+            <span className="text-right">Subtotal</span>
+            <span />
           </div>
 
           <div className="space-y-2">
             {ingredientes.map((line, idx) => {
               const insumo = insumos.find((i) => i.id === line.insumoId);
-              const subtotal = insumo && line.quantity > 0 ? insumo.unitCost * line.quantity : 0;
+              const subtotal =
+                insumo && line.quantity > 0
+                  ? insumo.costoUnitario * line.quantity * (1 + line.merma / 100)
+                  : 0;
+
               return (
-                <div key={idx} className="flex gap-2 items-start">
-                  <div className="flex-1">
-                    <Select
-                      value={line.insumoId}
-                      onChange={(e) => updateLine(idx, 'insumoId', e.target.value)}
-                      options={insumoOptions}
-                    />
-                  </div>
-                  <div className="w-28">
+                <div key={idx} className="grid grid-cols-[1fr_90px_60px_56px_20px] gap-2 items-center">
+                  <Select
+                    value={line.insumoId}
+                    onChange={(v) => updateLine(idx, 'insumoId', v)}
+                    options={insumoOptions}
+                  />
+                  <div className="flex items-center gap-1">
                     <Input
                       type="number"
                       min="0"
                       step="0.001"
                       value={line.quantity === 0 ? '' : line.quantity}
                       onChange={(e) => updateLine(idx, 'quantity', parseFloat(e.target.value) || 0)}
-                      placeholder={insumo ? insumo.unit : 'Cant.'}
+                      placeholder={insumo?.unidadMinima ?? ''}
+                      className="text-right"
                     />
                   </div>
-                  {subtotal > 0 && (
-                    <span className="text-xs text-coffee-500 mt-2 min-w-[60px] text-right">
-                      {formatCurrency(subtotal)}
-                    </span>
-                  )}
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    value={line.merma === 0 ? '' : line.merma}
+                    onChange={(e) => updateLine(idx, 'merma', parseFloat(e.target.value) || 0)}
+                    placeholder="0"
+                    className="text-right"
+                  />
+                  <span className="text-xs text-right text-coffee-500 font-medium">
+                    {subtotal > 0 ? formatCurrency(subtotal) : '—'}
+                  </span>
                   <button
                     type="button"
                     onClick={() => removeLine(idx)}
-                    className="mt-1.5 text-red-400 hover:text-red-600 transition-colors"
+                    className="text-red-400 hover:text-red-600 transition-colors"
                     disabled={ingredientes.length === 1}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -210,33 +278,44 @@ export const RecetaModal: React.FC<Props> = ({
 
         {/* Notas */}
         <div>
-          <label className="block text-sm font-medium text-coffee-700 mb-1">Notas (opcional)</label>
+          <label className="block text-sm font-medium text-coffee-700 mb-1">Notas internas (opcional)</label>
           <Input
             value={notas}
             onChange={(e) => setNotas(e.target.value)}
-            placeholder="Variante, observaciones…"
+            placeholder="Temperatura, técnica, instrucciones para el barista…"
           />
         </div>
 
         {/* Live cost summary */}
-        {costoPreview > 0 && (
-          <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 space-y-1">
+        {costoTotalReceta > 0 && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 space-y-1.5">
             <div className="flex justify-between text-sm">
-              <span className="text-coffee-600">Costo de producción</span>
-              <span className="font-semibold text-coffee-900">{formatCurrency(costoPreview)}</span>
+              <span className="text-coffee-600">Costo total receta ({porciones} porción{porciones !== 1 ? 'es' : ''})</span>
+              <span className="font-semibold text-coffee-900">{formatCurrency(costoTotalReceta)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-coffee-600 font-medium">Costo por porción</span>
+              <span className="font-bold text-coffee-900">{formatCurrency(costoPorPorcion)}</span>
             </div>
             {selectedProduct && (
               <>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-sm border-t border-amber-200 pt-1.5">
                   <span className="text-coffee-600">Precio de venta</span>
                   <span className="text-coffee-700">{formatCurrency(selectedProduct.salePrice)}</span>
                 </div>
-                <div className="flex justify-between text-sm border-t border-amber-200 pt-1 mt-1">
-                  <span className="font-medium text-coffee-800">Margen</span>
+                <div className="flex justify-between text-sm items-center">
+                  <span className="font-medium text-coffee-800">
+                    Margen ({margenPct?.toFixed(1)}%)
+                  </span>
                   <span className={`font-bold ${margen! >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                    {formatCurrency(margen!)} ({margenPct}%)
+                    {formatCurrency(margen!)}
                   </span>
                 </div>
+                {semaforo && (
+                  <div className={`text-xs font-semibold rounded px-2 py-1 text-center ${semaforo.color}`}>
+                    {semaforo.label}
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -249,13 +328,28 @@ export const RecetaModal: React.FC<Props> = ({
           </ul>
         )}
 
-        <div className="flex justify-end gap-3 pt-1">
-          <Button variant="ghost" type="button" onClick={onClose} disabled={isLoading}>
-            Cancelar
-          </Button>
-          <Button variant="primary" type="submit" isLoading={isLoading}>
-            {receta ? 'Guardar cambios' : 'Crear receta'}
-          </Button>
+        <div className="flex justify-between items-center pt-1">
+          {receta && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              leftIcon={<Copy className="h-4 w-4" />}
+              onClick={() => {
+                toast.success('Duplicar', 'Usa "Nueva Receta" y selecciona el producto destino.');
+              }}
+            >
+              Duplicar receta
+            </Button>
+          )}
+          <div className="flex gap-3 ml-auto">
+            <Button variant="ghost" type="button" onClick={onClose} disabled={isLoading}>
+              Cancelar
+            </Button>
+            <Button variant="primary" type="submit" isLoading={isLoading}>
+              {receta ? 'Guardar cambios' : 'Crear receta'}
+            </Button>
+          </div>
         </div>
       </form>
     </Modal>

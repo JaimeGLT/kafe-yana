@@ -21,10 +21,36 @@ interface RecipesState {
   deleteReceta: (id: string) => void;
   getRecetaByProductId: (productId: string) => Receta | undefined;
 
+  // Stock management
+  updateInsumoStock: (id: string, delta: number) => void; // delta can be negative (consumption)
+
   // Calculations
-  calcularCostoReceta: (recetaId: string) => number;
   recalcularTodasRecetas: () => void;
 }
+
+const buildIngredientes = (
+  input: RecetaInput['ingredientes'],
+  insumos: Insumo[]
+) =>
+  input.map((ing) => {
+    const insumo = insumos.find((i) => i.id === ing.insumoId);
+    const unitCost = insumo?.costoUnitario ?? 0;
+    const merma = ing.merma ?? 0;
+    const subtotal = ing.quantity * unitCost * (1 + merma / 100);
+    return {
+      id: uuidv4(),
+      insumoId: ing.insumoId,
+      insumoName: insumo?.name ?? '',
+      unidadMinima: insumo?.unidadMinima ?? '',
+      quantity: ing.quantity,
+      merma,
+      unitCost,
+      subtotal,
+    };
+  });
+
+const costoTotal = (ingredientes: Receta['ingredientes']) =>
+  ingredientes.reduce((s, i) => s + i.subtotal, 0);
 
 export const useRecipesStore = create<RecipesState>((set, get) => ({
   insumos: [],
@@ -33,60 +59,70 @@ export const useRecipesStore = create<RecipesState>((set, get) => ({
   // ── Insumos ──────────────────────────────────────────────────────────────
   addInsumo: (input) => {
     const state = get();
+    const costoUnitario =
+      input.factorConversion > 0 ? input.costoCompra / input.factorConversion : 0;
+
     const insumo: Insumo = {
       id: uuidv4(),
       code: generateCode('INS', state.insumos.length + 1),
       name: input.name,
-      unit: input.unit,
-      unitCost: input.unitCost,
+      categoriaInsumo: input.categoriaInsumo,
+      unidadMinima: input.unidadMinima,
+      unidadCompra: input.unidadCompra,
+      factorConversion: input.factorConversion,
+      costoCompra: input.costoCompra,
+      costoUnitario,
+      stock: input.stock,
+      stockMinimo: input.stockMinimo,
+      proveedorId: input.proveedorId,
       isActive: input.isActive ?? true,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
+
     set((s) => ({ insumos: [...s.insumos, insumo] }));
     return insumo;
   },
 
   updateInsumo: (id, input) => {
     set((s) => ({
-      insumos: s.insumos.map((ins) =>
-        ins.id === id ? { ...ins, ...input, updatedAt: new Date() } : ins
-      ),
+      insumos: s.insumos.map((ins) => {
+        if (ins.id !== id) return ins;
+        const updated = { ...ins, ...input, updatedAt: new Date() };
+        // Recalculate costoUnitario whenever cost or factor changes
+        if (input.costoCompra !== undefined || input.factorConversion !== undefined) {
+          const costo = input.costoCompra ?? ins.costoCompra;
+          const factor = input.factorConversion ?? ins.factorConversion;
+          updated.costoUnitario = factor > 0 ? costo / factor : 0;
+        }
+        return updated;
+      }),
     }));
-    // Recalculate all recipes that use this insumo
+    // Propagate cost change to all recipes
     get().recalcularTodasRecetas();
   },
 
   deleteInsumo: (id) => {
-    set((s) => ({ insumos: s.insumos.filter((ins) => ins.id !== id) }));
+    set((s) => ({ insumos: s.insumos.filter((i) => i.id !== id) }));
   },
 
-  getInsumo: (id) => get().insumos.find((ins) => ins.id === id),
+  getInsumo: (id) => get().insumos.find((i) => i.id === id),
 
   // ── Recetas ──────────────────────────────────────────────────────────────
   addReceta: (input, productName) => {
-    const state = get();
-
-    const ingredientes = input.ingredientes.map((ing) => {
-      const insumo = state.insumos.find((ins) => ins.id === ing.insumoId);
-      const unitCost = insumo?.unitCost ?? 0;
-      return {
-        id: uuidv4(),
-        insumoId: ing.insumoId,
-        insumoName: insumo?.name ?? '',
-        unit: insumo?.unit ?? '',
-        quantity: ing.quantity,
-        unitCost,
-        subtotal: ing.quantity * unitCost,
-      };
-    });
+    const { insumos } = get();
+    const porcionesBase = input.porcionesBase > 0 ? input.porcionesBase : 1;
+    const ingredientes = buildIngredientes(input.ingredientes, insumos);
+    const total = costoTotal(ingredientes);
 
     const receta: Receta = {
       id: uuidv4(),
       productId: input.productId,
       productName,
+      porcionesBase,
       ingredientes,
-      costoTotal: ingredientes.reduce((sum, ing) => sum + ing.subtotal, 0),
+      costoTotal: total,
+      costoPorPorcion: total / porcionesBase,
       notas: input.notas,
       isActive: input.isActive ?? true,
       createdAt: new Date(),
@@ -98,21 +134,10 @@ export const useRecipesStore = create<RecipesState>((set, get) => ({
   },
 
   updateReceta: (id, input, productName) => {
-    const state = get();
-
-    const ingredientes = input.ingredientes.map((ing) => {
-      const insumo = state.insumos.find((ins) => ins.id === ing.insumoId);
-      const unitCost = insumo?.unitCost ?? 0;
-      return {
-        id: uuidv4(),
-        insumoId: ing.insumoId,
-        insumoName: insumo?.name ?? '',
-        unit: insumo?.unit ?? '',
-        quantity: ing.quantity,
-        unitCost,
-        subtotal: ing.quantity * unitCost,
-      };
-    });
+    const { insumos } = get();
+    const porcionesBase = input.porcionesBase > 0 ? input.porcionesBase : 1;
+    const ingredientes = buildIngredientes(input.ingredientes, insumos);
+    const total = costoTotal(ingredientes);
 
     set((s) => ({
       recetas: s.recetas.map((r) =>
@@ -121,8 +146,10 @@ export const useRecipesStore = create<RecipesState>((set, get) => ({
               ...r,
               productId: input.productId,
               productName,
+              porcionesBase,
               ingredientes,
-              costoTotal: ingredientes.reduce((sum, ing) => sum + ing.subtotal, 0),
+              costoTotal: total,
+              costoPorPorcion: total / porcionesBase,
               notas: input.notas,
               isActive: input.isActive ?? r.isActive,
               updatedAt: new Date(),
@@ -139,31 +166,34 @@ export const useRecipesStore = create<RecipesState>((set, get) => ({
   getRecetaByProductId: (productId) =>
     get().recetas.find((r) => r.productId === productId && r.isActive),
 
-  // ── Calculations ─────────────────────────────────────────────────────────
-  calcularCostoReceta: (recetaId) => {
-    const state = get();
-    const receta = state.recetas.find((r) => r.id === recetaId);
-    if (!receta) return 0;
-
-    return receta.ingredientes.reduce((sum, ing) => {
-      const insumo = state.insumos.find((ins) => ins.id === ing.insumoId);
-      return sum + ing.quantity * (insumo?.unitCost ?? ing.unitCost);
-    }, 0);
+  // ── Stock management ─────────────────────────────────────────────────────
+  updateInsumoStock: (id, delta) => {
+    set((s) => ({
+      insumos: s.insumos.map((ins) =>
+        ins.id === id
+          ? { ...ins, stock: Math.max(0, ins.stock + delta), updatedAt: new Date() }
+          : ins
+      ),
+    }));
   },
 
+  // ── Recalculate all recipes when insumo costs change ─────────────────────
   recalcularTodasRecetas: () => {
-    const state = get();
+    const { insumos, recetas } = get();
     set({
-      recetas: state.recetas.map((receta) => {
+      recetas: recetas.map((receta) => {
         const ingredientes = receta.ingredientes.map((ing) => {
-          const insumo = state.insumos.find((ins) => ins.id === ing.insumoId);
-          const unitCost = insumo?.unitCost ?? ing.unitCost;
-          return { ...ing, unitCost, subtotal: ing.quantity * unitCost };
+          const insumo = insumos.find((i) => i.id === ing.insumoId);
+          const unitCost = insumo?.costoUnitario ?? ing.unitCost;
+          const subtotal = ing.quantity * unitCost * (1 + ing.merma / 100);
+          return { ...ing, unitCost, subtotal };
         });
+        const total = costoTotal(ingredientes);
         return {
           ...receta,
           ingredientes,
-          costoTotal: ingredientes.reduce((sum, ing) => sum + ing.subtotal, 0),
+          costoTotal: total,
+          costoPorPorcion: total / receta.porcionesBase,
           updatedAt: new Date(),
         };
       }),

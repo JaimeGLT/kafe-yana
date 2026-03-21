@@ -1,0 +1,278 @@
+import React, { useMemo, useState } from 'react';
+import { clsx } from 'clsx';
+import { Layers, Plus, ChevronDown, ChevronRight, FlaskConical, Coffee, Package } from 'lucide-react';
+import { MainLayout } from '../../components/layout';
+import { PageContainer, PageHeader } from '../../components/layout';
+import { Button, Input, Badge } from '../../components/ui';
+import { VariacionModal } from '../../components/modals/VariacionModal';
+import { useInventoryStore } from '../../stores';
+import { useVariacionesStore } from '../../stores/variacionesStore';
+import { formatCurrency } from '../../utils';
+import type { Product } from '../../types';
+
+// KPI card
+interface KpiCardProps {
+  label: string;
+  value: number | string;
+  icon: React.ReactNode;
+  color: string;
+}
+
+const KpiCard: React.FC<KpiCardProps> = ({ label, value, icon, color }) => (
+  <div className={clsx('bg-white rounded-xl border border-coffee-100 shadow-sm p-5 flex items-center gap-4')}>
+    <div className={clsx('h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0', color)}>
+      {icon}
+    </div>
+    <div>
+      <p className="text-2xl font-display font-bold text-coffee-900">{value}</p>
+      <p className="text-sm text-coffee-500">{label}</p>
+    </div>
+  </div>
+);
+
+// Product tipo badge
+const TipoBadge: React.FC<{ tipo: Product['tipo'] }> = ({ tipo }) => {
+  const map: Record<Product['tipo'], { label: string; className: string }> = {
+    elaborado: { label: 'Elaborado', className: 'bg-amber-100 text-amber-700' },
+    comprado: { label: 'Comprado', className: 'bg-blue-100 text-blue-700' },
+    combo: { label: 'Combo', className: 'bg-purple-100 text-purple-700' },
+  };
+  const info = map[tipo] ?? { label: tipo, className: 'bg-coffee-100 text-coffee-600' };
+  return (
+    <span className={clsx('text-xs font-medium rounded-full px-2 py-0.5', info.className)}>
+      {info.label}
+    </span>
+  );
+};
+
+// Per-product row
+interface ProductRowProps {
+  product: Product;
+}
+
+const ProductRow: React.FC<ProductRowProps> = ({ product }) => {
+  const { getAtributosByProductId } = useVariacionesStore();
+  const [expanded, setExpanded] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const atributos = getAtributosByProductId(product.id);
+  const totalOpciones = atributos.reduce((s, a) => s + a.opciones.filter((o) => o.isActive).length, 0);
+
+  return (
+    <>
+      <div className="border border-coffee-100 rounded-xl overflow-hidden">
+        {/* Header row */}
+        <div
+          className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-coffee-50 transition-colors"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          <button className="text-coffee-400 flex-shrink-0">
+            {expanded
+              ? <ChevronDown className="h-4 w-4" />
+              : <ChevronRight className="h-4 w-4" />
+            }
+          </button>
+
+          <div className={clsx(
+            'h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0',
+            product.tipo === 'elaborado' ? 'bg-amber-100' : 'bg-coffee-100'
+          )}>
+            {product.tipo === 'elaborado'
+              ? <FlaskConical className="h-4 w-4 text-amber-500" />
+              : <Coffee className="h-4 w-4 text-coffee-500" />
+            }
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-coffee-900 text-sm">{product.name}</span>
+              <TipoBadge tipo={product.tipo} />
+            </div>
+            <div className="flex items-center gap-3 mt-0.5">
+              <span className="text-xs text-coffee-500">{formatCurrency(product.salePrice)}</span>
+              <span className="text-xs text-coffee-400">
+                {atributos.length} atributo(s) · {totalOpciones} opción(es)
+              </span>
+            </div>
+          </div>
+
+          <Button
+            size="sm"
+            className="bg-amber-600 hover:bg-amber-700 text-white flex-shrink-0"
+            leftIcon={<Layers className="h-3.5 w-3.5" />}
+            onClick={(e) => { e.stopPropagation(); setModalOpen(true); }}
+          >
+            Gestionar
+          </Button>
+        </div>
+
+        {/* Expanded: atributo list */}
+        {expanded && atributos.length > 0 && (
+          <div className="border-t border-coffee-100 px-4 py-3 bg-coffee-50 space-y-2">
+            {atributos.map((atributo) => (
+              <div key={atributo.id}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-semibold text-coffee-700">{atributo.nombre}</span>
+                  {atributo.esRequerido && (
+                    <span className="text-xs bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5">
+                      Requerido
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {atributo.opciones.filter((o) => o.isActive).map((opcion) => (
+                    <span
+                      key={opcion.id}
+                      className="text-xs bg-white border border-coffee-200 rounded-full px-2.5 py-1 text-coffee-700"
+                    >
+                      {opcion.nombre}
+                      {opcion.precioAjuste !== 0 && (
+                        <span className={clsx(
+                          'ml-1 font-medium',
+                          opcion.precioAjuste > 0 ? 'text-green-600' : 'text-red-500'
+                        )}>
+                          {opcion.precioAjuste > 0 ? '+' : ''}{opcion.precioAjuste}
+                        </span>
+                      )}
+                    </span>
+                  ))}
+                  {atributo.opciones.filter((o) => o.isActive).length === 0 && (
+                    <span className="text-xs text-coffee-400 italic">Sin opciones</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {expanded && atributos.length === 0 && (
+          <div className="border-t border-coffee-100 px-4 py-3 bg-coffee-50 text-center">
+            <p className="text-xs text-coffee-400">Sin atributos. Haz clic en "Gestionar" para añadir variaciones.</p>
+          </div>
+        )}
+      </div>
+
+      <VariacionModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        productId={product.id}
+        productName={product.name}
+      />
+    </>
+  );
+};
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+const VariacionesPage: React.FC = () => {
+  const { products } = useInventoryStore();
+  const { atributos } = useVariacionesStore();
+
+  const [search, setSearch] = useState('');
+
+  const activeProducts = useMemo(
+    () => products.filter((p) => p.isActive),
+    [products]
+  );
+
+  const filteredProducts = useMemo(() => {
+    if (!search.trim()) return activeProducts;
+    const q = search.toLowerCase();
+    return activeProducts.filter(
+      (p) => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)
+    );
+  }, [activeProducts, search]);
+
+  // KPIs
+  const productsWithVariations = useMemo(() => {
+    const ids = new Set(atributos.filter((a) => a.isActive).map((a) => a.productId));
+    return ids.size;
+  }, [atributos]);
+
+  const totalAtributos = useMemo(
+    () => atributos.filter((a) => a.isActive).length,
+    [atributos]
+  );
+
+  const totalOpciones = useMemo(
+    () =>
+      atributos
+        .filter((a) => a.isActive)
+        .reduce((s, a) => s + a.opciones.filter((o) => o.isActive).length, 0),
+    [atributos]
+  );
+
+  return (
+    <MainLayout>
+      <PageContainer>
+        <PageHeader
+          title="Variaciones de Productos"
+          subtitle="Gestiona atributos como tamaño, temperatura y tipo de leche para personalizar productos en el POS."
+          breadcrumbs={[
+            { label: 'Inventario' },
+            { label: 'Variaciones' },
+          ]}
+        />
+
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <KpiCard
+            label="Productos con variaciones"
+            value={productsWithVariations}
+            icon={<Package className="h-6 w-6 text-amber-600" />}
+            color="bg-amber-50"
+          />
+          <KpiCard
+            label="Total atributos"
+            value={totalAtributos}
+            icon={<Layers className="h-6 w-6 text-coffee-600" />}
+            color="bg-coffee-100"
+          />
+          <KpiCard
+            label="Total opciones"
+            value={totalOpciones}
+            icon={<Coffee className="h-6 w-6 text-coffee-500" />}
+            color="bg-coffee-100"
+          />
+        </div>
+
+        {/* Product list */}
+        <div className="bg-white rounded-xl border border-coffee-100 shadow-sm">
+          <div className="px-6 py-4 border-b border-coffee-100 flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-display font-semibold text-coffee-900">
+                Todos los productos
+              </h2>
+              <p className="text-sm text-coffee-500 mt-0.5">
+                Haz clic en "Gestionar" para añadir o editar variaciones de cualquier producto.
+              </p>
+            </div>
+          </div>
+
+          <div className="px-6 py-4 border-b border-coffee-50">
+            <Input
+              placeholder="Buscar por nombre o código..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <div className="p-4 space-y-3">
+            {filteredProducts.length === 0 ? (
+              <div className="text-center py-10 text-coffee-400">
+                <Coffee className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">No se encontraron productos.</p>
+              </div>
+            ) : (
+              filteredProducts.map((product) => (
+                <ProductRow key={product.id} product={product} />
+              ))
+            )}
+          </div>
+        </div>
+      </PageContainer>
+    </MainLayout>
+  );
+};
+
+export default VariacionesPage;

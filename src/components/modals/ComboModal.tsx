@@ -1,0 +1,335 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, Trash2, Tag } from 'lucide-react';
+import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
+import { HelpTooltip } from '../ui/Tooltip';
+import { toast } from '../ui/Toast';
+import { useInventoryStore, useRecipesStore } from '../../stores';
+import type { Combo } from '../../types';
+import { formatCurrency } from '../../utils';
+
+interface ComboLine {
+  productId: string;
+  quantity: number;
+  esOpcional: boolean;
+}
+
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  combo?: Combo;
+}
+
+const getMarginInfo = (pct: number) => {
+  if (pct >= 60) return { label: '🟢 Rentable', color: 'text-emerald-700 bg-emerald-50' };
+  if (pct >= 30) return { label: '🟡 Aceptable', color: 'text-amber-700 bg-amber-50' };
+  return { label: '🔴 Revisar precio', color: 'text-red-700 bg-red-50' };
+};
+
+export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo }) => {
+  const { products, addCombo, updateCombo } = useInventoryStore();
+  const { getRecetaByProductId } = useRecipesStore();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [price, setPrice] = useState<number | ''>('');
+  const [items, setItems] = useState<ComboLine[]>([{ productId: '', quantity: 1, esOpcional: false }]);
+  const [errors, setErrors] = useState<string[]>([]);
+
+  // Products that can be in a combo (not servicio, not another combo)
+  const productOptions = useMemo(
+    () =>
+      [{ value: '', label: 'Seleccionar producto…' }].concat(
+        products
+          .filter((p) => p.isActive && p.tipo !== 'combo')
+          .map((p) => ({
+            value: p.id,
+            label: `${p.name}${p.tipo === 'elaborado' ? ' (elaborado)' : ''}`,
+          }))
+      ),
+    [products]
+  );
+
+  useEffect(() => {
+    if (combo) {
+      setName(combo.name);
+      setDescription(combo.description ?? '');
+      setPrice(combo.price);
+      setItems(
+        combo.items.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          esOpcional: i.esOpcional,
+        }))
+      );
+    } else {
+      setName('');
+      setDescription('');
+      setPrice('');
+      setItems([{ productId: '', quantity: 1, esOpcional: false }]);
+    }
+    setErrors([]);
+  }, [combo, isOpen]);
+
+  // Live cost calculation
+  const costoTotal = useMemo(() => {
+    return items.reduce((sum, line) => {
+      const prod = products.find((p) => p.id === line.productId);
+      if (!prod || line.quantity <= 0) return sum;
+      // For elaborados: use recipe costoPorPorcion if available
+      const receta = prod.tipo === 'elaborado' ? getRecetaByProductId(prod.id) : null;
+      const unitCost = receta ? receta.costoPorPorcion : prod.costPrice;
+      return sum + unitCost * line.quantity;
+    }, 0);
+  }, [items, products, getRecetaByProductId]);
+
+  const sumaIndividual = useMemo(() => {
+    return items.reduce((sum, line) => {
+      const prod = products.find((p) => p.id === line.productId);
+      if (!prod) return sum;
+      return sum + prod.salePrice * line.quantity;
+    }, 0);
+  }, [items, products]);
+
+  const comboPrice = price !== '' ? Number(price) : 0;
+  const margenAbs = comboPrice - costoTotal;
+  const margenPct = comboPrice > 0 ? (margenAbs / comboPrice) * 100 : null;
+  const semaforo = margenPct !== null ? getMarginInfo(margenPct) : null;
+  const ahorro = sumaIndividual > 0 ? sumaIndividual - comboPrice : 0;
+
+  const addLine = () => setItems((prev) => [...prev, { productId: '', quantity: 1, esOpcional: false }]);
+  const removeLine = (idx: number) => setItems((prev) => prev.filter((_, i) => i !== idx));
+  const updateLine = <K extends keyof ComboLine>(idx: number, field: K, value: ComboLine[K]) =>
+    setItems((prev) => prev.map((l, i) => (i === idx ? { ...l, [field]: value } : l)));
+
+  const validate = (): boolean => {
+    const errs: string[] = [];
+    if (!name.trim()) errs.push('El nombre del combo es obligatorio.');
+    if (!price || Number(price) <= 0) errs.push('El precio del combo debe ser mayor a 0.');
+    if (items.length === 0) errs.push('Agrega al menos un producto al combo.');
+    items.forEach((line, i) => {
+      if (!line.productId) errs.push(`Fila ${i + 1}: selecciona un producto.`);
+      if (line.quantity <= 0) errs.push(`Fila ${i + 1}: la cantidad debe ser > 0.`);
+    });
+    const ids = items.map((l) => l.productId).filter(Boolean);
+    if (new Set(ids).size !== ids.length) errs.push('No puedes repetir el mismo producto en el combo.');
+    setErrors(errs);
+    return errs.length === 0;
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+    setIsLoading(true);
+    try {
+      const input = { name: name.trim(), description: description.trim() || undefined, items, price: Number(price) };
+      if (combo) {
+        updateCombo(combo.id, input);
+        toast.success('Combo actualizado', `"${name}" fue actualizado.`);
+      } else {
+        addCombo(input);
+        toast.success('Combo creado', `"${name}" — precio: ${formatCurrency(Number(price))}`);
+      }
+      onClose();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={combo ? 'Editar Combo' : 'Nuevo Combo'} size="lg">
+      <form onSubmit={handleSubmit} className="space-y-5">
+
+        {/* Name + description */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
+              Nombre del combo
+              <span className="text-red-500 ml-1">*</span>
+              <HelpTooltip text="Nombre visible en el punto de venta y reportes. Ej: Desayuno completo, Menú del día." />
+            </label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ej: Menú del día, Desayuno especial…"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
+              Precio especial (Bs.)
+              <span className="text-red-500 ml-1">*</span>
+              <HelpTooltip text="Lo que le cobras al cliente por el combo completo. Normalmente menor que la suma de los productos individuales." />
+            </label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={price}
+              onChange={(e) => setPrice(parseFloat(e.target.value) || '')}
+              placeholder="0.00"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
+            Descripción
+            <HelpTooltip text="Descripción opcional del combo para referencia interna o menú." />
+          </label>
+          <Input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Descripción del combo…"
+          />
+        </div>
+
+        {/* Items table */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="flex items-center text-sm font-medium text-coffee-700">
+              Productos del combo
+              <span className="text-red-500 ml-1">*</span>
+              <HelpTooltip text="Cada producto incluido en el combo. El sistema descontará el stock de cada componente al vender. Los ítems opcionales permiten al cliente elegir (ej: jugo o agua)." />
+            </label>
+            <Button type="button" variant="ghost" size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={addLine}>
+              Agregar
+            </Button>
+          </div>
+
+          {/* Header */}
+          <div className="grid grid-cols-[1fr_70px_80px_20px] gap-2 text-xs text-coffee-400 font-medium mb-1 px-1">
+            <span>Producto</span>
+            <span className="text-center">Cantidad</span>
+            <span className="text-center flex items-center justify-center gap-0.5">
+              Opcional
+              <HelpTooltip text="Si está marcado, el cliente puede omitir este ítem. El sistema no bloqueará la venta si falta su stock." />
+            </span>
+            <span />
+          </div>
+
+          <div className="space-y-2">
+            {items.map((line, idx) => {
+              const prod = products.find((p) => p.id === line.productId);
+              const receta = prod?.tipo === 'elaborado' ? getRecetaByProductId(prod.id) : null;
+              const unitCost = receta ? receta.costoPorPorcion : (prod?.costPrice ?? 0);
+              const subtotal = prod && line.quantity > 0 ? unitCost * line.quantity : 0;
+
+              return (
+                <div key={idx} className="grid grid-cols-[1fr_70px_80px_20px] gap-2 items-center">
+                  <div>
+                    <Select
+                      value={line.productId}
+                      onChange={(v) => updateLine(idx, 'productId', v)}
+                      options={productOptions}
+                    />
+                    {prod && (
+                      <p className="text-xs text-coffee-400 mt-0.5 pl-1">
+                        Costo: {formatCurrency(unitCost)} · Precio: {formatCurrency(prod.salePrice)}
+                        {prod.tipo === 'elaborado' && (receta ? ' (receta)' : ' ⚠ sin receta')}
+                      </p>
+                    )}
+                  </div>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={line.quantity}
+                    onChange={(e) => updateLine(idx, 'quantity', parseInt(e.target.value) || 1)}
+                    className="text-center"
+                  />
+                  <div className="flex items-center justify-center">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={line.esOpcional}
+                        onChange={(e) => updateLine(idx, 'esOpcional', e.target.checked)}
+                        className="rounded border-coffee-300 text-amber-600 focus:ring-amber-400"
+                      />
+                      <span className="text-xs text-coffee-500">
+                        {subtotal > 0 ? formatCurrency(subtotal) : '—'}
+                      </span>
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeLine(idx)}
+                    className="text-red-400 hover:text-red-600 transition-colors"
+                    disabled={items.length === 1}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Live summary */}
+        {costoTotal > 0 && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 space-y-1.5">
+            <div className="flex justify-between text-sm">
+              <span className="text-coffee-600">Costo total combo</span>
+              <span className="font-semibold text-coffee-900">{formatCurrency(costoTotal)}</span>
+            </div>
+            {sumaIndividual > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-coffee-500">Suma de precios individuales</span>
+                <span className="text-coffee-600">{formatCurrency(sumaIndividual)}</span>
+              </div>
+            )}
+            {comboPrice > 0 && (
+              <>
+                <div className="flex justify-between text-sm border-t border-amber-200 pt-1.5">
+                  <span className="text-coffee-600">Precio especial combo</span>
+                  <span className="text-coffee-700 font-medium">{formatCurrency(comboPrice)}</span>
+                </div>
+                {ahorro > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-coffee-500 flex items-center gap-1">
+                      <Tag className="h-3.5 w-3.5" />
+                      Ahorro para el cliente
+                    </span>
+                    <span className="text-emerald-700 font-medium">{formatCurrency(ahorro)} ({((ahorro / sumaIndividual) * 100).toFixed(0)}%)</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm items-center">
+                  <span className="font-medium text-coffee-800">
+                    Margen ({margenPct?.toFixed(1)}%)
+                  </span>
+                  <span className={`font-bold ${margenAbs >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                    {formatCurrency(margenAbs)}
+                  </span>
+                </div>
+                {semaforo && (
+                  <div className={`text-xs font-semibold rounded px-2 py-1 text-center ${semaforo.color}`}>
+                    {semaforo.label}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Errors */}
+        {errors.length > 0 && (
+          <ul className="text-red-500 text-xs space-y-0.5">
+            {errors.map((err, i) => <li key={i}>• {err}</li>)}
+          </ul>
+        )}
+
+        <div className="flex justify-end gap-3 pt-1">
+          <Button variant="ghost" type="button" onClick={onClose} disabled={isLoading}>
+            Cancelar
+          </Button>
+          <Button variant="primary" type="submit" isLoading={isLoading}>
+            {combo ? 'Guardar cambios' : 'Crear combo'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+};

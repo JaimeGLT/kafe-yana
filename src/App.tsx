@@ -23,6 +23,9 @@ import CashReportPage from './pages/reports/CashReportPage';
 import SettingsPage from './pages/settings/SettingsPage';
 import InsumosPage from './pages/recipes/InsumosPage';
 import RecetasPage from './pages/recipes/RecetasPage';
+import ElaboradosPage from './pages/inventory/ElaboradosPage';
+import CombosPage from './pages/inventory/CombosPage';
+import VariacionesPage from './pages/inventory/VariacionesPage';
 
 // Stores
 import { useInventoryStore, useSalesStore, usePurchasesStore, useCashStore } from './stores';
@@ -52,10 +55,12 @@ function App() {
 
         {/* Inventory */}
         <Route path="/inventory/products" element={<ProductsPage />} />
-        <Route path="/inventory/services" element={<ProductsPage servicesOnly />} />
         <Route path="/inventory/categories" element={<CategoriesPage />} />
         <Route path="/inventory/adjustments" element={<AdjustmentsPage />} />
         <Route path="/inventory/kardex" element={<KardexPage />} />
+        <Route path="/inventory/elaborados" element={<ElaboradosPage />} />
+        <Route path="/inventory/combos" element={<CombosPage />} />
+        <Route path="/inventory/variations" element={<VariacionesPage />} />
 
         {/* Sales */}
         <Route path="/sales/pos" element={<POSPage />} />

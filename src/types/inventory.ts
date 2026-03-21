@@ -79,12 +79,16 @@ export interface ProductVariationInput {
   isActive?: boolean;
 }
 
+// Product type enum
+export type ProductTipo = 'comprado' | 'elaborado' | 'combo';
+
 // Product
 export interface Product extends BaseEntity {
   id: UUID;
   code: string;
   name: string;
   description?: string;
+  tipo: ProductTipo;
   categoryId: UUID;
   categoryName?: string;
   brandId?: UUID;
@@ -102,7 +106,6 @@ export interface Product extends BaseEntity {
   barcode?: string;
   image?: string;
   isActive: boolean;
-  isService: boolean;
   hasVariations: boolean;
 }
 
@@ -110,6 +113,7 @@ export interface ProductInput {
   code?: string;
   name: string;
   description?: string;
+  tipo: ProductTipo;
   categoryId: UUID;
   brandId?: UUID;
   unit: string;
@@ -123,47 +127,52 @@ export interface ProductInput {
   barcode?: string;
   image?: string;
   isActive?: boolean;
-  isService?: boolean;
   variations?: ProductVariationInput[];
 }
 
 // Combo
-export interface ComboProduct {
+export interface ComboItem {
   id: UUID;
   productId: UUID;
   productName: string;
+  productTipo: ProductTipo;
   quantity: number;
-  unitPrice: number;
+  /** Unit cost of this component (costPrice or costoPorPorcion for elaborados) */
+  unitCost: number;
+  /** Whether the client can skip this item (optional choice) */
+  esOpcional: boolean;
 }
 
 export interface Combo extends BaseEntity {
   id: UUID;
   name: string;
   description?: string;
-  products: ComboProduct[];
+  items: ComboItem[];
+  /** Special combo price shown to the customer */
   price: number;
-  discount?: number;
+  /** Auto-calculated: sum of each item's unitCost × quantity */
+  costoTotal: number;
   image?: string;
   isActive: boolean;
-  validFrom?: Date;
-  validTo?: Date;
+}
+
+export interface ComboItemInput {
+  productId: UUID;
+  quantity: number;
+  esOpcional?: boolean;
 }
 
 export interface ComboInput {
   name: string;
   description?: string;
-  products: {
-    productId: UUID;
-    quantity: number;
-    unitPrice: number;
-  }[];
+  items: ComboItemInput[];
   price: number;
-  discount?: number;
   image?: string;
   isActive?: boolean;
-  validFrom?: Date;
-  validTo?: Date;
 }
+
+// Keep for backwards compat (old code may reference ComboProduct)
+export type ComboProduct = ComboItem;
 
 // Stock Adjustment
 export interface StockAdjustmentItem {

@@ -1,14 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Plus,
-  Edit2,
-  Trash2,
-  ChevronDown,
-  ChevronUp,
-  BookOpen,
-  TrendingUp,
-  TrendingDown,
-  Search,
+  Plus, Edit2, Trash2, ChevronDown, ChevronUp,
+  BookOpen, TrendingUp, TrendingDown, Search,
 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageContainer, PageHeader } from '../../components/layout';
@@ -19,6 +12,16 @@ import { useRecipesStore, useInventoryStore } from '../../stores';
 import type { Receta } from '../../types';
 import { formatCurrency } from '../../utils';
 
+// Semaphore: verde ≥60%, amarillo 30-60%, rojo <30%
+const semaforo = (pct: number) => {
+  if (pct >= 60) return { bg: 'bg-emerald-100 text-emerald-700', label: '🟢' };
+  if (pct >= 30) return { bg: 'bg-amber-100 text-amber-700', label: '🟡' };
+  return { bg: 'bg-red-100 text-red-600', label: '🔴' };
+};
+
+const marginColor = (pct: number) =>
+  pct >= 60 ? 'text-emerald-700' : pct >= 30 ? 'text-amber-600' : 'text-red-600';
+
 const RecetasPage: React.FC = () => {
   const { recetas, deleteReceta, insumos } = useRecipesStore();
   const { products } = useInventoryStore();
@@ -27,14 +30,13 @@ const RecetasPage: React.FC = () => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<Receta | undefined>(undefined);
-  const [preselectedProductId, setPreselectedProductId] = useState<string | undefined>(undefined);
+  const [preselectedProductId, setPreselectedProductId] = useState<string | undefined>();
   const [deleting, setDeleting] = useState<Receta | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Products that don't have a recipe yet
   const productsWithoutReceta = useMemo(() => {
     const withReceta = new Set(recetas.map((r) => r.productId));
-    return products.filter((p) => p.isActive && !p.isService && !withReceta.has(p.id));
+    return products.filter((p) => p.isActive && p.tipo === 'elaborado' && !withReceta.has(p.id));
   }, [products, recetas]);
 
   const filtered = useMemo(() => {
@@ -59,22 +61,23 @@ const RecetasPage: React.FC = () => {
     setIsDeleting(true);
     deleteReceta(deleting.id);
     toast.success('Receta eliminada', `La receta de "${deleting.productName}" fue eliminada.`);
+    if (expandedId === deleting.id) setExpandedId(null);
     setDeleting(null);
     setIsDeleting(false);
-    if (expandedId === deleting.id) setExpandedId(null);
   };
 
-  const getMarginColor = (pct: number) => {
-    if (pct >= 50) return 'text-emerald-700';
-    if (pct >= 30) return 'text-amber-600';
-    return 'text-red-600';
-  };
-
-  const getMarginBg = (pct: number) => {
-    if (pct >= 50) return 'bg-emerald-100 text-emerald-700';
-    if (pct >= 30) return 'bg-amber-100 text-amber-700';
-    return 'bg-red-100 text-red-600';
-  };
+  // KPIs
+  const avgMargin = useMemo(() => {
+    const list = recetas
+      .map((r) => {
+        const p = products.find((pr) => pr.id === r.productId);
+        return p && p.salePrice > 0
+          ? ((p.salePrice - r.costoPorPorcion) / p.salePrice) * 100
+          : null;
+      })
+      .filter((v): v is number => v !== null);
+    return list.length > 0 ? list.reduce((s, v) => s + v, 0) / list.length : null;
+  }, [recetas, products]);
 
   return (
     <MainLayout>
@@ -89,53 +92,28 @@ const RecetasPage: React.FC = () => {
           }
         />
 
-        {/* Summary KPIs */}
+        {/* KPIs */}
         {recetas.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              {
-                label: 'Recetas creadas',
-                value: recetas.length,
-                suffix: '',
-                color: 'text-coffee-900',
-                bg: 'bg-white',
-              },
-              {
-                label: 'Sin receta',
-                value: productsWithoutReceta.length,
-                suffix: ' productos',
-                color: 'text-amber-700',
-                bg: 'bg-amber-50',
-              },
+              { label: 'Recetas', value: `${recetas.length}`, color: 'text-coffee-900', bg: 'bg-white' },
+              { label: 'Sin receta', value: `${productsWithoutReceta.length} elaborados`, color: 'text-amber-700', bg: 'bg-amber-50' },
               {
                 label: 'Costo promedio',
-                value: formatCurrency(
-                  recetas.reduce((s, r) => s + r.costoTotal, 0) / recetas.length
-                ),
-                suffix: '',
+                value: formatCurrency(recetas.reduce((s, r) => s + r.costoPorPorcion, 0) / recetas.length),
                 color: 'text-coffee-900',
                 bg: 'bg-white',
               },
               {
                 label: 'Margen promedio',
-                value: (() => {
-                  const avg = recetas.reduce((s, r) => {
-                    const p = products.find((pr) => pr.id === r.productId);
-                    if (!p || p.salePrice === 0) return s;
-                    return s + ((p.salePrice - r.costoTotal) / p.salePrice) * 100;
-                  }, 0) / recetas.length;
-                  return isNaN(avg) ? '—' : `${avg.toFixed(1)}%`;
-                })(),
-                suffix: '',
-                color: 'text-emerald-700',
-                bg: 'bg-emerald-50',
+                value: avgMargin !== null ? `${avgMargin.toFixed(1)}%` : '—',
+                color: avgMargin !== null ? marginColor(avgMargin) : 'text-coffee-500',
+                bg: 'bg-white',
               },
-            ].map(({ label, value, suffix, color, bg }) => (
+            ].map(({ label, value, color, bg }) => (
               <div key={label} className={`${bg} rounded-xl border border-coffee-100 shadow-sm px-4 py-3`}>
                 <p className="text-xs text-coffee-500 mb-1">{label}</p>
-                <p className={`text-lg font-display font-bold ${color}`}>
-                  {value}{suffix}
-                </p>
+                <p className={`text-lg font-display font-bold ${color}`}>{value}</p>
               </div>
             ))}
           </div>
@@ -146,13 +124,13 @@ const RecetasPage: React.FC = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-coffee-400" />
           <Input
             className="pl-9"
-            placeholder="Buscar receta por producto…"
+            placeholder="Buscar por producto…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
 
-        {/* Recipes list */}
+        {/* Empty state */}
         {filtered.length === 0 && recetas.length === 0 ? (
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm flex flex-col items-center justify-center py-16 text-coffee-400">
             <BookOpen className="h-10 w-10 mb-3 opacity-40" />
@@ -167,15 +145,13 @@ const RecetasPage: React.FC = () => {
             {filtered.map((receta) => {
               const product = products.find((p) => p.id === receta.productId);
               const salePrice = product?.salePrice ?? 0;
-              const margen = salePrice - receta.costoTotal;
+              const margen = salePrice - receta.costoPorPorcion;
               const margenPct = salePrice > 0 ? (margen / salePrice) * 100 : 0;
+              const sem = semaforo(margenPct);
               const isExpanded = expandedId === receta.id;
 
               return (
-                <div
-                  key={receta.id}
-                  className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden"
-                >
+                <div key={receta.id} className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
                   {/* Header row */}
                   <div
                     className="flex items-center gap-3 px-5 py-4 cursor-pointer hover:bg-coffee-50/50 transition-colors"
@@ -185,17 +161,16 @@ const RecetasPage: React.FC = () => {
                       <p className="font-medium text-coffee-900 truncate">{receta.productName}</p>
                       <p className="text-xs text-coffee-400 mt-0.5">
                         {receta.ingredientes.length} ingrediente{receta.ingredientes.length !== 1 ? 's' : ''}
+                        {receta.porcionesBase > 1 ? ` · ${receta.porcionesBase} porciones` : ''}
                         {receta.notas ? ` · ${receta.notas}` : ''}
                       </p>
                     </div>
 
-                    {/* Costo */}
-                    <div className="text-right hidden sm:block min-w-[90px]">
-                      <p className="text-xs text-coffee-400">Costo</p>
-                      <p className="font-semibold text-coffee-900">{formatCurrency(receta.costoTotal)}</p>
+                    <div className="text-right hidden sm:block min-w-[100px]">
+                      <p className="text-xs text-coffee-400">Costo/porción</p>
+                      <p className="font-semibold text-coffee-900">{formatCurrency(receta.costoPorPorcion)}</p>
                     </div>
 
-                    {/* Venta */}
                     {salePrice > 0 && (
                       <div className="text-right hidden sm:block min-w-[80px]">
                         <p className="text-xs text-coffee-400">Venta</p>
@@ -203,33 +178,28 @@ const RecetasPage: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Margen badge */}
                     {salePrice > 0 && (
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${getMarginBg(margenPct)}`}>
-                        {margenPct.toFixed(1)}%
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${sem.bg} flex items-center gap-1`}>
+                        {sem.label} {margenPct.toFixed(1)}%
                         {margenPct >= 50
-                          ? <TrendingUp className="inline h-3 w-3 ml-1" />
-                          : <TrendingDown className="inline h-3 w-3 ml-1" />
+                          ? <TrendingUp className="h-3 w-3" />
+                          : <TrendingDown className="h-3 w-3" />
                         }
                       </span>
                     )}
 
-                    {/* Actions */}
-                    <div
-                      className="flex items-center gap-1 ml-2"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <div className="flex items-center gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => openEdit(receta)}
                         className="p-1.5 text-coffee-400 hover:text-coffee-700 hover:bg-coffee-100 rounded transition-colors"
-                        title="Editar receta"
+                        title="Editar"
                       >
                         <Edit2 className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => setDeleting(receta)}
                         className="p-1.5 text-coffee-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                        title="Eliminar receta"
+                        title="Eliminar"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -249,6 +219,7 @@ const RecetasPage: React.FC = () => {
                           <tr className="text-left text-xs text-coffee-400 border-b border-coffee-100">
                             <th className="pb-2 font-medium">Insumo</th>
                             <th className="pb-2 font-medium text-right">Cantidad</th>
+                            <th className="pb-2 font-medium text-right">Merma</th>
                             <th className="pb-2 font-medium text-right">Costo/un.</th>
                             <th className="pb-2 font-medium text-right">Subtotal</th>
                           </tr>
@@ -256,38 +227,47 @@ const RecetasPage: React.FC = () => {
                         <tbody className="divide-y divide-coffee-50">
                           {receta.ingredientes.map((ing) => {
                             const insumo = insumos.find((i) => i.id === ing.insumoId);
-                            const currentUnitCost = insumo?.unitCost ?? ing.unitCost;
-                            const currentSubtotal = ing.quantity * currentUnitCost;
+                            const unitCost = insumo?.costoUnitario ?? ing.unitCost;
+                            const subtotal = ing.quantity * unitCost * (1 + ing.merma / 100);
                             return (
                               <tr key={ing.id} className="text-coffee-700">
                                 <td className="py-2">{ing.insumoName}</td>
                                 <td className="py-2 text-right text-coffee-500">
-                                  {ing.quantity} {ing.unit}
+                                  {ing.quantity} {ing.unidadMinima}
                                 </td>
                                 <td className="py-2 text-right text-coffee-500">
-                                  {formatCurrency(currentUnitCost)}/{ing.unit}
+                                  {ing.merma > 0 ? `${ing.merma}%` : '—'}
+                                </td>
+                                <td className="py-2 text-right text-coffee-500">
+                                  {formatCurrency(unitCost)}/{ing.unidadMinima}
                                 </td>
                                 <td className="py-2 text-right font-medium">
-                                  {formatCurrency(currentSubtotal)}
+                                  {formatCurrency(subtotal)}
                                 </td>
                               </tr>
                             );
                           })}
                         </tbody>
                         <tfoot>
+                          {receta.porcionesBase > 1 && (
+                            <tr className="text-coffee-500 text-xs">
+                              <td colSpan={4} className="pt-2">Costo total ({receta.porcionesBase} porciones)</td>
+                              <td className="pt-2 text-right">{formatCurrency(receta.costoTotal)}</td>
+                            </tr>
+                          )}
                           <tr className="border-t border-coffee-200 font-semibold text-coffee-900">
-                            <td colSpan={3} className="pt-2 text-sm">Costo total de producción</td>
-                            <td className="pt-2 text-right">{formatCurrency(receta.costoTotal)}</td>
+                            <td colSpan={4} className="pt-2 text-sm">Costo por porción</td>
+                            <td className="pt-2 text-right">{formatCurrency(receta.costoPorPorcion)}</td>
                           </tr>
                           {salePrice > 0 && (
                             <>
                               <tr className="text-coffee-600 text-sm">
-                                <td colSpan={3} className="pt-1">Precio de venta</td>
+                                <td colSpan={4} className="pt-1">Precio de venta</td>
                                 <td className="pt-1 text-right">{formatCurrency(salePrice)}</td>
                               </tr>
-                              <tr className={`text-sm font-bold ${getMarginColor(margenPct)}`}>
-                                <td colSpan={3} className="pt-1">
-                                  Margen ({margenPct.toFixed(1)}%)
+                              <tr className={`text-sm font-bold ${marginColor(margenPct)}`}>
+                                <td colSpan={4} className="pt-1">
+                                  {sem.label} Margen ({margenPct.toFixed(1)}%)
                                 </td>
                                 <td className="pt-1 text-right">{formatCurrency(margen)}</td>
                               </tr>
@@ -307,7 +287,7 @@ const RecetasPage: React.FC = () => {
         {productsWithoutReceta.length > 0 && (
           <div className="bg-amber-50 rounded-xl border border-amber-200 p-5">
             <p className="text-sm font-semibold text-amber-800 mb-3">
-              {productsWithoutReceta.length} producto{productsWithoutReceta.length !== 1 ? 's' : ''} sin receta
+              {productsWithoutReceta.length} elaborado{productsWithoutReceta.length !== 1 ? 's' : ''} sin receta — no pueden venderse hasta tenerla
             </p>
             <div className="flex flex-wrap gap-2">
               {productsWithoutReceta.map((p) => (
@@ -337,7 +317,7 @@ const RecetasPage: React.FC = () => {
         onClose={() => setDeleting(null)}
         onConfirm={handleDelete}
         title="Eliminar receta"
-        message={`¿Eliminar la receta de "${deleting?.productName}"? Esta acción no se puede deshacer.`}
+        message={`¿Eliminar la receta de "${deleting?.productName}"?`}
         confirmText="Eliminar"
         isLoading={isDeleting}
       />
