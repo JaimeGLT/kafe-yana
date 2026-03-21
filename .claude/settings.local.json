@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Add-Type -AssemblyName ''System.IO.Compression.FileSystem''; $zip = [System.IO.Compression.ZipFile]::OpenRead\\(''inventario-productos.docx''\\); $entry = $zip.Entries | Where-Object { $_Name -eq ''document.xml'' }; $stream = $entry.Open\\(\\); $reader = New-Object System.IO.StreamReader\\($stream\\); $content = $reader.ReadToEnd\\(\\); $reader.Close\\(\\); $stream.Close\\(\\); $zip.Dispose\\(\\); $content -replace ''<[^>]+>'', '' '' -replace ''\\\\s+'', '' ''\")",
+      "Bash(npm create:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tailwindcss:*)",
+      "Bash(xargs grep:*)",
+      "Bash(npx tsc:*)",
+      "Bash(find /c/Users/jaime/Desktop/kafe-yana/src/pages -name *.tsx)",
+      "Bash(npx vite:*)",
+      "Bash(npm run:*)",
+      "Bash(for f:*)",
+      "Bash(do echo:*)",
+      "Bash(/dev/null cat:*)",
+      "Bash(ls /c/Users/jaime/Desktop/kafe-yana/src/components/ui/*.tsx)"
+    ]
+  }
+}
