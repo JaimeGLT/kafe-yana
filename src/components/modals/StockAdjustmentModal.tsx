@@ -48,7 +48,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
     }
   }, [isOpen]);
 
-  const activeProducts = products.filter((p) => p.isActive && !p.isService);
+  const activeProducts = products.filter((p) => p.isActive);
 
   const getProductById = (id: string): Product | undefined =>
     products.find((p) => p.id === id);

@@ -113,7 +113,7 @@ export interface ProductInput {
   code?: string;
   name: string;
   description?: string;
-  tipo: ProductTipo;
+  tipo?: ProductTipo;
   categoryId: UUID;
   brandId?: UUID;
   unit: string;

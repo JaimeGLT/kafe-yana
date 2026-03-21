@@ -104,7 +104,7 @@ const ComboCard: React.FC<ComboCardProps> = ({ combo, availability, onEdit, onDe
                       <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded">opcional</span>
                     )}
                     {prod?.tipo === 'elaborado' && !receta && (
-                      <AlertTriangle className="h-3 w-3 text-amber-500" title="Sin receta" />
+                      <AlertTriangle className="h-3 w-3 text-amber-500" />
                     )}
                   </li>
                 );

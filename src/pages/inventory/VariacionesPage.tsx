@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { clsx } from 'clsx';
-import { Layers, Plus, ChevronDown, ChevronRight, FlaskConical, Coffee, Package } from 'lucide-react';
+import { Layers, ChevronDown, ChevronRight, FlaskConical, Coffee, Package } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageContainer, PageHeader } from '../../components/layout';
-import { Button, Input, Badge } from '../../components/ui';
+import { Button, Input } from '../../components/ui';
 import { VariacionModal } from '../../components/modals/VariacionModal';
 import { useInventoryStore } from '../../stores';
 import { useVariacionesStore } from '../../stores/variacionesStore';

@@ -49,7 +49,7 @@ const InventoryReportPage: React.FC = () => {
   // Top 10 products by stock level
   const topStockProducts = useMemo(() =>
     [...products]
-      .filter(p => p.isActive && !p.isService)
+      .filter(p => p.isActive)
       .sort((a, b) => b.stock - a.stock)
       .slice(0, 10)
       .map(p => ({ nombre: p.name.length > 20 ? p.name.slice(0, 18) + '…' : p.name, stock: p.stock, minStock: p.minStock })),
@@ -58,7 +58,7 @@ const InventoryReportPage: React.FC = () => {
 
   // Low stock products
   const lowStockProducts = useMemo(() =>
-    products.filter(p => p.isActive && !p.isService && p.stock > 0 && p.stock <= p.minStock)
+    products.filter(p => p.isActive && p.stock > 0 && p.stock <= p.minStock)
       .sort((a, b) => a.stock - b.stock),
     [products]
   );
@@ -66,7 +66,7 @@ const InventoryReportPage: React.FC = () => {
   // Top 10 products by value (stock * costPrice)
   const topValueProducts = useMemo(() =>
     [...products]
-      .filter(p => !p.isService)
+      .filter(p => p.isActive)
       .map(p => ({ ...p, inventoryValue: p.stock * p.costPrice }))
       .sort((a, b) => b.inventoryValue - a.inventoryValue)
       .slice(0, 10),

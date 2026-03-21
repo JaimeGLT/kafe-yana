@@ -17,7 +17,7 @@ import {
 import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
 import { PageContainer, PageHeader } from '../../components/layout';
-import { Button, Input, Select, ConfirmModal } from '../../components/ui';
+import { Button, Input, Select } from '../../components/ui';
 import { HelpTooltip } from '../../components/ui/Tooltip';
 import { RecetaModal } from '../../components/modals/RecetaModal';
 import { toast } from '../../components/ui/Toast';
