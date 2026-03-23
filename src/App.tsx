@@ -27,6 +27,11 @@ import ElaboradosPage from './pages/inventory/ElaboradosPage';
 import CombosPage from './pages/inventory/CombosPage';
 import VariacionesPage from './pages/inventory/VariacionesPage';
 
+// Auth
+import LoginPage from './pages/auth/LoginPage';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { useAuthStore } from './stores/authStore';
+
 // Stores
 import { useInventoryStore, useSalesStore, usePurchasesStore, useCashStore } from './stores';
 
@@ -35,6 +40,12 @@ import { initializeMockData } from './utils';
 
 function App() {
   const inventoryStore = useInventoryStore();
+  const { checkSession } = useAuthStore();
+
+  useEffect(() => {
+    // Verifica sesión activa con el backend al arrancar la app
+    checkSession();
+  }, [checkSession]);
 
   useEffect(() => {
     if (inventoryStore.products.length === 0) {
@@ -51,45 +62,49 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<DashboardPage />} />
+        {/* Ruta pública */}
+        <Route path="/login" element={<LoginPage />} />
+
+        {/* Todas las rutas protegidas requieren sesión activa */}
+        <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
 
         {/* Inventory */}
-        <Route path="/inventory/products" element={<ProductsPage />} />
-        <Route path="/inventory/categories" element={<CategoriesPage />} />
-        <Route path="/inventory/adjustments" element={<AdjustmentsPage />} />
-        <Route path="/inventory/kardex" element={<KardexPage />} />
-        <Route path="/inventory/elaborados" element={<ElaboradosPage />} />
-        <Route path="/inventory/combos" element={<CombosPage />} />
-        <Route path="/inventory/variations" element={<VariacionesPage />} />
+        <Route path="/inventory/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
+        <Route path="/inventory/categories" element={<ProtectedRoute><CategoriesPage /></ProtectedRoute>} />
+        <Route path="/inventory/adjustments" element={<ProtectedRoute><AdjustmentsPage /></ProtectedRoute>} />
+        <Route path="/inventory/kardex" element={<ProtectedRoute><KardexPage /></ProtectedRoute>} />
+        <Route path="/inventory/elaborados" element={<ProtectedRoute><ElaboradosPage /></ProtectedRoute>} />
+        <Route path="/inventory/combos" element={<ProtectedRoute><CombosPage /></ProtectedRoute>} />
+        <Route path="/inventory/variations" element={<ProtectedRoute><VariacionesPage /></ProtectedRoute>} />
 
         {/* Sales */}
-        <Route path="/sales/pos" element={<POSPage />} />
-        <Route path="/sales" element={<SalesListPage />} />
-        <Route path="/sales/customers" element={<CustomersPage />} />
-        <Route path="/sales/quotes" element={<QuotesPage />} />
+        <Route path="/sales/pos" element={<ProtectedRoute><POSPage /></ProtectedRoute>} />
+        <Route path="/sales" element={<ProtectedRoute><SalesListPage /></ProtectedRoute>} />
+        <Route path="/sales/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
+        <Route path="/sales/quotes" element={<ProtectedRoute><QuotesPage /></ProtectedRoute>} />
 
         {/* Purchases */}
-        <Route path="/purchases/orders" element={<PurchaseOrdersPage />} />
-        <Route path="/purchases/suppliers" element={<SuppliersPage />} />
-        <Route path="/purchases/payables" element={<PayablesPage />} />
+        <Route path="/purchases/orders" element={<ProtectedRoute><PurchaseOrdersPage /></ProtectedRoute>} />
+        <Route path="/purchases/suppliers" element={<ProtectedRoute><SuppliersPage /></ProtectedRoute>} />
+        <Route path="/purchases/payables" element={<ProtectedRoute><PayablesPage /></ProtectedRoute>} />
 
         {/* Cash */}
-        <Route path="/cash/register" element={<CashRegisterPage />} />
-        <Route path="/cash/movements" element={<MovementsPage />} />
+        <Route path="/cash/register" element={<ProtectedRoute><CashRegisterPage /></ProtectedRoute>} />
+        <Route path="/cash/movements" element={<ProtectedRoute><MovementsPage /></ProtectedRoute>} />
 
         {/* Reports */}
-        <Route path="/reports/sales" element={<SalesReportPage />} />
-        <Route path="/reports/inventory" element={<InventoryReportPage />} />
-        <Route path="/reports/purchases" element={<PurchasesReportPage />} />
-        <Route path="/reports/cash" element={<CashReportPage />} />
+        <Route path="/reports/sales" element={<ProtectedRoute><SalesReportPage /></ProtectedRoute>} />
+        <Route path="/reports/inventory" element={<ProtectedRoute><InventoryReportPage /></ProtectedRoute>} />
+        <Route path="/reports/purchases" element={<ProtectedRoute><PurchasesReportPage /></ProtectedRoute>} />
+        <Route path="/reports/cash" element={<ProtectedRoute><CashReportPage /></ProtectedRoute>} />
 
         {/* Recipes */}
-        <Route path="/recipes/insumos" element={<InsumosPage />} />
-        <Route path="/recipes/recetas" element={<RecetasPage />} />
+        <Route path="/recipes/insumos" element={<ProtectedRoute><InsumosPage /></ProtectedRoute>} />
+        <Route path="/recipes/recetas" element={<ProtectedRoute><RecetasPage /></ProtectedRoute>} />
 
         {/* Settings */}
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/settings/*" element={<SettingsPage />} />
+        <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+        <Route path="/settings/*" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

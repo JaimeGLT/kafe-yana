@@ -1,12 +1,19 @@
 import React from 'react';
 import { clsx } from 'clsx';
 import { Bell, Search, Settings, User, LogOut, ChevronDown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useUIStore, useSettingsStore } from '../../stores';
+import { useAuthStore } from '../../stores/authStore';
 import { Dropdown } from '../ui';
 
 export const Header: React.FC = () => {
   const { searchQuery, setSearchQuery } = useUIStore();
-  const { currentUser, currentBranch } = useSettingsStore();
+  const { currentBranch } = useSettingsStore();
+  const { user, logout } = useAuthStore();
+  const navigate = useNavigate();
+
+  // Usar el usuario del authStore; fallback a settingsStore si existiera
+  const displayUser = user;
 
   const userMenuItems = [
     { id: 'profile', label: 'Mi Perfil', icon: <User className="h-4 w-4" /> },
@@ -17,13 +24,13 @@ export const Header: React.FC = () => {
   const handleUserMenu = (id: string) => {
     switch (id) {
       case 'profile':
-        // Navigate to profile
+        navigate('/settings');
         break;
       case 'settings':
-        // Navigate to settings
+        navigate('/settings');
         break;
       case 'logout':
-        // Handle logout
+        logout().then(() => navigate('/login', { replace: true }));
         break;
     }
   };
@@ -76,15 +83,15 @@ export const Header: React.FC = () => {
               <button className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-coffee-50 transition-colors">
                 <div className="w-8 h-8 bg-cream rounded-full flex items-center justify-center">
                   <span className="text-coffee-700 font-medium text-sm">
-                    {currentUser?.firstName?.[0] || 'U'}
-                    {currentUser?.lastName?.[0] || ''}
+                    {displayUser?.firstName?.[0] || 'U'}
+                    {displayUser?.lastName?.[0] || ''}
                   </span>
                 </div>
                 <div className="hidden md:block text-left">
                   <p className="text-sm font-medium text-coffee-900">
-                    {currentUser?.firstName} {currentUser?.lastName}
+                    {displayUser?.firstName} {displayUser?.lastName}
                   </p>
-                  <p className="text-xs text-coffee-500">{currentUser?.roleName}</p>
+                  <p className="text-xs text-coffee-500">{displayUser?.roleName}</p>
                 </div>
                 <ChevronDown className="h-4 w-4 text-coffee-500" />
               </button>

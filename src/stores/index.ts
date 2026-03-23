@@ -7,3 +7,4 @@ export { useSettingsStore } from './settingsStore';
 export { useUIStore } from './uiStore';
 export { useRecipesStore } from './recipesStore';
 export { useVariacionesStore } from './variacionesStore';
+export { useAuthStore } from './authStore';
