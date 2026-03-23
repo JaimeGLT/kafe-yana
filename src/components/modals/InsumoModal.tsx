@@ -48,9 +48,10 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   insumo?: Insumo;
+  onCreated?: (insumo: Insumo) => void;
 }
 
-export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo }) => {
+export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onCreated }) => {
   const { addInsumo, updateInsumo } = useRecipesStore();
   const [isLoading, setIsLoading] = useState(false);
   const [form, setForm] = useState<InsumoInput>(empty);
@@ -110,11 +111,12 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo }) => {
           `"${form.name}" actualizado. Costo/unidad: ${formatCurrency(costoUnitario)}/${form.unidadMinima}. Los costos de las recetas se recalcularon automáticamente.`
         );
       } else {
-        addInsumo(form);
+        const created = addInsumo(form);
         toast.success(
           'Insumo creado',
           `"${form.name}" — ${formatCurrency(costoUnitario)} por ${form.unidadMinima}.`
         );
+        onCreated?.(created);
       }
       onClose();
     } finally {

@@ -20,6 +20,7 @@ import { PageContainer, PageHeader } from '../../components/layout';
 import { Button, Input, Select } from '../../components/ui';
 import { HelpTooltip } from '../../components/ui/Tooltip';
 import { RecetaModal } from '../../components/modals/RecetaModal';
+import { InsumoModal } from '../../components/modals/InsumoModal';
 import { toast } from '../../components/ui/Toast';
 import { useInventoryStore, useRecipesStore } from '../../stores';
 import { useStockManager } from '../../hooks/useStockManager';
@@ -274,15 +275,27 @@ interface RecetaStepTwoProps {
 }
 
 const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, onDone, onSkip }) => {
-  const { addReceta, insumos } = useRecipesStore();
+  const { addReceta, insumos, recetas } = useRecipesStore();
   const { products } = useInventoryStore();
 
   const product = products.find((p) => p.id === productId);
+
+  const [mode, setMode] = useState<'nueva' | 'existente'>('nueva');
+  const [selectedRecetaId, setSelectedRecetaId] = useState('');
 
   const [porcionesBase, setPorcionesBase] = useState(1);
   const [ingredientes, setIngredientes] = useState([{ insumoId: '', quantity: 0, merma: 0 }]);
   const [notas, setNotas] = useState('');
   const [errors, setErrors] = useState<string[]>([]);
+  const [insumoModalOpen, setInsumoModalOpen] = useState(false);
+
+  const recetaOptions = useMemo(
+    () =>
+      [{ value: '', label: 'Seleccionar receta existente…' }].concat(
+        recetas.map((r) => ({ value: r.id, label: `${r.productName} (${r.ingredientes.length} ingredientes)` }))
+      ),
+    [recetas]
+  );
 
   const insumoOptions = useMemo(
     () =>
@@ -326,8 +339,31 @@ const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, onDone, onSkip
   };
 
   const handleSave = () => {
-    if (!validate()) return;
     const productName = product?.name ?? '';
+    if (mode === 'existente') {
+      const recetaBase = recetas.find((r) => r.id === selectedRecetaId);
+      if (!recetaBase) {
+        setErrors(['Selecciona una receta existente.']);
+        return;
+      }
+      addReceta(
+        {
+          productId,
+          porcionesBase: recetaBase.porcionesBase,
+          ingredientes: recetaBase.ingredientes.map((i) => ({
+            insumoId: i.insumoId,
+            quantity: i.quantity,
+            merma: i.merma,
+          })),
+          notas: recetaBase.notas,
+        },
+        productName
+      );
+      toast.success('Receta asignada', `Se usó la receta de "${recetaBase.productName}" para "${productName}".`);
+      onDone();
+      return;
+    }
+    if (!validate()) return;
     addReceta({ productId, porcionesBase, ingredientes, notas }, productName);
     toast.success('Receta guardada', `"${productName}" — costo/porción: ${formatCurrency(costoPorPorcion)}`);
     onDone();
@@ -335,6 +371,76 @@ const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, onDone, onSkip
 
   return (
     <div className="space-y-5">
+      {/* Mode toggle */}
+      <div className="flex gap-2 p-1 bg-coffee-50 rounded-lg border border-coffee-100">
+        <button
+          type="button"
+          onClick={() => { setMode('nueva'); setErrors([]); }}
+          className={clsx(
+            'flex-1 py-1.5 text-sm font-medium rounded-md transition-colors',
+            mode === 'nueva' ? 'bg-white text-coffee-900 shadow-sm' : 'text-coffee-500 hover:text-coffee-700'
+          )}
+        >
+          Crear nueva receta
+        </button>
+        <button
+          type="button"
+          onClick={() => { setMode('existente'); setErrors([]); }}
+          className={clsx(
+            'flex-1 py-1.5 text-sm font-medium rounded-md transition-colors',
+            mode === 'existente' ? 'bg-white text-coffee-900 shadow-sm' : 'text-coffee-500 hover:text-coffee-700'
+          )}
+        >
+          Usar receta existente
+        </button>
+      </div>
+
+      {/* Existing recipe selector */}
+      {mode === 'existente' && (
+        <div className="space-y-3">
+          <Select
+            value={selectedRecetaId}
+            onChange={(v) => { setSelectedRecetaId(v); setErrors([]); }}
+            options={recetaOptions}
+          />
+          {selectedRecetaId && (() => {
+            const r = recetas.find((r) => r.id === selectedRecetaId);
+            if (!r) return null;
+            return (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 space-y-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-coffee-600">Ingredientes</span>
+                  <span className="font-medium text-coffee-900">{r.ingredientes.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-coffee-600">Porciones base</span>
+                  <span className="font-medium text-coffee-900">{r.porcionesBase}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-coffee-600">Costo por porción</span>
+                  <span className="font-bold text-coffee-900">{formatCurrency(r.costoPorPorcion)}</span>
+                </div>
+              </div>
+            );
+          })()}
+          {errors.length > 0 && (
+            <ul className="text-red-500 text-xs space-y-0.5">
+              {errors.map((e, i) => <li key={i}>• {e}</li>)}
+            </ul>
+          )}
+          <div className="flex justify-between items-center pt-1 border-t border-coffee-100">
+            <Button variant="ghost" type="button" onClick={onSkip} className="text-coffee-400">
+              Omitir — añadir receta después
+            </Button>
+            <Button variant="primary" type="button" onClick={handleSave} leftIcon={<CheckCircle2 className="h-4 w-4" />}>
+              Asignar receta y finalizar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Nueva receta form */}
+      {mode === 'nueva' && <>
       {/* Porciones */}
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -368,9 +474,21 @@ const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, onDone, onSkip
             <span className="text-red-500 ml-1">*</span>
             <HelpTooltip text="Cada insumo que se consume al preparar este producto. La cantidad es por receta completa (no por porción). El % de merma es el desperdicio normal al preparar (Ej: 5% para pelar, 10% para hervir)." />
           </label>
-          <Button type="button" variant="ghost" size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={addLine}>
-            Agregar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              leftIcon={<Plus className="h-4 w-4" />}
+              onClick={() => setInsumoModalOpen(true)}
+              className="text-coffee-500 border border-dashed border-coffee-300 hover:border-coffee-500"
+            >
+              Nuevo insumo
+            </Button>
+            <Button type="button" variant="ghost" size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={addLine}>
+              Agregar fila
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-[1fr_90px_60px_56px_24px] gap-2 text-xs text-coffee-400 font-medium mb-1 px-1">
@@ -499,6 +617,15 @@ const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, onDone, onSkip
           Guardar receta y finalizar
         </Button>
       </div>
+
+      <InsumoModal
+        isOpen={insumoModalOpen}
+        onClose={() => setInsumoModalOpen(false)}
+        onCreated={(insumo) => {
+          setIngredientes((prev) => [...prev, { insumoId: insumo.id, quantity: 0, merma: 0 }]);
+        }}
+      />
+      </>}
     </div>
   );
 };

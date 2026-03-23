@@ -22,6 +22,7 @@ interface NavItem {
   icon: React.ReactNode;
   path: string;
   children?: NavItem[];
+  groupLabel?: string;
 }
 
 const navItems: NavItem[] = [
@@ -37,10 +38,10 @@ const navItems: NavItem[] = [
     icon: <Package className="h-5 w-5" />,
     path: '/inventory',
     children: [
-      { id: 'products', label: 'Productos', icon: null, path: '/inventory/products' },
+      { id: 'products', label: 'Productos', icon: null, path: '/inventory/products', groupLabel: 'Productos' },
       { id: 'elaborados', label: 'Elaborados', icon: null, path: '/inventory/elaborados' },
       { id: 'combos', label: 'Combos', icon: null, path: '/inventory/combos' },
-      { id: 'categories', label: 'Categorías', icon: null, path: '/inventory/categories' },
+      { id: 'categories', label: 'Categorías', icon: null, path: '/inventory/categories', groupLabel: 'Gestión' },
       { id: 'variations', label: 'Variaciones', icon: null, path: '/inventory/variations' },
       { id: 'adjustments', label: 'Ajustes', icon: null, path: '/inventory/adjustments' },
       { id: 'kardex', label: 'Kardex', icon: null, path: '/inventory/kardex' },
@@ -208,6 +209,11 @@ export const Sidebar: React.FC = () => {
                 <ul className="mt-1 ml-10 space-y-1">
                   {item.children.map((child) => (
                     <li key={child.id}>
+                      {child.groupLabel && (
+                        <p className="px-3 pt-3 pb-1 text-xs font-semibold uppercase tracking-wider text-coffee-500">
+                          {child.groupLabel}
+                        </p>
+                      )}
                       <button
                         onClick={() => navigate(child.path)}
                         className={clsx(

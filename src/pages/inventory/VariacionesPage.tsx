@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { clsx } from 'clsx';
-import { Layers, ChevronDown, ChevronRight, FlaskConical, Coffee, Package } from 'lucide-react';
+import { Layers, ChevronDown, ChevronRight, FlaskConical, Coffee, Package, Info } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageContainer, PageHeader } from '../../components/layout';
 import { Button, Input } from '../../components/ui';
@@ -171,7 +171,7 @@ const VariacionesPage: React.FC = () => {
   const [search, setSearch] = useState('');
 
   const activeProducts = useMemo(
-    () => products.filter((p) => p.isActive),
+    () => products.filter((p) => p.isActive && p.tipo === 'elaborado'),
     [products]
   );
 
@@ -214,6 +214,15 @@ const VariacionesPage: React.FC = () => {
           ]}
         />
 
+        {/* Info banner */}
+        <div className="flex items-start gap-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
+          <Info className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-800">
+            <span className="font-semibold">Las variaciones solo están habilitadas para productos elaborados.</span>{' '}
+            Si necesitas variaciones para un producto comprado, conviértelo a elaborado primero o usa el módulo de Combos para agrupar presentaciones.
+          </p>
+        </div>
+
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <KpiCard
@@ -241,10 +250,10 @@ const VariacionesPage: React.FC = () => {
           <div className="px-6 py-4 border-b border-coffee-100 flex items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-display font-semibold text-coffee-900">
-                Todos los productos
+                Productos elaborados
               </h2>
               <p className="text-sm text-coffee-500 mt-0.5">
-                Haz clic en "Gestionar" para añadir o editar variaciones de cualquier producto.
+                Haz clic en "Gestionar" para añadir o editar variaciones de un producto elaborado.
               </p>
             </div>
           </div>
