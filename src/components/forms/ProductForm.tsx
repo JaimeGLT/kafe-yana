@@ -152,11 +152,11 @@ export const ProductForm: React.FC<ProductFormProps> = ({
             />
           </FormField>
           {isComprado && (
-            <FormField label="Código de Barras">
+            <FormField label="Código de producto">
               <Input
                 value={formData.barcode}
                 onChange={(e) => handleChange('barcode', e.target.value)}
-                placeholder="Escanear o ingresar"
+                placeholder="Ej: PROD-001"
               />
             </FormField>
           )}
