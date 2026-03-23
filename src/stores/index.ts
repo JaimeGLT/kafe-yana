@@ -8,3 +8,4 @@ export { useUIStore } from './uiStore';
 export { useRecipesStore } from './recipesStore';
 export { useVariacionesStore } from './variacionesStore';
 export { useAuthStore } from './authStore';
+export { useLoyaltyStore } from './loyaltyStore';

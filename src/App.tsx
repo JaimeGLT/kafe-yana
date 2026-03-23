@@ -11,6 +11,7 @@ import { SalesListPage } from './pages/sales/SalesListPage';
 import { POSPage } from './pages/sales/POSPage';
 import { CustomersPage } from './pages/sales/CustomersPage';
 import { QuotesPage } from './pages/sales/QuotesPage';
+import { FidelizacionPage } from './pages/sales/FidelizacionPage';
 import { PurchaseOrdersPage } from './pages/purchases/PurchaseOrdersPage';
 import { SuppliersPage } from './pages/purchases/SuppliersPage';
 import { PayablesPage } from './pages/purchases/PayablesPage';
@@ -82,6 +83,7 @@ function App() {
         <Route path="/sales" element={<ProtectedRoute><SalesListPage /></ProtectedRoute>} />
         <Route path="/sales/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
         <Route path="/sales/quotes" element={<ProtectedRoute><QuotesPage /></ProtectedRoute>} />
+        <Route path="/sales/fidelizacion" element={<ProtectedRoute><FidelizacionPage /></ProtectedRoute>} />
 
         {/* Purchases */}
         <Route path="/purchases/orders" element={<ProtectedRoute><PurchaseOrdersPage /></ProtectedRoute>} />

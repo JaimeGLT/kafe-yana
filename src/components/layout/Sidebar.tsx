@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Coffee,
   FlaskConical,
+  Star,
 } from 'lucide-react';
 import { useUIStore } from '../../stores';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -57,6 +58,7 @@ const navItems: NavItem[] = [
       { id: 'quotes', label: 'Cotizaciones', icon: null, path: '/sales/quotes' },
       { id: 'invoices', label: 'Facturas', icon: null, path: '/sales/invoices' },
       { id: 'customers', label: 'Clientes', icon: null, path: '/sales/customers' },
+      { id: 'fidelizacion', label: 'Fidelización', icon: <Star className="h-3.5 w-3.5 text-amber-400" />, path: '/sales/fidelizacion' },
     ],
   },
   {

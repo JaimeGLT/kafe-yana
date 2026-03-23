@@ -1,0 +1,1223 @@
+import React, { useState, useMemo } from 'react';
+import { clsx } from 'clsx';
+import {
+  Star, Gift, Coffee, Zap, Trophy, Users, Calendar, Clock,
+  Sparkles, Heart, Target, CheckCircle,
+  Search, TrendingUp, RotateCcw, Plus, Minus, ArrowUpCircle,
+  ArrowDownCircle, Crown, Flame, Cake,
+} from 'lucide-react';
+import { MainLayout } from '../../components/layout';
+// UI primitives not needed - page uses custom inline components
+import { toast } from '../../components/ui/Toast';
+import { useLoyaltyStore } from '../../stores/loyaltyStore';
+import { useSalesStore } from '../../stores/salesStore';
+import { formatDateTime } from '../../utils/formatters';
+import type { LoyaltyProfile, LoyaltyLevel, MilestoneReward } from '../../types/loyalty';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+type TabId = 'recompensas' | 'promos' | 'misiones' | 'historial';
+
+// ─── Level config ─────────────────────────────────────────────────────────────
+const LEVEL_CONFIG = {
+  bronce: {
+    label: 'Bronce',
+    color: 'from-amber-600 to-amber-800',
+    bg: 'bg-amber-50',
+    border: 'border-amber-200',
+    text: 'text-amber-700',
+    badge: 'bg-amber-100 text-amber-800',
+    icon: '🥉',
+    glow: 'shadow-amber-200',
+  },
+  plata: {
+    label: 'Plata',
+    color: 'from-slate-400 to-slate-600',
+    bg: 'bg-slate-50',
+    border: 'border-slate-200',
+    text: 'text-slate-600',
+    badge: 'bg-slate-100 text-slate-700',
+    icon: '🥈',
+    glow: 'shadow-slate-200',
+  },
+  oro: {
+    label: 'Oro',
+    color: 'from-yellow-400 to-yellow-600',
+    bg: 'bg-yellow-50',
+    border: 'border-yellow-200',
+    text: 'text-yellow-700',
+    badge: 'bg-yellow-100 text-yellow-800',
+    icon: '🥇',
+    glow: 'shadow-yellow-200',
+  },
+  platino: {
+    label: 'Platino',
+    color: 'from-purple-400 to-purple-700',
+    bg: 'bg-purple-50',
+    border: 'border-purple-200',
+    text: 'text-purple-700',
+    badge: 'bg-purple-100 text-purple-800',
+    icon: '💎',
+    glow: 'shadow-purple-300',
+  },
+} satisfies Record<LoyaltyLevel, { label: string; color: string; bg: string; border: string; text: string; badge: string; icon: string; glow: string }>;
+
+const MONTH_NAMES: Record<number, string> = {
+  1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+  5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+  9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre',
+};
+
+const MONTH_ICONS: Record<number, string> = {
+  1: '❄️', 2: '💝', 3: '🌱', 4: '🌸',
+  5: '💐', 6: '☀️', 7: '🏖️', 8: '🌻',
+  9: '🌺', 10: '🌕', 11: '🍂', 12: '🎄',
+};
+
+// ─── Subcomponents ─────────────────────────────────────────────────────────────
+
+interface StatPillProps {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+  color: string;
+}
+
+const StatPill: React.FC<StatPillProps> = ({ icon, label, value, color }) => (
+  <div className={clsx('flex items-center gap-3 px-5 py-3 rounded-2xl', color)}>
+    <div className="text-xl">{icon}</div>
+    <div>
+      <div className="text-xs font-body font-medium opacity-70 uppercase tracking-wide">{label}</div>
+      <div className="text-xl font-display font-bold leading-tight">{value}</div>
+    </div>
+  </div>
+);
+
+type LevelInfo = { level: LoyaltyLevel; nextLevel: LoyaltyLevel | null; pointsToNext: number; progress: number };
+
+interface LoyaltyCardProps {
+  profile: LoyaltyProfile | undefined;
+  customerName: string;
+  levelInfo: LevelInfo;
+  onViewHistory: () => void;
+  onAdjustPoints: () => void;
+}
+
+const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
+  profile,
+  customerName,
+  levelInfo,
+  onViewHistory,
+  onAdjustPoints,
+}) => {
+  if (!profile) return null;
+  const cfg = LEVEL_CONFIG[profile.level];
+
+  return (
+    <div className={clsx(
+      'relative overflow-hidden rounded-3xl p-6 shadow-xl',
+      `bg-gradient-to-br ${cfg.color}`,
+      'text-white',
+    )}>
+      {/* Decorative coffee rings */}
+      <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full border-4 border-white/10 pointer-events-none" />
+      <div className="absolute -top-2 -right-2 w-24 h-24 rounded-full border-4 border-white/10 pointer-events-none" />
+      <div className="absolute -bottom-6 -left-6 w-32 h-32 rounded-full border-4 border-white/10 pointer-events-none" />
+
+      {/* Header row */}
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <p className="text-xs font-body font-semibold uppercase tracking-widest text-white/60 mb-0.5">
+            Tarjeta Yana
+          </p>
+          <h2 className="text-2xl font-display font-bold leading-tight">{customerName}</h2>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="font-accent text-base text-white/80">{profile.referralCode}</span>
+            <span className="w-1 h-1 rounded-full bg-white/40" />
+            <span className="text-xs text-white/60 font-body">{profile.purchaseCount} visitas</span>
+          </div>
+        </div>
+        <div className={clsx(
+          'flex flex-col items-center justify-center w-16 h-16 rounded-2xl',
+          'bg-white/20 backdrop-blur-sm border border-white/30',
+          'shadow-lg',
+        )}>
+          <span className="text-2xl">{cfg.icon}</span>
+          <span className="text-xs font-body font-bold mt-0.5">{cfg.label}</span>
+        </div>
+      </div>
+
+      {/* Points display */}
+      <div className="my-5">
+        <div className="flex items-end gap-2">
+          <span className="text-6xl font-display font-black leading-none tracking-tight">{profile.points}</span>
+          <div className="pb-2">
+            <div className="text-sm font-body font-medium text-white/70">puntos</div>
+            <div className="text-xs font-body text-white/50">{profile.lifetimePoints} totales</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Progress to next level */}
+      {levelInfo.nextLevel && (
+        <div className="mb-5">
+          <div className="flex justify-between items-center mb-1.5">
+            <span className="text-xs font-body text-white/70">
+              Hacia nivel {LEVEL_CONFIG[levelInfo.nextLevel].label}
+            </span>
+            <span className="text-xs font-body font-semibold text-white/90">
+              {levelInfo.pointsToNext} pts más
+            </span>
+          </div>
+          <div className="w-full bg-white/20 rounded-full h-2">
+            <div
+              className="bg-white rounded-full h-2 transition-all duration-700 ease-out"
+              style={{ width: `${Math.max(3, levelInfo.progress)}%` }}
+            />
+          </div>
+        </div>
+      )}
+      {!levelInfo.nextLevel && (
+        <div className="mb-5 flex items-center gap-2">
+          <Crown className="w-4 h-4 text-white/80" />
+          <span className="text-sm font-body font-semibold text-white/80">¡Nivel máximo alcanzado!</span>
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div className="flex gap-2">
+        <button
+          onClick={onViewHistory}
+          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/20 hover:bg-white/30 transition-colors text-sm font-body font-medium border border-white/20"
+        >
+          <Clock className="w-3.5 h-3.5" />
+          Ver Historial
+        </button>
+        <button
+          onClick={onAdjustPoints}
+          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/20 hover:bg-white/30 transition-colors text-sm font-body font-medium border border-white/20"
+        >
+          <Zap className="w-3.5 h-3.5" />
+          Ajustar Puntos
+        </button>
+      </div>
+    </div>
+  );
+};
+
+interface MilestoneTrackerProps {
+  purchaseCount: number;
+  milestones: MilestoneReward[];
+}
+
+const MilestoneTracker: React.FC<MilestoneTrackerProps> = ({ purchaseCount, milestones }) => {
+  const sorted = [...milestones].sort((a, b) => a.purchaseNumber - b.purchaseNumber);
+  const next = sorted.find(m => m.purchaseNumber > purchaseCount);
+
+  return (
+    <div className="bg-coffee-50 rounded-2xl p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Target className="w-4 h-4 text-coffee-500" />
+        <span className="text-sm font-body font-semibold text-coffee-700">Próximo hito</span>
+      </div>
+      {next ? (
+        <>
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-2xl">{next.icon}</span>
+            <div>
+              <div className="font-display font-semibold text-coffee-900 text-sm">{next.reward}</div>
+              <div className="text-xs text-coffee-500 font-body">{next.description}</div>
+            </div>
+          </div>
+          <div className="mt-2">
+            <div className="flex justify-between text-xs text-coffee-500 mb-1 font-body">
+              <span>{purchaseCount} visitas</span>
+              <span>{next.purchaseNumber} visitas</span>
+            </div>
+            <div className="w-full bg-coffee-200 rounded-full h-1.5">
+              <div
+                className="bg-coffee-500 rounded-full h-1.5 transition-all duration-700"
+                style={{ width: `${Math.min(100, (purchaseCount / next.purchaseNumber) * 100)}%` }}
+              />
+            </div>
+            <div className="text-xs text-coffee-500 mt-1 font-body text-center">
+              Faltan {next.purchaseNumber - purchaseCount} visitas
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="flex items-center gap-2 text-coffee-600">
+          <CheckCircle className="w-5 h-5 text-green-500" />
+          <span className="text-sm font-body font-medium">¡Todos los hitos completados! 🎉</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Stamp Card ───────────────────────────────────────────────────────────────
+interface StampCardProps {
+  label: string;
+  icon: string;
+  total: number;
+  filled: number;
+  reward: string;
+}
+
+const StampCard: React.FC<StampCardProps> = ({ label, icon, total, filled, reward }) => (
+  <div className="bg-gradient-to-br from-coffee-50 to-cream-light rounded-2xl p-4 border border-coffee-100">
+    <div className="flex items-center justify-between mb-3">
+      <span className="font-display font-semibold text-coffee-800 text-sm">{label}</span>
+      <span className="text-xs font-body text-coffee-500 bg-white px-2 py-0.5 rounded-full border border-coffee-100">
+        {reward}
+      </span>
+    </div>
+    <div className="flex flex-wrap gap-1.5">
+      {Array.from({ length: total }).map((_, i) => (
+        <div
+          key={i}
+          className={clsx(
+            'w-7 h-7 rounded-lg flex items-center justify-center text-base transition-all duration-300',
+            i < filled
+              ? 'bg-coffee-500 shadow-coffee'
+              : 'bg-white border-2 border-dashed border-coffee-200',
+          )}
+        >
+          {i < filled ? icon : ''}
+        </div>
+      ))}
+    </div>
+    <div className="mt-2 text-xs font-body text-coffee-500">{filled}/{total} completados</div>
+  </div>
+);
+
+// ─── Adjust Points Modal ──────────────────────────────────────────────────────
+interface AdjustModalProps {
+  customerName: string;
+  currentPoints: number;
+  onConfirm: (delta: number, reason: string) => void;
+  onClose: () => void;
+}
+
+const AdjustModal: React.FC<AdjustModalProps> = ({ customerName, currentPoints, onConfirm, onClose }) => {
+  const [mode, setMode] = useState<'add' | 'subtract'>('add');
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+
+  const handleSubmit = () => {
+    const pts = parseInt(amount, 10);
+    if (!pts || pts <= 0 || !reason.trim()) return;
+    onConfirm(mode === 'add' ? pts : -pts, reason);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+        <h3 className="font-display font-bold text-xl text-coffee-900 mb-1">Ajustar Puntos</h3>
+        <p className="text-sm font-body text-coffee-500 mb-5">{customerName} · {currentPoints} pts actuales</p>
+
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => setMode('add')}
+            className={clsx(
+              'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-body font-medium transition-all',
+              mode === 'add'
+                ? 'bg-green-500 text-white shadow-md'
+                : 'bg-green-50 text-green-600 hover:bg-green-100',
+            )}
+          >
+            <Plus className="w-4 h-4" /> Agregar
+          </button>
+          <button
+            onClick={() => setMode('subtract')}
+            className={clsx(
+              'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-body font-medium transition-all',
+              mode === 'subtract'
+                ? 'bg-red-500 text-white shadow-md'
+                : 'bg-red-50 text-red-600 hover:bg-red-100',
+            )}
+          >
+            <Minus className="w-4 h-4" /> Quitar
+          </button>
+        </div>
+
+        <div className="space-y-3 mb-5">
+          <input
+            type="number"
+            placeholder="Cantidad de puntos"
+            value={amount}
+            onChange={e => setAmount(e.target.value)}
+            className="w-full px-4 py-2.5 rounded-xl border border-coffee-200 text-coffee-900 text-sm font-body focus:outline-none focus:ring-2 focus:ring-coffee-400 placeholder-coffee-300"
+          />
+          <input
+            type="text"
+            placeholder="Motivo del ajuste"
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            className="w-full px-4 py-2.5 rounded-xl border border-coffee-200 text-coffee-900 text-sm font-body focus:outline-none focus:ring-2 focus:ring-coffee-400 placeholder-coffee-300"
+          />
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-coffee-200 text-coffee-600 text-sm font-body font-medium hover:bg-coffee-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!amount || !reason.trim()}
+            className="flex-1 py-2.5 rounded-xl bg-coffee-500 text-white text-sm font-body font-medium hover:bg-coffee-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
+export const FidelizacionPage: React.FC = () => {
+  const {
+    profiles,
+    transactions,
+    rewards,
+    missions,
+    milestones,
+    getProfile,
+    getOrCreateProfile,
+    getLevelInfo,
+    redeemPoints,
+    addTransaction,
+  } = useLoyaltyStore();
+
+  const { customers } = useSalesStore();
+
+  const [search, setSearch] = useState('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabId>('recompensas');
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
+
+  // ── Derived data ────────────────────────────────────────────────────────────
+  const activeCustomers = useMemo(
+    () => customers.filter(c => c.isActive),
+    [customers],
+  );
+
+  const filteredCustomers = useMemo(() => {
+    if (!search.trim()) return activeCustomers;
+    const q = search.toLowerCase();
+    return activeCustomers.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      c.phone.includes(q) ||
+      (c.email || '').toLowerCase().includes(q),
+    );
+  }, [activeCustomers, search]);
+
+  const selectedCustomer = useMemo(
+    () => activeCustomers.find(c => c.id === selectedCustomerId) ?? null,
+    [activeCustomers, selectedCustomerId],
+  );
+
+  const selectedProfile = useMemo(
+    () => selectedCustomerId ? getProfile(selectedCustomerId) : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedCustomerId, profiles],
+  );
+
+  const levelInfo = useMemo(
+    () => selectedProfile ? getLevelInfo(selectedProfile.lifetimePoints) : null,
+    [selectedProfile, getLevelInfo],
+  );
+
+  const customerTransactions = useMemo(
+    () => selectedCustomerId
+      ? transactions
+          .filter(t => t.customerId === selectedCustomerId)
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedCustomerId, transactions],
+  );
+
+  // ── Global stats ────────────────────────────────────────────────────────────
+  const statsCustomersWithPoints = profiles.filter(p => p.points > 0).length;
+  const statsCirculatingPoints = profiles.reduce((s, p) => s + p.points, 0);
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const statsRedeemedThisWeek = transactions.filter(
+    t => t.type === 'redeemed' && new Date(t.date) >= weekAgo,
+  ).length;
+
+  // ── Current month ────────────────────────────────────────────────────────────
+  const currentMonth = new Date().getMonth() + 1;
+
+  // ── Temporal rewards grouped by month ────────────────────────────────────────
+  const temporalByMonth = useMemo(() => {
+    const map: Record<number, typeof rewards> = {};
+    rewards
+      .filter(r => r.category === 'temporal' && r.month != null)
+      .forEach(r => {
+        const m = r.month!;
+        if (!map[m]) map[m] = [];
+        map[m].push(r);
+      });
+    return map;
+  }, [rewards]);
+
+  const monthsOrdered = useMemo(() => {
+    const keys = Object.keys(temporalByMonth).map(Number).sort((a, b) => a - b);
+    // Reorder so current month is first
+    const idx = keys.indexOf(currentMonth);
+    if (idx === -1) return keys;
+    return [...keys.slice(idx), ...keys.slice(0, idx)];
+  }, [temporalByMonth, currentMonth]);
+
+  const dailyRewards = useMemo(() => rewards.filter(r => r.category === 'diario'), [rewards]);
+  const grandPrize = useMemo(() => rewards.filter(r => r.category === 'premio_mayor'), [rewards]);
+
+  // ── Stamp card progress (mock based on purchase count) ───────────────────────
+  const cafeStamps = selectedProfile
+    ? selectedProfile.purchaseCount % 10
+    : 0;
+  const postreStamps = selectedProfile
+    ? selectedProfile.purchaseCount % 5
+    : 0;
+
+  // ── Handlers ─────────────────────────────────────────────────────────────────
+  const handleSelectCustomer = (id: string) => {
+    setSelectedCustomerId(id);
+    getOrCreateProfile(id);
+    setSearch('');
+  };
+
+  const handleRedeem = (rewardId: string) => {
+    if (!selectedCustomerId || !selectedProfile) return;
+    const reward = rewards.find(r => r.id === rewardId);
+    if (!reward) return;
+    const ok = redeemPoints(selectedCustomerId, rewardId);
+    if (ok) {
+      toast.success('¡Recompensa canjeada!', `${reward.name} canjeado exitosamente.`);
+    } else {
+      toast.error('Puntos insuficientes', `Necesitas ${reward.pointsCost} pts.`);
+    }
+  };
+
+  const handleAdjust = (delta: number, reason: string) => {
+    if (!selectedCustomerId) return;
+    addTransaction(selectedCustomerId, undefined, delta, 'adjustment' as never, reason);
+    toast.success(
+      delta > 0 ? `+${delta} puntos agregados` : `${delta} puntos removidos`,
+      reason,
+    );
+    setShowAdjustModal(false);
+  };
+
+  // ── Tabs config ───────────────────────────────────────────────────────────────
+  const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
+    { id: 'recompensas', label: 'Recompensas Diarias', icon: <Gift className="w-4 h-4" /> },
+    { id: 'promos', label: 'Promos del Mes', icon: <Calendar className="w-4 h-4" /> },
+    { id: 'misiones', label: 'Misiones Yana', icon: <Target className="w-4 h-4" /> },
+    { id: 'historial', label: 'Historial', icon: <Clock className="w-4 h-4" /> },
+  ];
+
+  // ── Transaction type labels/icons ─────────────────────────────────────────────
+  const txConfig = (type: string) => {
+    switch (type) {
+      case 'earned': return { icon: <ArrowUpCircle className="w-4 h-4" />, color: 'text-green-600', bg: 'bg-green-50', label: 'Ganado' };
+      case 'redeemed': return { icon: <ArrowDownCircle className="w-4 h-4" />, color: 'text-red-500', bg: 'bg-red-50', label: 'Canjeado' };
+      case 'referral': return { icon: <Users className="w-4 h-4" />, color: 'text-blue-600', bg: 'bg-blue-50', label: 'Referido' };
+      case 'mission': return { icon: <Trophy className="w-4 h-4" />, color: 'text-purple-600', bg: 'bg-purple-50', label: 'Misión' };
+      case 'birthday': return { icon: <Cake className="w-4 h-4" />, color: 'text-pink-600', bg: 'bg-pink-50', label: 'Cumpleaños' };
+      default: return { icon: <Zap className="w-4 h-4" />, color: 'text-coffee-500', bg: 'bg-coffee-50', label: 'Ajuste' };
+    }
+  };
+
+  // ────────────────────────────────────────────────────────────────────────────
+  return (
+    <MainLayout>
+      {/* ═══════════════════════════════════════════
+          HERO HEADER
+      ═══════════════════════════════════════════ */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-coffee-800 via-coffee-700 to-coffee-500 px-8 py-8 mb-6 shadow-coffee-lg">
+        {/* Decorative blobs */}
+        <div className="absolute top-0 right-0 w-72 h-72 bg-coffee-400/20 rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+        <div className="absolute bottom-0 left-1/2 w-48 h-48 bg-cream-light/10 rounded-full translate-y-1/2 pointer-events-none" />
+
+        <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          {/* Title block */}
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
+                <Crown className="w-5 h-5 text-yellow-300" />
+              </div>
+              <span className="font-accent text-cream-light text-lg">Café Yana</span>
+            </div>
+            <h1 className="text-4xl font-display font-black text-white leading-tight mb-2">
+              Programa de<br />
+              <span className="text-yellow-300">Fidelización</span> Yana
+            </h1>
+            <p className="text-coffee-200 font-body text-sm max-w-sm">
+              Cada sorbo cuenta. Premia a tus clientes más fieles con experiencias únicas y recompensas exclusivas.
+            </p>
+          </div>
+
+          {/* Stats strip */}
+          <div className="flex flex-wrap gap-3">
+            <StatPill
+              icon={<Users className="w-5 h-5 text-blue-300" />}
+              label="Clientes con puntos"
+              value={statsCustomersWithPoints}
+              color="bg-white/10 text-white border border-white/20"
+            />
+            <StatPill
+              icon={<Sparkles className="w-5 h-5 text-yellow-300" />}
+              label="Puntos en circulación"
+              value={statsCirculatingPoints.toLocaleString()}
+              color="bg-white/10 text-white border border-white/20"
+            />
+            <StatPill
+              icon={<Gift className="w-5 h-5 text-pink-300" />}
+              label="Canjes esta semana"
+              value={statsRedeemedThisWeek}
+              color="bg-white/10 text-white border border-white/20"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* ═══════════════════════════════════════════
+            LEFT COL – Customer lookup + loyalty card
+        ═══════════════════════════════════════════ */}
+        <div className="xl:col-span-1 space-y-5">
+
+          {/* Search panel */}
+          <div className="bg-white rounded-2xl border border-coffee-100 shadow-coffee p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Search className="w-4 h-4 text-coffee-400" />
+              <h2 className="font-display font-semibold text-coffee-900">Buscar Cliente</h2>
+            </div>
+
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-coffee-300 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Nombre, teléfono o email..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-coffee-200 text-sm font-body text-coffee-900 placeholder-coffee-300 focus:outline-none focus:ring-2 focus:ring-coffee-400 transition-all"
+              />
+            </div>
+
+            {/* Dropdown list */}
+            {search.trim() && filteredCustomers.length > 0 && (
+              <div className="max-h-48 overflow-y-auto rounded-xl border border-coffee-100 divide-y divide-coffee-50">
+                {filteredCustomers.map(c => {
+                  const cProf = getProfile(c.id);
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => handleSelectCustomer(c.id)}
+                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-coffee-50 transition-colors text-left"
+                    >
+                      <div>
+                        <div className="text-sm font-body font-medium text-coffee-800">{c.name}</div>
+                        <div className="text-xs text-coffee-400 font-body">{c.phone}</div>
+                      </div>
+                      {cProf && (
+                        <span className={clsx(
+                          'text-xs font-body font-semibold px-2 py-0.5 rounded-full',
+                          LEVEL_CONFIG[cProf.level].badge,
+                        )}>
+                          {cProf.points} pts
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {search.trim() && filteredCustomers.length === 0 && (
+              <div className="text-center py-4 text-sm font-body text-coffee-400">
+                No se encontraron clientes
+              </div>
+            )}
+
+            {/* Or pick from all active */}
+            {!search.trim() && (
+              <div>
+                <label className="block text-xs font-body font-medium text-coffee-500 uppercase tracking-wide mb-2">
+                  O selecciona directamente
+                </label>
+                <select
+                  value={selectedCustomerId ?? ''}
+                  onChange={e => e.target.value && handleSelectCustomer(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-coffee-200 text-sm font-body text-coffee-800 bg-white focus:outline-none focus:ring-2 focus:ring-coffee-400"
+                >
+                  <option value="">— Elegir cliente —</option>
+                  {activeCustomers.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Loyalty card */}
+          {selectedCustomer && selectedProfile && levelInfo ? (
+            <>
+              <LoyaltyCard
+                profile={selectedProfile}
+                customerName={selectedCustomer.name}
+                levelInfo={levelInfo}
+                onViewHistory={() => setActiveTab('historial')}
+                onAdjustPoints={() => setShowAdjustModal(true)}
+              />
+
+              {/* Milestone tracker */}
+              <MilestoneTracker
+                purchaseCount={selectedProfile.purchaseCount}
+                milestones={milestones}
+              />
+
+              {/* Stamp cards */}
+              <div className="space-y-3">
+                <h3 className="font-display font-semibold text-coffee-800 text-sm flex items-center gap-2">
+                  <Coffee className="w-4 h-4 text-coffee-500" />
+                  Tarjetas de Sello
+                </h3>
+                <StampCard
+                  label="Cafés"
+                  icon="☕"
+                  total={10}
+                  filled={cafeStamps}
+                  reward="Café gratis al 10"
+                />
+                <StampCard
+                  label="Postres"
+                  icon="🍰"
+                  total={5}
+                  filled={postreStamps}
+                  reward="Postre gratis al 5"
+                />
+              </div>
+            </>
+          ) : (
+            <div className="bg-gradient-to-br from-coffee-50 to-cream-light rounded-2xl p-8 text-center border border-coffee-100">
+              <div className="w-16 h-16 rounded-full bg-coffee-100 flex items-center justify-center mx-auto mb-4">
+                <Heart className="w-8 h-8 text-coffee-400" />
+              </div>
+              <h3 className="font-display font-semibold text-coffee-800 mb-1">Sin cliente seleccionado</h3>
+              <p className="text-sm font-body text-coffee-500">
+                Busca o selecciona un cliente para ver su tarjeta de fidelización
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* ═══════════════════════════════════════════
+            RIGHT COL – Tabs
+        ═══════════════════════════════════════════ */}
+        <div className="xl:col-span-2 space-y-5">
+
+          {/* Tab bar */}
+          <div className="bg-white rounded-2xl border border-coffee-100 shadow-coffee p-1.5">
+            <div className="flex gap-1">
+              {TABS.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={clsx(
+                    'flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-sm font-body font-medium transition-all duration-200',
+                    activeTab === tab.id
+                      ? 'bg-coffee-500 text-white shadow-md'
+                      : 'text-coffee-500 hover:bg-coffee-50 hover:text-coffee-700',
+                  )}
+                >
+                  {tab.icon}
+                  <span className="hidden sm:inline">{tab.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── TAB: Recompensas Diarias ─────────────────────────────────────── */}
+          {activeTab === 'recompensas' && (
+            <div className="space-y-4">
+              {/* Grand Prize spotlight */}
+              {grandPrize.map(r => (
+                <div
+                  key={r.id}
+                  className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-400 p-5 shadow-lg"
+                >
+                  <div className="absolute -top-4 -right-4 w-24 h-24 bg-white/20 rounded-full pointer-events-none" />
+                  <div className="relative flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="text-4xl">{r.icon}</div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="bg-white/30 text-white text-xs font-body font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
+                            Premio Mayor
+                          </span>
+                        </div>
+                        <h3 className="font-display font-bold text-white text-lg">{r.name}</h3>
+                        <p className="text-yellow-100 text-xs font-body">{r.description}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-3xl font-display font-black text-white">{r.pointsCost}</div>
+                      <div className="text-yellow-100 text-xs font-body">puntos</div>
+                      <button
+                        onClick={() => handleRedeem(r.id)}
+                        disabled={!selectedProfile || (selectedProfile?.points ?? 0) < r.pointsCost}
+                        className="mt-2 px-4 py-1.5 rounded-xl bg-white text-amber-600 text-sm font-body font-bold hover:bg-yellow-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                      >
+                        Canjear
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Daily rewards grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {dailyRewards.map(reward => {
+                  const canRedeem = selectedProfile && selectedProfile.points >= reward.pointsCost;
+                  const hasCustomer = !!selectedCustomer;
+                  return (
+                    <div
+                      key={reward.id}
+                      className={clsx(
+                        'relative bg-white rounded-2xl border p-4 flex flex-col gap-2 transition-all duration-200',
+                        hasCustomer
+                          ? canRedeem
+                            ? 'border-green-200 hover:border-green-300 hover:shadow-md'
+                            : 'border-coffee-100 opacity-70'
+                          : 'border-coffee-100',
+                      )}
+                    >
+                      {canRedeem && hasCustomer && (
+                        <div className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-green-400" />
+                      )}
+                      <div className="flex items-start gap-3">
+                        <span className="text-2xl leading-none">{reward.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-body font-semibold text-coffee-900 text-sm leading-tight">{reward.name}</h4>
+                          <p className="text-coffee-400 text-xs font-body mt-0.5 leading-snug">{reward.description}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between mt-auto">
+                        <div className="flex items-center gap-1">
+                          <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-400" />
+                          <span className="text-sm font-display font-bold text-coffee-700">{reward.pointsCost} pts</span>
+                        </div>
+                        <button
+                          onClick={() => handleRedeem(reward.id)}
+                          disabled={!hasCustomer || !canRedeem}
+                          className={clsx(
+                            'px-3 py-1 rounded-lg text-xs font-body font-semibold transition-all',
+                            canRedeem && hasCustomer
+                              ? 'bg-coffee-500 text-white hover:bg-coffee-600 shadow-coffee'
+                              : 'bg-coffee-100 text-coffee-300 cursor-not-allowed',
+                          )}
+                        >
+                          Canjear
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {!selectedCustomer && (
+                <div className="text-center py-4 text-sm font-body text-coffee-400 bg-coffee-50 rounded-xl">
+                  Selecciona un cliente para habilitar los canjes
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── TAB: Promos del Mes ──────────────────────────────────────────── */}
+          {activeTab === 'promos' && (
+            <div className="space-y-4">
+              {monthsOrdered.map(month => {
+                const isCurrentMonth = month === currentMonth;
+                const monthRewards = temporalByMonth[month] ?? [];
+                return (
+                  <div
+                    key={month}
+                    className={clsx(
+                      'rounded-2xl border overflow-hidden',
+                      isCurrentMonth
+                        ? 'border-coffee-300 shadow-coffee-lg'
+                        : 'border-coffee-100',
+                    )}
+                  >
+                    {/* Month header */}
+                    <div className={clsx(
+                      'flex items-center justify-between px-5 py-3',
+                      isCurrentMonth
+                        ? 'bg-gradient-to-r from-coffee-600 to-coffee-500 text-white'
+                        : 'bg-coffee-50 text-coffee-700',
+                    )}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">{MONTH_ICONS[month] ?? '📅'}</span>
+                        <span className="font-display font-bold text-base">
+                          {MONTH_NAMES[month] ?? `Mes ${month}`}
+                        </span>
+                      </div>
+                      {isCurrentMonth && (
+                        <span className="bg-white/20 border border-white/30 text-white text-xs font-body font-bold px-2.5 py-0.5 rounded-full">
+                          Este mes
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Rewards */}
+                    <div className="bg-white p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {monthRewards.map(r => {
+                        const canRedeem = selectedProfile && r.pointsCost > 0 && selectedProfile.points >= r.pointsCost;
+                        return (
+                          <div
+                            key={r.id}
+                            className={clsx(
+                              'flex items-center gap-3 p-3 rounded-xl border transition-all',
+                              r.highlight ? 'border-yellow-200 bg-yellow-50' : 'border-coffee-100 bg-coffee-50/50',
+                            )}
+                          >
+                            <span className="text-2xl">{r.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-body font-semibold text-coffee-900 text-sm">{r.name}</span>
+                                {r.highlight && <Sparkles className="w-3 h-3 text-yellow-500" />}
+                              </div>
+                              <p className="text-xs text-coffee-500 font-body mt-0.5">{r.description}</p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              {r.pointsCost > 0 ? (
+                                <>
+                                  <div className="text-sm font-display font-bold text-coffee-700">{r.pointsCost} pts</div>
+                                  <button
+                                    onClick={() => handleRedeem(r.id)}
+                                    disabled={!selectedProfile || !canRedeem}
+                                    className={clsx(
+                                      'mt-1 px-2.5 py-1 rounded-lg text-xs font-body font-semibold transition-all',
+                                      canRedeem
+                                        ? 'bg-coffee-500 text-white hover:bg-coffee-600'
+                                        : 'bg-coffee-100 text-coffee-300 cursor-not-allowed',
+                                    )}
+                                  >
+                                    Canjear
+                                  </button>
+                                </>
+                              ) : (
+                                <span className="bg-green-100 text-green-700 text-xs font-body font-bold px-2 py-0.5 rounded-full">
+                                  Auto
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── TAB: Misiones Yana ───────────────────────────────────────────── */}
+          {activeTab === 'misiones' && (
+            <div className="space-y-5">
+              {/* Missions grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {missions.map(mission => {
+                  const isCompleted = selectedProfile?.completedMissions.includes(mission.id) ?? false;
+                  let progress = 0;
+                  if (selectedProfile) {
+                    switch (mission.type) {
+                      case 'consecutive_days': progress = Math.min(1, selectedProfile.consecutiveDays / mission.requirement); break;
+                      case 'unique_products': progress = Math.min(1, selectedProfile.uniqueProductsBought.length / mission.requirement); break;
+                      case 'referral': progress = Math.min(1, selectedProfile.referralCount / mission.requirement); break;
+                      default: progress = isCompleted ? 1 : 0;
+                    }
+                  }
+
+                  return (
+                    <div
+                      key={mission.id}
+                      className={clsx(
+                        'relative rounded-2xl border p-4 transition-all',
+                        isCompleted
+                          ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200'
+                          : 'bg-white border-coffee-100 hover:border-coffee-200 hover:shadow-coffee',
+                      )}
+                    >
+                      {isCompleted && (
+                        <div className="absolute top-3 right-3">
+                          <CheckCircle className="w-5 h-5 text-green-500" />
+                        </div>
+                      )}
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className={clsx(
+                          'w-10 h-10 rounded-2xl flex items-center justify-center text-xl',
+                          isCompleted ? 'bg-green-100' : 'bg-coffee-100',
+                        )}>
+                          {mission.icon}
+                        </div>
+                        <div>
+                          <h4 className="font-display font-semibold text-coffee-900">{mission.name}</h4>
+                          <p className="text-xs font-body text-coffee-500 mt-0.5">{mission.description}</p>
+                        </div>
+                      </div>
+
+                      {/* Progress bar */}
+                      {!isCompleted && (
+                        <div className="mb-3">
+                          <div className="flex justify-between text-xs font-body text-coffee-400 mb-1">
+                            <span>Progreso</span>
+                            <span>{Math.round(progress * 100)}%</span>
+                          </div>
+                          <div className="w-full bg-coffee-100 rounded-full h-1.5">
+                            <div
+                              className="bg-coffee-500 rounded-full h-1.5 transition-all duration-700"
+                              style={{ width: `${Math.max(2, progress * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <Zap className="w-3.5 h-3.5 text-yellow-500" />
+                          <span className="text-sm font-body font-bold text-coffee-700">+{mission.bonusPoints} pts</span>
+                        </div>
+                        {isCompleted ? (
+                          <span className="text-xs font-body font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
+                            Completada ✓
+                          </span>
+                        ) : (
+                          <span className="text-xs font-body text-coffee-400">
+                            {mission.requirement === 1 ? '1 vez' : `${mission.requirement} veces`}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Mechanics info cards */}
+              <div>
+                <h3 className="font-display font-semibold text-coffee-800 text-base mb-3 flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-orange-500" />
+                  Mecánicas de Puntos
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {[
+                    { icon: <Clock className="w-4 h-4 text-orange-400" />, title: 'Happy Hour', desc: '9am – 3pm · +2 pts bonus en cada compra', color: 'from-orange-50 to-amber-50 border-orange-100' },
+                    { icon: <Calendar className="w-4 h-4 text-blue-400" />, title: 'Días Doble', desc: 'Lunes y Martes · ¡Puntos dobles todo el día!', color: 'from-blue-50 to-indigo-50 border-blue-100' },
+                    { icon: <Cake className="w-4 h-4 text-pink-400" />, title: 'Cumpleaños', desc: 'El día de tu cumpleaños · ¡Puntos triplicados!', color: 'from-pink-50 to-rose-50 border-pink-100' },
+                    { icon: <Gift className="w-4 h-4 text-purple-400" />, title: 'Combo Bonus', desc: 'Al pedir combo · +3 pts extra', color: 'from-purple-50 to-violet-50 border-purple-100' },
+                    { icon: <Users className="w-4 h-4 text-green-400" />, title: 'Compra Grupal', desc: 'Compra > Bs.70 · +10 pts extra', color: 'from-green-50 to-emerald-50 border-green-100' },
+                    { icon: <TrendingUp className="w-4 h-4 text-coffee-400" />, title: 'Base', desc: '1 punto por cada Bs.10 gastados', color: 'from-coffee-50 to-cream-light border-coffee-100' },
+                  ].map(item => (
+                    <div key={item.title} className={clsx('rounded-xl border p-3 bg-gradient-to-br', item.color)}>
+                      <div className="flex items-center gap-2 mb-1">
+                        {item.icon}
+                        <span className="font-body font-semibold text-coffee-800 text-sm">{item.title}</span>
+                      </div>
+                      <p className="text-xs font-body text-coffee-500 leading-snug">{item.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB: Historial ───────────────────────────────────────────────── */}
+          {activeTab === 'historial' && (
+            <div>
+              {!selectedCustomer ? (
+                <div className="text-center py-12 bg-white rounded-2xl border border-coffee-100">
+                  <Clock className="w-10 h-10 text-coffee-200 mx-auto mb-3" />
+                  <p className="font-body text-coffee-400">Selecciona un cliente para ver su historial</p>
+                </div>
+              ) : customerTransactions.length === 0 ? (
+                <div className="text-center py-12 bg-white rounded-2xl border border-coffee-100">
+                  <RotateCcw className="w-10 h-10 text-coffee-200 mx-auto mb-3" />
+                  <p className="font-body text-coffee-500 font-medium">{selectedCustomer.name}</p>
+                  <p className="font-body text-coffee-400 text-sm mt-1">Sin transacciones registradas todavía</p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-coffee-100 overflow-hidden">
+                  <div className="px-5 py-4 border-b border-coffee-50 flex items-center justify-between">
+                    <div>
+                      <h3 className="font-display font-semibold text-coffee-900">{selectedCustomer.name}</h3>
+                      <p className="text-xs font-body text-coffee-400">{customerTransactions.length} transacciones</p>
+                    </div>
+                    <span className={clsx(
+                      'text-sm font-body font-bold px-3 py-1 rounded-full',
+                      selectedProfile ? LEVEL_CONFIG[selectedProfile.level].badge : 'bg-coffee-100 text-coffee-700',
+                    )}>
+                      {selectedProfile?.points ?? 0} pts disponibles
+                    </span>
+                  </div>
+
+                  <div className="divide-y divide-coffee-50 max-h-[480px] overflow-y-auto">
+                    {customerTransactions.map((tx, idx) => {
+                      const cfg = txConfig(tx.type);
+                      const isPositive = tx.points > 0;
+                      return (
+                        <div key={tx.id} className="flex items-start gap-3 px-5 py-3.5 hover:bg-coffee-50/40 transition-colors">
+                          {/* Timeline dot */}
+                          <div className="flex flex-col items-center mt-1">
+                            <div className={clsx('w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0', cfg.bg, cfg.color)}>
+                              {cfg.icon}
+                            </div>
+                            {idx < customerTransactions.length - 1 && (
+                              <div className="w-px h-6 bg-coffee-100 mt-1" />
+                            )}
+                          </div>
+
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-body font-medium text-coffee-800 leading-tight">
+                                  {tx.description}
+                                </p>
+                                <p className="text-xs font-body text-coffee-400 mt-0.5">
+                                  {formatDateTime(tx.date)}
+                                </p>
+                              </div>
+                              <span className={clsx(
+                                'text-base font-display font-black flex-shrink-0',
+                                isPositive ? 'text-green-600' : 'text-red-500',
+                              )}>
+                                {isPositive ? '+' : ''}{tx.points}
+                              </span>
+                            </div>
+                            <span className={clsx(
+                              'inline-block mt-1 text-xs font-body px-1.5 py-0.5 rounded-md',
+                              cfg.bg, cfg.color,
+                            )}>
+                              {cfg.label}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════
+          MILESTONES SECTION (Full width)
+      ═══════════════════════════════════════════ */}
+      <div className="mt-6 bg-white rounded-3xl border border-coffee-100 shadow-coffee overflow-hidden">
+        <div className="px-6 py-4 border-b border-coffee-50 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-yellow-500" />
+            <h2 className="font-display font-bold text-coffee-900 text-lg">Hitos de Compras</h2>
+          </div>
+          {selectedProfile && (
+            <span className="text-sm font-body text-coffee-500">
+              {selectedCustomer?.name} · <strong className="text-coffee-700">{selectedProfile.purchaseCount}</strong> visitas
+            </span>
+          )}
+        </div>
+
+        <div className="p-6 overflow-x-auto">
+          <div className="flex items-start gap-2 min-w-max">
+            {[...milestones]
+              .sort((a, b) => a.purchaseNumber - b.purchaseNumber)
+              .map((milestone, idx, arr) => {
+                const reached = selectedProfile
+                  ? selectedProfile.purchaseCount >= milestone.purchaseNumber
+                  : false;
+                const isNext = selectedProfile
+                  ? selectedProfile.purchaseCount < milestone.purchaseNumber &&
+                    (idx === 0 || selectedProfile.purchaseCount >= arr[idx - 1].purchaseNumber)
+                  : false;
+
+                return (
+                  <React.Fragment key={milestone.purchaseNumber}>
+                    {/* Connector line */}
+                    {idx > 0 && (
+                      <div className={clsx(
+                        'flex-shrink-0 h-0.5 w-8 mt-6 self-start',
+                        reached ? 'bg-coffee-400' : 'bg-coffee-100',
+                      )} />
+                    )}
+
+                    <div className={clsx(
+                      'flex flex-col items-center gap-1.5 w-28 text-center flex-shrink-0',
+                    )}>
+                      {/* Icon circle */}
+                      <div className={clsx(
+                        'w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-sm border-2 transition-all duration-300',
+                        reached
+                          ? 'bg-coffee-500 border-coffee-400 shadow-coffee'
+                          : isNext
+                            ? 'bg-coffee-50 border-coffee-300 ring-2 ring-coffee-300 ring-offset-2 animate-pulse'
+                            : 'bg-white border-coffee-100',
+                      )}>
+                        {reached ? (
+                          <CheckCircle className="w-6 h-6 text-white" />
+                        ) : (
+                          <span className={isNext ? '' : 'opacity-50'}>{milestone.icon}</span>
+                        )}
+                      </div>
+
+                      {/* Purchase number badge */}
+                      <span className={clsx(
+                        'text-xs font-body font-bold px-2 py-0.5 rounded-full',
+                        reached
+                          ? 'bg-coffee-100 text-coffee-700'
+                          : isNext
+                            ? 'bg-coffee-500 text-white'
+                            : 'bg-gray-100 text-gray-400',
+                      )}>
+                        #{milestone.purchaseNumber}
+                      </span>
+
+                      {/* Reward name */}
+                      <p className={clsx(
+                        'text-xs font-body leading-tight',
+                        reached ? 'text-coffee-700 font-medium' : isNext ? 'text-coffee-600' : 'text-coffee-300',
+                      )}>
+                        {milestone.reward}
+                      </p>
+
+                      {isNext && (
+                        <span className="text-xs font-accent text-coffee-500">¡Próximo!</span>
+                      )}
+                    </div>
+                  </React.Fragment>
+                );
+              })}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Adjust Points Modal ─────────────────────────────────────────────── */}
+      {showAdjustModal && selectedCustomer && selectedProfile && (
+        <AdjustModal
+          customerName={selectedCustomer.name}
+          currentPoints={selectedProfile.points}
+          onConfirm={handleAdjust}
+          onClose={() => setShowAdjustModal(false)}
+        />
+      )}
+    </MainLayout>
+  );
+};

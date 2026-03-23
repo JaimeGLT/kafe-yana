@@ -21,7 +21,13 @@
       "Bash(unzip -q \"C:/Users/jaime/Desktop/kafe-yana/productos-elaborados.docx\" -d docx_extract)",
       "Bash(unzip -p \"productos-combo.docx\" word/document.xml)",
       "Bash(unzip -q \"C:/Users/jaime/Desktop/kafe-yana/productos-variaciones.docx\" -d extracted_docx)",
-      "Bash(echo \"Exit code: $?\")"
+      "Bash(echo \"Exit code: $?\")",
+      "Bash(node -e \":*)",
+      "Bash(powershell -Command \":*)",
+      "Bash(sed -n '90,115p' src/pages/sales/FidelizacionPage.tsx)",
+      "Bash(sed -n '200,215p' src/pages/sales/FidelizacionPage.tsx)",
+      "Bash(sed -n '105,120p' src/pages/sales/FidelizacionPage.tsx)",
+      "Bash(sed -n '158,168p' src/pages/sales/FidelizacionPage.tsx)"
     ]
   }
 }
