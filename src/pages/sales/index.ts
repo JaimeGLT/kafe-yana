@@ -1,5 +1,5 @@
 export { SalesListPage } from './SalesListPage';
 export { POSPage } from './POSPage';
 export { CustomersPage } from './CustomersPage';
-export { QuotesPage } from './QuotesPage';
+export { InvoicesPage } from './InvoicesPage';
 export { FidelizacionPage } from './FidelizacionPage';

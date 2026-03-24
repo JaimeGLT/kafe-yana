@@ -5,13 +5,14 @@ import { PageHeader, PageContainer, PageSection } from '../../components/layout'
 import { Button, Modal, Input, Select, Badge } from '../../components/ui';
 import { SalesTable } from '../../components/tables/SalesTable';
 import { SaleForm } from '../../components/forms/SaleForm';
+import { BillingModal } from '../../components/modals/BillingModal';
 import { toast } from '../../components/ui/Toast';
 import { useSalesStore } from '../../stores';
 import { formatCurrency, formatDateTime, getPaymentMethodLabel } from '../../utils';
 import type { Sale } from '../../types';
 
 export const SalesListPage: React.FC = () => {
-  const { sales, customers, addSale, stats, calculateStats } = useSalesStore();
+  const { sales, customers, addSale, generateInvoiceForSale, stats, calculateStats } = useSalesStore();
 
   const [search, setSearch] = React.useState('');
   const [dateFrom, setDateFrom] = React.useState('');
@@ -20,6 +21,7 @@ export const SalesListPage: React.FC = () => {
   const [isNewSaleOpen, setIsNewSaleOpen] = React.useState(false);
   const [selectedSale, setSelectedSale] = React.useState<Sale | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [billingSaleId, setBillingSaleId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     calculateStats();
@@ -58,10 +60,11 @@ export const SalesListPage: React.FC = () => {
   const handleNewSale = async (data: Parameters<typeof addSale>[0]) => {
     setIsLoading(true);
     try {
-      addSale(data);
+      const newSale = addSale(data);
       toast.success('Venta registrada', 'La venta se registró exitosamente.');
       setIsNewSaleOpen(false);
       calculateStats();
+      setBillingSaleId(newSale.id);
     } catch {
       toast.error('Error', 'No se pudo registrar la venta.');
     } finally {
@@ -183,6 +186,19 @@ export const SalesListPage: React.FC = () => {
             isLoading={isLoading}
           />
         </Modal>
+
+        {/* Billing Modal */}
+        <BillingModal
+          isOpen={!!billingSaleId}
+          saleCode={sales.find((s) => s.id === billingSaleId)?.code}
+          onDone={(billing) => {
+            if (billingSaleId) {
+              generateInvoiceForSale(billingSaleId, billing);
+              toast.success('Factura emitida', `Factura a "${billing.name}" (NIT: ${billing.nit}) generada.`);
+            }
+            setBillingSaleId(null);
+          }}
+        />
 
         {/* Sale Detail Modal */}
         {selectedSale && (

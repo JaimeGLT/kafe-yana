@@ -14,6 +14,7 @@ import { formatCurrency } from '../../utils';
 import type { Product, SaleInput, PaymentMethodType, OpcionSeleccionada } from '../../types';
 import { useStockManager } from '../../hooks/useStockManager';
 import { VariacionPickerModal } from '../../components/modals/VariacionPickerModal';
+import { BillingModal } from '../../components/modals/BillingModal';
 import type { PointsCalculation } from '../../types/loyalty';
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -47,6 +48,7 @@ type ModalView =
   | 'agregar'       // product picker
   | 'review'        // order review before payment
   | 'pago'          // payment
+  | 'billing'       // billing data after payment
   | 'success';      // done
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -234,7 +236,7 @@ let getAttrCount = (_p: Product) => 0;
 ═══════════════════════════════════════════════════════════════════════════*/
 export const POSPage: React.FC = () => {
   const { products, categories } = useInventoryStore();
-  const { customers, addSale } = useSalesStore();
+  const { customers, addSale, generateInvoiceForSale } = useSalesStore();
   const { getAtributosByProductId } = useVariacionesStore();
   const { getElaboradoAvailability, checkStock, deductStock } = useStockManager();
   const {
@@ -268,6 +270,7 @@ export const POSPage: React.FC = () => {
   const [usePoints,      setUsePoints]      = React.useState(false);
   const [pointsToRedeem, setPointsToRedeem] = React.useState(0);
   const [lastSaleResult, setLastSaleResult] = React.useState<{ code: string; points: PointsCalculation | null; newBalance: number } | null>(null);
+  const [pendingBillingSaleId, setPendingBillingSaleId] = React.useState<string | null>(null);
 
   /* ── Drag scroll refs ── */
   const dragScroll    = useDragScroll<HTMLDivElement>();
@@ -483,7 +486,8 @@ export const POSPage: React.FC = () => {
         newBalance = getOrCreateProfile(activeMesa.customerId).points;
       }
       setLastSaleResult({ code: newSale.code, points: earnedPoints, newBalance });
-      setModalView('success');
+      setPendingBillingSaleId(newSale.id);
+      setModalView('billing');
     } catch {
       toast.error('Error', 'No se pudo registrar la venta.');
     } finally {
@@ -1269,6 +1273,21 @@ export const POSPage: React.FC = () => {
             </div>
           </Overlay>
         )}
+
+        {/* ══════════════════════════════════════════════════════════════
+            MODAL: BILLING
+        ═════════════════════════════════════════════════════════════════*/}
+        <BillingModal
+          isOpen={modalView === 'billing'}
+          saleCode={lastSaleResult?.code}
+          onDone={(billing) => {
+            if (pendingBillingSaleId) {
+              generateInvoiceForSale(pendingBillingSaleId, billing);
+            }
+            setPendingBillingSaleId(null);
+            setModalView('success');
+          }}
+        />
 
         {/* Variacion picker */}
         {varPickerProduct && (

@@ -15,6 +15,27 @@ import type {
   SalesStats,
 } from '../types';
 
+export interface InvoiceItemInput {
+  productId: string;
+  productName: string;
+  productCode: string;
+  variationId?: string;
+  variationName?: string;
+  quantity: number;
+  unitPrice: number;
+  discount: number;
+}
+
+export interface InvoiceCreateInput {
+  customerId?: string;
+  customerName?: string;
+  nit?: string;
+  items: InvoiceItemInput[];
+  paymentMethod: 'cash' | 'card' | 'transfer' | 'credit';
+  dueDate?: Date;
+  notes?: string;
+}
+
 interface SalesState {
   sales: Sale[];
   customers: Customer[];
@@ -42,6 +63,11 @@ interface SalesState {
 
   // Invoice actions
   generateInvoice: (saleId: string) => Invoice;
+  generateInvoiceForSale: (saleId: string, billing: { nit: string; name: string }) => Invoice;
+  createInvoiceFromItems: (input: InvoiceCreateInput) => Invoice;
+  markInvoicePaid: (id: string) => void;
+  cancelInvoice: (id: string) => void;
+  deleteInvoice: (id: string) => void;
 
   // Accounts Receivable actions
   addReceivablePayment: (input: ReceivablePaymentInput) => void;
@@ -375,6 +401,162 @@ export const useSalesStore = create<SalesState>((set, get) => ({
     }));
 
     return invoice;
+  },
+
+  generateInvoiceForSale: (saleId, billing) => {
+    const state = get();
+    const sale = state.sales.find((s) => s.id === saleId);
+    if (!sale) throw new Error('Venta no encontrada');
+
+    const now = new Date();
+    const isPaid = sale.paymentMethods.every((pm) => pm.type !== 'credit');
+
+    const invoice: Invoice = {
+      id: uuidv4(),
+      code: generateCode('FACT', state.invoices.length + 1),
+      saleId: sale.id,
+      saleCode: sale.code,
+      date: now,
+      customerName: billing.name,
+      nit: billing.nit,
+      items: sale.items,
+      subtotal: sale.subtotal,
+      tax: sale.tax,
+      total: sale.total,
+      status: isPaid ? 'paid' : 'pending',
+      paymentDate: isPaid ? now : undefined,
+      notes: sale.notes,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    set((s) => ({ invoices: [...s.invoices, invoice] }));
+    return invoice;
+  },
+
+  createInvoiceFromItems: (input) => {
+    const state = get();
+    const now = new Date();
+
+    // Build SaleItems with full data
+    const items: SaleItem[] = input.items.map((item) => {
+      const taxRate = 0.18;
+      const subtotal = item.quantity * item.unitPrice;
+      const discountAmt = item.discount || 0;
+      const taxable = subtotal - discountAmt;
+      const tax = taxable * taxRate;
+      const total = taxable + tax;
+      return {
+        id: uuidv4(),
+        productId: item.productId,
+        productName: item.productName,
+        productCode: item.productCode,
+        variationId: item.variationId,
+        variationName: item.variationName,
+        quantity: item.quantity,
+        unit: 'unidad',
+        unitPrice: item.unitPrice,
+        discount: discountAmt,
+        subtotal,
+        tax,
+        total,
+      };
+    });
+
+    const subtotal = items.reduce((s, i) => s + i.subtotal, 0);
+    const totalDiscount = items.reduce((s, i) => s + i.discount, 0);
+    const tax = items.reduce((s, i) => s + i.tax, 0);
+    const total = subtotal - totalDiscount + tax;
+
+    const isPaid = input.paymentMethod !== 'credit';
+
+    // Create Sale
+    const newSale: Sale = {
+      id: uuidv4(),
+      code: generateCode('SALE', state.sales.length + 1),
+      date: now,
+      customerId: input.customerId,
+      customerName: input.customerName,
+      items,
+      subtotal,
+      discount: totalDiscount,
+      tax,
+      taxPercentage: 18,
+      total,
+      paymentMethods: [{
+        id: uuidv4(),
+        type: input.paymentMethod,
+        name: input.paymentMethod === 'cash' ? 'Efectivo'
+          : input.paymentMethod === 'card' ? 'Tarjeta'
+          : input.paymentMethod === 'transfer' ? 'Transferencia'
+          : 'Crédito',
+        amount: total,
+      }],
+      status: 'completed',
+      notes: input.notes,
+      cashierId: 'current-user',
+      cashierName: 'Usuario Actual',
+      branchId: 'main-branch',
+      branchName: 'Sucursal Principal',
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    // Create Invoice
+    const invoice: Invoice = {
+      id: uuidv4(),
+      code: generateCode('FACT', state.invoices.length + 1),
+      saleId: newSale.id,
+      saleCode: newSale.code,
+      date: now,
+      dueDate: input.dueDate,
+      customerId: input.customerId,
+      customerName: input.customerName,
+      nit: input.nit,
+      items,
+      subtotal,
+      tax,
+      total,
+      status: isPaid ? 'paid' : 'pending',
+      paymentDate: isPaid ? now : undefined,
+      notes: input.notes,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    set((s) => ({
+      sales: [...s.sales, newSale],
+      invoices: [...s.invoices, invoice],
+    }));
+
+    get().calculateStats();
+    return invoice;
+  },
+
+  markInvoicePaid: (id) => {
+    set((state) => ({
+      invoices: state.invoices.map((inv) =>
+        inv.id === id
+          ? { ...inv, status: 'paid' as const, paymentDate: new Date(), updatedAt: new Date() }
+          : inv
+      ),
+    }));
+  },
+
+  cancelInvoice: (id) => {
+    set((state) => ({
+      invoices: state.invoices.map((inv) =>
+        inv.id === id
+          ? { ...inv, status: 'cancelled' as const, updatedAt: new Date() }
+          : inv
+      ),
+    }));
+  },
+
+  deleteInvoice: (id) => {
+    set((state) => ({
+      invoices: state.invoices.filter((inv) => inv.id !== id),
+    }));
   },
 
   // Accounts Receivable actions

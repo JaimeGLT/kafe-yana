@@ -10,7 +10,7 @@ import KardexPage from './pages/inventory/KardexPage';
 import { SalesListPage } from './pages/sales/SalesListPage';
 import { POSPage } from './pages/sales/POSPage';
 import { CustomersPage } from './pages/sales/CustomersPage';
-import { QuotesPage } from './pages/sales/QuotesPage';
+import { InvoicesPage } from './pages/sales/InvoicesPage';
 import { FidelizacionPage } from './pages/sales/FidelizacionPage';
 import { PurchaseOrdersPage } from './pages/purchases/PurchaseOrdersPage';
 import { SuppliersPage } from './pages/purchases/SuppliersPage';
@@ -82,7 +82,7 @@ function App() {
         <Route path="/sales/pos" element={<ProtectedRoute><POSPage /></ProtectedRoute>} />
         <Route path="/sales" element={<ProtectedRoute><SalesListPage /></ProtectedRoute>} />
         <Route path="/sales/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
-        <Route path="/sales/quotes" element={<ProtectedRoute><QuotesPage /></ProtectedRoute>} />
+        <Route path="/sales/invoices" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
         <Route path="/sales/fidelizacion" element={<ProtectedRoute><FidelizacionPage /></ProtectedRoute>} />
 
         {/* Purchases */}

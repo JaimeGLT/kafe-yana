@@ -138,6 +138,7 @@ export interface Invoice extends BaseEntity {
   dueDate?: Date;
   customerId?: UUID;
   customerName?: string;
+  nit?: string;
   items: SaleItem[];
   subtotal: number;
   tax: number;
