@@ -10,5 +10,5 @@ export { Tabs, TabPanel, TabsWithPanels } from './Tabs';
 export { Dropdown, SelectDropdown } from './Dropdown';
 export { SearchInput, SearchWithSuggestions } from './SearchInput';
 export { DatePicker, DateRangePicker } from './DatePicker';
-export { ToastContainer, toast } from './Toast';
+export { ToastProvider, ToastContainer, useToast, toast } from './Toast';
 export { Tooltip, HelpTooltip } from './Tooltip';

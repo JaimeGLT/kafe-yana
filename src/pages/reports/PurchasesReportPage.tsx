@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { startOfMonth, endOfDay, format, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -8,8 +8,9 @@ import { ShoppingBag, Clock, CreditCard, Users, Calendar, FileText } from 'lucid
 import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Button, Input, Badge } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
-import { usePurchasesStore } from '../../stores';
+import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../utils';
+import type { PurchaseOrder, Supplier, AccountsPayable } from '../../types';
 
 const CHART_COLORS = {
   primary: '#8B4513',
@@ -47,7 +48,30 @@ const STATUS_VARIANTS: Record<string, 'default' | 'warning' | 'success' | 'dange
 };
 
 const PurchasesReportPage: React.FC = () => {
-  const { purchaseOrders, suppliers, accountsPayable } = usePurchasesStore();
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [accountsPayable, setAccountsPayable] = useState<AccountsPayable[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [ordersData, suppliersData, payablesData] = await Promise.all([
+          api.get<PurchaseOrder[]>('/purchases/orders'),
+          api.get<Supplier[]>('/purchases/suppliers'),
+          api.get<AccountsPayable[]>('/purchases/payables'),
+        ]);
+        setPurchaseOrders(ordersData);
+        setSuppliers(suppliersData);
+        setAccountsPayable(payablesData);
+      } catch (error) {
+        console.error('Error loading purchases data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   const today = new Date();
   const [dateFrom, setDateFrom] = useState<string>(format(startOfMonth(today), 'yyyy-MM-dd'));
@@ -56,7 +80,7 @@ const PurchasesReportPage: React.FC = () => {
   const filteredOrders = useMemo(() => {
     const from = new Date(dateFrom + 'T00:00:00');
     const to = endOfDay(new Date(dateTo + 'T00:00:00'));
-    return purchaseOrders.filter(o => {
+    return purchaseOrders.filter((o: PurchaseOrder) => {
       const d = new Date(o.date);
       return isWithinInterval(d, { start: from, end: to });
     });
@@ -65,26 +89,26 @@ const PurchasesReportPage: React.FC = () => {
   // KPIs
   const totalPurchasesValue = useMemo(
     () => filteredOrders
-      .filter(o => o.status !== 'cancelled' && o.status !== 'draft')
-      .reduce((sum, o) => sum + o.total, 0),
+      .filter((o: PurchaseOrder) => o.status !== 'cancelled' && o.status !== 'draft')
+      .reduce((sum: number, o: PurchaseOrder) => sum + o.total, 0),
     [filteredOrders]
   );
   const pendingOrdersCount = useMemo(
-    () => filteredOrders.filter(o => o.status === 'pending' || o.status === 'approved' || o.status === 'partial').length,
+    () => filteredOrders.filter((o: PurchaseOrder) => o.status === 'pending' || o.status === 'approved' || o.status === 'partial').length,
     [filteredOrders]
   );
   const pendingPaymentsAmount = useMemo(
     () => accountsPayable
-      .filter(p => p.status === 'pending' || p.status === 'partial')
-      .reduce((sum, p) => sum + p.pendingAmount, 0),
+      .filter((p: AccountsPayable) => p.status === 'pending' || p.status === 'partial')
+      .reduce((sum: number, p: AccountsPayable) => sum + p.pendingAmount, 0),
     [accountsPayable]
   );
-  const activeSuppliers = useMemo(() => suppliers.filter(s => s.isActive).length, [suppliers]);
+  const activeSuppliers = useMemo(() => suppliers.filter((s: Supplier) => s.isActive).length, [suppliers]);
 
   // Monthly breakdown chart
   const monthlyData = useMemo(() => {
     const map: Record<string, number> = {};
-    filteredOrders.forEach(o => {
+    filteredOrders.forEach((o: PurchaseOrder) => {
       if (o.status === 'cancelled' || o.status === 'draft') return;
       const key = format(new Date(o.date), 'MMM yyyy', { locale: es });
       map[key] = (map[key] || 0) + o.total;
@@ -95,7 +119,7 @@ const PurchasesReportPage: React.FC = () => {
   // Top suppliers by purchase value
   const topSuppliers = useMemo(() => {
     const map: Record<string, { name: string; total: number; count: number }> = {};
-    filteredOrders.forEach(o => {
+    filteredOrders.forEach((o: PurchaseOrder) => {
       if (o.status === 'cancelled') return;
       const key = o.supplierId;
       const name = o.supplierName || 'Proveedor desconocido';

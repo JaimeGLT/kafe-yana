@@ -4,7 +4,6 @@ import { Button } from '../ui/Button';
 import { Input, Textarea } from '../ui/Input';
 import { FormField, Form, FormRow, FormActions } from '../forms/FormField';
 import { toast } from '../ui/Toast';
-import { useInventoryStore } from '../../stores';
 import type { Category, CategoryInput } from '../../types';
 
 interface CategoryModalProps {
@@ -12,6 +11,7 @@ interface CategoryModalProps {
   onClose: () => void;
   category?: Category;
   onSuccess: () => void;
+  onSave: (input: CategoryInput, isEdit: boolean, categoryId?: string) => Promise<void>;
 }
 
 interface CategoryFormData {
@@ -26,11 +26,11 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
   onClose,
   category,
   onSuccess,
+  onSave,
 }) => {
   const [isLoading, setIsLoading] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
-  const { addCategory, updateCategory } = useInventoryStore();
-
+  
   const [formData, setFormData] = React.useState<CategoryFormData>({
     name: category?.name || '',
     description: category?.description || '',
@@ -82,13 +82,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
         isActive: formData.isActive,
       };
 
-      if (category) {
-        updateCategory(category.id, input);
-        toast.success('Categoría actualizada', `"${input.name}" fue actualizada correctamente.`);
-      } else {
-        addCategory(input);
-        toast.success('Categoría creada', `"${input.name}" fue creada correctamente.`);
-      }
+      await onSave(input, !!category, category?.id);
       onSuccess();
       onClose();
     } catch (error) {

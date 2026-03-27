@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 // Pages
@@ -31,87 +30,72 @@ import VariacionesPage from './pages/inventory/VariacionesPage';
 // Auth
 import LoginPage from './pages/auth/LoginPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
-import { useAuthStore } from './stores/authStore';
 
-// Stores
-import { useInventoryStore, useSalesStore, usePurchasesStore, useCashStore } from './stores';
-
-// Utils
-import { initializeMockData } from './utils';
+// Contexts
+import { AuthProvider, UIProvider, SettingsProvider } from './contexts';
+import { ToastProvider } from './components/ui';
 
 function App() {
-  const inventoryStore = useInventoryStore();
-  const { checkSession } = useAuthStore();
-
-  useEffect(() => {
-    // Verifica sesión activa con el backend al arrancar la app
-    checkSession();
-  }, [checkSession]);
-
-  useEffect(() => {
-    if (inventoryStore.products.length === 0) {
-      initializeMockData({
-        inventory: useInventoryStore.getState(),
-        sales: useSalesStore.getState(),
-        purchases: usePurchasesStore.getState(),
-        cash: useCashStore.getState(),
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Ruta pública */}
-        <Route path="/login" element={<LoginPage />} />
+    <AuthProvider>
+      <SettingsProvider>
+        <UIProvider>
+          <ToastProvider>
+            <BrowserRouter>
+              <Routes>
+                {/* Ruta pública */}
+                <Route path="/login" element={<LoginPage />} />
 
-        {/* Todas las rutas protegidas requieren sesión activa */}
-        <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+                {/* Todas las rutas protegidas requieren sesión activa */}
+                <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
 
-        {/* Inventory */}
-        <Route path="/inventory/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
-        <Route path="/inventory/categories" element={<ProtectedRoute><CategoriesPage /></ProtectedRoute>} />
-        <Route path="/inventory/adjustments" element={<ProtectedRoute><AdjustmentsPage /></ProtectedRoute>} />
-        <Route path="/inventory/kardex" element={<ProtectedRoute><KardexPage /></ProtectedRoute>} />
-        <Route path="/inventory/elaborados" element={<ProtectedRoute><ElaboradosPage /></ProtectedRoute>} />
-        <Route path="/inventory/combos" element={<ProtectedRoute><CombosPage /></ProtectedRoute>} />
-        <Route path="/inventory/variations" element={<ProtectedRoute><VariacionesPage /></ProtectedRoute>} />
+                {/* Inventory */}
+                <Route path="/inventory/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
+                <Route path="/inventory/categories" element={<ProtectedRoute><CategoriesPage /></ProtectedRoute>} />
+                <Route path="/inventory/adjustments" element={<ProtectedRoute><AdjustmentsPage /></ProtectedRoute>} />
+                <Route path="/inventory/kardex" element={<ProtectedRoute><KardexPage /></ProtectedRoute>} />
+                <Route path="/inventory/elaborados" element={<ProtectedRoute><ElaboradosPage /></ProtectedRoute>} />
+                <Route path="/inventory/combos" element={<ProtectedRoute><CombosPage /></ProtectedRoute>} />
+                <Route path="/inventory/variations" element={<ProtectedRoute><VariacionesPage /></ProtectedRoute>} />
 
-        {/* Sales */}
-        <Route path="/sales/pos" element={<ProtectedRoute><POSPage /></ProtectedRoute>} />
-        <Route path="/sales" element={<ProtectedRoute><SalesListPage /></ProtectedRoute>} />
-        <Route path="/sales/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
-        <Route path="/sales/invoices" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
-        <Route path="/sales/fidelizacion" element={<ProtectedRoute><FidelizacionPage /></ProtectedRoute>} />
+                {/* Sales */}
+                <Route path="/sales/pos" element={<ProtectedRoute><POSPage /></ProtectedRoute>} />
+                <Route path="/sales" element={<ProtectedRoute><SalesListPage /></ProtectedRoute>} />
+                <Route path="/sales/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
+                <Route path="/sales/invoices" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion" element={<ProtectedRoute><FidelizacionPage /></ProtectedRoute>} />
 
-        {/* Purchases */}
-        <Route path="/purchases/orders" element={<ProtectedRoute><PurchaseOrdersPage /></ProtectedRoute>} />
-        <Route path="/purchases/suppliers" element={<ProtectedRoute><SuppliersPage /></ProtectedRoute>} />
-        <Route path="/purchases/payables" element={<ProtectedRoute><PayablesPage /></ProtectedRoute>} />
+                {/* Purchases */}
+                <Route path="/purchases/orders" element={<ProtectedRoute><PurchaseOrdersPage /></ProtectedRoute>} />
+                <Route path="/purchases/suppliers" element={<ProtectedRoute><SuppliersPage /></ProtectedRoute>} />
+                <Route path="/purchases/payables" element={<ProtectedRoute><PayablesPage /></ProtectedRoute>} />
 
-        {/* Cash */}
-        <Route path="/cash/register" element={<ProtectedRoute><CashRegisterPage /></ProtectedRoute>} />
-        <Route path="/cash/movements" element={<ProtectedRoute><MovementsPage /></ProtectedRoute>} />
+                {/* Cash */}
+                <Route path="/cash/register" element={<ProtectedRoute><CashRegisterPage /></ProtectedRoute>} />
+                <Route path="/cash/movements" element={<ProtectedRoute><MovementsPage /></ProtectedRoute>} />
 
-        {/* Reports */}
-        <Route path="/reports/sales" element={<ProtectedRoute><SalesReportPage /></ProtectedRoute>} />
-        <Route path="/reports/inventory" element={<ProtectedRoute><InventoryReportPage /></ProtectedRoute>} />
-        <Route path="/reports/purchases" element={<ProtectedRoute><PurchasesReportPage /></ProtectedRoute>} />
-        <Route path="/reports/cash" element={<ProtectedRoute><CashReportPage /></ProtectedRoute>} />
+                {/* Reports */}
+                <Route path="/reports/sales" element={<ProtectedRoute><SalesReportPage /></ProtectedRoute>} />
+                <Route path="/reports/inventory" element={<ProtectedRoute><InventoryReportPage /></ProtectedRoute>} />
+                <Route path="/reports/purchases" element={<ProtectedRoute><PurchasesReportPage /></ProtectedRoute>} />
+                <Route path="/reports/cash" element={<ProtectedRoute><CashReportPage /></ProtectedRoute>} />
 
-        {/* Recipes */}
-        <Route path="/recipes/insumos" element={<ProtectedRoute><InsumosPage /></ProtectedRoute>} />
-        <Route path="/recipes/recetas" element={<ProtectedRoute><RecetasPage /></ProtectedRoute>} />
+                {/* Recipes */}
+                <Route path="/recipes/insumos" element={<ProtectedRoute><InsumosPage /></ProtectedRoute>} />
+                <Route path="/recipes/recetas" element={<ProtectedRoute><RecetasPage /></ProtectedRoute>} />
 
-        {/* Settings */}
-        <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-        <Route path="/settings/*" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+                {/* Settings */}
+                <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+                <Route path="/settings/*" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+                {/* Fallback */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </BrowserRouter>
+          </ToastProvider>
+        </UIProvider>
+      </SettingsProvider>
+    </AuthProvider>
   );
 }
 

@@ -1,11 +1,9 @@
 import React from 'react';
-import type { Product, ProductInput, ProductTipo, Category, Brand, Location } from '../../types';
+import type { Product, ProductInput, ProductTipo, Category, Brand, Location, Receta } from '../../types';
 import { Form, FormField, FormRow, FormActions } from './FormField';
 import { Input, Textarea, Select } from '../ui';
 import { Button } from '../ui';
-import { AlertTriangle, BookOpen } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { useRecipesStore } from '../../stores';
+import { AlertTriangle, BookOpen, Layers } from 'lucide-react';
 import { formatCurrency } from '../../utils';
 
 interface ProductFormProps {
@@ -13,9 +11,12 @@ interface ProductFormProps {
   categories: Category[];
   brands: Brand[];
   locations: Location[];
+  recetaExistente?: Receta;
   onSubmit: (data: ProductInput) => void;
   onCancel: () => void;
   isLoading?: boolean;
+  hideTipo?: boolean;
+  forceTipo?: ProductTipo;
 }
 
 const UNIT_OPTIONS = [
@@ -31,27 +32,31 @@ const UNIT_OPTIONS = [
   { value: 'ml', label: 'Mililitro' },
 ];
 
+const TIPO_OPTIONS = [
+  { value: 'comprado', label: 'Comprado — se compra a un proveedor' },
+  { value: 'elaborado', label: 'Elaborado — se prepara con ingredientes' },
+  { value: 'combo', label: 'Combo — agrupa varios productos' },
+];
+
 export const ProductForm: React.FC<ProductFormProps> = ({
   product,
   categories,
   brands,
   locations,
+  recetaExistente,
   onSubmit,
   onCancel,
   isLoading = false,
+  hideTipo = false,
+  forceTipo,
 }) => {
-  const navigate = useNavigate();
-  const { getRecetaByProductId } = useRecipesStore();
-
-  const deriveTipo = (p?: Product): ProductTipo => {
-    return p?.tipo ?? 'comprado';
-  };
+  const isEditing = !!product;
 
   const [formData, setFormData] = React.useState<ProductInput>({
     code: product?.code || '',
     name: product?.name || '',
     description: product?.description || '',
-    tipo: deriveTipo(product),
+    tipo: forceTipo ?? product?.tipo ?? 'comprado',
     categoryId: product?.categoryId || '',
     brandId: product?.brandId || undefined,
     unit: product?.unit || 'unidad',
@@ -64,26 +69,16 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     locationId: product?.locationId || undefined,
     barcode: product?.barcode || '',
     isActive: product?.isActive ?? true,
-    variations: product?.variations?.map(v => ({
-      name: v.name,
-      sku: v.sku,
-      priceAdjustment: v.priceAdjustment,
-      stock: v.stock,
-      minStock: v.minStock,
-      maxStock: v.maxStock,
-      isActive: v.isActive,
-    })) || [],
+    variations: [],
   });
 
   const [errors, setErrors] = React.useState<Record<string, string>>({});
 
-  const tipo = formData.tipo;
+  const tipo = formData.tipo as ProductTipo;
   const isElaborado = tipo === 'elaborado';
   const isComprado = tipo === 'comprado';
   const isCombo = tipo === 'combo';
 
-  // Check if elaborado already has a recipe
-  const recetaExistente = product ? getRecetaByProductId(product.id) : undefined;
   const margenCalculado =
     formData.salePrice > 0 && formData.costPrice > 0
       ? ((formData.salePrice - formData.costPrice) / formData.salePrice) * 100
@@ -91,8 +86,8 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
   const handleChange = (field: keyof ProductInput, value: unknown) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+    if (errors[field as string]) {
+      setErrors(prev => ({ ...prev, [field as string]: '' }));
     }
   };
 
@@ -108,41 +103,54 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) {
-      onSubmit({ ...formData, variations: [] });
-    }
+    if (validate()) onSubmit({ ...formData, variations: [] });
   };
 
   return (
     <Form onSubmit={handleSubmit}>
       <div className="space-y-5">
-        {/* Elaborado: recipe alert */}
+
+        {/* Tipo selector — only when creating and not hidden */}
+        {!isEditing && !hideTipo && (
+          <FormField label="Tipo de producto" required>
+            <Select
+              value={formData.tipo as string}
+              onChange={(v) => handleChange('tipo', v as ProductTipo)}
+              options={TIPO_OPTIONS}
+            />
+          </FormField>
+        )}
+
+        {/* ── ELABORADO banners ── */}
         {isElaborado && product && !recetaExistente && (
           <div className="flex items-start gap-3 rounded-lg bg-amber-50 border border-amber-300 px-4 py-3">
             <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-            <div className="flex-1 text-sm text-amber-800">
-              <span className="font-semibold">Sin receta asignada</span> — este producto no puede venderse hasta que tenga una receta.
-            </div>
-            <button
-              type="button"
-              onClick={() => { onCancel(); navigate('/recipes/recetas'); }}
-              className="text-xs text-amber-700 underline hover:text-amber-900 whitespace-nowrap"
-            >
-              Crear receta
-            </button>
+            <p className="text-sm text-amber-800">
+              <span className="font-semibold">Sin receta asignada.</span> Administra la receta desde la página de <em>Productos Elaborados</em>.
+            </p>
           </div>
         )}
-
         {isElaborado && recetaExistente && (
           <div className="flex items-center gap-3 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-2.5">
             <BookOpen className="h-4 w-4 text-emerald-600 flex-shrink-0" />
             <span className="text-sm text-emerald-700 flex-1">
-              Receta asignada — {recetaExistente.ingredientes.length} ingredientes, costo/porción: <strong>{formatCurrency(recetaExistente.costoPorPorcion)}</strong>
+              Receta asignada — {recetaExistente.ingredientes.length} ingredientes, costo/porción:{' '}
+              <strong>{formatCurrency(recetaExistente.costoPorPorcion)}</strong>
             </span>
           </div>
         )}
 
-        {/* Name + Barcode */}
+        {/* ── COMBO banner ── */}
+        {isCombo && (
+          <div className="flex items-center gap-3 rounded-lg bg-blue-50 border border-blue-200 px-4 py-2.5">
+            <Layers className="h-4 w-4 text-blue-600 flex-shrink-0" />
+            <p className="text-sm text-blue-700">
+              El costo y stock de un combo se calculan automáticamente a partir de sus componentes. Administra los ítems desde la página de <em>Combos</em>.
+            </p>
+          </div>
+        )}
+
+        {/* Name + Barcode (barcode only for comprado) */}
         <FormRow>
           <FormField label="Nombre" required error={errors.name}>
             <Input
@@ -152,11 +160,11 @@ export const ProductForm: React.FC<ProductFormProps> = ({
             />
           </FormField>
           {isComprado && (
-            <FormField label="Código de producto">
+            <FormField label="Código / Barras">
               <Input
                 value={formData.barcode}
                 onChange={(e) => handleChange('barcode', e.target.value)}
-                placeholder="Ej: PROD-001"
+                placeholder="Ej: 7501234567890"
               />
             </FormField>
           )}
@@ -190,33 +198,38 @@ export const ProductForm: React.FC<ProductFormProps> = ({
           </FormField>
         </FormRow>
 
-        {/* Brand + Location (optional) */}
-        <FormRow>
-          {!isElaborado && (
-            <FormField label="Marca">
-              <Select
-                value={formData.brandId || ''}
-                onChange={(value) => handleChange('brandId', value || undefined)}
-                options={brands.filter(b => b.isActive).map(b => ({ value: b.id, label: b.name }))}
-                placeholder="Seleccionar marca"
-              />
-            </FormField>
-          )}
-          <FormField label="Ubicación">
+        {/* Brand — only for comprado */}
+        {isComprado && brands.filter(b => b.isActive).length > 0 && (
+          <FormField label="Marca">
+            <Select
+              value={formData.brandId || ''}
+              onChange={(value) => handleChange('brandId', value || undefined)}
+              options={[
+                { value: '', label: 'Sin marca' },
+                ...brands.filter(b => b.isActive).map(b => ({ value: b.id, label: b.name })),
+              ]}
+            />
+          </FormField>
+        )}
+
+        {/* Location — only for comprado */}
+        {isComprado && locations.filter(l => l.isActive).length > 0 && (
+          <FormField label="Ubicación en bodega">
             <Select
               value={formData.locationId || ''}
               onChange={(value) => handleChange('locationId', value || undefined)}
-              options={locations.filter(l => l.isActive).map(l => ({ value: l.id, label: l.name }))}
-              placeholder="Seleccionar ubicación"
+              options={[
+                { value: '', label: 'Sin ubicación' },
+                ...locations.filter(l => l.isActive).map(l => ({ value: l.id, label: l.name })),
+              ]}
             />
           </FormField>
-        </FormRow>
+        )}
 
         {/* Prices */}
         <FormRow>
-          {/* Comprado: manual cost price */}
-          {(isComprado || isCombo) && (
-            <FormField label="Costo de compra (Bs.)" required={isComprado} error={errors.costPrice}>
+          {isComprado && (
+            <FormField label="Costo de compra (Bs.)" error={errors.costPrice}>
               <Input
                 type="number"
                 step="0.01"
@@ -237,8 +250,8 @@ export const ProductForm: React.FC<ProductFormProps> = ({
           </FormField>
         </FormRow>
 
-        {/* Margin display for comprado */}
-        {isComprado && margenCalculado !== null && formData.salePrice > 0 && formData.costPrice > 0 && (
+        {/* Margin — only for comprado */}
+        {isComprado && margenCalculado !== null && (
           <div className="flex items-center gap-2 bg-coffee-50 border border-coffee-200 rounded-lg px-4 py-2">
             <span className="text-sm text-coffee-600">Margen:</span>
             <span className={`font-bold text-sm ${margenCalculado >= 30 ? 'text-emerald-700' : 'text-red-600'}`}>
@@ -247,8 +260,8 @@ export const ProductForm: React.FC<ProductFormProps> = ({
           </div>
         )}
 
-        {/* Stock — only for comprado and combo */}
-        {(isComprado || isCombo) && (
+        {/* Stock — only for comprado */}
+        {isComprado && (
           <FormRow>
             <FormField label="Stock actual">
               <Input
@@ -289,7 +302,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
           Cancelar
         </Button>
         <Button type="submit" isLoading={isLoading}>
-          {product ? 'Guardar Cambios' : 'Crear Producto'}
+          {isEditing ? 'Guardar Cambios' : 'Crear Producto'}
         </Button>
       </FormActions>
     </Form>

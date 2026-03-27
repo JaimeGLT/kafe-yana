@@ -1,23 +1,129 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { clsx } from 'clsx';
 import { Plus, TrendingUp, TrendingDown, BarChart2 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Button, Badge, Select } from '../../components/ui';
 import { CashMovementModal } from '../../components/modals';
-import { useCashStore } from '../../stores';
+import { gql } from '../../lib/graphql';
 import { formatCurrency, formatDateTime } from '../../utils';
+import type { CashMovement, CashCategory } from '../../types';
+
+// GraphQL queries
+const GET_CASH_MOVEMENTS = `
+  query($dateFrom: String, $dateTo: String) {
+    cashMovements(dateFrom: $dateFrom, dateTo: $dateTo) {
+      id
+      type
+      category
+      concept
+      amount
+      date
+      reference
+      userName
+    }
+  }
+`;
+
+const GET_CASH_CATEGORIES = `
+  query {
+    cashCategories {
+      id
+      name
+      type
+      isActive
+    }
+  }
+`;
+
+const GET_CURRENT_REGISTER = `
+  query {
+    currentCashRegister {
+      id
+      code
+      status
+    }
+  }
+`;
+
+interface MovementsResponse {
+  cashMovements: CashMovement[];
+}
+
+interface CategoriesResponse {
+  cashCategories: CashCategory[];
+}
+
+interface CurrentRegisterResponse {
+  currentCashRegister: { id: string; code: string; status: string } | null;
+}
 
 export const MovementsPage: React.FC = () => {
-  const { movements, categories, currentRegister } = useCashStore();
+  const [movements, setMovements] = useState<CashMovement[]>([]);
+  const [categories, setCategories] = useState<CashCategory[]>([]);
+  const [currentRegister, setCurrentRegister] = useState<{ id: string; code: string } | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const [dateFrom, setDateFrom] = React.useState('');
-  const [dateTo, setDateTo] = React.useState('');
-  const [typeFilter, setTypeFilter] = React.useState<'' | 'income' | 'expense'>('');
-  const [categoryFilter, setCategoryFilter] = React.useState('');
-  const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'' | 'income' | 'expense'>('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const filteredMovements = React.useMemo(() => {
+  // Fetch movements
+  const fetchMovements = async () => {
+    try {
+      const variables: Record<string, string | undefined> = {};
+      if (dateFrom) variables.dateFrom = dateFrom;
+      if (dateTo) variables.dateTo = dateTo;
+      const data = await gql<MovementsResponse>(GET_CASH_MOVEMENTS, variables);
+      setMovements(
+        (data.cashMovements || []).map((m: CashMovement) => ({
+          ...m,
+          date: new Date(m.date as unknown as string),
+        }))
+      );
+    } catch (error) {
+      console.error('Error fetching movements:', error);
+    }
+  };
+
+  // Fetch categories
+  const fetchCategories = async () => {
+    try {
+      const data = await gql<CategoriesResponse>(GET_CASH_CATEGORIES);
+      setCategories(data.cashCategories || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
+  // Fetch current register
+  const fetchCurrentRegister = async () => {
+    try {
+      const data = await gql<CurrentRegisterResponse>(GET_CURRENT_REGISTER);
+      setCurrentRegister(data.currentCashRegister);
+    } catch (error) {
+      console.error('Error fetching current register:', error);
+    }
+  };
+
+  // Initial load
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      await Promise.all([fetchCategories(), fetchCurrentRegister()]);
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  // Fetch movements when filters change
+  useEffect(() => {
+    fetchMovements();
+  }, [dateFrom, dateTo]);
+
+  const filteredMovements = useMemo(() => {
     return movements.filter((mov) => {
       if (typeFilter && mov.type !== typeFilter) return false;
       if (categoryFilter && mov.category !== categoryFilter) return false;
@@ -31,7 +137,7 @@ export const MovementsPage: React.FC = () => {
     });
   }, [movements, typeFilter, categoryFilter, dateFrom, dateTo]);
 
-  const summaryKpis = React.useMemo(() => {
+  const summaryKpis = useMemo(() => {
     const totalIncome = filteredMovements
       .filter((m) => m.type === 'income')
       .reduce((s, m) => s + m.amount, 0);
@@ -42,13 +148,13 @@ export const MovementsPage: React.FC = () => {
     return { totalIncome, totalExpense, net };
   }, [filteredMovements]);
 
-  const activeCategories = React.useMemo(
+  const activeCategories = useMemo(
     () => categories.filter((c) => c.isActive),
     [categories]
   );
 
   const categoryOptions = [
-    { value: '', label: 'Todas las categorías' },
+    { value: '', label: 'Todas las categorias' },
     ...activeCategories.map((c) => ({ value: c.name, label: c.name })),
   ];
 
@@ -57,6 +163,27 @@ export const MovementsPage: React.FC = () => {
     { value: 'income', label: 'Ingresos' },
     { value: 'expense', label: 'Egresos' },
   ];
+
+  const handleMovementSuccess = () => {
+    setIsModalOpen(false);
+    fetchMovements();
+  };
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <PageContainer>
+          <PageHeader
+            title="Movimientos de Caja"
+            subtitle="Historial de todos los ingresos y egresos"
+          />
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-coffee-600"></div>
+          </div>
+        </PageContainer>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -165,7 +292,7 @@ export const MovementsPage: React.FC = () => {
             <table className="min-w-full divide-y divide-coffee-200">
               <thead className="bg-coffee-50">
                 <tr>
-                  {['Fecha', 'Tipo', 'Categoría', 'Concepto', 'Referencia', 'Monto', 'Usuario'].map(
+                  {['Fecha', 'Tipo', 'Categoria', 'Concepto', 'Referencia', 'Monto', 'Usuario'].map(
                     (h) => (
                       <th
                         key={h}
@@ -237,7 +364,7 @@ export const MovementsPage: React.FC = () => {
         <CashMovementModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          onSuccess={() => setIsModalOpen(false)}
+          onSuccess={handleMovementSuccess}
         />
       </PageContainer>
     </MainLayout>

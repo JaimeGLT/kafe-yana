@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FileText, Eye, ArrowRightCircle, Trash2, Clock } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Badge, ConfirmModal, Modal } from '../../components/ui';
 import { toast } from '../../components/ui/Toast';
-import { useSalesStore } from '../../stores';
+import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../utils';
 import type { Quote } from '../../types';
 
@@ -19,12 +19,47 @@ const quoteStatusConfig: Record<
 };
 
 export const QuotesPage: React.FC = () => {
-  const { quotes, convertQuoteToSale, deleteQuote } = useSalesStore();
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [viewingQuote, setViewingQuote] = useState<Quote | null>(null);
+  const [convertingQuote, setConvertingQuote] = useState<Quote | null>(null);
+  const [deletingQuote, setDeletingQuote] = useState<Quote | null>(null);
+  const [isConverting, setIsConverting] = useState(false);
 
-  const [viewingQuote, setViewingQuote] = React.useState<Quote | null>(null);
-  const [convertingQuote, setConvertingQuote] = React.useState<Quote | null>(null);
-  const [deletingQuote, setDeletingQuote] = React.useState<Quote | null>(null);
-  const [isConverting, setIsConverting] = React.useState(false);
+  useEffect(() => {
+    const fetchQuotes = async () => {
+      try {
+        const data = await api.get<Quote[]>('/quotes');
+        setQuotes(data);
+      } catch (error) {
+        console.error('Error fetching quotes:', error);
+        toast.error('Error', 'No se pudieron cargar las cotizaciones.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchQuotes();
+  }, []);
+
+  const convertQuoteToSale = useCallback(async (quoteId: string) => {
+    try {
+      const sale = await api.post('/quotes/' + quoteId + '/convert');
+      return sale;
+    } catch (error) {
+      console.error('Error converting quote:', error);
+      return null;
+    }
+  }, []);
+
+  const deleteQuote = useCallback(async (quoteId: string) => {
+    try {
+      await api.delete('/quotes/' + quoteId);
+      setQuotes(prev => prev.filter((q: Quote) => q.id !== quoteId));
+    } catch (error) {
+      console.error('Error deleting quote:', error);
+      toast.error('Error', 'No se pudo eliminar la cotización.');
+    }
+  }, []);
 
   const handleConvert = () => {
     if (!convertingQuote) return;
@@ -44,14 +79,14 @@ export const QuotesPage: React.FC = () => {
     }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deletingQuote) return;
-    deleteQuote(deletingQuote.id);
+    await deleteQuote(deletingQuote.id);
     toast.success('Cotización eliminada', 'La cotización fue eliminada correctamente.');
     setDeletingQuote(null);
   };
 
-  const isExpired = (quote: Quote) =>
+  const isExpired = (quote: Quote): boolean =>
     quote.status === 'pending' && new Date(quote.validUntil) < new Date();
 
   return (
@@ -87,8 +122,14 @@ export const QuotesPage: React.FC = () => {
                       </div>
                     </td>
                   </tr>
+                ) : loading ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-12 text-center text-coffee-400">
+                      Cargando...
+                    </td>
+                  </tr>
                 ) : (
-                  quotes.map((quote) => {
+                  quotes.map((quote: Quote) => {
                     const effectiveStatus = isExpired(quote) ? 'expired' : quote.status;
                     const statusCfg = quoteStatusConfig[effectiveStatus as Quote['status']] || quoteStatusConfig.pending;
 
@@ -213,7 +254,7 @@ export const QuotesPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-coffee-100">
-                      {viewingQuote.items.map((item) => (
+                      {viewingQuote.items.map((item: { id: string; productName?: string; quantity: number; unitPrice: number; total: number }) => (
                         <tr key={item.id}>
                           <td className="px-4 py-2 text-coffee-900">{item.productName || 'Producto'}</td>
                           <td className="px-4 py-2 text-right text-coffee-700">{item.quantity}</td>

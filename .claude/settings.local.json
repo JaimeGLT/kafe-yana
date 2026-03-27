@@ -27,7 +27,9 @@
       "Bash(sed -n '90,115p' src/pages/sales/FidelizacionPage.tsx)",
       "Bash(sed -n '200,215p' src/pages/sales/FidelizacionPage.tsx)",
       "Bash(sed -n '105,120p' src/pages/sales/FidelizacionPage.tsx)",
-      "Bash(sed -n '158,168p' src/pages/sales/FidelizacionPage.tsx)"
+      "Bash(sed -n '158,168p' src/pages/sales/FidelizacionPage.tsx)",
+      "Bash(find C:/Users/jaime/Desktop/kafe-yana/src -type f \\\\\\(-name *api* -o -name *service* -o -name *http* -o -name *request* \\\\\\))",
+      "Bash(ls:*)"
     ]
   }
 }

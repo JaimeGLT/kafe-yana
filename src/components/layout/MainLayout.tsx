@@ -1,16 +1,15 @@
 import React from 'react';
 import { clsx } from 'clsx';
-import { useUIStore } from '../../stores';
+import { useUI } from '../../contexts/UIContext';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
-import { ToastContainer } from '../ui';
 
 interface MainLayoutProps {
   children: React.ReactNode;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
-  const { sidebarCollapsed } = useUIStore();
+  const { sidebarCollapsed } = useUI();
 
   return (
     <div className="min-h-screen bg-cafe-primary">
@@ -32,9 +31,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           {children}
         </div>
       </main>
-
-      {/* Toast Container */}
-      <ToastContainer />
     </div>
   );
 };

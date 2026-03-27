@@ -4,7 +4,6 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { FormField, Form, FormRow, FormActions } from '../forms/FormField';
 import { toast } from '../ui/Toast';
-import { useSalesStore } from '../../stores';
 import type { Customer, CustomerInput } from '../../types';
 
 interface CustomerModalProps {
@@ -12,6 +11,7 @@ interface CustomerModalProps {
   onClose: () => void;
   customer?: Customer;
   onSuccess: () => void;
+  onSave: (input: CustomerInput, isEdit: boolean, customerId?: string) => void;
 }
 
 interface CustomerFormData {
@@ -29,10 +29,10 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
   onClose,
   customer,
   onSuccess,
+  onSave,
 }) => {
   const [isLoading, setIsLoading] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
-  const { addCustomer, updateCustomer } = useSalesStore();
 
   const [formData, setFormData] = React.useState<CustomerFormData>({
     name: customer?.name || '',
@@ -108,13 +108,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
         isActive: formData.isActive,
       };
 
-      if (customer) {
-        updateCustomer(customer.id, input);
-        toast.success('Cliente actualizado', `"${input.name}" fue actualizado correctamente.`);
-      } else {
-        addCustomer(input);
-        toast.success('Cliente creado', `"${input.name}" fue registrado correctamente.`);
-      }
+      onSave(input, !!customer, customer?.id);
       onSuccess();
       onClose();
     } catch (error) {

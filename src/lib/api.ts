@@ -5,12 +5,13 @@
  * - credentials: 'include'  → las cookies HttpOnly se envían en cada request
  * - X-Requested-With        → header custom que CORS impide a páginas externas setear,
  *                             sirve como primera línea de defensa contra CSRF
- * - X-CSRFToken             → si el backend usa el patrón Double Submit Cookie,
- *                             se lee el token de la cookie y se reenvía como header
  * - Los tokens/sesiones NUNCA se guardan en localStorage o sessionStorage
+ *
+ * Refresh automático:
+ * - ACCESS_TOKEN dura 5 min. Si expira, se llama POST /auth/RefreshToken y se reintenta.
+ * - Si el refresh también falla (REFRESH_TOKEN expirado), se lanza el error al caller.
  */
 
-// Elimina el slash final si existe para que la concatenación con el path sea siempre correcta
 const BASE_URL = ((import.meta.env.VITE_API_URL as string | undefined) ?? '').replace(/\/$/, '');
 
 /** Lee el token CSRF desde una cookie (Double Submit Cookie pattern). */
@@ -31,14 +32,26 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+/** Intenta renovar el ACCESS_TOKEN usando el REFRESH_TOKEN en cookie. */
+async function tryRefreshToken(): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE_URL}/Aunth/RefreshToken`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function request<T>(path: string, options: RequestInit = {}, isRetry = false): Promise<T> {
   const csrfToken = getCsrfToken();
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    // Indica al backend que es un request AJAX — mitiga CSRF para backends que validan este header
     'X-Requested-With': 'XMLHttpRequest',
-    // Envía token CSRF si el backend usa el patrón Double Submit Cookie
     ...(csrfToken ? { 'X-CSRFToken': csrfToken } : {}),
     ...(options.headers as Record<string, string> | undefined),
   };
@@ -47,11 +60,19 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   try {
     response = await fetch(`${BASE_URL}${path}`, {
       ...options,
-      credentials: 'include', // Siempre enviar cookies (sesión HttpOnly)
+      credentials: 'include',
       headers,
     });
   } catch {
     throw new ApiError('Sin conexión. Verifica tu red e intenta de nuevo.', 0);
+  }
+
+  // 401 — intentar refresh una sola vez
+  if (response.status === 401 && !isRetry) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      return request<T>(path, options, true);
+    }
   }
 
   // 204 No Content — respuesta válida sin body
@@ -63,10 +84,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     let message = 'Error del servidor. Intenta de nuevo.';
     try {
       const body = await response.json();
-      // Soporta { message }, { detail }, { error } según el backend
       message =
-        (body as { message?: string; detail?: string; error?: string })
-          .message ??
+        (body as { message?: string; detail?: string; error?: string }).message ??
         (body as { detail?: string }).detail ??
         (body as { error?: string }).error ??
         message;

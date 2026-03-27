@@ -1,14 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { clsx } from 'clsx';
 import { Layers, ChevronDown, ChevronRight, FlaskConical, Coffee, Package, Info } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageContainer, PageHeader } from '../../components/layout';
 import { Button, Input } from '../../components/ui';
 import { VariacionModal } from '../../components/modals/VariacionModal';
-import { useInventoryStore } from '../../stores';
-import { useVariacionesStore } from '../../stores/variacionesStore';
+import { api } from '../../lib/api';
 import { formatCurrency } from '../../utils';
-import type { Product } from '../../types';
+import type { Product, VariacionAtributo } from '../../types';
 
 // KPI card
 interface KpiCardProps {
@@ -48,15 +47,15 @@ const TipoBadge: React.FC<{ tipo: Product['tipo'] }> = ({ tipo }) => {
 // Per-product row
 interface ProductRowProps {
   product: Product;
+  atributos: VariacionAtributo[];
 }
 
-const ProductRow: React.FC<ProductRowProps> = ({ product }) => {
-  const { getAtributosByProductId } = useVariacionesStore();
+const ProductRow: React.FC<ProductRowProps> = ({ product, atributos }) => {
   const [expanded, setExpanded] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
 
-  const atributos = getAtributosByProductId(product.id);
-  const totalOpciones = atributos.reduce((s, a) => s + a.opciones.filter((o) => o.isActive).length, 0);
+  const productAtributos = atributos.filter((a: VariacionAtributo) => a.productId === product.id && a.isActive);
+  const totalOpciones = productAtributos.reduce((s: number, a: VariacionAtributo) => s + a.opciones.filter((o) => o.isActive).length, 0);
 
   return (
     <>
@@ -91,7 +90,7 @@ const ProductRow: React.FC<ProductRowProps> = ({ product }) => {
             <div className="flex items-center gap-3 mt-0.5">
               <span className="text-xs text-coffee-500">{formatCurrency(product.salePrice)}</span>
               <span className="text-xs text-coffee-400">
-                {atributos.length} atributo(s) · {totalOpciones} opción(es)
+                {productAtributos.length} atributo(s) · {totalOpciones} opción(es)
               </span>
             </div>
           </div>
@@ -107,9 +106,9 @@ const ProductRow: React.FC<ProductRowProps> = ({ product }) => {
         </div>
 
         {/* Expanded: atributo list */}
-        {expanded && atributos.length > 0 && (
+        {expanded && productAtributos.length > 0 && (
           <div className="border-t border-coffee-100 px-4 py-3 bg-coffee-50 space-y-2">
-            {atributos.map((atributo) => (
+            {productAtributos.map((atributo: VariacionAtributo) => (
               <div key={atributo.id}>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs font-semibold text-coffee-700">{atributo.nombre}</span>
@@ -145,7 +144,7 @@ const ProductRow: React.FC<ProductRowProps> = ({ product }) => {
           </div>
         )}
 
-        {expanded && atributos.length === 0 && (
+        {expanded && productAtributos.length === 0 && (
           <div className="border-t border-coffee-100 px-4 py-3 bg-coffee-50 text-center">
             <p className="text-xs text-coffee-400">Sin atributos. Haz clic en "Gestionar" para añadir variaciones.</p>
           </div>
@@ -165,13 +164,31 @@ const ProductRow: React.FC<ProductRowProps> = ({ product }) => {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 const VariacionesPage: React.FC = () => {
-  const { products } = useInventoryStore();
-  const { atributos } = useVariacionesStore();
-
+  const [products, setProducts] = useState<Product[]>([]);
+  const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [productsData, atributosData] = await Promise.all([
+          api.get<Product[]>('/Inventory/products'),
+          api.get<VariacionAtributo[]>('/Inventory/variaciones'),
+        ]);
+        setProducts(productsData);
+        setAtributos(atributosData);
+      } catch (error) {
+        console.error('Error loading variaciones data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
   const activeProducts = useMemo(
-    () => products.filter((p) => p.isActive && p.tipo === 'elaborado'),
+    () => products.filter((p: Product) => p.isActive && p.tipo === 'elaborado'),
     [products]
   );
 
@@ -179,28 +196,40 @@ const VariacionesPage: React.FC = () => {
     if (!search.trim()) return activeProducts;
     const q = search.toLowerCase();
     return activeProducts.filter(
-      (p) => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)
+      (p: Product) => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)
     );
   }, [activeProducts, search]);
 
   // KPIs
   const productsWithVariations = useMemo(() => {
-    const ids = new Set(atributos.filter((a) => a.isActive).map((a) => a.productId));
+    const ids = new Set(atributos.filter((a: VariacionAtributo) => a.isActive).map((a: VariacionAtributo) => a.productId));
     return ids.size;
   }, [atributos]);
 
   const totalAtributos = useMemo(
-    () => atributos.filter((a) => a.isActive).length,
+    () => atributos.filter((a: VariacionAtributo) => a.isActive).length,
     [atributos]
   );
 
   const totalOpciones = useMemo(
     () =>
       atributos
-        .filter((a) => a.isActive)
-        .reduce((s, a) => s + a.opciones.filter((o) => o.isActive).length, 0),
+        .filter((a: VariacionAtributo) => a.isActive)
+        .reduce((s: number, a: VariacionAtributo) => s + a.opciones.filter((o) => o.isActive).length, 0),
     [atributos]
   );
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <PageContainer>
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-coffee-600"></div>
+          </div>
+        </PageContainer>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -273,8 +302,8 @@ const VariacionesPage: React.FC = () => {
                 <p className="text-sm">No se encontraron productos.</p>
               </div>
             ) : (
-              filteredProducts.map((product) => (
-                <ProductRow key={product.id} product={product} />
+              filteredProducts.map((product: Product) => (
+                <ProductRow key={product.id} product={product} atributos={atributos} />
               ))
             )}
           </div>

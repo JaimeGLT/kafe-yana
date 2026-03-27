@@ -1,22 +1,42 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Plus, TrendingUp, TrendingDown, Eye, ClipboardList } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
 import { Button, Badge, Modal } from '../../components/ui';
 import { StockAdjustmentModal } from '../../components/modals/StockAdjustmentModal';
-import { useInventoryStore } from '../../stores';
-import type { StockAdjustment } from '../../types';
+import { api } from '../../lib/api';
+import type { StockAdjustment, Product } from '../../types';
 import { formatDateTime } from '../../utils';
 
 const AdjustmentsPage: React.FC = () => {
-  const { stockAdjustments, products } = useInventoryStore();
-
+  const [stockAdjustments, setStockAdjustments] = useState<StockAdjustment[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
   const [viewingAdjustment, setViewingAdjustment] = useState<StockAdjustment | null>(null);
 
+  const loadData = useCallback(async () => {
+    try {
+      const [adjustmentsData, productsData] = await Promise.all([
+        api.get<{ adjustments: StockAdjustment[] }>('/Inventory/adjustments'),
+        api.get<{ products: Product[] }>('/Inventory/products'),
+      ]);
+      setStockAdjustments(adjustmentsData.adjustments ?? []);
+      setProducts(productsData.products ?? []);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
   const sortedAdjustments = useMemo(() => {
     return [...stockAdjustments].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      (a: StockAdjustment, b: StockAdjustment) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
   }, [stockAdjustments]);
 
@@ -39,7 +59,12 @@ const AdjustmentsPage: React.FC = () => {
 
         {/* Table */}
         <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
-          {sortedAdjustments.length === 0 ? (
+          {isLoading ? (
+            <div className="py-16 flex flex-col items-center justify-center text-coffee-500">
+              <div className="animate-spin h-8 w-8 border-2 border-coffee-300 border-t-coffee-600 rounded-full mb-3"></div>
+              <p className="text-sm">Cargando ajustes...</p>
+            </div>
+          ) : sortedAdjustments.length === 0 ? (
             <div className="py-16 flex flex-col items-center justify-center text-coffee-500">
               <ClipboardList className="h-12 w-12 mb-3 text-coffee-300" />
               <p className="text-lg font-medium">No hay ajustes registrados</p>
@@ -152,7 +177,7 @@ const AdjustmentsPage: React.FC = () => {
       <StockAdjustmentModal
         isOpen={isAdjustmentModalOpen}
         onClose={() => setIsAdjustmentModalOpen(false)}
-        onSuccess={() => {}}
+        onSuccess={loadData}
         products={products}
       />
 

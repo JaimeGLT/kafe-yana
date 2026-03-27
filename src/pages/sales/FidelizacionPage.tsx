@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { clsx } from 'clsx';
 import {
   Star, Gift, Coffee, Zap, Trophy, Users, Calendar, Clock,
@@ -9,10 +9,10 @@ import {
 import { MainLayout } from '../../components/layout';
 // UI primitives not needed - page uses custom inline components
 import { toast } from '../../components/ui/Toast';
-import { useLoyaltyStore } from '../../stores/loyaltyStore';
-import { useSalesStore } from '../../stores/salesStore';
+import { api } from '../../lib/api';
 import { formatDateTime } from '../../utils/formatters';
-import type { LoyaltyProfile, LoyaltyLevel, MilestoneReward } from '../../types/loyalty';
+import type { LoyaltyProfile, LoyaltyLevel, MilestoneReward, LoyaltyTransaction, Reward, Mission } from '../../types/loyalty';
+import type { Customer } from '../../types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TabId = 'recompensas' | 'promos' | 'misiones' | 'historial';
@@ -380,25 +380,143 @@ const AdjustModal: React.FC<AdjustModalProps> = ({ customerName, currentPoints, 
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export const FidelizacionPage: React.FC = () => {
-  const {
-    profiles,
-    transactions,
-    rewards,
-    missions,
-    milestones,
-    getProfile,
-    getOrCreateProfile,
-    getLevelInfo,
-    redeemPoints,
-    addTransaction,
-  } = useLoyaltyStore();
-
-  const { customers } = useSalesStore();
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [profiles, setProfiles] = useState<LoyaltyProfile[]>([]);
+  const [transactions, setTransactions] = useState<LoyaltyTransaction[]>([]);
+  const [rewards, setRewards] = useState<Reward[]>([]);
+  const [missions, setMissions] = useState<Mission[]>([]);
+  const [milestones, setMilestones] = useState<MilestoneReward[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('recompensas');
   const [showAdjustModal, setShowAdjustModal] = useState(false);
+
+  // Load data from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [customersData, profilesData, transactionsData, rewardsData, missionsData, milestonesData] = await Promise.all([
+          api.get<Customer[]>('/customers'),
+          api.get<LoyaltyProfile[]>('/loyalty/profiles'),
+          api.get<LoyaltyTransaction[]>('/loyalty/transactions'),
+          api.get<Reward[]>('/loyalty/rewards'),
+          api.get<Mission[]>('/loyalty/missions'),
+          api.get<MilestoneReward[]>('/loyalty/milestones'),
+        ]);
+        setCustomers(customersData);
+        setProfiles(profilesData);
+        setTransactions(transactionsData);
+        setRewards(rewardsData);
+        setMissions(missionsData);
+        setMilestones(milestonesData);
+      } catch (error) {
+        console.error('Error fetching loyalty data:', error);
+        toast.error('Error', 'No se pudieron cargar los datos de fidelización.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const getProfile = useCallback((customerId: string): LoyaltyProfile | undefined => {
+    return profiles.find((p: LoyaltyProfile) => p.customerId === customerId);
+  }, [profiles]);
+
+  const getOrCreateProfile = useCallback((customerId: string): LoyaltyProfile => {
+    const profile = getProfile(customerId);
+    if (profile) return profile;
+
+    // Return a default profile structure if not found
+    const newProfile: LoyaltyProfile = {
+      id: '',
+      customerId,
+      points: 0,
+      lifetimePoints: 0,
+      purchaseCount: 0,
+      level: 'bronce',
+      referralCode: '',
+      referralCount: 0,
+      consecutiveDays: 0,
+      uniqueProductsBought: [],
+      completedMissions: [],
+    };
+    return newProfile;
+  }, [getProfile]);
+
+  const getLevelInfo = useCallback((points: number): { level: LoyaltyLevel; nextLevel: LoyaltyLevel | null; pointsToNext: number; progress: number } => {
+    const levels: LoyaltyLevel[] = ['bronce', 'plata', 'oro', 'platino'];
+    const thresholds = [0, 100, 500, 1000];
+
+    let currentLevel: LoyaltyLevel = 'bronce';
+    let nextLevel: LoyaltyLevel | null = 'plata';
+    let currentThreshold = 0;
+    let nextThreshold = 100;
+
+    for (let i = 0; i < levels.length; i++) {
+      if (points >= thresholds[i]) {
+        currentLevel = levels[i];
+        currentThreshold = thresholds[i];
+        if (i < levels.length - 1) {
+          nextLevel = levels[i + 1];
+          nextThreshold = thresholds[i + 1];
+        } else {
+          nextLevel = null;
+          nextThreshold = currentThreshold;
+        }
+      }
+    }
+
+    const pointsToNext = nextLevel ? nextThreshold - points : 0;
+    const progress = nextLevel ? ((points - currentThreshold) / (nextThreshold - currentThreshold)) * 100 : 100;
+
+    return { level: currentLevel, nextLevel, pointsToNext, progress };
+  }, []);
+
+  const redeemPoints = useCallback(async (customerId: string, rewardId: string): Promise<boolean> => {
+    try {
+      const profile = getProfile(customerId);
+      const reward = rewards.find((r: Reward) => r.id === rewardId);
+      if (!profile || !reward || profile.points < reward.pointsCost) return false;
+
+      await api.post('/loyalty/redeem', { customerId, rewardId });
+
+      // Update local state
+      setProfiles(prev => prev.map((p: LoyaltyProfile) =>
+        p.customerId === customerId ? { ...p, points: p.points - reward.pointsCost } : p
+      ));
+      return true;
+    } catch (error) {
+      console.error('Error redeeming points:', error);
+      return false;
+    }
+  }, [getProfile, rewards]);
+
+  const addTransaction = useCallback(async (customerId: string, saleId: string | undefined, points: number, type: LoyaltyTransaction['type'], description: string) => {
+    try {
+      const newTx = await api.post<LoyaltyTransaction>('/loyalty/transactions', {
+        customerId,
+        saleId,
+        points,
+        type,
+        description,
+      });
+      setTransactions(prev => [newTx, ...prev]);
+
+      // Update profile points
+      if (points !== 0) {
+        setProfiles(prev => prev.map((p: LoyaltyProfile) =>
+          p.customerId === customerId
+            ? { ...p, points: p.points + points, lifetimePoints: points > 0 ? p.lifetimePoints + points : p.lifetimePoints }
+            : p
+        ));
+      }
+    } catch (error) {
+      console.error('Error adding transaction:', error);
+    }
+  }, []);
 
   // ── Derived data ────────────────────────────────────────────────────────────
   const activeCustomers = useMemo(
@@ -505,9 +623,9 @@ export const FidelizacionPage: React.FC = () => {
     }
   };
 
-  const handleAdjust = (delta: number, reason: string) => {
+  const handleAdjust = async (delta: number, reason: string) => {
     if (!selectedCustomerId) return;
-    addTransaction(selectedCustomerId, undefined, delta, 'adjustment' as never, reason);
+    await addTransaction(selectedCustomerId, undefined, delta, 'manual', reason);
     toast.success(
       delta > 0 ? `+${delta} puntos agregados` : `${delta} puntos removidos`,
       reason,
@@ -615,7 +733,7 @@ export const FidelizacionPage: React.FC = () => {
             {/* Dropdown list */}
             {search.trim() && filteredCustomers.length > 0 && (
               <div className="max-h-48 overflow-y-auto rounded-xl border border-coffee-100 divide-y divide-coffee-50">
-                {filteredCustomers.map(c => {
+                {filteredCustomers.map((c: Customer) => {
                   const cProf = getProfile(c.id);
                   return (
                     <button
@@ -659,7 +777,7 @@ export const FidelizacionPage: React.FC = () => {
                   className="w-full px-3 py-2.5 rounded-xl border border-coffee-200 text-sm font-body text-coffee-800 bg-white focus:outline-none focus:ring-2 focus:ring-coffee-400"
                 >
                   <option value="">— Elegir cliente —</option>
-                  {activeCustomers.map(c => (
+                  {activeCustomers.map((c: Customer) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
@@ -844,7 +962,7 @@ export const FidelizacionPage: React.FC = () => {
           {/* ── TAB: Promos del Mes ──────────────────────────────────────────── */}
           {activeTab === 'promos' && (
             <div className="space-y-4">
-              {monthsOrdered.map(month => {
+              {monthsOrdered.map((month: number) => {
                 const isCurrentMonth = month === currentMonth;
                 const monthRewards = temporalByMonth[month] ?? [];
                 return (
@@ -879,7 +997,7 @@ export const FidelizacionPage: React.FC = () => {
 
                     {/* Rewards */}
                     <div className="bg-white p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {monthRewards.map(r => {
+                      {monthRewards.map((r: Reward) => {
                         const canRedeem = selectedProfile && r.pointsCost > 0 && selectedProfile.points >= r.pointsCost;
                         return (
                           <div
@@ -935,7 +1053,7 @@ export const FidelizacionPage: React.FC = () => {
             <div className="space-y-5">
               {/* Missions grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {missions.map(mission => {
+                {missions.map((mission: Mission) => {
                   const isCompleted = selectedProfile?.completedMissions.includes(mission.id) ?? false;
                   let progress = 0;
                   if (selectedProfile) {
@@ -1069,7 +1187,7 @@ export const FidelizacionPage: React.FC = () => {
                   </div>
 
                   <div className="divide-y divide-coffee-50 max-h-[480px] overflow-y-auto">
-                    {customerTransactions.map((tx, idx) => {
+                    {customerTransactions.map((tx: LoyaltyTransaction, idx: number) => {
                       const cfg = txConfig(tx.type);
                       const isPositive = tx.points > 0;
                       return (
@@ -1139,8 +1257,8 @@ export const FidelizacionPage: React.FC = () => {
         <div className="p-6 overflow-x-auto">
           <div className="flex items-start gap-2 min-w-max">
             {[...milestones]
-              .sort((a, b) => a.purchaseNumber - b.purchaseNumber)
-              .map((milestone, idx, arr) => {
+              .sort((a: MilestoneReward, b: MilestoneReward) => a.purchaseNumber - b.purchaseNumber)
+              .map((milestone: MilestoneReward, idx: number, arr: MilestoneReward[]) => {
                 const reached = selectedProfile
                   ? selectedProfile.purchaseCount >= milestone.purchaseNumber
                   : false;

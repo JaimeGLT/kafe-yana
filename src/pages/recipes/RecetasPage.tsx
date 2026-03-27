@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Plus, Edit2, Trash2, ChevronDown, ChevronUp,
   BookOpen, TrendingUp, TrendingDown, Search,
@@ -8,8 +8,8 @@ import { PageContainer, PageHeader } from '../../components/layout';
 import { Button, Input, ConfirmModal } from '../../components/ui';
 import { RecetaModal } from '../../components/modals/RecetaModal';
 import { toast } from '../../components/ui/Toast';
-import { useRecipesStore, useInventoryStore } from '../../stores';
-import type { Receta } from '../../types';
+import { api } from '../../lib/api';
+import type { Receta, Insumo, Product } from '../../types';
 import { formatCurrency } from '../../utils';
 
 // Semaphore: verde ≥60%, amarillo 30-60%, rojo <30%
@@ -23,8 +23,10 @@ const marginColor = (pct: number) =>
   pct >= 60 ? 'text-emerald-700' : pct >= 30 ? 'text-amber-600' : 'text-red-600';
 
 const RecetasPage: React.FC = () => {
-  const { recetas, deleteReceta, insumos } = useRecipesStore();
-  const { products } = useInventoryStore();
+  const [recetas, setRecetas] = useState<Receta[]>([]);
+  const [insumos, setInsumos] = useState<Insumo[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -34,14 +36,34 @@ const RecetasPage: React.FC = () => {
   const [deleting, setDeleting] = useState<Receta | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [recetasData, insumosData, productsData] = await Promise.all([
+          api.get<Receta[]>('/recipes/recetas'),
+          api.get<Insumo[]>('/recipes/insumos'),
+          api.get<Product[]>('/products'),
+        ]);
+        setRecetas(recetasData);
+        setInsumos(insumosData);
+        setProducts(productsData);
+      } catch (error) {
+        console.error('Error loading recetas data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
   const productsWithoutReceta = useMemo(() => {
-    const withReceta = new Set(recetas.map((r) => r.productId));
-    return products.filter((p) => p.isActive && p.tipo === 'elaborado' && !withReceta.has(p.id));
+    const withReceta = new Set(recetas.map((r: Receta) => r.productId));
+    return products.filter((p: Product) => p.isActive && p.tipo === 'elaborado' && !withReceta.has(p.id));
   }, [products, recetas]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return recetas.filter((r) => r.productName.toLowerCase().includes(q));
+    return recetas.filter((r: Receta) => r.productName.toLowerCase().includes(q));
   }, [recetas, search]);
 
   const openCreate = (productId?: string) => {
@@ -56,27 +78,33 @@ const RecetasPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleting) return;
     setIsDeleting(true);
-    deleteReceta(deleting.id);
-    toast.success('Receta eliminada', `La receta de "${deleting.productName}" fue eliminada.`);
-    if (expandedId === deleting.id) setExpandedId(null);
-    setDeleting(null);
-    setIsDeleting(false);
+    try {
+      await api.delete(`/recipes/recetas/${deleting.id}`);
+      setRecetas((prev) => prev.filter((r: Receta) => r.id !== deleting.id));
+      toast.success('Receta eliminada', `La receta de "${deleting.productName}" fue eliminada.`);
+      if (expandedId === deleting.id) setExpandedId(null);
+    } catch (error) {
+      console.error('Error deleting receta:', error);
+    } finally {
+      setDeleting(null);
+      setIsDeleting(false);
+    }
   };
 
   // KPIs
   const avgMargin = useMemo(() => {
     const list = recetas
-      .map((r) => {
-        const p = products.find((pr) => pr.id === r.productId);
+      .map((r: Receta) => {
+        const p = products.find((pr: Product) => pr.id === r.productId);
         return p && p.salePrice > 0
           ? ((p.salePrice - r.costoPorPorcion) / p.salePrice) * 100
           : null;
       })
       .filter((v): v is number => v !== null);
-    return list.length > 0 ? list.reduce((s, v) => s + v, 0) / list.length : null;
+    return list.length > 0 ? list.reduce((s: number, v: number) => s + v, 0) / list.length : null;
   }, [recetas, products]);
 
   return (
@@ -142,8 +170,8 @@ const RecetasPage: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-2">
-            {filtered.map((receta) => {
-              const product = products.find((p) => p.id === receta.productId);
+            {filtered.map((receta: Receta) => {
+              const product = products.find((p: Product) => p.id === receta.productId);
               const salePrice = product?.salePrice ?? 0;
               const margen = salePrice - receta.costoPorPorcion;
               const margenPct = salePrice > 0 ? (margen / salePrice) * 100 : 0;
@@ -226,7 +254,7 @@ const RecetasPage: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-coffee-50">
                           {receta.ingredientes.map((ing) => {
-                            const insumo = insumos.find((i) => i.id === ing.insumoId);
+                            const insumo = insumos.find((i: Insumo) => i.id === ing.insumoId);
                             const unitCost = insumo?.costoUnitario ?? ing.unitCost;
                             const subtotal = ing.quantity * unitCost * (1 + ing.merma / 100);
                             return (
@@ -290,7 +318,7 @@ const RecetasPage: React.FC = () => {
               {productsWithoutReceta.length} elaborado{productsWithoutReceta.length !== 1 ? 's' : ''} sin receta — no pueden venderse hasta tenerla
             </p>
             <div className="flex flex-wrap gap-2">
-              {productsWithoutReceta.map((p) => (
+              {productsWithoutReceta.map((p: Product) => (
                 <button
                   key={p.id}
                   onClick={() => openCreate(p.id)}

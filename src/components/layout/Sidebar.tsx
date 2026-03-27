@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { clsx } from 'clsx';
 import {
   Home,
@@ -14,7 +14,7 @@ import {
   FlaskConical,
   Star,
 } from 'lucide-react';
-import { useUIStore } from '../../stores';
+import { useUI } from '../../contexts/UIContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 interface NavItem {
@@ -118,10 +118,10 @@ const navItems: NavItem[] = [
 ];
 
 export const Sidebar: React.FC = () => {
-  const { sidebarCollapsed, toggleSidebar } = useUIStore();
+  const { sidebarCollapsed, toggleSidebar } = useUI();
   const location = useLocation();
   const navigate = useNavigate();
-  const [expandedItems, setExpandedItems] = React.useState<string[]>([]);
+  const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
   const isActive = (path: string) => location.pathname === path;
   const isParentActive = (item: NavItem) =>

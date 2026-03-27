@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   PieChart, Pie, Cell, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -7,8 +7,10 @@ import { Package, CheckCircle, AlertTriangle, DollarSign, FileText } from 'lucid
 import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Button, Badge } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
-import { useInventoryStore } from '../../stores';
+import { api } from '../../lib/api';
 import { formatCurrency } from '../../utils';
+import type { Product } from '../../types';
+import type { InventoryStats } from '../../types';
 
 const CHART_COLORS = {
   primary: '#8B4513',
@@ -33,12 +35,32 @@ const tooltipStyle = {
 };
 
 const InventoryReportPage: React.FC = () => {
-  const { products, stats } = useInventoryStore();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [stats, setStats] = useState<InventoryStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [productsData, statsData] = await Promise.all([
+          api.get<Product[]>('/products'),
+          api.get<InventoryStats>('/inventory/stats'),
+        ]);
+        setProducts(productsData);
+        setStats(statsData);
+      } catch (error) {
+        console.error('Error loading inventory data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   // Category pie data
   const categoryData = useMemo(() => {
     const map: Record<string, { name: string; count: number }> = {};
-    products.forEach(p => {
+    products.forEach((p: Product) => {
       const catName = p.categoryName || 'Sin categoría';
       if (!map[catName]) map[catName] = { name: catName, count: 0 };
       map[catName].count += 1;
@@ -49,26 +71,26 @@ const InventoryReportPage: React.FC = () => {
   // Top 10 products by stock level
   const topStockProducts = useMemo(() =>
     [...products]
-      .filter(p => p.isActive)
-      .sort((a, b) => b.stock - a.stock)
+      .filter((p: Product) => p.isActive)
+      .sort((a: Product, b: Product) => b.stock - a.stock)
       .slice(0, 10)
-      .map(p => ({ nombre: p.name.length > 20 ? p.name.slice(0, 18) + '…' : p.name, stock: p.stock, minStock: p.minStock })),
+      .map((p: Product) => ({ nombre: p.name.length > 20 ? p.name.slice(0, 18) + '…' : p.name, stock: p.stock, minStock: p.minStock })),
     [products]
   );
 
   // Low stock products
   const lowStockProducts = useMemo(() =>
-    products.filter(p => p.isActive && p.stock > 0 && p.stock <= p.minStock)
-      .sort((a, b) => a.stock - b.stock),
+    products.filter((p: Product) => p.isActive && p.stock > 0 && p.stock <= p.minStock)
+      .sort((a: Product, b: Product) => a.stock - b.stock),
     [products]
   );
 
   // Top 10 products by value (stock * costPrice)
   const topValueProducts = useMemo(() =>
     [...products]
-      .filter(p => p.isActive)
-      .map(p => ({ ...p, inventoryValue: p.stock * p.costPrice }))
-      .sort((a, b) => b.inventoryValue - a.inventoryValue)
+      .filter((p: Product) => p.isActive)
+      .map((p: Product) => ({ ...p, inventoryValue: p.stock * p.costPrice }))
+      .sort((a: Product & { inventoryValue: number }, b: Product & { inventoryValue: number }) => b.inventoryValue - a.inventoryValue)
       .slice(0, 10),
     [products]
   );

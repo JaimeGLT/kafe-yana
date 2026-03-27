@@ -1,28 +1,60 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, Tag } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
 import { Button, Badge, ConfirmModal } from '../../components/ui';
 import { toast } from '../../components/ui/Toast';
 import { CategoryModal } from '../../components/modals/CategoryModal';
-import { useInventoryStore } from '../../stores';
+import { gql } from '../../lib/graphql';
+import { api } from '../../lib/api';
 import type { Category } from '../../types';
 
+interface CategoriaNode {
+  id: number;
+  nombre: string;
+  descripcion: string;
+  estado: boolean;
+  color: string;
+  cantidad: number;
+}
+
+interface CategoriasGqlResponse {
+  categorias: { nodes: CategoriaNode[] };
+}
+
 const CategoriesPage: React.FC = () => {
-  const { categories, products, deleteCategory } = useInventoryStore();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+
+  const loadCategories = useCallback(async () => {
+    const data = await gql<CategoriasGqlResponse>(`
+      query {
+        categorias {
+          nodes { id nombre descripcion estado color cantidad }
+        }
+      }
+    `);
+    const mapped: Category[] = data.categorias.nodes.map((n) => ({
+      id: String(n.id),
+      name: n.nombre,
+      description: n.descripcion,
+      isActive: n.estado,
+      color: n.color,
+      productCount: n.cantidad,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+    setCategories(mapped);
+  }, []);
+
+  useEffect(() => {
+    loadCategories().finally(() => setIsLoadingCategories(false));
+  }, [loadCategories]);
 
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | undefined>(undefined);
   const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  const productCountByCategory = useMemo(() => {
-    const counts: Record<string, number> = {};
-    products.forEach((p) => {
-      counts[p.categoryId] = (counts[p.categoryId] || 0) + 1;
-    });
-    return counts;
-  }, [products]);
 
   const handleOpenCreate = () => {
     setEditingCategory(undefined);
@@ -38,12 +70,13 @@ const CategoriesPage: React.FC = () => {
     setDeletingCategory(category);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!deletingCategory) return;
     setIsDeleting(true);
     try {
-      deleteCategory(deletingCategory.id);
+      await api.delete(`/Categoria/${deletingCategory.id}`);
       toast.success('Categoría eliminada', `"${deletingCategory.name}" fue eliminada correctamente.`);
+      setCategories((prev) => prev.filter((c) => c.id !== deletingCategory.id));
       setDeletingCategory(null);
     } catch {
       toast.error('Error', 'No se pudo eliminar la categoría. Intente nuevamente.');
@@ -69,7 +102,24 @@ const CategoriesPage: React.FC = () => {
           }
         />
 
-        {categories.length === 0 ? (
+        {isLoadingCategories ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden animate-pulse">
+                <div className="h-2 w-full bg-coffee-200" />
+                <div className="p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-coffee-200" />
+                    <div className="h-4 w-24 bg-coffee-200 rounded" />
+                  </div>
+                  <div className="h-3 w-full bg-coffee-100 rounded" />
+                  <div className="h-3 w-2/3 bg-coffee-100 rounded" />
+                  <div className="h-3 w-16 bg-coffee-100 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : categories.length === 0 ? (
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm py-16 flex flex-col items-center justify-center text-coffee-500">
             <Tag className="h-12 w-12 mb-3 text-coffee-300" />
             <p className="text-lg font-medium">No hay categorías registradas</p>
@@ -85,10 +135,8 @@ const CategoriesPage: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {categories.map((category) => {
-              const count = productCountByCategory[category.id] || 0;
-              return (
-                <div
+            {categories.map((category) => (
+              <div
                   key={category.id}
                   className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow"
                 >
@@ -133,7 +181,7 @@ const CategoriesPage: React.FC = () => {
                     <div className="flex items-center gap-1.5 mb-4">
                       <Tag className="h-4 w-4 text-coffee-400" />
                       <span className="text-sm text-coffee-600">
-                        {count} {count === 1 ? 'producto' : 'productos'}
+                        {category.productCount ?? 0} {(category.productCount ?? 0) === 1 ? 'producto' : 'productos'}
                       </span>
                     </div>
 
@@ -156,8 +204,7 @@ const CategoriesPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              );
-            })}
+            ))}
           </div>
         )}
       </PageContainer>
@@ -177,8 +224,8 @@ const CategoriesPage: React.FC = () => {
         onConfirm={handleConfirmDelete}
         title="Eliminar Categoría"
         message={`¿Estás seguro de que deseas eliminar la categoría "${deletingCategory?.name}"?${
-          (productCountByCategory[deletingCategory?.id || ''] || 0) > 0
-            ? ` Hay ${productCountByCategory[deletingCategory?.id || '']} producto(s) en esta categoría.`
+          (deletingCategory?.productCount ?? 0) > 0
+            ? ` Hay ${deletingCategory?.productCount} producto(s) en esta categoría.`
             : ''
         } Esta acción no se puede deshacer.`}
         confirmText="Eliminar"

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { startOfMonth, endOfDay, format, eachDayOfInterval, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -8,8 +8,9 @@ import { TrendingUp, TrendingDown, Scale, BookOpen, Calendar, FileText } from 'l
 import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Button, Input, Badge, StatusBadge } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
-import { useCashStore } from '../../stores';
+import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../utils';
+import type { CashMovement, CashRegister } from '../../types';
 
 const CHART_COLORS = {
   primary: '#8B4513',
@@ -29,7 +30,27 @@ const tooltipStyle = {
 };
 
 const CashReportPage: React.FC = () => {
-  const { movements, cashRegisters } = useCashStore();
+  const [movements, setMovements] = useState<CashMovement[]>([]);
+  const [cashRegisters, setCashRegisters] = useState<CashRegister[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [movementsData, registersData] = await Promise.all([
+          api.get<CashMovement[]>('/cash/movements'),
+          api.get<CashRegister[]>('/cash/registers'),
+        ]);
+        setMovements(movementsData);
+        setCashRegisters(registersData);
+      } catch (error) {
+        console.error('Error loading cash data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   const today = new Date();
   const [dateFrom, setDateFrom] = useState<string>(format(startOfMonth(today), 'yyyy-MM-dd'));
@@ -38,7 +59,7 @@ const CashReportPage: React.FC = () => {
   const filteredMovements = useMemo(() => {
     const from = new Date(dateFrom + 'T00:00:00');
     const to = endOfDay(new Date(dateTo + 'T00:00:00'));
-    return movements.filter(m => {
+    return movements.filter((m: CashMovement) => {
       const d = new Date(m.date);
       return isWithinInterval(d, { start: from, end: to });
     });
@@ -47,7 +68,7 @@ const CashReportPage: React.FC = () => {
   const filteredRegisters = useMemo(() => {
     const from = new Date(dateFrom + 'T00:00:00');
     const to = endOfDay(new Date(dateTo + 'T00:00:00'));
-    return cashRegisters.filter(r => {
+    return cashRegisters.filter((r: CashRegister) => {
       const d = new Date(r.openedAt);
       return isWithinInterval(d, { start: from, end: to });
     });
@@ -55,15 +76,15 @@ const CashReportPage: React.FC = () => {
 
   // KPIs
   const totalIncome = useMemo(
-    () => filteredMovements.filter(m => m.type === 'income').reduce((sum, m) => sum + m.amount, 0),
+    () => filteredMovements.filter((m: CashMovement) => m.type === 'income').reduce((sum: number, m: CashMovement) => sum + m.amount, 0),
     [filteredMovements]
   );
   const totalExpense = useMemo(
-    () => filteredMovements.filter(m => m.type === 'expense').reduce((sum, m) => sum + m.amount, 0),
+    () => filteredMovements.filter((m: CashMovement) => m.type === 'expense').reduce((sum: number, m: CashMovement) => sum + m.amount, 0),
     [filteredMovements]
   );
   const netBalance = totalIncome - totalExpense;
-  const openRegistersCount = cashRegisters.filter(r => r.status === 'open').length;
+  const openRegistersCount = cashRegisters.filter((r: CashRegister) => r.status === 'open').length;
 
   // Daily income vs expense chart
   const dailyData = useMemo(() => {
@@ -74,12 +95,12 @@ const CashReportPage: React.FC = () => {
     return days.map(day => {
       const dayKey = format(day, 'yyyy-MM-dd');
       const dayMovements = filteredMovements.filter(
-        m => format(new Date(m.date), 'yyyy-MM-dd') === dayKey
+        (m: CashMovement) => format(new Date(m.date), 'yyyy-MM-dd') === dayKey
       );
       return {
         fecha: format(day, 'dd MMM', { locale: es }),
-        ingresos: dayMovements.filter(m => m.type === 'income').reduce((sum, m) => sum + m.amount, 0),
-        egresos: dayMovements.filter(m => m.type === 'expense').reduce((sum, m) => sum + m.amount, 0),
+        ingresos: dayMovements.filter((m: CashMovement) => m.type === 'income').reduce((sum: number, m: CashMovement) => sum + m.amount, 0),
+        egresos: dayMovements.filter((m: CashMovement) => m.type === 'expense').reduce((sum: number, m: CashMovement) => sum + m.amount, 0),
       };
     });
   }, [filteredMovements, dateFrom, dateTo]);
@@ -87,7 +108,7 @@ const CashReportPage: React.FC = () => {
   // Movements by category
   const movementsByCategory = useMemo(() => {
     const map: Record<string, { category: string; type: string; total: number; count: number }> = {};
-    filteredMovements.forEach(m => {
+    filteredMovements.forEach((m: CashMovement) => {
       const key = m.category;
       if (!map[key]) map[key] = { category: m.category, type: m.type, total: 0, count: 0 };
       map[key].total += m.amount;

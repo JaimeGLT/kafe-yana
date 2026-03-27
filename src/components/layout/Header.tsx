@@ -2,14 +2,15 @@ import React from 'react';
 import { clsx } from 'clsx';
 import { Bell, Search, Settings, User, LogOut, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useUIStore, useSettingsStore } from '../../stores';
-import { useAuthStore } from '../../stores/authStore';
+import { useUI } from '../../contexts/UIContext';
+import { useSettings } from '../../contexts/SettingsContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { Dropdown } from '../ui';
 
 export const Header: React.FC = () => {
-  const { searchQuery, setSearchQuery } = useUIStore();
-  const { currentBranch } = useSettingsStore();
-  const { user, logout } = useAuthStore();
+  const { searchQuery, setSearchQuery } = useUI();
+  const { currentBranch } = useSettings();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   // Usar el usuario del authStore; fallback a settingsStore si existiera

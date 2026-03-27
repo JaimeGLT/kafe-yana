@@ -1,20 +1,102 @@
-import React from 'react';
+import React, { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import { clsx } from 'clsx';
 import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
-import { useUIStore } from '../../stores';
 
-export const ToastContainer: React.FC = () => {
-  const { toasts, removeToast } = useUIStore();
+interface ToastItem {
+  id: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+  title: string;
+  message?: string;
+}
 
-  if (toasts.length === 0) return null;
+interface ToastContextType {
+  toasts: ToastItem[];
+  addToast: (toast: Omit<ToastItem, 'id'>) => void;
+  removeToast: (id: string) => void;
+  success: (title: string, message?: string) => void;
+  error: (title: string, message?: string) => void;
+  warning: (title: string, message?: string) => void;
+  info: (title: string, message?: string) => void;
+}
+
+const ToastContext = createContext<ToastContextType | null>(null);
+
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  const addToast = useCallback((toast: Omit<ToastItem, 'id'>) => {
+    const id = crypto.randomUUID();
+    setToasts((prev) => [...prev, { ...toast, id }]);
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 5000);
+  }, []);
+
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const success = useCallback((title: string, message?: string) => {
+    addToast({ type: 'success', title, message });
+  }, [addToast]);
+
+  const error = useCallback((title: string, message?: string) => {
+    addToast({ type: 'error', title, message });
+  }, [addToast]);
+
+  const warning = useCallback((title: string, message?: string) => {
+    addToast({ type: 'warning', title, message });
+  }, [addToast]);
+
+  const info = useCallback((title: string, message?: string) => {
+    addToast({ type: 'info', title, message });
+  }, [addToast]);
+
+  return (
+    <ToastContext.Provider value={{ toasts, addToast, removeToast, success, error, warning, info }}>
+      {children}
+      <ToastContainer />
+    </ToastContext.Provider>
+  );
+}
+
+export function useToast() {
+  const context = useContext(ToastContext);
+  if (!context) {
+    throw new Error('useToast must be used within a ToastProvider');
+  }
+  return context;
+}
+
+// Export a simple toast object for convenience (calls the hook internally when used in components)
+export const toast = {
+  success: (title: string, message?: string) => {
+    // This will be replaced by the hook in components
+    console.log(`[Toast Success] ${title}`, message);
+  },
+  error: (title: string, message?: string) => {
+    console.error(`[Toast Error] ${title}`, message);
+  },
+  warning: (title: string, message?: string) => {
+    console.warn(`[Toast Warning] ${title}`, message);
+  },
+  info: (title: string, message?: string) => {
+    console.info(`[Toast Info] ${title}`, message);
+  },
+};
+
+const ToastContainer: React.FC = () => {
+  const context = useContext(ToastContext);
+  if (!context || context.toasts.length === 0) return null;
 
   return (
     <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
-      {toasts.map((toast) => (
+      {context.toasts.map((t) => (
         <Toast
-          key={toast.id}
-          {...toast}
-          onClose={() => removeToast(toast.id)}
+          key={t.id}
+          {...t}
+          onClose={() => context.removeToast(t.id)}
         />
       ))}
     </div>
@@ -69,22 +151,6 @@ const Toast: React.FC<ToastProps> = ({ type, title, message, onClose }) => {
   );
 };
 
-// Utility functions to show toasts from anywhere
-export const toast = {
-  success: (title: string, message?: string) => {
-    useUIStore.getState().addToast({ type: 'success', title, message });
-  },
-  error: (title: string, message?: string) => {
-    useUIStore.getState().addToast({ type: 'error', title, message });
-  },
-  warning: (title: string, message?: string) => {
-    useUIStore.getState().addToast({ type: 'warning', title, message });
-  },
-  info: (title: string, message?: string) => {
-    useUIStore.getState().addToast({ type: 'info', title, message });
-  },
-};
-
 // Add CSS for animation
 const style = document.createElement('style');
 style.textContent = `
@@ -103,3 +169,6 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+// Export ToastContainer as a component that uses the context
+export { ToastContainer };

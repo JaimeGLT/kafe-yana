@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuth } from '../../contexts/AuthContext';
 
 /**
  * Guarda de rutas protegidas.
@@ -9,7 +9,7 @@ import { useAuthStore } from '../../stores/authStore';
  * - Si está autenticado → renderiza los hijos
  */
 export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, isCheckingSession } = useAuthStore();
+  const { isAuthenticated, isCheckingSession } = useAuth();
   const location = useLocation();
 
   if (isCheckingSession) {

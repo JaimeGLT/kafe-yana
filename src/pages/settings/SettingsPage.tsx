@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Settings, Users, Shield, Building2,
   Plus, Edit2, Trash2, Eye, Check, X,
@@ -9,7 +9,8 @@ import {
   Badge, StatusBadge, Tabs, TabPanel,
 } from '../../components/ui';
 import { toast } from '../../components/ui/Toast';
-import { useSettingsStore } from '../../stores';
+import { api } from '../../lib/api';
+import type { User, Role, Branch, SystemSettings } from '../../types';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface UserForm {
@@ -34,18 +35,38 @@ interface BranchForm {
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 const GeneralTab: React.FC = () => {
-  const { settings, updateSettings } = useSettingsStore();
+  const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ ...settings });
+  const [form, setForm] = useState<Partial<SystemSettings>>({});
 
-  const handleSave = () => {
-    updateSettings(form);
-    setEditing(false);
-    toast.success('Configuración guardada correctamente');
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const data = await api.get<SystemSettings>('/settings');
+        setSettings(data);
+        setForm({ ...data });
+      } catch (error) {
+        console.error('Error loading settings:', error);
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      await api.put('/settings', form);
+      setSettings({ ...settings, ...form } as SystemSettings);
+      setEditing(false);
+      toast.success('Configuración guardada correctamente');
+    } catch (error) {
+      console.error('Error saving settings:', error);
+    }
   };
 
   const handleCancel = () => {
-    setForm({ ...settings });
+    if (settings) {
+      setForm({ ...settings });
+    }
     setEditing(false);
   };
 
@@ -55,6 +76,10 @@ const GeneralTab: React.FC = () => {
       <span className="text-sm text-coffee-900 font-medium">{value}</span>
     </div>
   );
+
+  if (!settings) {
+    return <div className="py-8 text-center text-coffee-500">Cargando...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -164,7 +189,30 @@ const GeneralTab: React.FC = () => {
 // ─── Users Tab ────────────────────────────────────────────────────────────────
 
 const UsersTab: React.FC = () => {
-  const { users, roles, branches, addUser, updateUser, deleteUser } = useSettingsStore();
+  const [users, setUsers] = useState<User[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [usersData, rolesData, branchesData] = await Promise.all([
+          api.get<User[]>('/settings/users'),
+          api.get<Role[]>('/settings/roles'),
+          api.get<Branch[]>('/settings/branches'),
+        ]);
+        setUsers(usersData);
+        setRoles(rolesData);
+        setBranches(branchesData);
+      } catch (error) {
+        console.error('Error loading users data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   const emptyForm: UserForm = {
     username: '', email: '', firstName: '', lastName: '',
@@ -196,7 +244,7 @@ const UsersTab: React.FC = () => {
   };
 
   const openEdit = (userId: string) => {
-    const user = users.find(u => u.id === userId);
+    const user = users.find((u: User) => u.id === userId);
     if (!user) return;
     setForm({
       username: user.username,
@@ -212,24 +260,39 @@ const UsersTab: React.FC = () => {
     setModalOpen(true);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
-    if (editingId) {
-      updateUser(editingId, form);
-      toast.success('Usuario actualizado correctamente');
-    } else {
-      addUser(form);
-      toast.success('Usuario creado correctamente');
+    try {
+      if (editingId) {
+        await api.put(`/settings/users/${editingId}`, form);
+        setUsers((prev) => prev.map((u: User) => u.id === editingId ? { ...u, ...form } as User : u));
+        toast.success('Usuario actualizado correctamente');
+      } else {
+        const newUser = await api.post<User>('/settings/users', form);
+        setUsers((prev) => [...prev, newUser]);
+        toast.success('Usuario creado correctamente');
+      }
+      setModalOpen(false);
+    } catch (error) {
+      console.error('Error saving user:', error);
     }
-    setModalOpen(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteId) return;
-    deleteUser(deleteId);
-    setDeleteId(null);
-    toast.success('Usuario eliminado');
+    try {
+      await api.delete(`/settings/users/${deleteId}`);
+      setUsers((prev) => prev.filter((u: User) => u.id !== deleteId));
+      setDeleteId(null);
+      toast.success('Usuario eliminado');
+    } catch (error) {
+      console.error('Error deleting user:', error);
+    }
   };
+
+  if (loading) {
+    return <div className="py-8 text-center text-coffee-500">Cargando...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -383,10 +446,29 @@ const UsersTab: React.FC = () => {
 // ─── Roles Tab ────────────────────────────────────────────────────────────────
 
 const RolesTab: React.FC = () => {
-  const { roles } = useSettingsStore();
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [loading, setLoading] = useState(true);
   const [permissionsModal, setPermissionsModal] = useState<{ open: boolean; roleId: string | null }>({ open: false, roleId: null });
 
-  const selectedRole = roles.find(r => r.id === permissionsModal.roleId);
+  useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        const data = await api.get<Role[]>('/settings/roles');
+        setRoles(data);
+      } catch (error) {
+        console.error('Error loading roles:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRoles();
+  }, []);
+
+  const selectedRole = roles.find((r: Role) => r.id === permissionsModal.roleId);
+
+  if (loading) {
+    return <div className="py-8 text-center text-coffee-500">Cargando...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -470,7 +552,22 @@ const RolesTab: React.FC = () => {
 // ─── Branches Tab ─────────────────────────────────────────────────────────────
 
 const BranchesTab: React.FC = () => {
-  const { branches, addBranch, updateBranch, deleteBranch } = useSettingsStore();
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBranches = async () => {
+      try {
+        const data = await api.get<Branch[]>('/settings/branches');
+        setBranches(data);
+      } catch (error) {
+        console.error('Error loading branches:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBranches();
+  }, []);
 
   const emptyForm: BranchForm = {
     code: '', name: '', address: '', phone: '', email: '', isActive: true,
@@ -498,7 +595,7 @@ const BranchesTab: React.FC = () => {
   };
 
   const openEdit = (branchId: string) => {
-    const branch = branches.find(b => b.id === branchId);
+    const branch = branches.find((b: Branch) => b.id === branchId);
     if (!branch) return;
     setForm({
       code: branch.code,
@@ -513,24 +610,39 @@ const BranchesTab: React.FC = () => {
     setModalOpen(true);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
-    if (editingId) {
-      updateBranch(editingId, form);
-      toast.success('Sucursal actualizada correctamente');
-    } else {
-      addBranch(form);
-      toast.success('Sucursal creada correctamente');
+    try {
+      if (editingId) {
+        await api.put(`/settings/branches/${editingId}`, form);
+        setBranches((prev) => prev.map((b: Branch) => b.id === editingId ? { ...b, ...form } as Branch : b));
+        toast.success('Sucursal actualizada correctamente');
+      } else {
+        const newBranch = await api.post<Branch>('/settings/branches', form);
+        setBranches((prev) => [...prev, newBranch]);
+        toast.success('Sucursal creada correctamente');
+      }
+      setModalOpen(false);
+    } catch (error) {
+      console.error('Error saving branch:', error);
     }
-    setModalOpen(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteId) return;
-    deleteBranch(deleteId);
-    setDeleteId(null);
-    toast.success('Sucursal eliminada');
+    try {
+      await api.delete(`/settings/branches/${deleteId}`);
+      setBranches((prev) => prev.filter((b: Branch) => b.id !== deleteId));
+      setDeleteId(null);
+      toast.success('Sucursal eliminada');
+    } catch (error) {
+      console.error('Error deleting branch:', error);
+    }
   };
+
+  if (loading) {
+    return <div className="py-8 text-center text-coffee-500">Cargando...</div>;
+  }
 
   return (
     <div className="space-y-6">

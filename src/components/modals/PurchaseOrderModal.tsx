@@ -6,7 +6,6 @@ import { Input, Textarea } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { FormField, Form, FormRow, FormActions } from '../forms/FormField';
 import { toast } from '../ui/Toast';
-import { usePurchasesStore } from '../../stores';
 import type { Supplier, Product, PurchaseOrderInput } from '../../types';
 
 interface OrderItem {
@@ -21,6 +20,7 @@ interface PurchaseOrderModalProps {
   suppliers: Supplier[];
   products: Product[];
   onSuccess: () => void;
+  onSave: (input: PurchaseOrderInput) => void;
 }
 
 const TAX_RATE = 0.18;
@@ -33,10 +33,10 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
   suppliers,
   products,
   onSuccess,
+  onSave,
 }) => {
   const [isLoading, setIsLoading] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
-  const { addPurchaseOrder } = usePurchasesStore();
 
   const [supplierId, setSupplierId] = React.useState('');
   const [expectedDate, setExpectedDate] = React.useState('');
@@ -141,7 +141,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
         notes: notes.trim() || undefined,
       };
 
-      addPurchaseOrder(input);
+      onSave(input);
       toast.success('Orden de compra creada', 'La orden de compra fue registrada correctamente.');
       onSuccess();
       onClose();

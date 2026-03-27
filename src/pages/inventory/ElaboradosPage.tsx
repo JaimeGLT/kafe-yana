@@ -1,4 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { gql } from '../../lib/graphql';
+import { api } from '../../lib/api';
 import {
   Plus,
   FlaskConical,
@@ -18,13 +20,14 @@ import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
 import { PageContainer, PageHeader } from '../../components/layout';
 import { Button, Input, Select } from '../../components/ui';
+import { Modal } from '../../components/ui/Modal';
+import { FormField, FormRow, FormActions, Form } from '../../components/forms/FormField';
 import { HelpTooltip } from '../../components/ui/Tooltip';
-import { RecetaModal } from '../../components/modals/RecetaModal';
+import { RecetaModal, RecetaFormContent } from '../../components/modals/RecetaModal';
 import { InsumoModal } from '../../components/modals/InsumoModal';
 import { toast } from '../../components/ui/Toast';
-import { useInventoryStore, useRecipesStore } from '../../stores';
 import { useStockManager } from '../../hooks/useStockManager';
-import type { Product, Receta } from '../../types';
+import type { Product, Receta, Insumo } from '../../types';
 import { formatCurrency } from '../../utils';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -40,13 +43,18 @@ const getMarginInfo = (pct: number) => {
 interface WizardProps {
   isOpen: boolean;
   onClose: () => void;
+  onCreated: () => void;
   categories: { value: string; label: string }[];
+  insumos: Insumo[];
+  recetas: Receta[];
+  onAddReceta: (receta: { productId: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string }, productName: string) => void;
 }
 
-const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, categories }) => {
-  const { addProduct } = useInventoryStore();
+const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCreated, categories, insumos, recetas, onAddReceta }) => {
   const [step, setStep] = useState<1 | 2>(1);
   const [newProductId, setNewProductId] = useState<string | null>(null);
+  const [newProductName, setNewProductName] = useState<string>('');
+  const [newProductSalePrice, setNewProductSalePrice] = useState<number>(0);
 
   // Step 1 fields
   const [name, setName] = useState('');
@@ -59,6 +67,8 @@ const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, categories })
   const reset = () => {
     setStep(1);
     setNewProductId(null);
+    setNewProductName('');
+    setNewProductSalePrice(0);
     setName('');
     setDescription('');
     setCategoryId('');
@@ -81,26 +91,28 @@ const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, categories })
     return Object.keys(errs).length === 0;
   };
 
-  const handleStep1Submit = (e: React.FormEvent) => {
+  const handleStep1Submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep1()) return;
 
-    const product = addProduct({
-      name: name.trim(),
-      description: description.trim() || undefined,
-      tipo: 'elaborado',
-      categoryId,
-      unit,
-      costPrice: 0,
-      salePrice: Number(salePrice),
-      stock: 0,
-      minStock: 0,
-      isActive: true,
-    });
-
-    setNewProductId(product.id);
-    setStep(2);
-    toast.success('Producto creado', `"${name}" fue agregado como producto elaborado.`);
+    try {
+      const result = await api.post<{ id: number }>('/Elaborado', {
+        nombre: name.trim(),
+        descripcion: description.trim() || '',
+        precio: Number(salePrice),
+        categoria_Id: Number(categoryId) || 0,
+        unidad_medida: unit,
+      });
+      const id = String(result.id);
+      setNewProductId(id);
+      setNewProductName(name.trim());
+      setNewProductSalePrice(Number(salePrice));
+      setStep(2);
+      toast.success('Producto creado', `"${name}" fue agregado como producto elaborado.`);
+      onCreated();
+    } catch {
+      toast.error('Error', 'No se pudo crear el producto. Intente nuevamente.');
+    }
   };
 
   if (!isOpen) return null;
@@ -252,11 +264,16 @@ const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, categories })
               {/* Inline RecetaModal content */}
               <RecetaStepTwo
                 productId={newProductId}
+                productName={newProductName}
+                productSalePrice={newProductSalePrice}
                 onDone={handleClose}
                 onSkip={() => {
                   toast.success('Producto creado', 'Puedes añadir la receta más tarde desde esta página.');
                   handleClose();
                 }}
+                insumos={insumos}
+                recetas={recetas}
+                onAddReceta={onAddReceta}
               />
             </div>
           )}
@@ -270,15 +287,17 @@ const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, categories })
 
 interface RecetaStepTwoProps {
   productId: string;
+  productName: string;
+  productSalePrice: number;
   onDone: () => void;
   onSkip: () => void;
+  insumos: Insumo[];
+  recetas: Receta[];
+  onAddReceta: (receta: { productId: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string }, productName: string) => void;
 }
 
-const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, onDone, onSkip }) => {
-  const { addReceta, insumos, recetas } = useRecipesStore();
-  const { products } = useInventoryStore();
-
-  const product = products.find((p) => p.id === productId);
+const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, productName, productSalePrice, onDone, onSkip, insumos, recetas, onAddReceta }) => {
+  const product = { id: productId, name: productName, salePrice: productSalePrice };
 
   const [mode, setMode] = useState<'nueva' | 'existente'>('nueva');
   const [selectedRecetaId, setSelectedRecetaId] = useState('');
@@ -346,7 +365,7 @@ const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, onDone, onSkip
         setErrors(['Selecciona una receta existente.']);
         return;
       }
-      addReceta(
+      onAddReceta(
         {
           productId,
           porcionesBase: recetaBase.porcionesBase,
@@ -364,7 +383,7 @@ const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, onDone, onSkip
       return;
     }
     if (!validate()) return;
-    addReceta({ productId, porcionesBase, ingredientes, notas }, productName);
+    onAddReceta({ productId, porcionesBase, ingredientes, notas }, productName);
     toast.success('Receta guardada', `"${productName}" — costo/porción: ${formatCurrency(costoPorPorcion)}`);
     onDone();
   };
@@ -630,6 +649,181 @@ const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, onDone, onSkip
   );
 };
 
+// ── Edit elaborado modal ──────────────────────────────────────────────────────
+
+const EDIT_UNIT_OPTIONS = [
+  { value: 'unidad', label: 'Unidad' },
+  { value: 'porcion', label: 'Porción' },
+  { value: 'taza', label: 'Taza' },
+  { value: 'vaso', label: 'Vaso' },
+  { value: 'plato', label: 'Plato' },
+  { value: 'botella', label: 'Botella' },
+];
+
+interface EditElaboradoModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  product: Product;
+  categoryOptions: { value: string; label: string }[];
+  onSaved: (updated: Product) => void;
+  getRecetaByProductId: (productId: string) => Receta | undefined;
+}
+
+const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
+  isOpen,
+  onClose,
+  product,
+  categoryOptions,
+  onSaved,
+  getRecetaByProductId,
+}) => {
+  const [tab, setTab] = useState<'datos' | 'receta'>('datos');
+  const [isSaving, setIsSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const [name, setName] = useState(product.name);
+  const [description, setDescription] = useState(product.description || '');
+  const [salePrice, setSalePrice] = useState<number | ''>(product.salePrice);
+  const [categoryId, setCategoryId] = useState(product.categoryId || '');
+  const [unit, setUnit] = useState(product.unit || 'unidad');
+
+  useEffect(() => {
+    if (isOpen) {
+      setTab('datos');
+      setName(product.name);
+      setDescription(product.description || '');
+      setSalePrice(product.salePrice);
+      setCategoryId(product.categoryId || '');
+      setUnit(product.unit || 'unidad');
+      setErrors({});
+    }
+  }, [isOpen, product]);
+
+  const receta = getRecetaByProductId(product.id);
+
+  const handleSaveDatos = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const errs: Record<string, string> = {};
+    if (!name.trim()) errs.name = 'El nombre es obligatorio.';
+    if (!salePrice || Number(salePrice) <= 0) errs.salePrice = 'El precio debe ser mayor a 0.';
+    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+
+    setIsSaving(true);
+    try {
+      await api.put(`/Elaborado/${product.id}`, {
+        nombre: name.trim(),
+        descripcion: description.trim(),
+        precio: Number(salePrice),
+        categoria_Id: Number(categoryId) || 0,
+        unidad_medida: unit,
+      });
+      const catName = categoryOptions.find((o) => o.value === categoryId)?.label ?? '';
+      const updated = { ...product, name: name.trim(), description: description.trim(), salePrice: Number(salePrice), categoryId, categoryName: catName, unit };
+      onSaved(updated);
+      toast.success('Producto actualizado', `"${name}" fue actualizado correctamente.`);
+      onClose();
+    } catch {
+      toast.error('Error', 'No se pudo actualizar el producto. Intente nuevamente.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const productForReceta = { id: product.id, name, salePrice: Number(salePrice) || product.salePrice };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Editar Producto Elaborado" size="lg">
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-coffee-100 mb-5 -mx-6 px-6">
+        {([['datos', 'Datos del producto'], ['receta', receta ? 'Receta ✓' : 'Receta']] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={clsx(
+              'px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
+              tab === id
+                ? 'border-amber-500 text-amber-700'
+                : 'border-transparent text-coffee-500 hover:text-coffee-700'
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'datos' && (
+        <Form onSubmit={handleSaveDatos}>
+          <FormRow>
+            <FormField label="Nombre" required error={errors.name}>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Nombre del producto"
+                autoFocus
+              />
+            </FormField>
+          </FormRow>
+
+          <FormField label="Descripción">
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Descripción interna (opcional)"
+            />
+          </FormField>
+
+          <FormRow>
+            <FormField label="Categoría">
+              <Select
+                value={categoryId}
+                onChange={(v) => setCategoryId(v)}
+                options={[{ value: '', label: 'Sin categoría' }, ...categoryOptions]}
+              />
+            </FormField>
+            <FormField label="Unidad de venta">
+              <Select
+                value={unit}
+                onChange={(v) => setUnit(v)}
+                options={EDIT_UNIT_OPTIONS}
+              />
+            </FormField>
+          </FormRow>
+
+          <FormField label="Precio de venta (Bs.)" required error={errors.salePrice}>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={salePrice}
+              onChange={(e) => setSalePrice(parseFloat(e.target.value) || '')}
+              placeholder="0.00"
+            />
+          </FormField>
+
+          <FormActions>
+            <Button type="button" variant="ghost" onClick={onClose} disabled={isSaving}>
+              Cancelar
+            </Button>
+            <Button type="submit" variant="primary" isLoading={isSaving}>
+              Guardar Cambios
+            </Button>
+          </FormActions>
+        </Form>
+      )}
+
+      {tab === 'receta' && (
+        <RecetaFormContent
+          onClose={() => setTab('datos')}
+          receta={receta}
+          preselectedProductId={product.id}
+          productOverride={productForReceta}
+        />
+      )}
+    </Modal>
+  );
+};
+
 // ── Product card ──────────────────────────────────────────────────────────────
 
 interface ProductCardProps {
@@ -749,26 +943,134 @@ const ProductCard: React.FC<ProductCardProps> = ({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const ElaboradosPage: React.FC = () => {
-  const { products } = useInventoryStore();
-  const { recetas, getRecetaByProductId } = useRecipesStore();
-  const { getElaboradoAvailability } = useStockManager();
+  const [recetas, setRecetas] = useState<Receta[]>([]);
+  const [insumos, setInsumos] = useState<Insumo[]>([]);
+  const [elaborados, setElaborados] = useState<Product[]>([]);
+  const [rawCategories, setRawCategories] = useState<{ id: string; nombre: string; estado: boolean }[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
+  const getRecetaByProductId = useCallback((productId: string) => {
+    return recetas.find((r: Receta) => r.productId === productId);
+  }, [recetas]);
+
+  const getElaboradoAvailability = useCallback((productId: string) => {
+    // Simple implementation - in production this would calculate based on insumos
+    return 999; // Default availability
+  }, []);
+
+  const addReceta = useCallback(async (recetaData: { productId: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string }, productName: string) => {
+    try {
+      await api.post('/Recipes/recetas', {
+        productoId: recetaData.productId,
+        porcionesBase: recetaData.porcionesBase,
+        ingredientes: recetaData.ingredientes,
+        notas: recetaData.notas,
+      });
+      // Reload recetas after adding
+      const recetasData = await api.get<Receta[]>('/Recipes/recetas');
+      setRecetas(recetasData);
+    } catch (error) {
+      console.error('Error adding receta:', error);
+      throw error;
+    }
+  }, []);
+
+  // Load recetas and insumos
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [recetasData, insumosData] = await Promise.all([
+          api.get<Receta[]>('/Recipes/recetas'),
+          api.get<Insumo[]>('/Recipes/insumos'),
+        ]);
+        setRecetas(recetasData);
+        setInsumos(insumosData);
+      } catch (error) {
+        console.error('Error loading recipes:', error);
+      }
+    };
+    fetchData();
+  }, []);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [recetaModal, setRecetaModal] = useState<{ isOpen: boolean; product?: Product; receta?: Receta }>({
     isOpen: false,
   });
 
-  const elaborados = useMemo(
-    () => products.filter((p) => p.tipo === 'elaborado' && p.isActive),
-    [products]
-  );
+  interface ElaboradoNode {
+    id: number;
+    nombre: string;
+    descripcion: string;
+    precio: number;
+    categoria_Id: number;
+    unidad_medida: string;
+  }
+  interface ElaboradosResponse {
+    elaborados: ElaboradoNode[];
+  }
+  interface CatNode { id: number; nombre: string; estado: boolean; }
+  interface CatsResponse { categorias: { nodes: CatNode[] }; }
 
-  const categories = useMemo(() => {
-    const { categories: cats } = useInventoryStore.getState();
-    return cats.filter((c) => c.isActive).map((c) => ({ value: c.id, label: c.name }));
-  }, [products]);
+  const loadElaborados = useCallback(async (cats?: { id: string; nombre: string }[]) => {
+    const data = await gql<ElaboradosResponse>(`
+      query {
+        elaborados {
+          id
+          nombre
+          descripcion
+          precio
+          categoria_Id
+          unidad_medida
+        }
+      }
+    `);
+    const catList = cats ?? rawCategories;
+    const mapped: Product[] = data.elaborados.map((node) => ({
+      id: String(node.id),
+      code: String(node.id),
+      name: node.nombre,
+      description: node.descripcion,
+      tipo: 'elaborado' as const,
+      categoryId: String(node.categoria_Id),
+      categoryName: catList.find((c) => c.id === String(node.categoria_Id))?.nombre ?? '',
+      unit: node.unidad_medida,
+      costPrice: 0,
+      salePrice: node.precio,
+      stock: 0,
+      minStock: 0,
+      maxStock: 0,
+      variations: [],
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+    setElaborados(mapped);
+  }, [rawCategories]);
+
+  useEffect(() => {
+    Promise.all([
+      gql<CatsResponse>(`query { categorias { nodes { id nombre estado } } }`),
+    ])
+      .then(([catsData]) => {
+        const cats = catsData.categorias.nodes.map((n) => ({ id: String(n.id), nombre: n.nombre, estado: n.estado }));
+        setRawCategories(cats);
+        return loadElaborados(cats);
+      })
+      .catch(() => {/* silencioso */})
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  // Used for wizard (needs IDs) and edit modal (uses names as values)
+  const categories = useMemo(
+    () => rawCategories.filter((c) => c.estado).map((c) => ({ value: c.id, label: c.nombre })),
+    [rawCategories]
+  );
+  const categoryNameOptions = useMemo(
+    () => rawCategories.filter((c) => c.estado).map((c) => ({ value: c.id, label: c.nombre })),
+    [rawCategories]
+  );
 
   const filtered = useMemo(() => {
     let list = elaborados;
@@ -818,7 +1120,7 @@ const ElaboradosPage: React.FC = () => {
         />
 
         {/* KPI cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" aria-busy={isLoading}>
           <div className="bg-white rounded-xl border border-coffee-100 p-4 flex items-center gap-3">
             <div className="p-2 rounded-lg bg-amber-50">
               <FlaskConical className="h-5 w-5 text-amber-600" />
@@ -899,8 +1201,25 @@ const ElaboradosPage: React.FC = () => {
           />
         </div>
 
-        {/* Empty state */}
-        {elaborados.length === 0 ? (
+        {/* Empty state / loading */}
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden animate-pulse">
+                <div className="h-1 w-full bg-coffee-200" />
+                <div className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="h-4 w-32 bg-coffee-200 rounded" />
+                    <div className="h-4 w-14 bg-coffee-200 rounded" />
+                  </div>
+                  <div className="h-3 w-20 bg-coffee-100 rounded" />
+                  <div className="h-3 w-full bg-coffee-100 rounded" />
+                  <div className="h-3 w-2/3 bg-coffee-100 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : elaborados.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-xl border border-dashed border-coffee-200">
             <FlaskConical className="h-12 w-12 text-coffee-200 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-coffee-700 mb-1">Sin productos elaborados</h3>
@@ -928,10 +1247,7 @@ const ElaboradosPage: React.FC = () => {
                   product={product}
                   receta={receta}
                   portionsAvailable={portions}
-                  onEditProduct={(p) => {
-                    // Navigate to products page with product pre-selected — for now link to products
-                    toast.success('Editar', `Edita "${p.name}" en la página de Inventario → Productos.`);
-                  }}
+                  onEditProduct={(p) => setEditingProduct(p)}
                   onManageReceta={(p) => {
                     const r = getRecetaByProductId(p.id);
                     setRecetaModal({ isOpen: true, product: p, receta: r });
@@ -946,9 +1262,28 @@ const ElaboradosPage: React.FC = () => {
       {/* Wizard: create elaborado + recipe */}
       <ElaboradoWizard
         isOpen={isWizardOpen}
-        onClose={() => setIsWizardOpen(false)}
+        onClose={() => { setIsWizardOpen(false); loadElaborados(); }}
+        onCreated={() => loadElaborados()}
         categories={categories}
+        insumos={insumos}
+        recetas={recetas}
+        onAddReceta={addReceta}
       />
+
+      {/* Edit elaborado modal */}
+      {editingProduct && (
+        <EditElaboradoModal
+          isOpen={!!editingProduct}
+          onClose={() => setEditingProduct(null)}
+          product={editingProduct}
+          categoryOptions={categoryNameOptions}
+          onSaved={(updated) => {
+            setElaborados((prev) => prev.map((p) => p.id === updated.id ? updated : p));
+            setEditingProduct(null);
+          }}
+          getRecetaByProductId={getRecetaByProductId}
+        />
+      )}
 
       {/* RecetaModal for editing existing recipes */}
       <RecetaModal

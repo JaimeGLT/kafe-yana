@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Plus, TrendingUp, ShoppingBag, Calendar } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
@@ -7,27 +7,65 @@ import { SalesTable } from '../../components/tables/SalesTable';
 import { SaleForm } from '../../components/forms/SaleForm';
 import { BillingModal } from '../../components/modals/BillingModal';
 import { toast } from '../../components/ui/Toast';
-import { useSalesStore } from '../../stores';
+import { api } from '../../lib/api';
 import { formatCurrency, formatDateTime, getPaymentMethodLabel } from '../../utils';
-import type { Sale } from '../../types';
+import type { Sale, Customer } from '../../types';
+
+interface SaleStats {
+  totalSalesToday: number;
+  totalSalesMonth: number;
+  averageTicket: number;
+}
 
 export const SalesListPage: React.FC = () => {
-  const { sales, customers, addSale, generateInvoiceForSale, stats, calculateStats } = useSalesStore();
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [stats, setStats] = useState<SaleStats>({ totalSalesToday: 0, totalSalesMonth: 0, averageTicket: 0 });
+  const [isLoading, setIsLoading] = useState(false);
 
-  const [search, setSearch] = React.useState('');
-  const [dateFrom, setDateFrom] = React.useState('');
-  const [dateTo, setDateTo] = React.useState('');
-  const [statusFilter, setStatusFilter] = React.useState('');
-  const [isNewSaleOpen, setIsNewSaleOpen] = React.useState(false);
-  const [selectedSale, setSelectedSale] = React.useState<Sale | null>(null);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [billingSaleId, setBillingSaleId] = React.useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [isNewSaleOpen, setIsNewSaleOpen] = useState(false);
+  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [billingSaleId, setBillingSaleId] = useState<string | null>(null);
 
-  React.useEffect(() => {
-    calculateStats();
-  }, [calculateStats]);
+  // Fetch data on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [salesData, customersData, statsData] = await Promise.all([
+          api.get<Sale[]>('/ventas'),
+          api.get<Customer[]>('/clientes'),
+          api.get<SaleStats>('/ventas/stats'),
+        ]);
+        setSales(salesData);
+        setCustomers(customersData);
+        setStats(statsData);
+      } catch {
+        toast.error('Error', 'No se pudieron cargar los datos.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
-  const filteredSales = React.useMemo(() => {
+  const addSale = useCallback(async (data: Parameters<typeof createSale>[0]) => {
+    const newSale = await api.post<Sale>('/ventas', data);
+    setSales(prev => [newSale, ...prev]);
+    return newSale;
+  }, []);
+
+  const generateInvoiceForSale = useCallback(async (saleId: string, billing: { nit: string; name: string }) => {
+    const invoice = await api.post(`/ventas/${saleId}/factura`, billing);
+    setSales(prev => prev.map(s => s.id === saleId ? { ...s, invoiceId: invoice.id } : s));
+    return invoice;
+  }, []);
+
+  const filteredSales = useMemo(() => {
     return sales.filter((sale) => {
       if (search) {
         const q = search.toLowerCase();
@@ -51,7 +89,7 @@ export const SalesListPage: React.FC = () => {
     });
   }, [sales, search, dateFrom, dateTo, statusFilter]);
 
-  const todaySales = React.useMemo(() => {
+  const todaySales = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return sales.filter((s) => s.status === 'completed' && new Date(s.date) >= today);
@@ -60,10 +98,9 @@ export const SalesListPage: React.FC = () => {
   const handleNewSale = async (data: Parameters<typeof addSale>[0]) => {
     setIsLoading(true);
     try {
-      const newSale = addSale(data);
+      const newSale = await addSale(data);
       toast.success('Venta registrada', 'La venta se registró exitosamente.');
       setIsNewSaleOpen(false);
-      calculateStats();
       setBillingSaleId(newSale.id);
     } catch {
       toast.error('Error', 'No se pudo registrar la venta.');
@@ -191,10 +228,14 @@ export const SalesListPage: React.FC = () => {
         <BillingModal
           isOpen={!!billingSaleId}
           saleCode={sales.find((s) => s.id === billingSaleId)?.code}
-          onDone={(billing) => {
+          onDone={async (billing) => {
             if (billingSaleId) {
-              generateInvoiceForSale(billingSaleId, billing);
-              toast.success('Factura emitida', `Factura a "${billing.name}" (NIT: ${billing.nit}) generada.`);
+              try {
+                await generateInvoiceForSale(billingSaleId, billing);
+                toast.success('Factura emitida', `Factura a "${billing.name}" (NIT: ${billing.nit}) generada.`);
+              } catch {
+                toast.error('Error', 'No se pudo generar la factura.');
+              }
             }
             setBillingSaleId(null);
           }}

@@ -1,12 +1,12 @@
 import React from 'react';
-import type { SaleInput, Customer } from '../../types';
+import type { SaleInput, Customer, Product } from '../../types';
 import { Form, FormActions } from './FormField';
 import { Input, Select, Button } from '../ui';
-import { useInventoryStore } from '../../stores';
 import { Plus, Trash2, ShoppingCart } from 'lucide-react';
 
 interface SaleFormProps {
   customers: Customer[];
+  products: Product[];
   onSubmit: (data: SaleInput) => void;
   onCancel: () => void;
   isLoading?: boolean;
@@ -23,11 +23,11 @@ interface SaleItem {
 
 export const SaleForm: React.FC<SaleFormProps> = ({
   customers,
+  products,
   onSubmit,
   onCancel,
   isLoading = false,
 }) => {
-  const { products } = useInventoryStore();
   const [customerId, setCustomerId] = React.useState('');
   const [items, setItems] = React.useState<SaleItem[]>([
     { productId: '', productName: '', quantity: 1, unitPrice: 0, discount: 0 },

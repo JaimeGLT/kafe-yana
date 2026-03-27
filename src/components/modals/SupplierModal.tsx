@@ -4,7 +4,6 @@ import { Button } from '../ui/Button';
 import { Input, Textarea } from '../ui/Input';
 import { FormField, Form, FormRow, FormActions } from '../forms/FormField';
 import { toast } from '../ui/Toast';
-import { usePurchasesStore } from '../../stores';
 import type { Supplier, SupplierInput } from '../../types';
 
 interface SupplierModalProps {
@@ -12,6 +11,7 @@ interface SupplierModalProps {
   onClose: () => void;
   supplier?: Supplier;
   onSuccess: () => void;
+  onSave: (input: SupplierInput, isEdit: boolean, supplierId?: string) => void;
 }
 
 interface SupplierFormData {
@@ -33,10 +33,10 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
   onClose,
   supplier,
   onSuccess,
+  onSave,
 }) => {
   const [isLoading, setIsLoading] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
-  const { addSupplier, updateSupplier } = usePurchasesStore();
 
   const [formData, setFormData] = React.useState<SupplierFormData>({
     name: supplier?.name || '',
@@ -124,13 +124,7 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
         isActive: formData.isActive,
       };
 
-      if (supplier) {
-        updateSupplier(supplier.id, input);
-        toast.success('Proveedor actualizado', `"${input.name}" fue actualizado correctamente.`);
-      } else {
-        addSupplier(input);
-        toast.success('Proveedor creado', `"${input.name}" fue registrado correctamente.`);
-      }
+      onSave(input, !!supplier, supplier?.id);
       onSuccess();
       onClose();
     } catch (error) {

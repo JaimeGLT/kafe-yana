@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { clsx } from 'clsx';
 import {
   Plus, Minus, Trash2, Coffee, CheckCircle, Printer,
@@ -8,14 +8,12 @@ import {
 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { toast } from '../../components/ui/Toast';
-import { useSalesStore, useInventoryStore, useLoyaltyStore } from '../../stores';
-import { useVariacionesStore } from '../../stores/variacionesStore';
+import { api } from '../../lib/api';
 import { formatCurrency } from '../../utils';
-import type { Product, SaleInput, PaymentMethodType, OpcionSeleccionada } from '../../types';
-import { useStockManager } from '../../hooks/useStockManager';
+import type { Product, Category, Customer, SaleInput, PaymentMethodType, OpcionSeleccionada, VariacionAtributo } from '../../types';
+import type { LoyaltyProfile, PointsCalculation, MilestoneReward } from '../../types/loyalty';
 import { VariacionPickerModal } from '../../components/modals/VariacionPickerModal';
 import { BillingModal } from '../../components/modals/BillingModal';
-import type { PointsCalculation } from '../../types/loyalty';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TYPES
@@ -110,11 +108,11 @@ const mesaOrderTotal = (order: CartItem[]) =>
    HOOK — drag-to-scroll
 ═══════════════════════════════════════════════════════════════════════════*/
 function useDragScroll<T extends HTMLElement>() {
-  const ref = React.useRef<T>(null);
-  const dragging = React.useRef(false);
-  const startX   = React.useRef(0);
-  const scrollL  = React.useRef(0);
-  const moved    = React.useRef(false);
+  const ref = useRef<T>(null);
+  const dragging = useRef(false);
+  const startX   = useRef(0);
+  const scrollL  = useRef(0);
+  const moved    = useRef(false);
 
   const onMouseDown = (e: React.MouseEvent) => {
     if (!ref.current) return;
@@ -235,42 +233,149 @@ let getAttrCount = (_p: Product) => 0;
    MAIN PAGE
 ═══════════════════════════════════════════════════════════════════════════*/
 export const POSPage: React.FC = () => {
-  const { products, categories } = useInventoryStore();
-  const { customers, addSale, generateInvoiceForSale } = useSalesStore();
-  const { getAtributosByProductId } = useVariacionesStore();
-  const { getElaboradoAvailability, checkStock, deductStock } = useStockManager();
-  const {
-    getOrCreateProfile, calculatePointsForAmount, awardPointsForSale,
-    redeemPointsForDiscount, milestones,
-  } = useLoyaltyStore();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
+  const [loyaltyProfiles, setLoyaltyProfiles] = useState<LoyaltyProfile[]>([]);
+  const [milestones, setMilestones] = useState<MilestoneReward[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load data from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [productsData, categoriesData, customersData, atributosData, profilesData, milestonesData] = await Promise.all([
+          api.get<Product[]>('/products'),
+          api.get<Category[]>('/categories'),
+          api.get<Customer[]>('/customers'),
+          api.get<VariacionAtributo[]>('/variaciones/atributos'),
+          api.get<LoyaltyProfile[]>('/loyalty/profiles'),
+          api.get<MilestoneReward[]>('/loyalty/milestones'),
+        ]);
+        setProducts(productsData);
+        setCategories(categoriesData);
+        setCustomers(customersData);
+        setAtributos(atributosData);
+        setLoyaltyProfiles(profilesData);
+        setMilestones(milestonesData);
+      } catch (error) {
+        console.error('Error fetching POS data:', error);
+        toast.error('Error', 'No se pudieron cargar los datos del POS.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const getAtributosByProductId = useCallback((productId: string): VariacionAtributo[] => {
+    return atributos.filter((a: VariacionAtributo) => a.productId === productId);
+  }, [atributos]);
 
   // wire helper used by ProdCard
   getAttrCount = (p: Product) => getAtributosByProductId(p.id).length;
 
+  const addSale = useCallback(async (saleInput: SaleInput) => {
+    try {
+      const sale = await api.post('/sales', saleInput);
+      return sale;
+    } catch (error) {
+      console.error('Error adding sale:', error);
+      throw error;
+    }
+  }, []);
+
+  const generateInvoiceForSale = useCallback(async (saleId: string, billing: { tipoDocumento: 'boleta' | 'factura'; ruc?: string; razonSocial?: string; direccionFiscal?: string }) => {
+    try {
+      const invoice = await api.post('/sales/' + saleId + '/invoice', billing);
+      return invoice;
+    } catch (error) {
+      console.error('Error generating invoice:', error);
+      return null;
+    }
+  }, []);
+
+  const getOrCreateProfile = useCallback((customerId: string): LoyaltyProfile | undefined => {
+    const profile = loyaltyProfiles.find((p: LoyaltyProfile) => p.customerId === customerId);
+    return profile;
+  }, [loyaltyProfiles]);
+
+  const calculatePointsForAmount = useCallback((customerId: string, total: number, hasCombo: boolean): PointsCalculation | null => {
+    const profile = getOrCreateProfile(customerId);
+    if (!profile) return null;
+
+    const basePoints = Math.floor(total / 10);
+    let bonusPoints = 0;
+    const bonusReasons: string[] = [];
+
+    // Happy hour logic (9am-3pm)
+    const hour = new Date().getHours();
+    if (hour >= 9 && hour < 15) {
+      bonusPoints += 2;
+      bonusReasons.push('Happy Hour');
+    }
+
+    // Combo bonus
+    if (hasCombo) {
+      bonusPoints += 3;
+      bonusReasons.push('Combo');
+    }
+
+    return {
+      basePoints,
+      bonusPoints,
+      totalPoints: basePoints + bonusPoints,
+      multiplier: 1,
+      bonusReasons,
+      isBirthday: false,
+      isHappyHour: hour >= 9 && hour < 15,
+      isDoubleDay: false,
+      isCombo: hasCombo,
+      isGroupPurchase: total >= 70,
+    };
+  }, [getOrCreateProfile]);
+
+  const awardPointsForSale = useCallback((customerId: string, saleId: string, total: number, hasCombo: boolean): PointsCalculation | null => {
+    const calc = calculatePointsForAmount(customerId, total, hasCombo);
+    if (!calc) return null;
+
+    // In real implementation, this would call the API
+    return calc;
+  }, [calculatePointsForAmount]);
+
+  const redeemPointsForDiscount = useCallback((customerId: string, points: number): boolean => {
+    const profile = getOrCreateProfile(customerId);
+    if (!profile || profile.points < points) return false;
+
+    // In real implementation, this would call the API
+    return true;
+  }, [getOrCreateProfile]);
+
   /* ── Mesa state ── */
-  const [mesas, setMesas] = React.useState<Mesa[]>(initMesas);
-  const [activeMesaId, setActiveMesaId] = React.useState<string | null>(null);
-  const [modalView, setModalView] = React.useState<ModalView>('none');
+  const [mesas, setMesas] = useState<Mesa[]>(initMesas);
+  const [activeMesaId, setActiveMesaId] = useState<string | null>(null);
+  const [modalView, setModalView] = useState<ModalView>('none');
 
   /* ── Nueva mesa form ── */
-  const [nuevaMesaName, setNuevaMesaName] = React.useState('');
-  const [editMesaId,    setEditMesaId]    = React.useState<string | null>(null);
+  const [nuevaMesaName, setNuevaMesaName] = useState('');
+  const [editMesaId,    setEditMesaId]    = useState<string | null>(null);
 
   /* ── Temp state for "agregar" modal ── */
-  const [selectedCatId, setSelectedCatId] = React.useState<string>('');
-  const [tempCart,      setTempCart]      = React.useState<CartItem[]>([]);
-  const [varPickerProduct, setVarPickerProduct] = React.useState<Product | null>(null);
-  const [productSearch, setProductSearch] = React.useState('');
-  const [showCartPreview, setShowCartPreview] = React.useState(false);
+  const [selectedCatId, setSelectedCatId] = useState<string>('');
+  const [tempCart,      setTempCart]      = useState<CartItem[]>([]);
+  const [varPickerProduct, setVarPickerProduct] = useState<Product | null>(null);
+  const [productSearch, setProductSearch] = useState('');
+  const [showCartPreview, setShowCartPreview] = useState(false);
 
   /* ── Payment state ── */
-  const [paymentMethod,  setPaymentMethod]  = React.useState<PaymentMethodType>('cash');
-  const [cashReceived,   setCashReceived]   = React.useState('');
-  const [isProcessing,   setIsProcessing]   = React.useState(false);
-  const [usePoints,      setUsePoints]      = React.useState(false);
-  const [pointsToRedeem, setPointsToRedeem] = React.useState(0);
-  const [lastSaleResult, setLastSaleResult] = React.useState<{ code: string; points: PointsCalculation | null; newBalance: number } | null>(null);
-  const [pendingBillingSaleId, setPendingBillingSaleId] = React.useState<string | null>(null);
+  const [paymentMethod,  setPaymentMethod]  = useState<PaymentMethodType>('cash');
+  const [cashReceived,   setCashReceived]   = useState('');
+  const [isProcessing,   setIsProcessing]   = useState(false);
+  const [usePoints,      setUsePoints]      = useState(false);
+  const [pointsToRedeem, setPointsToRedeem] = useState(0);
+  const [lastSaleResult, setLastSaleResult] = useState<{ code: string; points: PointsCalculation | null; newBalance: number } | null>(null);
+  const [pendingBillingSaleId, setPendingBillingSaleId] = useState<string | null>(null);
 
   /* ── Drag scroll refs ── */
   const dragScroll    = useDragScroll<HTMLDivElement>();
@@ -279,10 +384,10 @@ export const POSPage: React.FC = () => {
   /* ── Derived ── */
   const activeMesa = activeMesaId ? mesas.find(m => m.id === activeMesaId) ?? null : null;
 
-  const activeCategories = React.useMemo(() => categories.filter(c => c.isActive), [categories]);
+  const activeCategories = useMemo(() => categories.filter(c => c.isActive), [categories]);
 
   // products for the selected category in "agregar" modal
-  const pickerProducts = React.useMemo(() => {
+  const pickerProducts = useMemo(() => {
     const catId = selectedCatId || (activeCategories[0]?.id ?? '');
     return products.filter(p => {
       if (!p.isActive) return false;
@@ -295,13 +400,11 @@ export const POSPage: React.FC = () => {
     });
   }, [products, selectedCatId, activeCategories, productSearch]);
 
-  const getEffectiveStock = React.useCallback((p: Product): { label: string; ok: boolean } => {
-    if (p.tipo === 'elaborado') {
-      const a = getElaboradoAvailability(p.id);
-      return a === 0 ? { label: 'Sin insumos', ok: false } : { label: `~${a}`, ok: true };
-    }
+  const getEffectiveStock = useCallback((p: Product): { label: string; ok: boolean } => {
+    // For elaborado products, we would need to check recipe availability
+    // For now, simplified check
     return p.stock <= 0 ? { label: 'Agotado', ok: false } : { label: String(p.stock), ok: true };
-  }, [getElaboradoAvailability]);
+  }, []);
 
   /* ── Mesa order totals ── */
   const mesaSubtotal   = activeMesa ? mesaOrderTotal(activeMesa.order) : 0;
@@ -454,36 +557,44 @@ export const POSPage: React.FC = () => {
       toast.warning('Sin pedidos', 'Agrega productos antes de cobrar.');
       return;
     }
-    const stockCart = activeMesa.order.map(i => ({ product: i.product, quantity: i.quantity, opciones: i.opciones, precioFinal: i.precioFinal }));
-    const { canProceed, issues } = checkStock(stockCart);
-    if (!canProceed) {
-      const blockers = issues.filter(i => i.severity === 'error');
-      return toast.error('Sin stock', blockers.map(i => `${i.productName}: ${i.issue}`).join(' | '));
+    // Check stock for all items
+    const outOfStock = activeMesa.order.filter((i: CartItem) => i.product.stock < i.quantity);
+    if (outOfStock.length > 0) {
+      return toast.error('Sin stock', outOfStock.map((i: CartItem) => `${i.product.name}: stock insuficiente`).join(' | '));
     }
     updateMesa(activeMesa.id, { status: 'esperando_pago' });
     setModalView('review');
   };
 
-  const handleConfirmSale = () => {
+  const handleConfirmSale = async () => {
     if (!activeMesa) return;
     setIsProcessing(true);
     try {
       const saleInput: SaleInput = {
         customerId: activeMesa.customerId,
-        items: activeMesa.order.map(i => ({ productId: i.product.id, quantity: i.quantity, discount: 0 })),
+        items: activeMesa.order.map((i: CartItem) => ({ productId: i.product.id, quantity: i.quantity, discount: 0 })),
         discount: pointsDiscount,
         taxPercentage: 18,
         paymentMethods: [{ type: paymentMethod, amount: mesaTotal }],
       };
-      const newSale = addSale(saleInput);
-      deductStock(activeMesa.order.map(i => ({ product: i.product, quantity: i.quantity, opciones: i.opciones, precioFinal: i.precioFinal })));
+      const newSale = await addSale(saleInput);
+
+      // Update stock locally
+      setProducts(prev => prev.map((p: Product) => {
+        const item = activeMesa.order.find((i: CartItem) => i.product.id === p.id);
+        if (item) {
+          return { ...p, stock: p.stock - item.quantity };
+        }
+        return p;
+      }));
 
       let earnedPoints: PointsCalculation | null = null;
       let newBalance = 0;
-      if (activeMesa.customerId) {
+      if (activeMesa.customerId && newSale) {
         if (usePoints && pointsToRedeem > 0) redeemPointsForDiscount(activeMesa.customerId, pointsToRedeem);
         earnedPoints = awardPointsForSale(activeMesa.customerId, newSale.id, mesaTotal, hasCombo);
-        newBalance = getOrCreateProfile(activeMesa.customerId).points;
+        const profile = getOrCreateProfile(activeMesa.customerId);
+        newBalance = profile?.points ?? 0;
       }
       setLastSaleResult({ code: newSale.code, points: earnedPoints, newBalance });
       setPendingBillingSaleId(newSale.id);
@@ -501,7 +612,7 @@ export const POSPage: React.FC = () => {
     closeAll();
   };
 
-  const nextMilestone = React.useMemo(() => {
+  const nextMilestone = useMemo(() => {
     if (!loyaltyProfile) return null;
     const count = loyaltyProfile.purchaseCount + 1;
     return milestones.find(m => m.purchaseNumber === count) ?? null;
@@ -513,7 +624,7 @@ export const POSPage: React.FC = () => {
   ];
 
   /* ── Init category for picker ── */
-  React.useEffect(() => {
+  useEffect(() => {
     if (activeCategories.length > 0 && !selectedCatId) {
       setSelectedCatId(activeCategories[0].id);
     }
@@ -1280,9 +1391,9 @@ export const POSPage: React.FC = () => {
         <BillingModal
           isOpen={modalView === 'billing'}
           saleCode={lastSaleResult?.code}
-          onDone={(billing) => {
+          onDone={async (billing: { tipoDocumento: 'boleta' | 'factura'; ruc?: string; razonSocial?: string; direccionFiscal?: string }) => {
             if (pendingBillingSaleId) {
-              generateInvoiceForSale(pendingBillingSaleId, billing);
+              await generateInvoiceForSale(pendingBillingSaleId, billing);
             }
             setPendingBillingSaleId(null);
             setModalView('success');

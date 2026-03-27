@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Search, FlaskConical, AlertTriangle } from 'lucide-react';
 import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
@@ -6,12 +6,14 @@ import { PageContainer, PageHeader } from '../../components/layout';
 import { Button, Input, Select, ConfirmModal } from '../../components/ui';
 import { InsumoModal } from '../../components/modals/InsumoModal';
 import { toast } from '../../components/ui/Toast';
-import { useRecipesStore } from '../../stores';
-import type { Insumo } from '../../types';
+import { api } from '../../lib/api';
+import type { Insumo, Receta } from '../../types';
 import { formatCurrency } from '../../utils';
 
 const InsumosPage: React.FC = () => {
-  const { insumos, deleteInsumo, recetas } = useRecipesStore();
+  const [insumos, setInsumos] = useState<Insumo[]>([]);
+  const [recetas, setRecetas] = useState<Receta[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterCategoria, setFilterCategoria] = useState('');
   const [filterStock, setFilterStock] = useState('');
@@ -20,10 +22,28 @@ const InsumosPage: React.FC = () => {
   const [deleting, setDeleting] = useState<Insumo | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [insumosData, recetasData] = await Promise.all([
+          api.get<Insumo[]>('/recipes/insumos'),
+          api.get<Receta[]>('/recipes/recetas'),
+        ]);
+        setInsumos(insumosData);
+        setRecetas(recetasData);
+      } catch (error) {
+        console.error('Error loading insumos data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
   // Category options derived from current insumos
   const categoriaOptions = useMemo(() => {
-    const cats = [...new Set(insumos.map((i) => i.categoriaInsumo))].filter(Boolean);
-    return [{ value: '', label: 'Todas las categorías' }, ...cats.map((c) => ({ value: c, label: c }))];
+    const cats = [...new Set(insumos.map((i: Insumo) => i.categoriaInsumo))].filter(Boolean);
+    return [{ value: '', label: 'Todas las categorías' }, ...cats.map((c: string) => ({ value: c, label: c }))];
   }, [insumos]);
 
   const stockFilterOptions = [
@@ -34,7 +54,7 @@ const InsumosPage: React.FC = () => {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return insumos.filter((ins) => {
+    return insumos.filter((ins: Insumo) => {
       const matchSearch =
         !q ||
         ins.name.toLowerCase().includes(q) ||
@@ -53,7 +73,7 @@ const InsumosPage: React.FC = () => {
   // Count how many recipes use each insumo
   const usageCount = useMemo(() => {
     const map: Record<string, number> = {};
-    recetas.forEach((r) =>
+    recetas.forEach((r: Receta) =>
       r.ingredientes.forEach((ing) => {
         map[ing.insumoId] = (map[ing.insumoId] ?? 0) + 1;
       })
@@ -62,20 +82,26 @@ const InsumosPage: React.FC = () => {
   }, [recetas]);
 
   const lowStockCount = useMemo(
-    () => insumos.filter((i) => i.stock <= i.stockMinimo && i.stockMinimo > 0).length,
+    () => insumos.filter((i: Insumo) => i.stock <= i.stockMinimo && i.stockMinimo > 0).length,
     [insumos]
   );
 
   const openCreate = () => { setEditing(undefined); setIsModalOpen(true); };
   const openEdit = (ins: Insumo) => { setEditing(ins); setIsModalOpen(true); };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleting) return;
     setIsDeleting(true);
-    deleteInsumo(deleting.id);
-    toast.success('Insumo eliminado', `"${deleting.name}" fue eliminado.`);
-    setDeleting(null);
-    setIsDeleting(false);
+    try {
+      await api.delete(`/recipes/insumos/${deleting.id}`);
+      setInsumos((prev) => prev.filter((i: Insumo) => i.id !== deleting.id));
+      toast.success('Insumo eliminado', `"${deleting.name}" fue eliminado.`);
+    } catch (error) {
+      console.error('Error deleting insumo:', error);
+    } finally {
+      setDeleting(null);
+      setIsDeleting(false);
+    }
   };
 
   return (

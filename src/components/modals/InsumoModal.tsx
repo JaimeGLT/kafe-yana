@@ -4,7 +4,6 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { toast } from '../ui/Toast';
-import { useRecipesStore } from '../../stores';
 import type { Insumo, InsumoInput } from '../../types';
 import { formatCurrency } from '../../utils';
 
@@ -49,10 +48,10 @@ interface Props {
   onClose: () => void;
   insumo?: Insumo;
   onCreated?: (insumo: Insumo) => void;
+  onSave: (input: InsumoInput, isEdit: boolean, insumoId?: string) => Insumo | void;
 }
 
-export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onCreated }) => {
-  const { addInsumo, updateInsumo } = useRecipesStore();
+export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onCreated, onSave }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [form, setForm] = useState<InsumoInput>(empty);
   const [errors, setErrors] = useState<Partial<Record<keyof InsumoInput, string>>>({});
@@ -105,13 +104,13 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onCreate
     setIsLoading(true);
     try {
       if (insumo) {
-        updateInsumo(insumo.id, form);
+        onSave(form, true, insumo.id);
         toast.success(
           'Insumo actualizado',
           `"${form.name}" actualizado. Costo/unidad: ${formatCurrency(costoUnitario)}/${form.unidadMinima}. Los costos de las recetas se recalcularon automáticamente.`
         );
       } else {
-        const created = addInsumo(form);
+        const created = onSave(form, false) as Insumo;
         toast.success(
           'Insumo creado',
           `"${form.name}" — ${formatCurrency(costoUnitario)} por ${form.unidadMinima}.`

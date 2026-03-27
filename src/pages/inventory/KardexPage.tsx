@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { BookOpen, Package } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
 import { Select, Badge } from '../../components/ui';
-import { useInventoryStore } from '../../stores';
+import { api } from '../../lib/api';
 import { formatCurrency, formatDateTime } from '../../utils';
+import type { Product, KardexMovement } from '../../types';
 
 const MOVEMENT_LABELS: Record<string, string> = {
   purchase: 'Compra',
@@ -23,19 +24,38 @@ const MOVEMENT_COLORS: Record<string, string> = {
 };
 
 const KardexPage: React.FC = () => {
-  const { products, kardexMovements } = useInventoryStore();
-
+  const [products, setProducts] = useState<Product[]>([]);
+  const [kardexMovements, setKardexMovements] = useState<Record<string, KardexMovement[]>>({});
+  const [loading, setLoading] = useState(true);
   const [selectedProductId, setSelectedProductId] = useState('');
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [productsData, movementsData] = await Promise.all([
+          api.get<Product[]>('/Inventory/products'),
+          api.get<Record<string, KardexMovement[]>>('/Inventory/kardex'),
+        ]);
+        setProducts(productsData);
+        setKardexMovements(movementsData);
+      } catch (error) {
+        console.error('Error loading kardex data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
   const activeProducts = useMemo(
-    () => products.filter((p) => p.isActive),
+    () => products.filter((p: Product) => p.isActive),
     [products]
   );
 
   const productOptions = useMemo(() => {
     return [
       { value: '', label: 'Seleccionar un producto...' },
-      ...activeProducts.map((p) => ({
+      ...activeProducts.map((p: Product) => ({
         value: p.id,
         label: `${p.code} — ${p.name}`,
       })),
@@ -43,7 +63,7 @@ const KardexPage: React.FC = () => {
   }, [activeProducts]);
 
   const selectedProduct = useMemo(
-    () => products.find((p) => p.id === selectedProductId),
+    () => products.find((p: Product) => p.id === selectedProductId),
     [products, selectedProductId]
   );
 
@@ -51,13 +71,25 @@ const KardexPage: React.FC = () => {
     if (!selectedProductId) return [];
     const raw = kardexMovements[selectedProductId] || [];
     return [...raw].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      (a: KardexMovement, b: KardexMovement) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
   }, [kardexMovements, selectedProductId]);
 
   const totalValue = selectedProduct
     ? selectedProduct.stock * selectedProduct.costPrice
     : 0;
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <PageContainer>
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-coffee-600"></div>
+          </div>
+        </PageContainer>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -201,7 +233,7 @@ const KardexPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-coffee-100">
-                    {movements.map((movement) => {
+                    {movements.map((movement: KardexMovement) => {
                       const isPositive = movement.quantity > 0;
                       const badgeVariant =
                         (MOVEMENT_COLORS[movement.type] as 'success' | 'danger' | 'warning' | 'info' | 'default') || 'default';

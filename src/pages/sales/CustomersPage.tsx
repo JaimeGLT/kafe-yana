@@ -1,26 +1,48 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Plus, Search, Edit2, Trash2, User, Phone, Mail, CreditCard } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Button, Badge, Modal, ConfirmModal } from '../../components/ui';
 import { CustomerModal } from '../../components/modals';
 import { toast } from '../../components/ui/Toast';
-import { useSalesStore } from '../../stores';
+import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../utils';
 import type { Customer } from '../../types';
 
 export const CustomersPage: React.FC = () => {
-  const { customers, deleteCustomer } = useSalesStore();
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const [search, setSearch] = React.useState('');
-  const [isModalOpen, setIsModalOpen] = React.useState(false);
-  const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
-  const [isDetailOpen, setIsDetailOpen] = React.useState(false);
-  const [editingCustomer, setEditingCustomer] = React.useState<Customer | undefined>(undefined);
-  const [deletingCustomer, setDeletingCustomer] = React.useState<Customer | null>(null);
-  const [viewingCustomer, setViewingCustomer] = React.useState<Customer | null>(null);
+  const [search, setSearch] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | undefined>(undefined);
+  const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
+  const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
 
-  const filteredCustomers = React.useMemo(() => {
+  // Fetch customers on mount
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      setIsLoading(true);
+      try {
+        const data = await api.get<Customer[]>('/clientes');
+        setCustomers(data);
+      } catch {
+        toast.error('Error', 'No se pudieron cargar los clientes.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchCustomers();
+  }, []);
+
+  const deleteCustomer = useCallback(async (id: string) => {
+    await api.delete(`/clientes/${id}`);
+    setCustomers(prev => prev.filter(c => c.id !== id));
+  }, []);
+
+  const filteredCustomers = useMemo(() => {
     const q = search.toLowerCase();
     return customers.filter(
       (c) =>
@@ -51,10 +73,14 @@ export const CustomersPage: React.FC = () => {
     setIsDetailOpen(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deletingCustomer) return;
-    deleteCustomer(deletingCustomer.id);
-    toast.success('Cliente eliminado', `${deletingCustomer.name} fue eliminado.`);
+    try {
+      await deleteCustomer(deletingCustomer.id);
+      toast.success('Cliente eliminado', `${deletingCustomer.name} fue eliminado.`);
+    } catch {
+      toast.error('Error', 'No se pudo eliminar el cliente.');
+    }
     setIsDeleteOpen(false);
     setDeletingCustomer(null);
   };

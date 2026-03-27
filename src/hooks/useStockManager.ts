@@ -2,20 +2,18 @@
  * useStockManager
  * Manages stock checking and deduction when a sale is processed.
  *
- * Logic per product tipo:
- *  - comprado  → deducts product.stock in inventoryStore
- *  - elaborado → finds recipe, deducts insumo.stock for each ingredient
- *  - combo     → iterates combo items; each item follows its own tipo logic
+ * This is a simplified version that works with data passed as parameters
+ * instead of using global Zustand stores.
  */
 
-import { useInventoryStore, useRecipesStore } from '../stores';
-import type { Product, OpcionSeleccionada } from '../types';
+import { useMemo } from 'react';
+import type { Product, Insumo, Receta, Combo, OpcionSeleccionada } from '../types';
 
 export interface CartItem {
   product: Product;
   quantity: number;
-  opciones?: OpcionSeleccionada[];  // selected variation options (if any)
-  precioFinal?: number;             // override price if variations applied
+  opciones?: OpcionSeleccionada[];
+  precioFinal?: number;
 }
 
 export interface StockIssue {
@@ -25,14 +23,21 @@ export interface StockIssue {
 }
 
 export interface StockCheckResult {
-  canProceed: boolean;           // false only if a required recipe is MISSING
-  issues: StockIssue[];          // warnings for low/missing insumos
+  canProceed: boolean;
+  issues: StockIssue[];
 }
 
-/** How many portions of an elaborado can be made right now from insumo stock */
-export const useStockManager = () => {
-  const { products, combos, updateProduct } = useInventoryStore();
-  const { insumos, recetas, updateInsumoStock, getRecetaByProductId } = useRecipesStore();
+interface UseStockManagerProps {
+  products: Product[];
+  combos: Combo[];
+  insumos: Insumo[];
+  recetas: Receta[];
+}
+
+export const useStockManager = ({ products, combos, insumos, recetas }: UseStockManagerProps) => {
+  const getRecetaByProductId = useMemo(() => {
+    return (productId: string) => recetas.find((r) => r.productoId === productId);
+  }, [recetas]);
 
   /** Returns how many portions of `productId` (elaborado) are possible given current insumo stock */
   const getElaboradoAvailability = (productId: string): number => {
@@ -51,14 +56,14 @@ export const useStockManager = () => {
     return minPortions === Infinity ? 0 : minPortions;
   };
 
-  /** Returns how many units of a combo can be sold right now (min across all required items) */
+  /** Returns how many units of a combo can be sold right now */
   const getComboAvailability = (comboId: string): number => {
     const combo = combos.find((c) => c.id === comboId);
     if (!combo || combo.items.length === 0) return 0;
 
     let minUnits = Infinity;
     for (const item of combo.items) {
-      if (item.esOpcional) continue; // optional items don't block the combo
+      if (item.esOpcional) continue;
 
       const prod = products.find((p) => p.id === item.productId);
       if (!prod) { minUnits = 0; break; }
@@ -69,7 +74,7 @@ export const useStockManager = () => {
       } else if (prod.tipo === 'comprado') {
         available = Math.floor(prod.stock / item.quantity);
       } else {
-        available = Infinity; // otros tipos — sin límite
+        available = Infinity;
       }
 
       if (available < minUnits) minUnits = available;
@@ -77,7 +82,7 @@ export const useStockManager = () => {
     return minUnits === Infinity ? 0 : minUnits;
   };
 
-  /** Check stock for all items in cart before processing */
+  /** Check stock for all items in cart */
   const checkStock = (cart: CartItem[]): StockCheckResult => {
     const issues: StockIssue[] = [];
     let canProceed = true;
@@ -96,7 +101,7 @@ export const useStockManager = () => {
         }
 
         for (const ing of receta.ingredientes) {
-          const insumo = insumos.find((i) => i.id === ing.insumoId);
+          const insumo = insumos.find((i: Insumo) => i.id === ing.insumoId);
           if (!insumo) {
             issues.push({
               productName: product.name,
@@ -123,13 +128,12 @@ export const useStockManager = () => {
           });
         }
       } else if (product.tipo === 'combo') {
-        // For combos: check each required component's stock
-        const combo = combos.find((c) => c.id === product.id);
+        const combo = combos.find((c: Combo) => c.id === product.id);
         if (!combo) continue;
 
         for (const item of combo.items) {
           if (item.esOpcional) continue;
-          const compProd = products.find((p) => p.id === item.productId);
+          const compProd = products.find((p: Product) => p.id === item.productId);
           if (!compProd) continue;
 
           const neededQty = item.quantity * quantity;
@@ -146,7 +150,7 @@ export const useStockManager = () => {
               continue;
             }
             for (const ing of receta.ingredientes) {
-              const insumo = insumos.find((i) => i.id === ing.insumoId);
+              const insumo = insumos.find((i: Insumo) => i.id === ing.insumoId);
               if (!insumo) continue;
               const needed = (ing.quantity / receta.porcionesBase) * (1 + ing.merma / 100) * neededQty;
               if (insumo.stock < needed) {
@@ -173,77 +177,9 @@ export const useStockManager = () => {
     return { canProceed, issues };
   };
 
-  /** Deduct stock for all items after a successful sale */
-  const deductStock = (cart: CartItem[]) => {
-    for (const { product, quantity, opciones } of cart) {
-      if (product.tipo === 'elaborado') {
-        const receta = getRecetaByProductId(product.id);
-        if (!receta) continue;
-
-        // Build set of insumo IDs that are replaced by variation options
-        const replacedInsumoIds = new Set<string>();
-        if (opciones && opciones.length > 0) {
-          for (const opcion of opciones) {
-            if (opcion.insumoReemplazadoId) {
-              replacedInsumoIds.add(opcion.insumoReemplazadoId);
-            }
-          }
-        }
-
-        // Deduct base recipe ingredients (skip replaced ones)
-        for (const ing of receta.ingredientes) {
-          if (replacedInsumoIds.has(ing.insumoId)) continue;
-          const needed = (ing.quantity / receta.porcionesBase) * (1 + ing.merma / 100) * quantity;
-          updateInsumoStock(ing.insumoId, -needed);
-        }
-
-        // Deduct extra insumos from variation options
-        if (opciones && opciones.length > 0) {
-          for (const opcion of opciones) {
-            if (opcion.insumoExtraId && opcion.cantidadExtra) {
-              updateInsumoStock(opcion.insumoExtraId, -(opcion.cantidadExtra * quantity));
-            }
-          }
-        }
-      } else if (product.tipo === 'comprado') {
-        const prod = products.find((p) => p.id === product.id);
-        if (prod) {
-          updateProduct(prod.id, { stock: Math.max(0, prod.stock - quantity) });
-        }
-      } else if (product.tipo === 'combo') {
-        // Deduct each required component
-        const combo = combos.find((c) => c.id === product.id);
-        if (!combo) continue;
-
-        for (const item of combo.items) {
-          if (item.esOpcional) continue;
-          const compProd = products.find((p) => p.id === item.productId);
-          if (!compProd) continue;
-
-          const neededQty = item.quantity * quantity;
-
-          if (compProd.tipo === 'elaborado') {
-            const receta = getRecetaByProductId(compProd.id);
-            if (!receta) continue;
-            for (const ing of receta.ingredientes) {
-              const needed = (ing.quantity / receta.porcionesBase) * (1 + ing.merma / 100) * neededQty;
-              updateInsumoStock(ing.insumoId, -needed);
-            }
-          } else if (compProd.tipo === 'comprado') {
-            updateProduct(compProd.id, { stock: Math.max(0, compProd.stock - neededQty) });
-          }
-        }
-      }
-    }
-  };
-
   return {
     getElaboradoAvailability,
     getComboAvailability,
     checkStock,
-    deductStock,
-    insumos,
-    recetas,
-    combos,
   };
 };

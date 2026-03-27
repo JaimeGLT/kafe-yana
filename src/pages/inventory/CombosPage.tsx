@@ -1,37 +1,40 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
-  Plus,
-  Edit2,
-  Trash2,
-  Search,
-  Layers,
-  Tag,
-  TrendingUp,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
-  FlaskConical,
-  Package,
-  ChevronDown,
-  ChevronRight,
+  Plus, Edit2, Trash2, Search, Layers, Tag,
+  TrendingUp, AlertTriangle, CheckCircle2, XCircle,
+  FlaskConical, Package, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { MainLayout } from '../../components/layout';
-import { PageContainer, PageHeader } from '../../components/layout';
+import { MainLayout, PageContainer, PageHeader } from '../../components/layout';
 import { Button, ConfirmModal } from '../../components/ui';
 import { ComboModal } from '../../components/modals/ComboModal';
 import { toast } from '../../components/ui/Toast';
-import { useInventoryStore, useRecipesStore } from '../../stores';
-import { useStockManager } from '../../hooks/useStockManager';
-import type { Combo } from '../../types';
+import { api } from '../../lib/api';
+import { useCombosData } from '../../hooks/useCombosData';
+import type { Combo, Product, Receta } from '../../types';
 import { formatCurrency } from '../../utils';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const getMarginInfo = (pct: number) => {
-  if (pct >= 60) return { label: 'Rentable', dot: 'bg-emerald-500', text: 'text-emerald-700', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-  if (pct >= 30) return { label: 'Aceptable', dot: 'bg-amber-500', text: 'text-amber-700', badge: 'bg-amber-50 text-amber-700 border-amber-200' };
-  return { label: 'Revisar precio', dot: 'bg-red-500', text: 'text-red-700', badge: 'bg-red-50 text-red-700 border-red-200' };
+  if (pct >= 60) return {
+    label: 'Rentable',
+    dot: 'bg-emerald-500',
+    text: 'text-emerald-700',
+    badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  };
+  if (pct >= 30) return {
+    label: 'Aceptable',
+    dot: 'bg-amber-500',
+    text: 'text-amber-700',
+    badge: 'bg-amber-50 text-amber-700 border-amber-200',
+  };
+  return {
+    label: 'Revisar precio',
+    dot: 'bg-red-500',
+    text: 'text-red-700',
+    badge: 'bg-red-50 text-red-700 border-red-200',
+  };
 };
 
 // ── Combo card ────────────────────────────────────────────────────────────────
@@ -39,16 +42,20 @@ const getMarginInfo = (pct: number) => {
 interface ComboCardProps {
   combo: Combo;
   availability: number;
+  products: Product[];
+  recetas: Receta[];
   onEdit: (c: Combo) => void;
   onDelete: (c: Combo) => void;
 }
 
-const ComboCard: React.FC<ComboCardProps> = ({ combo, availability, onEdit, onDelete }) => {
+const ComboCard: React.FC<ComboCardProps> = ({
+  combo, availability, products, recetas, onEdit, onDelete,
+}) => {
   const [expanded, setExpanded] = useState(false);
-  const { products } = useInventoryStore();
-  const { getRecetaByProductId } = useRecipesStore();
-
-  const margenPct = combo.price > 0 ? ((combo.price - combo.costoTotal) / combo.price) * 100 : null;
+  
+  const margenPct = combo.price > 0
+    ? ((combo.price - combo.costoTotal) / combo.price) * 100
+    : null;
   const semaforo = margenPct !== null ? getMarginInfo(margenPct) : null;
 
   const sumaIndividual = combo.items.reduce((s, item) => {
@@ -60,9 +67,11 @@ const ComboCard: React.FC<ComboCardProps> = ({ combo, availability, onEdit, onDe
   const requiredItems = combo.items.filter((i) => !i.esOpcional);
   const optionalItems = combo.items.filter((i) => i.esOpcional);
 
+  const getRecetaByProductId = (productId: string): Receta | undefined =>
+    recetas.find((r) => r.productId === productId);
+
   return (
     <div className="bg-white rounded-xl border border-coffee-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-      {/* Color bar */}
       <div className={clsx('h-1', semaforo ? semaforo.dot : 'bg-coffee-200')} />
 
       <div className="p-4 space-y-3">
@@ -74,10 +83,12 @@ const ComboCard: React.FC<ComboCardProps> = ({ combo, availability, onEdit, onDe
               <p className="text-xs text-coffee-400 truncate mt-0.5">{combo.description}</p>
             )}
           </div>
-          <span className="text-base font-bold text-coffee-800 shrink-0">{formatCurrency(combo.price)}</span>
+          <span className="text-base font-bold text-coffee-800 shrink-0">
+            {formatCurrency(combo.price)}
+          </span>
         </div>
 
-        {/* Items summary */}
+        {/* Items */}
         <div>
           <button
             onClick={() => setExpanded((v) => !v)}
@@ -113,7 +124,7 @@ const ComboCard: React.FC<ComboCardProps> = ({ combo, availability, onEdit, onDe
           )}
         </div>
 
-        {/* Cost & margin */}
+        {/* Costo y margen */}
         <div className="space-y-1 text-sm">
           <div className="flex justify-between">
             <span className="text-coffee-500">Costo total</span>
@@ -138,18 +149,18 @@ const ComboCard: React.FC<ComboCardProps> = ({ combo, availability, onEdit, onDe
           )}
         </div>
 
-        {/* Availability */}
+        {/* Disponibilidad */}
         <div className="flex items-center justify-between text-sm">
           <span className="text-coffee-500">Disponibles hoy</span>
           <span className={clsx(
             'font-semibold',
-            availability === 0 ? 'text-red-600' : availability <= 3 ? 'text-amber-600' : 'text-emerald-600'
+            availability === 0 ? 'text-red-600' : availability <= 3 ? 'text-amber-600' : 'text-emerald-600',
           )}>
             {availability === 0 ? '⚠ Sin stock' : `${availability} combos`}
           </span>
         </div>
 
-        {/* Required vs optional indicator */}
+        {/* Fijos vs opcionales */}
         <div className="flex gap-2 text-xs">
           <span className="bg-coffee-50 text-coffee-600 px-2 py-0.5 rounded border border-coffee-100">
             {requiredItems.length} fijo{requiredItems.length !== 1 ? 's' : ''}
@@ -162,7 +173,7 @@ const ComboCard: React.FC<ComboCardProps> = ({ combo, availability, onEdit, onDe
         </div>
       </div>
 
-      {/* Actions */}
+      {/* Acciones */}
       <div className="px-4 pb-4 flex gap-2">
         <button
           onClick={() => onEdit(combo)}
@@ -185,9 +196,11 @@ const ComboCard: React.FC<ComboCardProps> = ({ combo, availability, onEdit, onDe
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const CombosPage: React.FC = () => {
-  const { combos, deleteCombo } = useInventoryStore();
-  const { getComboAvailability } = useStockManager();
-
+  // ── Datos desde el hook ──
+  const { combos, products: allProducts, recetas, isLoading, loadData } = useCombosData();
+  console.log(combos);
+  
+  // ── Estado de UI ──
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -195,61 +208,84 @@ const CombosPage: React.FC = () => {
   const [deleting, setDeleting] = useState<Combo | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  useEffect(() => {
+    loadData().catch(() => toast.error('Error', 'No se pudieron cargar los combos.'));
+  }, [loadData]);
+
+  // ── Disponibilidad local ──
+  const getLocalAvailability = useCallback((combo: Combo): number => {
+    const required = combo.items.filter((i) => !i.esOpcional);
+    if (required.length === 0) return 0;
+    let min = Infinity;
+    for (const item of required) {
+      const prod = allProducts.find((p) => p.id === item.productId);
+      if (!prod) return 0;
+      if (prod.tipo === 'comprado') {
+        const av = Math.floor(prod.stock / item.quantity);
+        if (av < min) min = av;
+      }
+    }
+    return min === Infinity ? 0 : min;
+  }, [allProducts]);
+
+  // ── Derivados ──
   const activeCombos = useMemo(() => combos.filter((c) => c.isActive), [combos]);
 
   const filtered = useMemo(() => {
     let list = activeCombos;
     if (search) {
       const q = search.toLowerCase();
-      list = list.filter((c) => c.name.toLowerCase().includes(q) || c.description?.toLowerCase().includes(q));
+      list = list.filter((c) =>
+        c.name.toLowerCase().includes(q) || c.description?.toLowerCase().includes(q),
+      );
     }
-    if (filterStatus === 'sin_stock') list = list.filter((c) => getComboAvailability(c.id) === 0);
-    if (filterStatus === 'disponible') list = list.filter((c) => getComboAvailability(c.id) > 0);
+    if (filterStatus === 'sin_stock') list = list.filter((c) => getLocalAvailability(c) === 0);
+    if (filterStatus === 'disponible') list = list.filter((c) => getLocalAvailability(c) > 0);
     return list;
-  }, [activeCombos, search, filterStatus, getComboAvailability]);
+  }, [activeCombos, search, filterStatus, getLocalAvailability]);
 
-  // KPIs
-  const sinStock = activeCombos.filter((c) => getComboAvailability(c.id) === 0).length;
+  // ── KPIs ──
+  const sinStock = activeCombos.filter((c) => getLocalAvailability(c) === 0).length;
+
   const avgMargen = useMemo(() => {
     const valid = activeCombos.filter((c) => c.price > 0 && c.costoTotal > 0);
     if (valid.length === 0) return null;
-    const sum = valid.reduce((s, c) => s + ((c.price - c.costoTotal) / c.price) * 100, 0);
-    return sum / valid.length;
+    return valid.reduce((s, c) => s + ((c.price - c.costoTotal) / c.price) * 100, 0) / valid.length;
   }, [activeCombos]);
 
   const avgAhorro = useMemo(() => {
-    const { products } = useInventoryStore.getState();
     const valid = activeCombos.filter((c) => c.items.length > 0);
     if (valid.length === 0) return null;
     const sum = valid.reduce((s, c) => {
-      const suma = c.items.reduce((acc, item) => {
-        const prod = products.find((p) => p.id === item.productId);
+      const sumaIndividual = c.items.reduce((acc, item) => {
+        const prod = allProducts.find((p) => p.id === item.productId);
         return acc + (prod?.salePrice ?? 0) * item.quantity;
       }, 0);
-      return s + Math.max(0, suma - c.price);
+      return s + Math.max(0, sumaIndividual - c.price);
     }, 0);
     return sum / valid.length;
-  }, [activeCombos]);
+  }, [activeCombos, allProducts]);
 
+  // ── Handlers ──
   const handleDelete = async () => {
     if (!deleting) return;
     setIsDeleting(true);
-    deleteCombo(deleting.id);
-    toast.success('Combo eliminado', `"${deleting.name}" fue eliminado.`);
-    setDeleting(null);
-    setIsDeleting(false);
+    try {
+      await api.delete(`/Combo/${deleting.id}`);
+      toast.success('Combo eliminado', `"${deleting.name}" fue eliminado.`);
+      setDeleting(null);
+      await loadData();
+    } catch {
+      toast.error('Error', 'No se pudo eliminar el combo.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
-  const openEdit = (c: Combo) => {
-    setEditing(c);
-    setIsModalOpen(true);
-  };
+  const openEdit = (c: Combo) => { setEditing(c); setIsModalOpen(true); };
+  const handleModalClose = () => { setIsModalOpen(false); setEditing(undefined); };
 
-  const handleModalClose = () => {
-    setIsModalOpen(false);
-    setEditing(undefined);
-  };
-
+  // ── Render ──
   return (
     <MainLayout>
       <PageContainer>
@@ -257,17 +293,13 @@ const CombosPage: React.FC = () => {
           title="Combos"
           subtitle="Paquetes de productos a precio especial — el stock se descuenta por componente"
           actions={
-            <Button
-              variant="primary"
-              leftIcon={<Plus className="h-4 w-4" />}
-              onClick={() => setIsModalOpen(true)}
-            >
+            <Button variant="primary" leftIcon={<Plus className="h-4 w-4" />} onClick={() => setIsModalOpen(true)}>
               Nuevo combo
             </Button>
           }
         />
 
-        {/* KPI cards */}
+        {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-xl border border-coffee-100 p-4 flex items-center gap-3">
             <div className="p-2 rounded-lg bg-blue-50">
@@ -278,6 +310,7 @@ const CombosPage: React.FC = () => {
               <p className="text-xl font-bold text-coffee-900">{activeCombos.length}</p>
             </div>
           </div>
+
           <div className="bg-white rounded-xl border border-coffee-100 p-4 flex items-center gap-3">
             <div className={clsx('p-2 rounded-lg', sinStock > 0 ? 'bg-red-50' : 'bg-emerald-50')}>
               {sinStock > 0
@@ -291,17 +324,22 @@ const CombosPage: React.FC = () => {
               </p>
             </div>
           </div>
+
           <div className="bg-white rounded-xl border border-coffee-100 p-4 flex items-center gap-3">
             <div className="p-2 rounded-lg bg-emerald-50">
               <TrendingUp className="h-5 w-5 text-emerald-600" />
             </div>
             <div>
               <p className="text-xs text-coffee-400">Margen promedio</p>
-              <p className={clsx('text-xl font-bold', avgMargen === null ? 'text-coffee-400' : avgMargen >= 30 ? 'text-emerald-700' : 'text-red-600')}>
+              <p className={clsx(
+                'text-xl font-bold',
+                avgMargen === null ? 'text-coffee-400' : avgMargen >= 30 ? 'text-emerald-700' : 'text-red-600',
+              )}>
                 {avgMargen !== null ? `${avgMargen.toFixed(1)}%` : '—'}
               </p>
             </div>
           </div>
+
           <div className="bg-white rounded-xl border border-coffee-100 p-4 flex items-center gap-3">
             <div className="p-2 rounded-lg bg-purple-50">
               <Tag className="h-5 w-5 text-purple-600" />
@@ -315,7 +353,7 @@ const CombosPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Filtros */}
         <div className="flex gap-3 mb-4">
           <div className="relative flex-1 max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-coffee-400" />
@@ -337,14 +375,31 @@ const CombosPage: React.FC = () => {
           </select>
         </div>
 
-        {/* Content */}
-        {activeCombos.length === 0 ? (
+        {/* Contenido */}
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden animate-pulse">
+                <div className="h-1 w-full bg-coffee-200" />
+                <div className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="h-4 w-32 bg-coffee-200 rounded" />
+                    <div className="h-4 w-14 bg-coffee-200 rounded" />
+                  </div>
+                  <div className="h-3 w-20 bg-coffee-100 rounded" />
+                  <div className="h-3 w-full bg-coffee-100 rounded" />
+                  <div className="h-3 w-2/3 bg-coffee-100 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : activeCombos.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-xl border border-dashed border-coffee-200">
             <Layers className="h-12 w-12 text-coffee-200 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-coffee-700 mb-1">Sin combos creados</h3>
             <p className="text-sm text-coffee-400 mb-6 max-w-md mx-auto">
-              Un combo agrupa varios productos a un precio especial. El sistema descuenta automáticamente
-              el stock de cada componente al registrar la venta.
+              Un combo agrupa varios productos a un precio especial. El sistema descuenta
+              automáticamente el stock de cada componente al registrar la venta.
             </p>
             <Button variant="primary" leftIcon={<Plus className="h-4 w-4" />} onClick={() => setIsModalOpen(true)}>
               Crear primer combo
@@ -361,7 +416,9 @@ const CombosPage: React.FC = () => {
               <ComboCard
                 key={combo.id}
                 combo={combo}
-                availability={getComboAvailability(combo.id)}
+                availability={getLocalAvailability(combo)}
+                products={allProducts}
+                recetas={recetas}
                 onEdit={openEdit}
                 onDelete={(c) => setDeleting(c)}
               />
@@ -374,6 +431,9 @@ const CombosPage: React.FC = () => {
         isOpen={isModalOpen}
         onClose={handleModalClose}
         combo={editing}
+        products={allProducts}
+        onSuccess={() => loadData()}
+        recetas={[]}
       />
 
       <ConfirmModal

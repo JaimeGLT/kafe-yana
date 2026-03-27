@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Plus, Search, Package, ShoppingBag, Coffee, Grid3X3, AlertTriangle, BookOpen, Edit, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
@@ -6,8 +6,9 @@ import { PageHeader, PageContainer } from '../../components/layout';
 import { Button, Input, Select, ConfirmModal, Badge } from '../../components/ui';
 import { toast } from '../../components/ui/Toast';
 import { ProductModal } from '../../components/modals/ProductModal';
-import { useInventoryStore, useRecipesStore } from '../../stores';
-import type { Product, ProductTipo } from '../../types';
+import { gql } from '../../lib/graphql';
+import { api } from '../../lib/api';
+import type { Product, Category, Brand, Location, ProductTipo } from '../../types';
 import { formatCurrency } from '../../utils';
 
 interface ProductsPageProps {}
@@ -45,9 +46,76 @@ const getMarginBg = (pct: number) => {
   return 'text-red-600 font-semibold';
 };
 
+// ── GraphQL response types ─────────────────────────────────────────────────────
+
+interface ProductNode {
+  id: number;
+  nombre: string;
+  tipo: string;
+  categoriaNombre: string;
+  precioVenta: number;
+  costo: number;
+  stock: number;
+  recetaName: string | null;
+}
+
+interface ProductsGqlResponse {
+  productos: {
+    nodes: ProductNode[];
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  };
+}
+
+interface CategoriaNode {
+  id: number;
+  nombre: string;
+  descripcion: string;
+  estado: boolean;
+  color: string;
+  cantidad: number;
+}
+
+interface CategoriasGqlResponse {
+  categorias: { nodes: CategoriaNode[] };
+}
+
+const TIPO_MAP: Record<string, ProductTipo> = {
+  Comprado: 'comprado',
+  Elaborado: 'elaborado',
+  Combos: 'combo',
+};
+
+function mapNode(node: ProductNode): Product {
+  return {
+    id: String(node.id),
+    code: String(node.id),
+    name: node.nombre,
+    description: '',
+    tipo: TIPO_MAP[node.tipo] ?? 'comprado',
+    categoryId: '',
+    categoryName: node.categoriaNombre,
+    unit: 'unidad',
+    costPrice: node.costo,
+    salePrice: node.precioVenta,
+    stock: node.stock,
+    minStock: 0,
+    maxStock: 0,
+    barcode: '',
+    variations: [],
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
 const ProductsPage: React.FC<ProductsPageProps> = () => {
-  const { products, categories, brands, locations, deleteProduct } = useInventoryStore();
-  const { recetas } = useRecipesStore();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [recetaApiMap, setRecetaApiMap] = useState<Record<string, boolean>>({});
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [endCursor, setEndCursor] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<TabTipo>('todos');
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,12 +125,70 @@ const ProductsPage: React.FC<ProductsPageProps> = () => {
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Recipe map for elaborados
-  const recetaMap = useMemo(() => {
-    const m: Record<string, boolean> = {};
-    recetas.forEach((r) => { m[r.productId] = true; });
-    return m;
-  }, [recetas]);
+  const loadProducts = useCallback(async (cursor?: string) => {
+    const cursorArg = cursor ? `, after: "${cursor}"` : '';
+    const data = await gql<ProductsGqlResponse>(`
+      query {
+        productos(first: 50${cursorArg}) {
+          nodes {
+            id
+            nombre
+            tipo
+            categoriaNombre
+            precioVenta
+            costo
+            stock
+            recetaName
+          }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    `);
+    const nodes = data.productos.nodes.map(mapNode);
+    const recMap: Record<string, boolean> = {};
+    data.productos.nodes.forEach((n) => { if (n.recetaName) recMap[String(n.id)] = true; });
+    if (cursor) {
+      setProducts((prev) => [...prev, ...nodes]);
+      setRecetaApiMap((prev) => ({ ...prev, ...recMap }));
+    } else {
+      setProducts(nodes);
+      setRecetaApiMap(recMap);
+    }
+    setHasNextPage(data.productos.pageInfo.hasNextPage);
+    setEndCursor(data.productos.pageInfo.endCursor);
+  }, []);
+
+  const loadCategories = useCallback(async () => {
+    const data = await gql<CategoriasGqlResponse>(`
+      query {
+        categorias {
+          nodes { id nombre descripcion estado color cantidad }
+        }
+      }
+    `);
+    const mapped: Category[] = data.categorias.nodes.map((n) => ({
+      id: String(n.id),
+      name: n.nombre,
+      description: n.descripcion,
+      isActive: n.estado,
+      color: n.color,
+      productCount: n.cantidad,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+    setCategories(mapped);
+  }, []);
+
+  useEffect(() => {
+    Promise.all([loadProducts(), loadCategories()]).finally(() => setIsLoadingProducts(false));
+  }, []);
+
+  const handleLoadMore = async () => {
+    if (!endCursor) return;
+    setIsLoadingMore(true);
+    await loadProducts(endCursor).finally(() => setIsLoadingMore(false));
+  };
+
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
@@ -75,7 +201,7 @@ const ProductsPage: React.FC<ProductsPageProps> = () => {
         p.code.toLowerCase().includes(q) ||
         (p.barcode || '').toLowerCase().includes(q);
 
-      const matchesCategory = !selectedCategory || p.categoryId === selectedCategory;
+      const matchesCategory = !selectedCategory || p.categoryName === selectedCategory;
 
       return matchesSearch && matchesCategory;
     });
@@ -93,28 +219,42 @@ const ProductsPage: React.FC<ProductsPageProps> = () => {
   const categoryOptions = useMemo(
     () => [
       { value: '', label: 'Todas las categorías' },
-      ...categories.map((c) => ({ value: c.id, label: c.name })),
+      ...categories.map((c) => ({ value: c.name, label: c.name })),
     ],
     [categories]
   );
 
   const handleOpenCreate = () => { setEditingProduct(undefined); setIsProductModalOpen(true); };
-  const handleEdit = (p: Product) => { setEditingProduct(p); setIsProductModalOpen(true); };
+  const handleEdit = (p: Product) => {
+    // Resolve categoryId from categoryName if missing
+    const resolved = !p.categoryId
+      ? { ...p, categoryId: categories.find(c => c.name === p.categoryName)?.id || '' }
+      : p;
+    setEditingProduct(resolved);
+    setIsProductModalOpen(true);
+  };
   const handleDeleteRequest = (p: Product) => setDeletingProduct(p);
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!deletingProduct) return;
     setIsDeleting(true);
     try {
-      deleteProduct(deletingProduct.id);
+      const tipo = deletingProduct.tipo;
+      const endpoint = tipo === 'comprado' ? '/Comprado' : tipo === 'elaborado' ? '/Elaborado' : '/Combo';
+      await api.delete(`${endpoint}/${deletingProduct.id}`);
       toast.success('Producto eliminado', `"${deletingProduct.name}" fue eliminado.`);
       setDeletingProduct(null);
+      await loadProducts();
     } catch {
       toast.error('Error', 'No se pudo eliminar el producto.');
     } finally {
       setIsDeleting(false);
     }
   };
+
+  // Brands and locations are empty since we fetch directly; pass empty arrays
+  const emptyBrands: Brand[] = [];
+  const emptyLocations: Location[] = [];
 
   return (
     <MainLayout>
@@ -177,7 +317,40 @@ const ProductsPage: React.FC<ProductsPageProps> = () => {
         </div>
 
         {/* Table */}
-        {filteredProducts.length === 0 ? (
+        {isLoadingProducts ? (
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
+            <table className="min-w-full divide-y divide-coffee-100 text-sm">
+              <thead className="bg-coffee-50">
+                <tr>
+                  {['Producto', 'Tipo', 'Categoría', 'Precio venta', 'Costo', 'Stock', ''].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-coffee-50">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-coffee-100" />
+                        <div className="space-y-1.5">
+                          <div className="h-3 w-32 bg-coffee-200 rounded" />
+                          <div className="h-2.5 w-16 bg-coffee-100 rounded" />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3"><div className="h-5 w-20 bg-coffee-100 rounded-full" /></td>
+                    <td className="px-4 py-3"><div className="h-5 w-20 bg-coffee-100 rounded-full" /></td>
+                    <td className="px-4 py-3"><div className="h-3 w-14 bg-coffee-100 rounded ml-auto" /></td>
+                    <td className="px-4 py-3"><div className="h-3 w-14 bg-coffee-100 rounded ml-auto" /></td>
+                    <td className="px-4 py-3"><div className="h-3 w-8 bg-coffee-100 rounded mx-auto" /></td>
+                    <td className="px-4 py-3"><div className="h-6 w-12 bg-coffee-100 rounded ml-auto" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : filteredProducts.length === 0 ? (
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm py-16 flex flex-col items-center justify-center text-coffee-500">
             <Package className="h-12 w-12 mb-3 text-coffee-300" />
             <p className="text-lg font-medium">Sin productos en esta vista</p>
@@ -222,8 +395,7 @@ const ProductsPage: React.FC<ProductsPageProps> = () => {
                     p.costPrice > 0 && p.salePrice > 0
                       ? ((p.salePrice - p.costPrice) / p.salePrice) * 100
                       : null;
-                  const tieneReceta = recetaMap[p.id];
-                  const recetaData = recetas.find((r) => r.productId === p.id);
+                  const tieneReceta = recetaApiMap[p.id] ?? false;
 
                   return (
                     <tr key={p.id} className="hover:bg-coffee-50/50 transition-colors">
@@ -235,7 +407,6 @@ const ProductsPage: React.FC<ProductsPageProps> = () => {
                           </div>
                           <div>
                             <p className="font-medium text-coffee-900">{p.name}</p>
-                            <p className="text-xs text-coffee-400 font-mono">{p.code}</p>
                           </div>
                         </div>
                       </td>
@@ -262,8 +433,6 @@ const ProductsPage: React.FC<ProductsPageProps> = () => {
                         <td className="px-4 py-3 text-right text-coffee-600">
                           {p.tipo === 'comprado'
                             ? formatCurrency(p.costPrice)
-                            : p.tipo === 'elaborado' && recetaData
-                            ? <span className="text-xs">{formatCurrency(recetaData.costoPorPorcion)}<br/><span className="text-coffee-400">de receta</span></span>
                             : <span className="text-coffee-300">—</span>
                           }
                         </td>
@@ -272,12 +441,7 @@ const ProductsPage: React.FC<ProductsPageProps> = () => {
                       {/* Margen (comprado/todos) */}
                       {(activeTab === 'comprado' || activeTab === 'todos') && (
                         <td className="px-4 py-3 text-right">
-                          {p.tipo === 'elaborado' && recetaData ? (
-                            (() => {
-                              const m = ((p.salePrice - recetaData.costoPorPorcion) / p.salePrice) * 100;
-                              return <span className={getMarginBg(m)}>{m.toFixed(1)}%</span>;
-                            })()
-                          ) : margin !== null ? (
+                          {margin !== null ? (
                             <span className={getMarginBg(margin)}>{margin.toFixed(1)}%</span>
                           ) : (
                             <span className="text-coffee-300">—</span>
@@ -345,6 +509,14 @@ const ProductsPage: React.FC<ProductsPageProps> = () => {
                 })}
               </tbody>
             </table>
+
+            {hasNextPage && (
+              <div className="px-4 py-3 border-t border-coffee-100 flex justify-center">
+                <Button variant="ghost" onClick={handleLoadMore} isLoading={isLoadingMore}>
+                  Cargar más productos
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </PageContainer>
@@ -354,9 +526,10 @@ const ProductsPage: React.FC<ProductsPageProps> = () => {
         onClose={() => setIsProductModalOpen(false)}
         product={editingProduct}
         categories={categories}
-        brands={brands}
-        locations={locations}
-        onSuccess={() => {}}
+        brands={emptyBrands}
+        locations={emptyLocations}
+        onSuccess={() => { loadProducts(); }}
+        compradoOnly={!editingProduct}
       />
 
       <ConfirmModal

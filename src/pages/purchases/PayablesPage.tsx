@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { AlertCircle, Clock, CheckCircle2, DollarSign } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Button, Badge, Modal } from '../../components/ui';
 import { toast } from '../../components/ui/Toast';
-import { usePurchasesStore } from '../../stores';
+import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../utils';
 import type { AccountsPayable, PayablePaymentInput } from '../../types';
 
@@ -28,19 +28,35 @@ const payableStatusConfig: Record<
 };
 
 export const PayablesPage: React.FC = () => {
-  const { accountsPayable, addPayablePayment } = usePurchasesStore();
+  const [accountsPayable, setAccountsPayable] = useState<AccountsPayable[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const [payingPayable, setPayingPayable] = React.useState<AccountsPayable | null>(null);
-  const [paymentForm, setPaymentForm] = React.useState<PaymentFormState>({
+  const [payingPayable, setPayingPayable] = useState<AccountsPayable | null>(null);
+  const [paymentForm, setPaymentForm] = useState<PaymentFormState>({
     amount: '',
     method: 'cash',
     reference: '',
     notes: '',
   });
-  const [paymentErrors, setPaymentErrors] = React.useState<Record<string, string>>({});
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [paymentErrors, setPaymentErrors] = useState<Record<string, string>>({});
 
-  const kpis = React.useMemo(() => {
+  const loadPayables = useCallback(async () => {
+    try {
+      const data = await api.get<AccountsPayable[]>('/AccountsPayable');
+      setAccountsPayable(data);
+    } catch (error) {
+      toast.error('Error', 'No se pudieron cargar las cuentas por pagar.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPayables();
+  }, [loadPayables]);
+
+  const kpis = useMemo(() => {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -86,7 +102,7 @@ export const PayablesPage: React.FC = () => {
     e.preventDefault();
     if (!payingPayable || !validatePayment()) return;
 
-    setIsLoading(true);
+    setIsProcessing(true);
     try {
       const input: PayablePaymentInput = {
         payableId: payingPayable.id,
@@ -95,13 +111,14 @@ export const PayablesPage: React.FC = () => {
         reference: paymentForm.reference || undefined,
         notes: paymentForm.notes || undefined,
       };
-      addPayablePayment(input);
+      await api.post('/AccountsPayable/payment', input);
       toast.success('Pago registrado', `Se registró el pago de ${formatCurrency(input.amount)}.`);
       setPayingPayable(null);
+      await loadPayables();
     } catch {
       toast.error('Error', 'No se pudo registrar el pago.');
     } finally {
-      setIsLoading(false);
+      setIsProcessing(false);
     }
   };
 
@@ -338,10 +355,10 @@ export const PayablesPage: React.FC = () => {
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
-                <Button type="button" variant="ghost" onClick={() => setPayingPayable(null)} disabled={isLoading}>
+                <Button type="button" variant="ghost" onClick={() => setPayingPayable(null)} disabled={isProcessing}>
                   Cancelar
                 </Button>
-                <Button type="submit" isLoading={isLoading} leftIcon={<DollarSign className="h-4 w-4" />}>
+                <Button type="submit" isLoading={isProcessing} leftIcon={<DollarSign className="h-4 w-4" />}>
                   Registrar Pago
                 </Button>
               </div>

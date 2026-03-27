@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { Coffee, Eye, EyeOff, AlertCircle, Wifi } from 'lucide-react';
-import { useAuthStore } from '../../stores/authStore';
-import { ApiError } from '../../lib/api';
+import { useAuth, ApiError } from '../../contexts/AuthContext';
 
 /**
  * Convierte un error de login en un mensaje amigable.
@@ -25,7 +24,7 @@ function resolveErrorMessage(error: unknown): string {
 }
 
 const LoginPage: React.FC = () => {
-  const { login, isAuthenticated, isCheckingSession } = useAuthStore();
+  const { login, isAuthenticated, isCheckingSession } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 

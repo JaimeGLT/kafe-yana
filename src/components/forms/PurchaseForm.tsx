@@ -1,12 +1,12 @@
 import React from 'react';
-import type { PurchaseOrderInput, Supplier } from '../../types';
+import type { PurchaseOrderInput, Supplier, Product } from '../../types';
 import { Form, FormField, FormRow, FormActions } from './FormField';
 import { Input, Textarea, Select, DatePicker, Button } from '../ui';
 import { Plus, Trash2 } from 'lucide-react';
-import { useInventoryStore } from '../../stores';
 
 interface PurchaseFormProps {
   suppliers: Supplier[];
+  products: Product[];
   onSubmit: (data: PurchaseOrderInput) => void;
   onCancel: () => void;
   isLoading?: boolean;
@@ -22,11 +22,11 @@ interface PurchaseItem {
 
 export const PurchaseForm: React.FC<PurchaseFormProps> = ({
   suppliers,
+  products,
   onSubmit,
   onCancel,
   isLoading = false,
 }) => {
-  const { products } = useInventoryStore();
   const [formData, setFormData] = React.useState({
     supplierId: '',
     expectedDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now

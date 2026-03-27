@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Plus, Search, CheckCircle, PackageCheck, XCircle } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
@@ -6,9 +6,9 @@ import { Button, Badge, Modal, ConfirmModal, Select } from '../../components/ui'
 import { PurchasesTable } from '../../components/tables/PurchasesTable';
 import { PurchaseOrderModal } from '../../components/modals';
 import { toast } from '../../components/ui/Toast';
-import { usePurchasesStore, useInventoryStore } from '../../stores';
+import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../utils';
-import type { PurchaseOrder } from '../../types';
+import type { PurchaseOrder, Supplier, Product } from '../../types';
 
 const statusOptions = [
   { value: '', label: 'Todos los estados' },
@@ -33,25 +33,42 @@ const statusBadgeConfig: Record<
 };
 
 export const PurchaseOrdersPage: React.FC = () => {
-  const {
-    purchaseOrders,
-    suppliers,
-    approvePurchaseOrder,
-    receivePurchaseOrder,
-    cancelPurchaseOrder,
-  } = usePurchasesStore();
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const { products } = useInventoryStore();
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
+  const [viewingOrder, setViewingOrder] = useState<PurchaseOrder | null>(null);
+  const [approvingOrder, setApprovingOrder] = useState<PurchaseOrder | null>(null);
+  const [receivingOrder, setReceivingOrder] = useState<PurchaseOrder | null>(null);
+  const [cancellingOrder, setCancellingOrder] = useState<PurchaseOrder | null>(null);
 
-  const [search, setSearch] = React.useState('');
-  const [statusFilter, setStatusFilter] = React.useState('');
-  const [isNewOrderOpen, setIsNewOrderOpen] = React.useState(false);
-  const [viewingOrder, setViewingOrder] = React.useState<PurchaseOrder | null>(null);
-  const [approvingOrder, setApprovingOrder] = React.useState<PurchaseOrder | null>(null);
-  const [receivingOrder, setReceivingOrder] = React.useState<PurchaseOrder | null>(null);
-  const [cancellingOrder, setCancellingOrder] = React.useState<PurchaseOrder | null>(null);
+  const loadData = useCallback(async () => {
+    try {
+      const [ordersData, suppliersData, productsData] = await Promise.all([
+        api.get<PurchaseOrder[]>('/PurchaseOrder'),
+        api.get<Supplier[]>('/Supplier'),
+        api.get<Product[]>('/Product'),
+      ]);
+      setPurchaseOrders(ordersData);
+      setSuppliers(suppliersData);
+      setProducts(productsData);
+    } catch (error) {
+      toast.error('Error', 'No se pudieron cargar los datos.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-  const filteredOrders = React.useMemo(() => {
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const filteredOrders = useMemo(() => {
     return purchaseOrders.filter((order) => {
       if (statusFilter && order.status !== statusFilter) return false;
       if (search) {
@@ -66,29 +83,53 @@ export const PurchaseOrdersPage: React.FC = () => {
     });
   }, [purchaseOrders, search, statusFilter]);
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
     if (!approvingOrder) return;
-    approvePurchaseOrder(approvingOrder.id);
-    toast.success('Orden aprobada', `La orden ${approvingOrder.code} fue aprobada.`);
-    setApprovingOrder(null);
+    setIsProcessing(true);
+    try {
+      await api.post(`/PurchaseOrder/${approvingOrder.id}/approve`);
+      toast.success('Orden aprobada', `La orden ${approvingOrder.code} fue aprobada.`);
+      setApprovingOrder(null);
+      await loadData();
+    } catch {
+      toast.error('Error', 'No se pudo aprobar la orden.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleReceive = () => {
+  const handleReceive = async () => {
     if (!receivingOrder) return;
-    const receivedItems = receivingOrder.items.map((item) => ({
-      productId: item.productId,
-      quantity: item.pendingQuantity,
-    }));
-    receivePurchaseOrder(receivingOrder.id, receivedItems);
-    toast.success('Orden recibida', `La orden ${receivingOrder.code} fue marcada como recibida.`);
-    setReceivingOrder(null);
+    setIsProcessing(true);
+    try {
+      const receivedItems = receivingOrder.items.map((item) => ({
+        productId: item.productId,
+        quantity: item.pendingQuantity,
+      }));
+      await api.post(`/PurchaseOrder/${receivingOrder.id}/receive`, receivedItems);
+      toast.success('Orden recibida', `La orden ${receivingOrder.code} fue marcada como recibida.`);
+      setReceivingOrder(null);
+      await loadData();
+    } catch {
+      toast.error('Error', 'No se pudo marcar la orden como recibida.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (!cancellingOrder) return;
-    cancelPurchaseOrder(cancellingOrder.id);
-    toast.success('Orden cancelada', `La orden ${cancellingOrder.code} fue cancelada.`);
-    setCancellingOrder(null);
+    setIsProcessing(true);
+    try {
+      await api.post(`/PurchaseOrder/${cancellingOrder.id}/cancel`);
+      toast.success('Orden cancelada', `La orden ${cancellingOrder.code} fue cancelada.`);
+      setCancellingOrder(null);
+      await loadData();
+    } catch {
+      toast.error('Error', 'No se pudo cancelar la orden.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -141,7 +182,7 @@ export const PurchaseOrdersPage: React.FC = () => {
           onClose={() => setIsNewOrderOpen(false)}
           suppliers={suppliers}
           products={products}
-          onSuccess={() => setIsNewOrderOpen(false)}
+          onSuccess={() => { setIsNewOrderOpen(false); loadData(); }}
         />
 
         {/* View Detail Modal */}
@@ -281,6 +322,7 @@ export const PurchaseOrdersPage: React.FC = () => {
           message={`¿Deseas aprobar la orden "${approvingOrder?.code}" por ${formatCurrency(approvingOrder?.total || 0)}?`}
           confirmText="Aprobar"
           variant="info"
+          isLoading={isProcessing}
         />
 
         {/* Receive Confirm */}
@@ -292,6 +334,7 @@ export const PurchaseOrdersPage: React.FC = () => {
           message={`¿Confirmas que se recibieron todos los productos de la orden "${receivingOrder?.code}"?`}
           confirmText="Confirmar recepción"
           variant="info"
+          isLoading={isProcessing}
         />
 
         {/* Cancel Confirm */}
@@ -303,6 +346,7 @@ export const PurchaseOrdersPage: React.FC = () => {
           message={`¿Estás seguro de que deseas cancelar la orden "${cancellingOrder?.code}"? Esta acción no se puede deshacer.`}
           confirmText="Cancelar orden"
           variant="danger"
+          isLoading={isProcessing}
         />
       </PageContainer>
     </MainLayout>

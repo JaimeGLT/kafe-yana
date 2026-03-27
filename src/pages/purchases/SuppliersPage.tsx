@@ -1,26 +1,43 @@
-import React from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Plus, Search, Edit2, Trash2, Building2, Phone, Mail, Globe } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Button, Badge, Modal, ConfirmModal } from '../../components/ui';
 import { SupplierModal } from '../../components/modals';
 import { toast } from '../../components/ui/Toast';
-import { usePurchasesStore } from '../../stores';
+import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../utils';
 import type { Supplier } from '../../types';
 
 export const SuppliersPage: React.FC = () => {
-  const { suppliers, deleteSupplier } = usePurchasesStore();
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const [search, setSearch] = React.useState('');
-  const [isModalOpen, setIsModalOpen] = React.useState(false);
-  const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
-  const [isDetailOpen, setIsDetailOpen] = React.useState(false);
-  const [editingSupplier, setEditingSupplier] = React.useState<Supplier | undefined>(undefined);
-  const [deletingSupplier, setDeletingSupplier] = React.useState<Supplier | null>(null);
-  const [viewingSupplier, setViewingSupplier] = React.useState<Supplier | null>(null);
+  const [search, setSearch] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | undefined>(undefined);
+  const [deletingSupplier, setDeletingSupplier] = useState<Supplier | null>(null);
+  const [viewingSupplier, setViewingSupplier] = useState<Supplier | null>(null);
 
-  const filteredSuppliers = React.useMemo(() => {
+  const loadSuppliers = useCallback(async () => {
+    try {
+      const data = await api.get<Supplier[]>('/Supplier');
+      setSuppliers(data);
+    } catch (error) {
+      toast.error('Error', 'No se pudieron cargar los proveedores.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSuppliers();
+  }, [loadSuppliers]);
+
+  const filteredSuppliers = useMemo(() => {
     const q = search.toLowerCase();
     return suppliers.filter(
       (s) =>
@@ -52,12 +69,20 @@ export const SuppliersPage: React.FC = () => {
     setIsDetailOpen(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deletingSupplier) return;
-    deleteSupplier(deletingSupplier.id);
-    toast.success('Proveedor eliminado', `${deletingSupplier.name} fue eliminado.`);
-    setIsDeleteOpen(false);
-    setDeletingSupplier(null);
+    setIsProcessing(true);
+    try {
+      await api.delete(`/Supplier/${deletingSupplier.id}`);
+      toast.success('Proveedor eliminado', `${deletingSupplier.name} fue eliminado.`);
+      setIsDeleteOpen(false);
+      setDeletingSupplier(null);
+      await loadSuppliers();
+    } catch {
+      toast.error('Error', 'No se pudo eliminar el proveedor.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -205,7 +230,7 @@ export const SuppliersPage: React.FC = () => {
           isOpen={isModalOpen}
           onClose={() => { setIsModalOpen(false); setEditingSupplier(undefined); }}
           supplier={editingSupplier}
-          onSuccess={() => { setIsModalOpen(false); setEditingSupplier(undefined); }}
+          onSuccess={() => { setIsModalOpen(false); setEditingSupplier(undefined); loadSuppliers(); }}
         />
 
         {/* Delete Confirm */}
@@ -217,6 +242,7 @@ export const SuppliersPage: React.FC = () => {
           message={`¿Estás seguro de que deseas eliminar a "${deletingSupplier?.name}"? Esta acción no se puede deshacer.`}
           confirmText="Eliminar"
           variant="danger"
+          isLoading={isProcessing}
         />
 
         {/* Detail Modal */}

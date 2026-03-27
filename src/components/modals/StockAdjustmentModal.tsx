@@ -6,7 +6,6 @@ import { Input, Textarea } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { FormField, Form, FormActions } from '../forms/FormField';
 import { toast } from '../ui/Toast';
-import { useInventoryStore } from '../../stores';
 import type { Product, StockAdjustmentInput } from '../../types';
 
 interface AdjustmentItem {
@@ -19,6 +18,7 @@ interface StockAdjustmentModalProps {
   onClose: () => void;
   onSuccess: () => void;
   products: Product[];
+  onSave: (input: StockAdjustmentInput) => void;
 }
 
 const emptyItem = (): AdjustmentItem => ({ productId: '', adjustment: '' });
@@ -28,10 +28,10 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   onClose,
   onSuccess,
   products,
+  onSave,
 }) => {
   const [isLoading, setIsLoading] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
-  const { createStockAdjustment } = useInventoryStore();
 
   const [type, setType] = React.useState<'positive' | 'negative'>('positive');
   const [reason, setReason] = React.useState('');
@@ -136,7 +136,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
         })),
       };
 
-      createStockAdjustment(input);
+      onSave(input);
 
       const typeLabel = type === 'positive' ? 'Entrada' : 'Salida';
       toast.success(

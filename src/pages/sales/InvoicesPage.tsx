@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { FileText, Eye, CheckCircle, XCircle, Trash2, Plus, ShoppingCart } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
@@ -6,11 +6,29 @@ import { Badge, ConfirmModal, Modal, Select, Input } from '../../components/ui';
 import { Button } from '../../components/ui';
 import { toast } from '../../components/ui/Toast';
 import { BillingModal } from '../../components/modals/BillingModal';
-import { useSalesStore } from '../../stores';
-import { useInventoryStore } from '../../stores';
+import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../utils';
-import type { Invoice } from '../../types';
-import type { InvoiceItemInput, InvoiceCreateInput } from '../../stores/salesStore';
+import type { Invoice, Product } from '../../types';
+
+// Types for invoice creation
+interface InvoiceItemInput {
+  productId: string;
+  productName: string;
+  productCode: string;
+  quantity: number;
+  unitPrice: number;
+  discount: number;
+}
+
+interface InvoiceCreateInput {
+  customerName?: string;
+  customerId?: string;
+  nit?: string;
+  items: InvoiceItemInput[];
+  paymentMethod: string;
+  dueDate?: Date;
+  notes?: string;
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

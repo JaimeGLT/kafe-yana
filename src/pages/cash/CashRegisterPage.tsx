@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { clsx } from 'clsx';
 import {
   Wallet,
@@ -16,50 +16,139 @@ import { PageHeader, PageContainer } from '../../components/layout';
 import { Button, Badge, Modal } from '../../components/ui';
 import { CashMovementModal } from '../../components/modals';
 import { toast } from '../../components/ui/Toast';
-import { useCashStore } from '../../stores';
+import { gql } from '../../lib/graphql';
 import { formatCurrency, formatDateTime } from '../../utils';
+import type { CashRegister, CashMovement } from '../../types';
 
 interface CloseRegisterFormState {
   actualBalance: string;
   notes: string;
 }
 
+// GraphQL query to get current cash register
+const GET_CURRENT_REGISTER = `
+  query {
+    currentCashRegister {
+      id
+      code
+      openedAt
+      closedAt
+      openingBalance
+      expectedBalance
+      actualBalance
+      difference
+      status
+      totalSales
+      totalIncome
+      totalExpense
+      movements {
+        id
+        type
+        category
+        concept
+        amount
+        date
+        reference
+      }
+    }
+  }
+`;
+
+const OPEN_CASH_REGISTER = `
+  mutation($openingBalance: Float!) {
+    openCashRegister(openingBalance: $openingBalance) {
+      id
+      code
+      openedAt
+      status
+    }
+  }
+`;
+
+const CLOSE_CASH_REGISTER = `
+  mutation($registerId: String!, $actualBalance: Float!, $notes: String) {
+    closeCashRegister(registerId: $registerId, actualBalance: $actualBalance, notes: $notes) {
+      id
+      status
+    }
+  }
+`;
+
+interface CurrentRegisterResponse {
+  currentCashRegister: CashRegister | null;
+}
+
+interface OpenRegisterResponse {
+  openCashRegister: CashRegister;
+}
+
+interface CloseRegisterResponse {
+  closeCashRegister: { id: string; status: string };
+}
+
 export const CashRegisterPage: React.FC = () => {
-  const {
-    getCurrentRegister,
-    openCashRegister,
-    closeCashRegister,
-  } = useCashStore();
+  const [register, setRegister] = useState<CashRegister | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const register = getCurrentRegister();
+  const [openingBalance, setOpeningBalance] = useState('');
+  const [openingError, setOpeningError] = useState('');
+  const [isOpening, setIsOpening] = useState(false);
 
-  const [openingBalance, setOpeningBalance] = React.useState('');
-  const [openingError, setOpeningError] = React.useState('');
-  const [isOpening, setIsOpening] = React.useState(false);
+  const [isMovementOpen, setIsMovementOpen] = useState(false);
+  const [movementType, setMovementType] = useState<'income' | 'expense'>('income');
 
-  const [isMovementOpen, setIsMovementOpen] = React.useState(false);
-  const [movementType, setMovementType] = React.useState<'income' | 'expense'>('income');
-
-  const [isCloseOpen, setIsCloseOpen] = React.useState(false);
-  const [closeForm, setCloseForm] = React.useState<CloseRegisterFormState>({
+  const [isCloseOpen, setIsCloseOpen] = useState(false);
+  const [closeForm, setCloseForm] = useState<CloseRegisterFormState>({
     actualBalance: '',
     notes: '',
   });
-  const [isClosing, setIsClosing] = React.useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+
+  // Fetch current register
+  const fetchCurrentRegister = useCallback(async () => {
+    try {
+      const data = await gql<CurrentRegisterResponse>(GET_CURRENT_REGISTER);
+      // Transform dates from string to Date objects
+      if (data.currentCashRegister) {
+        const reg = data.currentCashRegister;
+        setRegister({
+          ...reg,
+          openedAt: new Date(reg.openedAt as unknown as string),
+          closedAt: reg.closedAt ? new Date(reg.closedAt as unknown as string) : undefined,
+          movements: (reg.movements || []).map((m: CashMovement) => ({
+            ...m,
+            date: new Date(m.date as unknown as string),
+          })),
+        } as CashRegister);
+      } else {
+        setRegister(null);
+      }
+    } catch (error) {
+      console.error('Error fetching cash register:', error);
+      toast.error('Error', 'No se pudo obtener el estado de la caja.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCurrentRegister();
+  }, [fetchCurrentRegister]);
 
   const handleOpenRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     const balance = parseFloat(openingBalance);
     if (isNaN(balance) || balance < 0) {
-      setOpeningError('Ingresa un saldo inicial válido');
+      setOpeningError('Ingresa un saldo inicial valido');
       return;
     }
     setIsOpening(true);
     try {
-      openCashRegister({ openingBalance: balance });
+      await gql<OpenRegisterResponse>(OPEN_CASH_REGISTER, { openingBalance: balance });
       toast.success('Caja abierta', `Caja iniciada con ${formatCurrency(balance)}.`);
       setOpeningBalance('');
       setOpeningError('');
+      await fetchCurrentRegister();
     } catch (err: unknown) {
       toast.error('Error', err instanceof Error ? err.message : 'No se pudo abrir la caja.');
     } finally {
@@ -79,9 +168,14 @@ export const CashRegisterPage: React.FC = () => {
     if (isNaN(balance) || balance < 0) return;
     setIsClosing(true);
     try {
-      closeCashRegister(register.id, { actualBalance: balance, notes: closeForm.notes || undefined });
+      await gql<CloseRegisterResponse>(CLOSE_CASH_REGISTER, {
+        registerId: register.id,
+        actualBalance: balance,
+        notes: closeForm.notes || undefined,
+      });
       toast.success('Caja cerrada', 'La caja fue cerrada exitosamente.');
       setIsCloseOpen(false);
+      await fetchCurrentRegister();
     } catch {
       toast.error('Error', 'No se pudo cerrar la caja.');
     } finally {
@@ -89,11 +183,29 @@ export const CashRegisterPage: React.FC = () => {
     }
   };
 
+  const handleMovementSuccess = () => {
+    setIsMovementOpen(false);
+    fetchCurrentRegister();
+  };
+
   const actualBalance = parseFloat(closeForm.actualBalance);
   const difference =
     !isNaN(actualBalance) && register ? actualBalance - register.expectedBalance : null;
 
-  // ── CLOSED / NO REGISTER: Show open screen ──────────────────
+  if (loading) {
+    return (
+      <MainLayout>
+        <PageContainer>
+          <PageHeader title="Caja" subtitle="Control de apertura y cierre de caja" />
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-coffee-600"></div>
+          </div>
+        </PageContainer>
+      </MainLayout>
+    );
+  }
+
+  // Closed / No Register: Show open screen
   if (!register) {
     return (
       <MainLayout>
@@ -151,7 +263,7 @@ export const CashRegisterPage: React.FC = () => {
     );
   }
 
-  // ── OPEN REGISTER: Dashboard ────────────────────────────────
+  // Open Register: Dashboard
   return (
     <MainLayout>
       <PageContainer>
@@ -273,7 +385,7 @@ export const CashRegisterPage: React.FC = () => {
             <table className="min-w-full divide-y divide-coffee-200">
               <thead className="bg-coffee-50">
                 <tr>
-                  {['Fecha', 'Tipo', 'Categoría', 'Concepto', 'Referencia', 'Monto'].map((h) => (
+                  {['Fecha', 'Tipo', 'Categoria', 'Concepto', 'Referencia', 'Monto'].map((h) => (
                     <th
                       key={h}
                       className="px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider"
@@ -332,7 +444,7 @@ export const CashRegisterPage: React.FC = () => {
           isOpen={isMovementOpen}
           onClose={() => setIsMovementOpen(false)}
           type={movementType}
-          onSuccess={() => setIsMovementOpen(false)}
+          onSuccess={handleMovementSuccess}
         />
 
         {/* Close Register Modal */}

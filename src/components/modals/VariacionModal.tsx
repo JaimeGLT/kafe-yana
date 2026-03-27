@@ -8,15 +8,21 @@ import { Select } from '../ui/Select';
 import { HelpTooltip } from '../ui/Tooltip';
 import { ConfirmModal } from '../ui/Modal';
 import { toast } from '../ui/Toast';
-import { useVariacionesStore } from '../../stores/variacionesStore';
-import { useRecipesStore } from '../../stores';
-import type { VariacionAtributo, VariacionOpcion } from '../../types';
+import type { VariacionAtributo, VariacionOpcion, Insumo } from '../../types';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   productId: string;
   productName: string;
+  insumos: Insumo[];
+  atributos: VariacionAtributo[];
+  onAddAtributo: (productId: string, data: { nombre: string; esRequerido: boolean }) => VariacionAtributo;
+  onUpdateAtributo: (atributoId: string, data: { nombre: string; esRequerido: boolean }) => void;
+  onDeleteAtributo: (atributoId: string) => void;
+  onAddOpcion: (atributoId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }) => void;
+  onUpdateOpcion: (atributoId: string, opcionId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }) => void;
+  onDeleteOpcion: (atributoId: string, opcionId: string) => void;
 }
 
 // ── Opcion form state ─────────────────────────────────────────────────────────
@@ -153,10 +159,10 @@ interface OpcionRowProps {
   atributoId: string;
   insumoOptions: { value: string; label: string }[];
   onDelete: (opcionId: string) => void;
+  onUpdateOpcion: (atributoId: string, opcionId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }) => void;
 }
 
-const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, insumoOptions, onDelete }) => {
-  const { updateOpcion } = useVariacionesStore();
+const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, insumoOptions, onDelete, onUpdateOpcion }) => {
   const [editing, setEditing] = React.useState(false);
   const [form, setForm] = React.useState<OpcionFormState>(opcionToForm(opcion));
 
@@ -165,7 +171,7 @@ const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, insumoOptions
       toast.warning('Campo requerido', 'El nombre de la opción es obligatorio.');
       return;
     }
-    updateOpcion(atributoId, opcion.id, {
+    onUpdateOpcion(atributoId, opcion.id, {
       nombre: form.nombre.trim(),
       precioAjuste: parseFloat(form.precioAjuste) || 0,
       insumoReemplazadoId: form.sustituye && form.insumoReemplazadoId ? form.insumoReemplazadoId : undefined,
@@ -322,12 +328,20 @@ const NuevaOpcionForm: React.FC<NuevaOpcionFormProps> = ({ form, setForm, insumo
 
 // ── Main Modal ────────────────────────────────────────────────────────────────
 
-export const VariacionModal: React.FC<Props> = ({ isOpen, onClose, productId, productName }) => {
-  const { getAtributosByProductId, addAtributo, updateAtributo, deleteAtributo, addOpcion, deleteOpcion } =
-    useVariacionesStore();
-  const { insumos } = useRecipesStore();
-
-  const atributos = getAtributosByProductId(productId);
+export const VariacionModal: React.FC<Props> = ({
+  isOpen,
+  onClose,
+  productId,
+  productName,
+  insumos,
+  atributos,
+  onAddAtributo,
+  onUpdateAtributo,
+  onDeleteAtributo,
+  onAddOpcion,
+  onUpdateOpcion,
+  onDeleteOpcion,
+}) => {
 
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   const [showAddAtributo, setShowAddAtributo] = React.useState(false);
@@ -365,7 +379,7 @@ export const VariacionModal: React.FC<Props> = ({ isOpen, onClose, productId, pr
       toast.warning('Campo requerido', 'El nombre del grupo es obligatorio.');
       return;
     }
-    const nuevo = addAtributo({ productId, nombre: newAtributoNombre.trim(), esRequerido: newAtributoRequerido });
+    const nuevo = onAddAtributo(productId, { nombre: newAtributoNombre.trim(), esRequerido: newAtributoRequerido });
     setExpanded((prev) => new Set([...prev, nuevo.id]));
     setNewAtributoNombre('');
     setNewAtributoRequerido(false);
@@ -384,7 +398,7 @@ export const VariacionModal: React.FC<Props> = ({ isOpen, onClose, productId, pr
       toast.warning('Campo requerido', 'El nombre del grupo es obligatorio.');
       return;
     }
-    updateAtributo(id, { nombre: editAtributoNombre.trim(), esRequerido: editAtributoRequerido });
+    onUpdateAtributo(id, { nombre: editAtributoNombre.trim(), esRequerido: editAtributoRequerido });
     setEditingAtributoId(null);
     toast.success('Grupo actualizado');
   };
@@ -392,10 +406,10 @@ export const VariacionModal: React.FC<Props> = ({ isOpen, onClose, productId, pr
   const handleConfirmDelete = () => {
     if (!deleteConfirm) return;
     if (deleteConfirm.type === 'atributo') {
-      deleteAtributo(deleteConfirm.atributoId);
+      onDeleteAtributo(deleteConfirm.atributoId);
       toast.success('Grupo eliminado');
     } else if (deleteConfirm.opcionId) {
-      deleteOpcion(deleteConfirm.atributoId, deleteConfirm.opcionId);
+      onDeleteOpcion(deleteConfirm.atributoId, deleteConfirm.opcionId);
       toast.success('Opción eliminada');
     }
     setDeleteConfirm(null);
@@ -411,7 +425,7 @@ export const VariacionModal: React.FC<Props> = ({ isOpen, onClose, productId, pr
       toast.warning('Campo requerido', 'El nombre de la opción es obligatorio.');
       return;
     }
-    addOpcion(atributoId, {
+    onAddOpcion(atributoId, {
       nombre: form.nombre.trim(),
       precioAjuste: parseFloat(form.precioAjuste) || 0,
       insumoReemplazadoId: form.sustituye && form.insumoReemplazadoId ? form.insumoReemplazadoId : undefined,
@@ -533,6 +547,7 @@ export const VariacionModal: React.FC<Props> = ({ isOpen, onClose, productId, pr
                       onDelete={(opcionId) =>
                         setDeleteConfirm({ type: 'opcion', atributoId: atributo.id, opcionId, nombre: opcion.nombre })
                       }
+                      onUpdateOpcion={onUpdateOpcion}
                     />
                   ))}
 
