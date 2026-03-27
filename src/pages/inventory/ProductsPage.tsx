@@ -4,11 +4,13 @@ import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
 import { Button, Input, Select, ConfirmModal, Badge } from '../../components/ui';
-import { toast } from '../../components/ui/Toast';
+import { useToast } from '../../components/ui/Toast';
 import { ProductModal } from '../../components/modals/ProductModal';
+import { EditElaboradoModal } from '../../components/modals/EditElaboradoModal';
+import { ComboModal } from '../../components/modals/ComboModal';
 import { gql } from '../../lib/graphql';
 import { api } from '../../lib/api';
-import type { Product, Category, Brand, Location, ProductTipo } from '../../types';
+import type { Product, Category, Brand, Location, ProductTipo, Combo } from '../../types';
 import { formatCurrency } from '../../utils';
 
 interface ProductsPageProps {}
@@ -79,6 +81,52 @@ interface CategoriasGqlResponse {
   categorias: { nodes: CategoriaNode[] };
 }
 
+interface CompradoDetailGqlResponse {
+  comprado: {
+    id: number;
+    nombre: string;
+    descripcion: string;
+    codigo_barra: string;
+    categoria_Id: number;
+    unidad_medida: string;
+    marca: string;
+    ubicacion: string;
+    costo_compra: number;
+    precio: number;
+    stock_actual: number;
+    stock_minimo: number;
+    disponible: boolean;
+  };
+}
+
+interface ElaboradoDetailGqlResponse {
+  elaborado: {
+    id: number;
+    nombre: string;
+    descripcion: string;
+    precio: number;
+    categoria_Id: number;
+    unidad_medida: string;
+  };
+}
+
+interface ComboDetailGqlResponse {
+  combo: {
+    id: number;
+    nombre: string;
+    descripcion: string;
+    precio: number;
+    productos: { productoId: number; cantidad: number; opcional: boolean }[];
+  };
+}
+
+interface CombosListGqlResponse {
+  combos: {
+    id: number;
+    productos: { productoId: number; cantidad: number }[];
+  }[];
+}
+
 const TIPO_MAP: Record<string, ProductTipo> = {
   Comprado: 'comprado',
   Elaborado: 'elaborado',
@@ -95,8 +143,8 @@ function mapNode(node: ProductNode): Product {
     categoryId: '',
     categoryName: node.categoriaNombre,
     unit: 'unidad',
-    costPrice: node.costo,
-    salePrice: node.precioVenta,
+    costPrice: node.costo.toFixed(2),
+    salePrice: node.precioVenta.toFixed(2),
     stock: node.stock,
     minStock: 0,
     maxStock: 0,
@@ -121,37 +169,72 @@ const ProductsPage: React.FC<ProductsPageProps> = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [isElaboradoModalOpen, setIsElaboradoModalOpen] = useState(false);
+  const [isComboModalOpen, setIsComboModalOpen] = useState(false);
+  const [editingCombo, setEditingCombo] = useState<Combo | undefined>(undefined);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
+  const [isLoadingEditDetail, setIsLoadingEditDetail] = useState(false);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const toast = useToast();
 
   const loadProducts = useCallback(async (cursor?: string) => {
     const cursorArg = cursor ? `, after: "${cursor}"` : '';
-    const data = await gql<ProductsGqlResponse>(`
-      query {
-        productos(first: 50${cursorArg}) {
-          nodes {
-            id
-            nombre
-            tipo
-            categoriaNombre
-            precioVenta
-            costo
-            stock
-            recetaName
+    const [data, combosData] = await Promise.all([
+      gql<ProductsGqlResponse>(`
+        query {
+          productos(first: 50${cursorArg}) {
+            nodes {
+              id nombre tipo categoriaNombre precioVenta costo stock recetaName
+            }
+            pageInfo { hasNextPage endCursor }
           }
-          pageInfo { hasNextPage endCursor }
         }
-      }
-    `);
+      `),
+      gql<CombosListGqlResponse>(`
+        query {
+          combos {
+            id
+            productos { productoId cantidad }
+          }
+        }
+      `).catch(() => ({ combos: [] })),
+    ]);
+
     const nodes = data.productos.nodes.map(mapNode);
+
+    // Build stock lookup for all non-combo products
+    const stockById: Record<string, number> = {};
+    data.productos.nodes.forEach((n) => {
+      if (n.tipo !== 'Combos') stockById[String(n.id)] = n.stock;
+    });
+
+    // Calculate available units for each combo
+    const comboStockById: Record<string, number> = {};
+    combosData.combos.forEach((combo) => {
+      if (combo.productos.length === 0) { comboStockById[String(combo.id)] = 0; return; }
+      const available = Math.min(
+        ...combo.productos.map((p) => {
+          const s = stockById[String(p.productoId)] ?? 0;
+          return p.cantidad > 0 ? Math.floor(s / p.cantidad) : 0;
+        })
+      );
+      comboStockById[String(combo.id)] = available;
+    });
+
+    // Apply calculated combo stock
+    const withComboStock = nodes.map((p) =>
+      p.tipo === 'combo' ? { ...p, stock: comboStockById[p.id] ?? 0 } : p
+    );
+
     const recMap: Record<string, boolean> = {};
     data.productos.nodes.forEach((n) => { if (n.recetaName) recMap[String(n.id)] = true; });
+
     if (cursor) {
-      setProducts((prev) => [...prev, ...nodes]);
+      setProducts((prev) => [...prev, ...withComboStock]);
       setRecetaApiMap((prev) => ({ ...prev, ...recMap }));
     } else {
-      setProducts(nodes);
+      setProducts(withComboStock);
       setRecetaApiMap(recMap);
     }
     setHasNextPage(data.productos.pageInfo.hasNextPage);
@@ -161,7 +244,9 @@ const ProductsPage: React.FC<ProductsPageProps> = () => {
   const loadCategories = useCallback(async () => {
     const data = await gql<CategoriasGqlResponse>(`
       query {
-        categorias {
+        categorias ( order: [ {
+     nombre: ASC
+  }] ) {
           nodes { id nombre descripcion estado color cantidad }
         }
       }
@@ -225,22 +310,96 @@ const ProductsPage: React.FC<ProductsPageProps> = () => {
   );
 
   const handleOpenCreate = () => { setEditingProduct(undefined); setIsProductModalOpen(true); };
-  const handleEdit = (p: Product) => {
-    // Resolve categoryId from categoryName if missing
-    const resolved = !p.categoryId
-      ? { ...p, categoryId: categories.find(c => c.name === p.categoryName)?.id || '' }
-      : p;
-    setEditingProduct(resolved);
+
+  const handleEdit = async (p: Product) => {
+    const catId = categories.find(c => c.name === p.categoryName)?.id || p.categoryId || '';
+
+    if (p.tipo === 'elaborado') {
+      setEditingProduct({ ...p, categoryId: catId });
+      setIsElaboradoModalOpen(true);
+      return;
+    }
+
+    if (p.tipo === 'combo') {
+      setIsComboModalOpen(true);
+      try {
+        const res = await gql<ComboDetailGqlResponse>(`
+          query {
+            combo(id: ${p.id}) {
+              id nombre descripcion precio
+              productos { productoId cantidad opcional }
+            }
+          }
+        `);
+        const d = res.combo;
+        setEditingCombo({
+          id: String(d.id),
+          name: d.nombre,
+          description: d.descripcion,
+          price: d.precio,
+          costoTotal: 0,
+          items: d.productos.map((pr) => ({
+            id: String(pr.productoId),
+            productId: String(pr.productoId),
+            productName: products.find(x => x.id === String(pr.productoId))?.name ?? '',
+            productTipo: products.find(x => x.id === String(pr.productoId))?.tipo ?? 'comprado',
+            quantity: pr.cantidad,
+            unitCost: 0,
+            esOpcional: pr.opcional,
+          })),
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      } catch {
+        setIsComboModalOpen(false);
+        toast.error('Error', 'No se pudo cargar el combo.');
+      }
+      return;
+    }
+
+    // comprado / combo
+    setEditingProduct({ ...p, categoryId: catId });
+    setIsLoadingEditDetail(true);
     setIsProductModalOpen(true);
+    try {
+      const res = await gql<CompradoDetailGqlResponse>(`
+        query {
+          comprado(id: ${p.id}) {
+            id nombre descripcion codigo_barra categoria_Id
+            unidad_medida marca ubicacion costo_compra precio
+            stock_actual stock_minimo disponible
+          }
+        }
+      `);
+      const d = res.comprado;
+      setEditingProduct({
+        ...p,
+        categoryId: catId,
+        name: d.nombre,
+        description: d.descripcion,
+        barcode: d.codigo_barra,
+        unit: d.unidad_medida,
+        costPrice: d.costo_compra,
+        salePrice: d.precio,
+        stock: d.stock_actual,
+        minStock: d.stock_minimo,
+        isActive: d.disponible,
+      });
+    } catch {
+      // keep basic data already set
+    } finally {
+      setIsLoadingEditDetail(false);
+    }
   };
   const handleDeleteRequest = (p: Product) => setDeletingProduct(p);
-
+  
   const handleConfirmDelete = async () => {
     if (!deletingProduct) return;
     setIsDeleting(true);
     try {
       const tipo = deletingProduct.tipo;
-      const endpoint = tipo === 'comprado' ? '/Comprado' : tipo === 'elaborado' ? '/Elaborado' : '/Combo';
+      const endpoint = tipo === 'comprado' ? '/Producto' : tipo === 'elaborado' ? '/Elaborado' : '/Combo';
       await api.delete(`${endpoint}/${deletingProduct.id}`);
       toast.success('Producto eliminado', `"${deletingProduct.name}" fue eliminado.`);
       setDeletingProduct(null);
@@ -530,7 +689,29 @@ const ProductsPage: React.FC<ProductsPageProps> = () => {
         locations={emptyLocations}
         onSuccess={() => { loadProducts(); }}
         compradoOnly={!editingProduct}
+        isLoadingDetail={isLoadingEditDetail}
       />
+
+      <ComboModal
+        isOpen={isComboModalOpen}
+        onClose={() => { setIsComboModalOpen(false); setEditingCombo(undefined); }}
+        combo={editingCombo}
+        products={products.filter(p => p.tipo !== 'combo')}
+        recetas={[]}
+        onSuccess={() => { loadProducts(); setIsComboModalOpen(false); setEditingCombo(undefined); }}
+      />
+
+      {editingProduct && (
+        <EditElaboradoModal
+          isOpen={isElaboradoModalOpen}
+          onClose={() => { setIsElaboradoModalOpen(false); setIsLoadingEditDetail(false); }}
+          product={editingProduct}
+          categoryOptions={categories.map(c => ({ value: c.id, label: c.name }))}
+          onSaved={() => { loadProducts(); setIsElaboradoModalOpen(false); }}
+          getRecetaByProductId={() => undefined}
+        />
+      )}
+
 
       <ConfirmModal
         isOpen={!!deletingProduct}

@@ -113,9 +113,9 @@ export interface ProductInput {
   code?: string;
   name: string;
   description?: string;
-  tipo?: ProductTipo;
-  categoryId: UUID;
-  brandId?: UUID;
+  tipo: ProductTipo;
+  categoryId: string;
+  brandId?: string;
   unit: string;
   costPrice: number;
   salePrice: number;
@@ -123,11 +123,10 @@ export interface ProductInput {
   stock?: number;
   minStock?: number;
   maxStock?: number;
-  locationId?: UUID;
+  locationId?: string;
   barcode?: string;
-  image?: string;
   isActive?: boolean;
-  variations?: ProductVariationInput[];
+  variations?: unknown[];
 }
 
 // Combo

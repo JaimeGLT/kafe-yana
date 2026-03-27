@@ -7,7 +7,7 @@ import { toast } from '../../components/ui/Toast';
 import { CategoryModal } from '../../components/modals/CategoryModal';
 import { gql } from '../../lib/graphql';
 import { api } from '../../lib/api';
-import type { Category } from '../../types';
+import type { Category, CategoryInput } from '../../types';
 
 interface CategoriaNode {
   id: number;
@@ -29,7 +29,9 @@ const CategoriesPage: React.FC = () => {
   const loadCategories = useCallback(async () => {
     const data = await gql<CategoriasGqlResponse>(`
       query {
-        categorias {
+        categorias( order: [ {
+     nombre: ASC
+  }] ) {
           nodes { id nombre descripcion estado color cantidad }
         }
       }
@@ -82,6 +84,27 @@ const CategoriesPage: React.FC = () => {
       toast.error('Error', 'No se pudo eliminar la categoría. Intente nuevamente.');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+
+  const handleSave = async (input: CategoryInput, isEdit: boolean, categoryId?: string) => {
+    if (isEdit && categoryId) {
+      await api.put(`/Categoria/${categoryId}`, {
+        nombre: input.name,
+        descripcion: input.description ?? '',
+        color: input.color,
+        estado: input.isActive,
+      });
+      toast.success('Categoría actualizada', `"${input.name}" fue actualizada correctamente.`);
+    } else {
+      await api.post('/Categoria', {
+        nombre: input.name,
+        descripcion: input.description ?? '',
+        color: input.color,
+        estado: input.isActive,
+      });
+      toast.success('Categoría creada', `"${input.name}" fue creada correctamente.`);
     }
   };
 
@@ -214,7 +237,10 @@ const CategoriesPage: React.FC = () => {
         isOpen={isCategoryModalOpen}
         onClose={() => setIsCategoryModalOpen(false)}
         category={editingCategory}
-        onSuccess={() => {}}
+        onSave={handleSave}
+        onSuccess={() => { setIsCategoryModalOpen(false);
+          loadCategories();
+        }}
       />
 
       {/* Confirm Delete */}

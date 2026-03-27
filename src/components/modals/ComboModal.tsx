@@ -13,7 +13,6 @@ import { formatCurrency } from '../../utils';
 interface ComboLine {
   productId: string;
   quantity: number;
-  esOpcional: boolean;
 }
 
 interface Props {
@@ -37,7 +36,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState<number | ''>('');
-  const [items, setItems] = useState<ComboLine[]>([{ productId: '', quantity: 1, esOpcional: false }]);
+  const [items, setItems] = useState<ComboLine[]>([{ productId: '', quantity: 1 }]);
   const [errors, setErrors] = useState<string[]>([]);
 
   // Products that can be in a combo (not another combo)
@@ -63,14 +62,13 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
         combo.items.map((i) => ({
           productId: i.productId,
           quantity: i.quantity,
-          esOpcional: i.esOpcional,
         }))
       );
     } else {
       setName('');
       setDescription('');
       setPrice('');
-      setItems([{ productId: '', quantity: 1, esOpcional: false }]);
+      setItems([{ productId: '', quantity: 1 }]);
     }
     setErrors([]);
   }, [combo, isOpen]);
@@ -101,7 +99,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
   const semaforo = margenPct !== null ? getMarginInfo(margenPct) : null;
   const ahorro = sumaIndividual > 0 ? sumaIndividual - comboPrice : 0;
 
-  const addLine = () => setItems((prev) => [...prev, { productId: '', quantity: 1, esOpcional: false }]);
+  const addLine = () => setItems((prev) => [...prev, { productId: '', quantity: 1 }]);
   const removeLine = (idx: number) => setItems((prev) => prev.filter((_, i) => i !== idx));
   const updateLine = <K extends keyof ComboLine>(idx: number, field: K, value: ComboLine[K]) =>
     setItems((prev) => prev.map((l, i) => (i === idx ? { ...l, [field]: value } : l)));
@@ -133,7 +131,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
         productos: items.map((i) => ({
           productoId: Number(i.productId),
           cantidad: i.quantity,
-          opcional: i.esOpcional,
+          opcional: false,
         })),
       };
       if (combo) {
@@ -214,13 +212,10 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
           </div>
 
           {/* Header */}
-          <div className="grid grid-cols-[1fr_70px_80px_20px] gap-2 text-xs text-coffee-400 font-medium mb-1 px-1">
+          <div className="grid grid-cols-[1fr_70px_auto_20px] gap-2 text-xs text-coffee-400 font-medium mb-1 px-1">
             <span>Producto</span>
             <span className="text-center">Cantidad</span>
-            <span className="text-center flex items-center justify-center gap-0.5">
-              Opcional
-              <HelpTooltip text="Si está marcado, el cliente puede omitir este ítem. El sistema no bloqueará la venta si falta su stock." />
-            </span>
+            <span className="text-right">Subtotal</span>
             <span />
           </div>
 
@@ -232,7 +227,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
               const subtotal = prod && line.quantity > 0 ? unitCost * line.quantity : 0;
 
               return (
-                <div key={idx} className="grid grid-cols-[1fr_70px_80px_20px] gap-2 items-center">
+                <div key={idx} className="grid grid-cols-[1fr_70px_auto_20px] gap-2 items-center">
                   <div>
                     <Select
                       value={line.productId}
@@ -254,19 +249,9 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
                     onChange={(e) => updateLine(idx, 'quantity', parseInt(e.target.value) || 1)}
                     className="text-center"
                   />
-                  <div className="flex items-center justify-center">
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={line.esOpcional}
-                        onChange={(e) => updateLine(idx, 'esOpcional', e.target.checked)}
-                        className="rounded border-coffee-300 text-amber-600 focus:ring-amber-400"
-                      />
-                      <span className="text-xs text-coffee-500">
-                        {subtotal > 0 ? formatCurrency(subtotal) : '—'}
-                      </span>
-                    </label>
-                  </div>
+                  <span className="text-xs text-coffee-500 text-right">
+                    {subtotal > 0 ? formatCurrency(subtotal) : '—'}
+                  </span>
                   <button
                     type="button"
                     onClick={() => removeLine(idx)}

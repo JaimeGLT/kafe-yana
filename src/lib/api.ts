@@ -95,7 +95,8 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
     throw new ApiError(message, response.status);
   }
 
-  return response.json() as Promise<T>;
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 export const api = {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal } from '../ui/Modal';
 import { ProductForm } from '../forms/ProductForm';
-import { toast } from '../ui/Toast';
+import { useToast } from '../ui/Toast';
 import { api } from '../../lib/api';
 import type { Product, ProductInput, Category, Brand, Location } from '../../types';
 
@@ -14,6 +14,7 @@ interface ProductModalProps {
   locations: Location[];
   onSuccess: () => void;
   compradoOnly?: boolean;
+  isLoadingDetail?: boolean;
 }
 
 export const ProductModal: React.FC<ProductModalProps> = ({
@@ -25,8 +26,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   locations,
   onSuccess,
   compradoOnly = false,
+  isLoadingDetail = false,
 }) => {
   const [isLoading, setIsLoading] = React.useState(false);
+  const toast = useToast();
 
   const handleSubmit = async (data: ProductInput) => {
     setIsLoading(true);
@@ -34,16 +37,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       if (product) {
         const tipo = product.tipo;
         if (tipo === 'comprado') {
-          const brand = brands.find((b) => b.id === data.brandId);
-          const location = locations.find((l) => l.id === data.locationId);
-          await api.put(`/Comprado/${product.id}`, {
+          await api.put(`/Producto/${product.id}`, {
             nombre: data.name,
             codigo_barra: data.barcode ?? '',
             descripcion: data.description ?? '',
             categoria_Id: Number(data.categoryId) || 0,
             unidad_medida: data.unit,
-            marca: brand?.name ?? '',
-            ubicacion: location?.name ?? '',
+            marca: data.brandId ?? '',
+            ubicacion: data.locationId ?? '',
             costo_compra: data.costPrice,
             precio: data.salePrice,
             stock_actual: data.stock ?? 0,
@@ -62,27 +63,28 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         toast.success('Producto actualizado', `"${data.name}" fue actualizado correctamente.`);
       } else {
         // CREATE — always comprado (compradoOnly enforces tipo='comprado')
-        const brand = brands.find((b) => b.id === data.brandId);
-        const location = locations.find((l) => l.id === data.locationId);
-        await api.post('/Comprado', {
+        const payload = {
           nombre: data.name,
           codigo_barra: data.barcode ?? '',
           descripcion: data.description ?? '',
           categoria_Id: Number(data.categoryId) || 0,
           unidad_medida: data.unit,
-          marca: brand?.name ?? '',
-          ubicacion: location?.name ?? '',
+          marca: data.brandId ?? '',
+          ubicacion: data.locationId ?? '',
           costo_compra: data.costPrice,
           precio: data.salePrice,
           stock_actual: data.stock ?? 0,
           stock_minimo: data.minStock ?? 0,
           disponible: data.isActive ?? true,
-        });
+        };
+        await api.post('/Producto', payload);
         toast.success('Producto creado', `"${data.name}" fue agregado al inventario.`);
       }
       onSuccess();
       onClose();
-    } catch {
+    } catch (error){
+      console.log(error);
+      
       toast.error('Error', 'No se pudo guardar el producto. Intente nuevamente.');
     } finally {
       setIsLoading(false);
@@ -96,17 +98,24 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       title={product ? 'Editar Producto' : 'Nuevo Producto'}
       size="xl"
     >
-      <ProductForm
-        product={product}
-        categories={categories}
-        brands={brands}
-        locations={locations}
-        onSubmit={handleSubmit}
-        onCancel={onClose}
-        isLoading={isLoading}
-        hideTipo={compradoOnly}
-        forceTipo={compradoOnly && !product ? 'comprado' : undefined}
-      />
+      {isLoadingDetail ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+          <div className="w-8 h-8 border-4 border-coffee-200 border-t-coffee-500 rounded-full animate-spin" />
+          <p className="text-sm text-coffee-500">Cargando información del producto…</p>
+        </div>
+      ) : (
+        <ProductForm
+          product={product}
+          categories={categories}
+          brands={brands}
+          locations={locations}
+          onSubmit={handleSubmit}
+          onCancel={onClose}
+          isLoading={isLoading}
+          hideTipo={compradoOnly}
+          forceTipo={compradoOnly && !product ? 'comprado' : undefined}
+        />
+      )}
     </Modal>
   );
 };

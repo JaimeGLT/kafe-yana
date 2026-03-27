@@ -53,6 +53,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     addToast({ type: 'info', title, message });
   }, [addToast]);
 
+  React.useEffect(() => {
+    _addToast = addToast;
+    return () => { _addToast = null; };
+  }, [addToast]);
+
   return (
     <ToastContext.Provider value={{ toasts, addToast, removeToast, success, error, warning, info }}>
       {children}
@@ -69,21 +74,14 @@ export function useToast() {
   return context;
 }
 
-// Export a simple toast object for convenience (calls the hook internally when used in components)
+// Module-level ref set by ToastProvider — allows the static toast object to work anywhere.
+let _addToast: ((t: Omit<ToastItem, 'id'>) => void) | null = null;
+
 export const toast = {
-  success: (title: string, message?: string) => {
-    // This will be replaced by the hook in components
-    console.log(`[Toast Success] ${title}`, message);
-  },
-  error: (title: string, message?: string) => {
-    console.error(`[Toast Error] ${title}`, message);
-  },
-  warning: (title: string, message?: string) => {
-    console.warn(`[Toast Warning] ${title}`, message);
-  },
-  info: (title: string, message?: string) => {
-    console.info(`[Toast Info] ${title}`, message);
-  },
+  success: (title: string, message?: string) => _addToast?.({ type: 'success', title, message }),
+  error:   (title: string, message?: string) => _addToast?.({ type: 'error',   title, message }),
+  warning: (title: string, message?: string) => _addToast?.({ type: 'warning', title, message }),
+  info:    (title: string, message?: string) => _addToast?.({ type: 'info',    title, message }),
 };
 
 const ToastContainer: React.FC = () => {
@@ -91,7 +89,7 @@ const ToastContainer: React.FC = () => {
   if (!context || context.toasts.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
       {context.toasts.map((t) => (
         <Toast
           key={t.id}
@@ -129,8 +127,8 @@ const Toast: React.FC<ToastProps> = ({ type, title, message, onClose }) => {
   return (
     <div
       className={clsx(
-        'flex items-start gap-3 px-4 py-3 rounded-lg border shadow-lg',
-        'min-w-80 max-w-md animate-slide-in',
+        'flex items-start gap-3 px-3 py-2.5 rounded-lg border shadow-lg',
+        'w-72 animate-slide-in',
         backgrounds[type]
       )}
     >
