@@ -59,13 +59,6 @@ interface ProductNode {
   recetaName: string | null;
 }
 
-interface ProductsGqlResponse {
-  productos: {
-    nodes: ProductNode[];
-    pageInfo: { hasNextPage: boolean; endCursor: string | null };
-  };
-}
-
 interface CategoriaNode {
   id: number;
   nombre: string;
@@ -75,7 +68,17 @@ interface CategoriaNode {
   cantidad: number;
 }
 
-interface CategoriasGqlResponse {
+interface ComboListNode {
+  id: number;
+  productos: { productoId: number; cantidad: number }[];
+}
+
+interface InitialLoadResponse {
+  productos: {
+    nodes: ProductNode[];
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  };
+  combos: ComboListNode[];
   categorias: { nodes: CategoriaNode[] };
 }
 
@@ -107,12 +110,25 @@ interface ComboDetailGqlResponse {
   };
 }
 
-interface CombosListGqlResponse {
-  combos: {
-    id: number;
-    productos: { productoId: number; cantidad: number }[];
-  }[];
-}
+// ── Query unificada ────────────────────────────────────────────────────────────
+
+const INITIAL_LOAD_QUERY = `
+  query InitialLoad($cursor: String) {
+    productos(first: 50, after: $cursor) {
+      nodes { id nombre tipo categoriaNombre precioVenta costo stock recetaName }
+      pageInfo { hasNextPage endCursor }
+    }
+    combos {
+      id
+      productos { productoId cantidad }
+    }
+    categorias(order: [{ nombre: ASC }]) {
+      nodes { id nombre descripcion estado color cantidad }
+    }
+  }
+`;
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 const TIPO_MAP: Record<string, ProductTipo> = {
   Comprado: 'comprado',
@@ -130,18 +146,21 @@ function mapNode(node: ProductNode): Product {
     categoryId: '',
     categoryName: node.categoriaNombre,
     unit: 'unidad',
-    costPrice: node.costo.toFixed(2),
-    salePrice: node.precioVenta.toFixed(2),
+    costPrice: node.costo,
+    salePrice: node.precioVenta,
     stock: node.stock,
     minStock: 0,
     maxStock: 0,
     barcode: '',
     variations: [],
+    hasVariations: false,
     isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
 }
+
+// ── Componente ─────────────────────────────────────────────────────────────────
 
 const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -165,126 +184,103 @@ const ProductsPage: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const toast = useToast();
 
-  const loadProducts = useCallback(async (cursor?: string) => {
-    const cursorArg = cursor ? `, after: "${cursor}"` : '';
-    const [data, combosData] = await Promise.all([
-      gql<ProductsGqlResponse>(`
-        query {
-          productos(first: 50${cursorArg}) {
-            nodes {
-              id nombre tipo categoriaNombre precioVenta costo stock recetaName
-            }
-            pageInfo { hasNextPage endCursor }
-          }
-        }
-      `),
-      gql<CombosListGqlResponse>(`
-        query {
-          combos {
-            id
-            productos { productoId cantidad }
-          }
-        }
-      `).catch(() => ({ combos: [] })),
-    ]);
+  // ── Una sola llamada para productos + combos + categorías ──────────────────
 
+  const loadAll = useCallback(async (cursor?: string) => {
+    const data = await gql<InitialLoadResponse>(
+      INITIAL_LOAD_QUERY,
+      cursor ? { cursor } : {},
+    );
+
+    // Mapear productos
     const nodes = data.productos.nodes.map(mapNode);
 
-    // Build stock lookup for all non-combo products
+    // Stock lookup para productos no-combo
     const stockById: Record<string, number> = {};
     data.productos.nodes.forEach((n) => {
       if (n.tipo !== 'Combos') stockById[String(n.id)] = n.stock;
     });
 
-    // Calculate available units for each combo
+    // Calcular stock disponible de cada combo
     const comboStockById: Record<string, number> = {};
-    combosData.combos.forEach((combo) => {
-      if (combo.productos.length === 0) { comboStockById[String(combo.id)] = 0; return; }
+    data.combos.forEach((combo) => {
+      if (combo.productos.length === 0) {
+        comboStockById[String(combo.id)] = 0;
+        return;
+      }
       const available = Math.min(
         ...combo.productos.map((p) => {
           const s = stockById[String(p.productoId)] ?? 0;
           return p.cantidad > 0 ? Math.floor(s / p.cantidad) : 0;
-        })
+        }),
       );
       comboStockById[String(combo.id)] = available;
     });
 
-    // Apply calculated combo stock
     const withComboStock = nodes.map((p) =>
-      p.tipo === 'combo' ? { ...p, stock: comboStockById[p.id] ?? 0 } : p
+      p.tipo === 'combo' ? { ...p, stock: comboStockById[p.id] ?? 0 } : p,
     );
 
+    // Mapa de recetas
     const recMap: Record<string, boolean> = {};
-    data.productos.nodes.forEach((n) => { if (n.recetaName) recMap[String(n.id)] = true; });
+    data.productos.nodes.forEach((n) => {
+      if (n.recetaName) recMap[String(n.id)] = true;
+    });
 
-    if (cursor) {
-      setProducts((prev) => [...prev, ...withComboStock]);
-      setRecetaApiMap((prev) => ({ ...prev, ...recMap }));
-    } else {
+    // Categorías (solo en carga inicial, no en "cargar más")
+    if (!cursor) {
+      const mappedCats: Category[] = data.categorias.nodes.map((n) => ({
+        id: String(n.id),
+        name: n.nombre,
+        description: n.descripcion,
+        isActive: n.estado,
+        color: n.color,
+        sortOrder: 0,
+        productCount: n.cantidad,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+      setCategories(mappedCats);
       setProducts(withComboStock);
       setRecetaApiMap(recMap);
+    } else {
+      setProducts((prev) => [...prev, ...withComboStock]);
+      setRecetaApiMap((prev) => ({ ...prev, ...recMap }));
     }
+
     setHasNextPage(data.productos.pageInfo.hasNextPage);
     setEndCursor(data.productos.pageInfo.endCursor);
   }, []);
 
-  const loadCategories = useCallback(async () => {
-    const data = await gql<CategoriasGqlResponse>(`
-      query {
-        categorias ( order: [ {
-     nombre: ASC
-  }] ) {
-          nodes { id nombre descripcion estado color cantidad }
-        }
-      }
-    `);
-    const mapped: Category[] = data.categorias.nodes.map((n) => ({
-      id: String(n.id),
-      name: n.nombre,
-      description: n.descripcion,
-      isActive: n.estado,
-      color: n.color,
-      productCount: n.cantidad,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }));
-    setCategories(mapped);
-  }, []);
-
   useEffect(() => {
-    Promise.all([loadProducts(), loadCategories()]).finally(() => setIsLoadingProducts(false));
+    loadAll().finally(() => setIsLoadingProducts(false));
   }, []);
 
   const handleLoadMore = async () => {
     if (!endCursor) return;
     setIsLoadingMore(true);
-    await loadProducts(endCursor).finally(() => setIsLoadingMore(false));
+    await loadAll(endCursor).finally(() => setIsLoadingMore(false));
   };
 
+  // ── Filtros ────────────────────────────────────────────────────────────────
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       if (activeTab !== 'todos' && p.tipo !== activeTab) return false;
-
       const q = searchQuery.toLowerCase();
       const matchesSearch =
         !searchQuery ||
         p.name.toLowerCase().includes(q) ||
         p.code.toLowerCase().includes(q) ||
         (p.barcode || '').toLowerCase().includes(q);
-
       const matchesCategory = !selectedCategory || p.categoryName === selectedCategory;
-
       return matchesSearch && matchesCategory;
     });
   }, [products, activeTab, searchQuery, selectedCategory]);
 
-  // Count per tab
   const counts = useMemo(() => {
     const c: Record<string, number> = { todos: products.length };
-    products.forEach((p) => {
-      c[p.tipo] = (c[p.tipo] ?? 0) + 1;
-    });
+    products.forEach((p) => { c[p.tipo] = (c[p.tipo] ?? 0) + 1; });
     return c;
   }, [products]);
 
@@ -293,13 +289,15 @@ const ProductsPage: React.FC = () => {
       { value: '', label: 'Todas las categorías' },
       ...categories.map((c) => ({ value: c.name, label: c.name })),
     ],
-    [categories]
+    [categories],
   );
+
+  // ── Acciones ───────────────────────────────────────────────────────────────
 
   const handleOpenCreate = () => { setEditingProduct(undefined); setIsProductModalOpen(true); };
 
   const handleEdit = async (p: Product) => {
-    const catId = categories.find(c => c.name === p.categoryName)?.id || p.categoryId || '';
+    const catId = categories.find((c) => c.name === p.categoryName)?.id || p.categoryId || '';
 
     if (p.tipo === 'elaborado') {
       setEditingProduct({ ...p, categoryId: catId });
@@ -328,8 +326,8 @@ const ProductsPage: React.FC = () => {
           items: d.productos.map((pr) => ({
             id: String(pr.productoId),
             productId: String(pr.productoId),
-            productName: products.find(x => x.id === String(pr.productoId))?.name ?? '',
-            productTipo: products.find(x => x.id === String(pr.productoId))?.tipo ?? 'comprado',
+            productName: products.find((x) => x.id === String(pr.productoId))?.name ?? '',
+            productTipo: products.find((x) => x.id === String(pr.productoId))?.tipo ?? 'comprado',
             quantity: pr.cantidad,
             unitCost: 0,
             esOpcional: pr.opcional,
@@ -345,7 +343,7 @@ const ProductsPage: React.FC = () => {
       return;
     }
 
-    // comprado / combo
+    // comprado
     setEditingProduct({ ...p, categoryId: catId });
     setIsLoadingEditDetail(true);
     setIsProductModalOpen(true);
@@ -374,13 +372,14 @@ const ProductsPage: React.FC = () => {
         isActive: d.disponible,
       });
     } catch {
-      // keep basic data already set
+      // mantiene los datos básicos ya seteados
     } finally {
       setIsLoadingEditDetail(false);
     }
   };
+
   const handleDeleteRequest = (p: Product) => setDeletingProduct(p);
-  
+
   const handleConfirmDelete = async () => {
     if (!deletingProduct) return;
     setIsDeleting(true);
@@ -390,7 +389,7 @@ const ProductsPage: React.FC = () => {
       await api.delete(`${endpoint}/${deletingProduct.id}`);
       toast.success('Producto eliminado', `"${deletingProduct.name}" fue eliminado.`);
       setDeletingProduct(null);
-      await loadProducts();
+      await loadAll();
     } catch {
       toast.error('Error', 'No se pudo eliminar el producto.');
     } finally {
@@ -398,9 +397,10 @@ const ProductsPage: React.FC = () => {
     }
   };
 
-  // Brands and locations are empty since we fetch directly; pass empty arrays
   const emptyBrands: Brand[] = [];
   const emptyLocations: Location[] = [];
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <MainLayout>
@@ -426,14 +426,14 @@ const ProductsPage: React.FC = () => {
                   'flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px',
                   activeTab === tab.id
                     ? 'border-coffee-500 text-coffee-900'
-                    : 'border-transparent text-coffee-500 hover:text-coffee-700'
+                    : 'border-transparent text-coffee-500 hover:text-coffee-700',
                 )}
               >
                 {tab.icon}
                 {tab.label}
                 <span className={clsx(
                   'text-xs rounded-full px-1.5 py-0.5 min-w-[20px] text-center',
-                  activeTab === tab.id ? 'bg-coffee-100 text-coffee-700' : 'bg-coffee-50 text-coffee-400'
+                  activeTab === tab.id ? 'bg-coffee-100 text-coffee-700' : 'bg-coffee-50 text-coffee-400',
                 )}>
                   {counts[tab.id] ?? 0}
                 </span>
@@ -601,7 +601,7 @@ const ProductsPage: React.FC = () => {
                           {p.tipo === 'comprado' || p.tipo === 'combo' ? (
                             <span className={clsx(
                               'font-medium',
-                              p.stock <= 0 ? 'text-red-600' : p.stock <= p.minStock ? 'text-amber-600' : 'text-coffee-700'
+                              p.stock <= 0 ? 'text-red-600' : p.stock <= p.minStock ? 'text-amber-600' : 'text-coffee-700',
                             )}>
                               {p.stock}
                               {p.stock <= p.minStock && p.stock > 0 && (
@@ -674,7 +674,7 @@ const ProductsPage: React.FC = () => {
         categories={categories}
         brands={emptyBrands}
         locations={emptyLocations}
-        onSuccess={() => { loadProducts(); }}
+        onSuccess={() => { loadAll(); }}
         compradoOnly={!editingProduct}
         isLoadingDetail={isLoadingEditDetail}
       />
@@ -683,9 +683,9 @@ const ProductsPage: React.FC = () => {
         isOpen={isComboModalOpen}
         onClose={() => { setIsComboModalOpen(false); setEditingCombo(undefined); }}
         combo={editingCombo}
-        products={products.filter(p => p.tipo !== 'combo')}
+        products={products.filter((p) => p.tipo !== 'combo')}
         recetas={[]}
-        onSuccess={() => { loadProducts(); setIsComboModalOpen(false); setEditingCombo(undefined); }}
+        onSuccess={() => { loadAll(); setIsComboModalOpen(false); setEditingCombo(undefined); }}
       />
 
       {editingProduct && (
@@ -693,12 +693,11 @@ const ProductsPage: React.FC = () => {
           isOpen={isElaboradoModalOpen}
           onClose={() => { setIsElaboradoModalOpen(false); setIsLoadingEditDetail(false); }}
           product={editingProduct}
-          categoryOptions={categories.map(c => ({ value: c.id, label: c.name }))}
-          onSaved={() => { loadProducts(); setIsElaboradoModalOpen(false); }}
+          categoryOptions={categories.map((c) => ({ value: c.id, label: c.name }))}
+          onSaved={() => { loadAll(); setIsElaboradoModalOpen(false); }}
           getRecetaByProductId={() => undefined}
         />
       )}
-
 
       <ConfirmModal
         isOpen={!!deletingProduct}

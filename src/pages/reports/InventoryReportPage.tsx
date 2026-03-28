@@ -101,6 +101,18 @@ const InventoryReportPage: React.FC = () => {
     return <Badge variant="success">Normal</Badge>;
   };
 
+  if (loading || !stats) {
+    return (
+      <MainLayout>
+        <PageContainer>
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-coffee-600" />
+          </div>
+        </PageContainer>
+      </MainLayout>
+    );
+  }
+
   return (
     <MainLayout>
       <PageContainer>

@@ -10,7 +10,7 @@ async function fetchAllProducts(): Promise<Product[]> {
   let after: string | null = null;
 
   while (true) {
-    const data = await gql<ProductsResponse>(PRODUCTS_QUERY, {
+    const data: ProductsResponse = await gql<ProductsResponse>(PRODUCTS_QUERY, {
       first: 50,                          // ajusta al límite real del backend
       after: after ?? undefined,
     });

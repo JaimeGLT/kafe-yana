@@ -642,6 +642,13 @@ const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, productName, p
         onCreated={(insumo) => {
           setIngredientes((prev) => [...prev, { insumoId: insumo.id, quantity: 0, merma: 0 }]);
         }}
+        onSave={async (input, isEdit, insumoId) => {
+          if (isEdit && insumoId) {
+            await api.put(`/Recipes/insumos/${insumoId}`, input);
+          } else {
+            return await api.post<Insumo>('/Recipes/insumos', input);
+          }
+        }}
       />
       </>}
     </div>
@@ -779,7 +786,7 @@ const ElaboradosPage: React.FC = () => {
 
   const getElaboradoAvailability = useCallback((productId: string) => {
     // Simple implementation - in production this would calculate based on insumos
-    return 999; // Default availability
+    return 999 as number; // Default availability
   }, []);
 
   const addReceta = useCallback(async (recetaData: { productId: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string }, productName: string) => {
@@ -866,6 +873,7 @@ const ElaboradosPage: React.FC = () => {
       minStock: 0,
       maxStock: 0,
       variations: [],
+      hasVariations: false,
       isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -1115,6 +1123,18 @@ const ElaboradosPage: React.FC = () => {
         onClose={() => setRecetaModal({ isOpen: false })}
         receta={recetaModal.receta}
         preselectedProductId={recetaModal.product?.id}
+        insumos={insumos}
+        products={elaborados}
+        onSave={async (recetaId, data) => {
+          const payload = { productoId: data.productId, porcionesBase: data.porcionesBase, ingredientes: data.ingredientes, notas: data.notas };
+          if (recetaId) {
+            await api.put(`/Recipes/recetas/${recetaId}`, payload);
+          } else {
+            await api.post('/Recipes/recetas', payload);
+          }
+          const recetasData = await api.get<Receta[]>('/Recipes/recetas');
+          setRecetas(recetasData);
+        }}
       />
     </MainLayout>
   );

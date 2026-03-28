@@ -7,7 +7,7 @@ import { CustomerModal } from '../../components/modals';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../utils';
-import type { Customer } from '../../types';
+import type { Customer, CustomerInput } from '../../types';
 
 export const CustomersPage: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -217,6 +217,15 @@ export const CustomersPage: React.FC = () => {
           onClose={() => { setIsModalOpen(false); setEditingCustomer(undefined); }}
           customer={editingCustomer}
           onSuccess={handleModalSuccess}
+          onSave={async (input: CustomerInput, isEdit: boolean, customerId?: string) => {
+            if (isEdit && customerId) {
+              const updated = await api.put<Customer>(`/clientes/${customerId}`, input);
+              setCustomers(prev => prev.map(c => c.id === customerId ? updated : c));
+            } else {
+              const created = await api.post<Customer>('/clientes', input);
+              setCustomers(prev => [...prev, created]);
+            }
+          }}
         />
 
         {/* Delete Confirm */}

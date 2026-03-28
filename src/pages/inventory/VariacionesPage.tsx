@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { clsx } from 'clsx';
 import { Layers, ChevronDown, ChevronRight, FlaskConical, Coffee, Package, Info } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
@@ -7,7 +7,7 @@ import { Button, Input } from '../../components/ui';
 import { VariacionModal } from '../../components/modals/VariacionModal';
 import { api } from '../../lib/api';
 import { formatCurrency } from '../../utils';
-import type { Product, VariacionAtributo } from '../../types';
+import type { Product, VariacionAtributo, Insumo } from '../../types';
 
 // KPI card
 interface KpiCardProps {
@@ -48,9 +48,26 @@ const TipoBadge: React.FC<{ tipo: Product['tipo'] }> = ({ tipo }) => {
 interface ProductRowProps {
   product: Product;
   atributos: VariacionAtributo[];
+  insumos: Insumo[];
+  onAddAtributo: (productId: string, data: { nombre: string; esRequerido: boolean }) => Promise<VariacionAtributo>;
+  onUpdateAtributo: (atributoId: string, data: { nombre: string; esRequerido: boolean }) => Promise<void>;
+  onDeleteAtributo: (atributoId: string) => Promise<void>;
+  onAddOpcion: (atributoId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }) => Promise<void>;
+  onUpdateOpcion: (atributoId: string, opcionId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }) => Promise<void>;
+  onDeleteOpcion: (atributoId: string, opcionId: string) => Promise<void>;
 }
 
-const ProductRow: React.FC<ProductRowProps> = ({ product, atributos }) => {
+const ProductRow: React.FC<ProductRowProps> = ({
+  product,
+  atributos,
+  insumos,
+  onAddAtributo,
+  onUpdateAtributo,
+  onDeleteAtributo,
+  onAddOpcion,
+  onUpdateOpcion,
+  onDeleteOpcion,
+}) => {
   const [expanded, setExpanded] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -156,6 +173,14 @@ const ProductRow: React.FC<ProductRowProps> = ({ product, atributos }) => {
         onClose={() => setModalOpen(false)}
         productId={product.id}
         productName={product.name}
+        insumos={insumos}
+        atributos={productAtributos}
+        onAddAtributo={onAddAtributo}
+        onUpdateAtributo={onUpdateAtributo}
+        onDeleteAtributo={onDeleteAtributo}
+        onAddOpcion={onAddOpcion}
+        onUpdateOpcion={onUpdateOpcion}
+        onDeleteOpcion={onDeleteOpcion}
       />
     </>
   );
@@ -166,18 +191,26 @@ const ProductRow: React.FC<ProductRowProps> = ({ product, atributos }) => {
 const VariacionesPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
+  const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+
+  const fetchAtributos = useCallback(async () => {
+    const data = await api.get<VariacionAtributo[]>('/Inventory/variaciones');
+    setAtributos(data);
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [productsData, atributosData] = await Promise.all([
+        const [productsData, atributosData, insumosData] = await Promise.all([
           api.get<Product[]>('/Inventory/products'),
           api.get<VariacionAtributo[]>('/Inventory/variaciones'),
+          api.get<Insumo[]>('/Recipes/insumos'),
         ]);
         setProducts(productsData);
         setAtributos(atributosData);
+        setInsumos(insumosData);
       } catch (error) {
         console.error('Error loading variaciones data:', error);
       } finally {
@@ -186,6 +219,58 @@ const VariacionesPage: React.FC = () => {
     };
     fetchData();
   }, []);
+
+  // ── Handlers de API ──────────────────────────────────────────────────────────
+
+  const handleAddAtributo = useCallback(async (
+    productId: string,
+    data: { nombre: string; esRequerido: boolean }
+  ): Promise<VariacionAtributo> => {
+    const nuevo = await api.post<VariacionAtributo>('/Inventory/variaciones', {
+      productId,
+      nombre: data.nombre,
+      esRequerido: data.esRequerido,
+    });
+    await fetchAtributos();
+    return nuevo;
+  }, [fetchAtributos]);
+
+  const handleUpdateAtributo = useCallback(async (
+    atributoId: string,
+    data: { nombre: string; esRequerido: boolean }
+  ): Promise<void> => {
+    await api.put(`/Inventory/variaciones/${atributoId}`, data);
+    await fetchAtributos();
+  }, [fetchAtributos]);
+
+  const handleDeleteAtributo = useCallback(async (atributoId: string): Promise<void> => {
+    await api.delete(`/Inventory/variaciones/${atributoId}`);
+    await fetchAtributos();
+  }, [fetchAtributos]);
+
+  const handleAddOpcion = useCallback(async (
+    atributoId: string,
+    data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }
+  ): Promise<void> => {
+    await api.post(`/Inventory/variaciones/${atributoId}/opciones`, data);
+    await fetchAtributos();
+  }, [fetchAtributos]);
+
+  const handleUpdateOpcion = useCallback(async (
+    atributoId: string,
+    opcionId: string,
+    data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }
+  ): Promise<void> => {
+    await api.put(`/Inventory/variaciones/${atributoId}/opciones/${opcionId}`, data);
+    await fetchAtributos();
+  }, [fetchAtributos]);
+
+  const handleDeleteOpcion = useCallback(async (atributoId: string, opcionId: string): Promise<void> => {
+    await api.delete(`/Inventory/variaciones/${atributoId}/opciones/${opcionId}`);
+    await fetchAtributos();
+  }, [fetchAtributos]);
+
+  // ── Computed ─────────────────────────────────────────────────────────────────
 
   const activeProducts = useMemo(
     () => products.filter((p: Product) => p.isActive && p.tipo === 'elaborado'),
@@ -200,7 +285,6 @@ const VariacionesPage: React.FC = () => {
     );
   }, [activeProducts, search]);
 
-  // KPIs
   const productsWithVariations = useMemo(() => {
     const ids = new Set(atributos.filter((a: VariacionAtributo) => a.isActive).map((a: VariacionAtributo) => a.productId));
     return ids.size;
@@ -303,7 +387,18 @@ const VariacionesPage: React.FC = () => {
               </div>
             ) : (
               filteredProducts.map((product: Product) => (
-                <ProductRow key={product.id} product={product} atributos={atributos} />
+                <ProductRow
+                  key={product.id}
+                  product={product}
+                  atributos={atributos}
+                  insumos={insumos}
+                  onAddAtributo={handleAddAtributo}
+                  onUpdateAtributo={handleUpdateAtributo}
+                  onDeleteAtributo={handleDeleteAtributo}
+                  onAddOpcion={handleAddOpcion}
+                  onUpdateOpcion={handleUpdateOpcion}
+                  onDeleteOpcion={handleDeleteOpcion}
+                />
               ))
             )}
           </div>

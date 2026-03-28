@@ -17,12 +17,12 @@ interface Props {
   productName: string;
   insumos: Insumo[];
   atributos: VariacionAtributo[];
-  onAddAtributo: (productId: string, data: { nombre: string; esRequerido: boolean }) => VariacionAtributo;
-  onUpdateAtributo: (atributoId: string, data: { nombre: string; esRequerido: boolean }) => void;
-  onDeleteAtributo: (atributoId: string) => void;
-  onAddOpcion: (atributoId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }) => void;
-  onUpdateOpcion: (atributoId: string, opcionId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }) => void;
-  onDeleteOpcion: (atributoId: string, opcionId: string) => void;
+  onAddAtributo: (productId: string, data: { nombre: string; esRequerido: boolean }) => Promise<VariacionAtributo>;
+  onUpdateAtributo: (atributoId: string, data: { nombre: string; esRequerido: boolean }) => Promise<void>;
+  onDeleteAtributo: (atributoId: string) => Promise<void>;
+  onAddOpcion: (atributoId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }) => Promise<void>;
+  onUpdateOpcion: (atributoId: string, opcionId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }) => Promise<void>;
+  onDeleteOpcion: (atributoId: string, opcionId: string) => Promise<void>;
 }
 
 // ── Opcion form state ─────────────────────────────────────────────────────────
@@ -166,12 +166,12 @@ const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, insumoOptions
   const [editing, setEditing] = React.useState(false);
   const [form, setForm] = React.useState<OpcionFormState>(opcionToForm(opcion));
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.nombre.trim()) {
       toast.warning('Campo requerido', 'El nombre de la opción es obligatorio.');
       return;
     }
-    onUpdateOpcion(atributoId, opcion.id, {
+    await onUpdateOpcion(atributoId, opcion.id, {
       nombre: form.nombre.trim(),
       precioAjuste: parseFloat(form.precioAjuste) || 0,
       insumoReemplazadoId: form.sustituye && form.insumoReemplazadoId ? form.insumoReemplazadoId : undefined,
@@ -374,12 +374,12 @@ export const VariacionModal: React.FC<Props> = ({
     });
   };
 
-  const handleAddAtributo = () => {
+  const handleAddAtributo = async () => {
     if (!newAtributoNombre.trim()) {
       toast.warning('Campo requerido', 'El nombre del grupo es obligatorio.');
       return;
     }
-    const nuevo = onAddAtributo(productId, { nombre: newAtributoNombre.trim(), esRequerido: newAtributoRequerido });
+    const nuevo = await onAddAtributo(productId, { nombre: newAtributoNombre.trim(), esRequerido: newAtributoRequerido });
     setExpanded((prev) => new Set([...prev, nuevo.id]));
     setNewAtributoNombre('');
     setNewAtributoRequerido(false);
@@ -393,23 +393,23 @@ export const VariacionModal: React.FC<Props> = ({
     setEditAtributoRequerido(a.esRequerido);
   };
 
-  const handleSaveAtributo = (id: string) => {
+  const handleSaveAtributo = async (id: string) => {
     if (!editAtributoNombre.trim()) {
       toast.warning('Campo requerido', 'El nombre del grupo es obligatorio.');
       return;
     }
-    onUpdateAtributo(id, { nombre: editAtributoNombre.trim(), esRequerido: editAtributoRequerido });
+    await onUpdateAtributo(id, { nombre: editAtributoNombre.trim(), esRequerido: editAtributoRequerido });
     setEditingAtributoId(null);
     toast.success('Grupo actualizado');
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!deleteConfirm) return;
     if (deleteConfirm.type === 'atributo') {
-      onDeleteAtributo(deleteConfirm.atributoId);
+      await onDeleteAtributo(deleteConfirm.atributoId);
       toast.success('Grupo eliminado');
     } else if (deleteConfirm.opcionId) {
-      onDeleteOpcion(deleteConfirm.atributoId, deleteConfirm.opcionId);
+      await onDeleteOpcion(deleteConfirm.atributoId, deleteConfirm.opcionId);
       toast.success('Opción eliminada');
     }
     setDeleteConfirm(null);
@@ -419,13 +419,13 @@ export const VariacionModal: React.FC<Props> = ({
   const setOpcionForm = (atributoId: string, form: OpcionFormState) =>
     setNewOpcionForms((prev) => ({ ...prev, [atributoId]: form }));
 
-  const handleAddOpcion = (atributoId: string) => {
+  const handleAddOpcion = async (atributoId: string) => {
     const form = getOrInitForm(atributoId);
     if (!form.nombre.trim()) {
       toast.warning('Campo requerido', 'El nombre de la opción es obligatorio.');
       return;
     }
-    onAddOpcion(atributoId, {
+    await onAddOpcion(atributoId, {
       nombre: form.nombre.trim(),
       precioAjuste: parseFloat(form.precioAjuste) || 0,
       insumoReemplazadoId: form.sustituye && form.insumoReemplazadoId ? form.insumoReemplazadoId : undefined,

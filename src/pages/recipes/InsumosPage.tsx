@@ -278,7 +278,23 @@ const InsumosPage: React.FC = () => {
         </div>
       </PageContainer>
 
-      <InsumoModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} insumo={editing} />
+      <InsumoModal
+        isOpen={isModalOpen}
+        onClose={() => { setIsModalOpen(false); setEditing(undefined); }}
+        insumo={editing}
+        onSave={async (input, isEdit, insumoId) => {
+          if (isEdit && insumoId) {
+            await api.put(`/Recipes/insumos/${insumoId}`, input);
+            const updated = await api.get<Insumo[]>('/recipes/insumos');
+            setInsumos(updated);
+          } else {
+            const created = await api.post<Insumo>('/Recipes/insumos', input);
+            setInsumos((prev) => [...prev, created]);
+            return created;
+          }
+        }}
+        onCreated={() => setIsModalOpen(false)}
+      />
 
       <ConfirmModal
         isOpen={!!deleting}

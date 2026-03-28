@@ -9,7 +9,7 @@ import { BillingModal } from '../../components/modals/BillingModal';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDateTime, getPaymentMethodLabel } from '../../utils';
-import type { Sale, Customer } from '../../types';
+import type { Sale, Customer, Product, Invoice, SaleInput } from '../../types';
 
 interface SaleStats {
   totalSalesToday: number;
@@ -20,6 +20,7 @@ interface SaleStats {
 export const SalesListPage: React.FC = () => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [stats, setStats] = useState<SaleStats>({ totalSalesToday: 0, totalSalesMonth: 0, averageTicket: 0 });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -36,14 +37,16 @@ export const SalesListPage: React.FC = () => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const [salesData, customersData, statsData] = await Promise.all([
+        const [salesData, customersData, statsData, productsData] = await Promise.all([
           api.get<Sale[]>('/ventas'),
           api.get<Customer[]>('/clientes'),
           api.get<SaleStats>('/ventas/stats'),
+          api.get<Product[]>('/products'),
         ]);
         setSales(salesData);
         setCustomers(customersData);
         setStats(statsData);
+        setProducts(productsData);
       } catch {
         toast.error('Error', 'No se pudieron cargar los datos.');
       } finally {
@@ -53,14 +56,14 @@ export const SalesListPage: React.FC = () => {
     fetchData();
   }, []);
 
-  const addSale = useCallback(async (data: Parameters<typeof createSale>[0]) => {
+  const addSale = useCallback(async (data: SaleInput) => {
     const newSale = await api.post<Sale>('/ventas', data);
     setSales(prev => [newSale, ...prev]);
     return newSale;
   }, []);
 
   const generateInvoiceForSale = useCallback(async (saleId: string, billing: { nit: string; name: string }) => {
-    const invoice = await api.post(`/ventas/${saleId}/factura`, billing);
+    const invoice = await api.post<Invoice>(`/ventas/${saleId}/factura`, billing);
     setSales(prev => prev.map(s => s.id === saleId ? { ...s, invoiceId: invoice.id } : s));
     return invoice;
   }, []);
@@ -95,7 +98,7 @@ export const SalesListPage: React.FC = () => {
     return sales.filter((s) => s.status === 'completed' && new Date(s.date) >= today);
   }, [sales]);
 
-  const handleNewSale = async (data: Parameters<typeof addSale>[0]) => {
+  const handleNewSale = async (data: SaleInput) => {
     setIsLoading(true);
     try {
       const newSale = await addSale(data);
@@ -218,6 +221,7 @@ export const SalesListPage: React.FC = () => {
         >
           <SaleForm
             customers={customers}
+            products={products}
             onSubmit={handleNewSale}
             onCancel={() => setIsNewSaleOpen(false)}
             isLoading={isLoading}

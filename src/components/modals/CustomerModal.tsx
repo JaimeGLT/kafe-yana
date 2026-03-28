@@ -11,7 +11,7 @@ interface CustomerModalProps {
   onClose: () => void;
   customer?: Customer;
   onSuccess: () => void;
-  onSave: (input: CustomerInput, isEdit: boolean, customerId?: string) => void;
+  onSave?: (input: CustomerInput, isEdit: boolean, customerId?: string) => void;
 }
 
 interface CustomerFormData {
@@ -108,7 +108,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
         isActive: formData.isActive,
       };
 
-      onSave(input, !!customer, customer?.id);
+      onSave?.(input, !!customer, customer?.id);
       onSuccess();
       onClose();
     } catch (error) {

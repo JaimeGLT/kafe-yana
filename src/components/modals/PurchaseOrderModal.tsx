@@ -20,7 +20,7 @@ interface PurchaseOrderModalProps {
   suppliers: Supplier[];
   products: Product[];
   onSuccess: () => void;
-  onSave: (input: PurchaseOrderInput) => void;
+  onSave?: (input: PurchaseOrderInput) => void;
 }
 
 const TAX_RATE = 0.18;
@@ -141,7 +141,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
         notes: notes.trim() || undefined,
       };
 
-      onSave(input);
+      onSave?.(input);
       toast.success('Orden de compra creada', 'La orden de compra fue registrada correctamente.');
       onSuccess();
       onClose();

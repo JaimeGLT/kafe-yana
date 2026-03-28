@@ -2,29 +2,18 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
-/**
- * Guarda de rutas protegidas.
- * - Si la sesión aún se está verificando → pantalla de carga
- * - Si no está autenticado → redirige a /login guardando la ruta original
- * - Si está autenticado → renderiza los hijos
- */
 export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isCheckingSession } = useAuth();
   const location = useLocation();
+  
 
+  // Mientras verifica → renderiza los hijos directamente
+  // El skeleton de cada página se encarga del loading state
   if (isCheckingSession) {
-    return (
-      <div className="min-h-screen bg-cafe-primary flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-coffee-300 border-t-coffee-600 rounded-full animate-spin" />
-          <p className="text-sm text-coffee-500">Verificando sesión…</p>
-        </div>
-      </div>
-    );
+    return <>{children}</>;
   }
 
   if (!isAuthenticated) {
-    // Guarda la ruta a la que el usuario quería ir para redirigir después del login
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

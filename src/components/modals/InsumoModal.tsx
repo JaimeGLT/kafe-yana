@@ -48,7 +48,7 @@ interface Props {
   onClose: () => void;
   insumo?: Insumo;
   onCreated?: (insumo: Insumo) => void;
-  onSave: (input: InsumoInput, isEdit: boolean, insumoId?: string) => Insumo | void;
+  onSave: (input: InsumoInput, isEdit: boolean, insumoId?: string) => Insumo | void | Promise<Insumo | void | undefined>;
 }
 
 export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onCreated, onSave }) => {

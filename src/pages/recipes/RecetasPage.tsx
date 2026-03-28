@@ -338,6 +338,19 @@ const RecetasPage: React.FC = () => {
         onClose={() => setIsModalOpen(false)}
         receta={editing}
         preselectedProductId={preselectedProductId}
+        insumos={insumos}
+        products={products}
+        onSave={async (recetaId, data) => {
+          const payload = { productoId: data.productId, porcionesBase: data.porcionesBase, ingredientes: data.ingredientes, notas: data.notas };
+          if (recetaId) {
+            await api.put(`/Recipes/recetas/${recetaId}`, payload);
+          } else {
+            await api.post('/Recipes/recetas', payload);
+          }
+          const updated = await api.get<Receta[]>('/recipes/recetas');
+          setRecetas(updated);
+          setIsModalOpen(false);
+        }}
       />
 
       <ConfirmModal

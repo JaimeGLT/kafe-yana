@@ -442,6 +442,8 @@ export const FidelizacionPage: React.FC = () => {
       consecutiveDays: 0,
       uniqueProductsBought: [],
       completedMissions: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
     return newProfile;
   }, [getProfile]);
@@ -611,11 +613,11 @@ export const FidelizacionPage: React.FC = () => {
     setSearch('');
   };
 
-  const handleRedeem = (rewardId: string) => {
+  const handleRedeem = async (rewardId: string) => {
     if (!selectedCustomerId || !selectedProfile) return;
     const reward = rewards.find(r => r.id === rewardId);
     if (!reward) return;
-    const ok = redeemPoints(selectedCustomerId, rewardId);
+    const ok = await redeemPoints(selectedCustomerId, rewardId);
     if (ok) {
       toast.success('¡Recompensa canjeada!', `${reward.name} canjeado exitosamente.`);
     } else {

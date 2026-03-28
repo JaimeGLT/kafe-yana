@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileText, Eye, CheckCircle, XCircle, Trash2, Plus, ShoppingCart } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
@@ -47,7 +47,7 @@ const PAYMENT_METHODS = [
   { value: 'card', label: 'Tarjeta' },
   { value: 'transfer', label: 'Transferencia' },
   { value: 'credit', label: 'Crédito (pago posterior)' },
-] as const;
+];
 
 type PaymentMethod = 'cash' | 'card' | 'transfer' | 'credit';
 
@@ -72,15 +72,13 @@ const emptyItem = (): FormItem => ({
 });
 
 // ── InvoiceForm ───────────────────────────────────────────────────────────────
-// Collects products + payment info. Billing data (NIT/name) is handled later.
 
 const InvoiceForm: React.FC<{
+  products: Product[];
   onSubmit: (data: PendingInvoiceData) => void;
   onCancel: () => void;
   isLoading?: boolean;
-}> = ({ onSubmit, onCancel, isLoading }) => {
-  const { products } = useInventoryStore();
-
+}> = ({ products, onSubmit, onCancel, isLoading }) => {
   const [items, setItems] = React.useState<FormItem[]>([emptyItem()]);
   const [paymentMethod, setPaymentMethod] = React.useState<PaymentMethod>('cash');
   const [dueDate, setDueDate] = React.useState('');
@@ -296,20 +294,34 @@ const InvoiceForm: React.FC<{
 // ── InvoicesPage ──────────────────────────────────────────────────────────────
 
 export const InvoicesPage: React.FC = () => {
-  const {
-    invoices,
-    createInvoiceFromItems,
-    markInvoicePaid,
-    cancelInvoice,
-    deleteInvoice,
-  } = useSalesStore();
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [viewingInvoice, setViewingInvoice] = React.useState<Invoice | null>(null);
-  const [payingInvoice, setPayingInvoice] = React.useState<Invoice | null>(null);
-  const [cancellingInvoice, setCancellingInvoice] = React.useState<Invoice | null>(null);
-  const [deletingInvoice, setDeletingInvoice] = React.useState<Invoice | null>(null);
-  const [isFormOpen, setIsFormOpen] = React.useState(false);
-  const [pendingData, setPendingData] = React.useState<PendingInvoiceData | null>(null);
+  const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null);
+  const [cancellingInvoice, setCancellingInvoice] = useState<Invoice | null>(null);
+  const [deletingInvoice, setDeletingInvoice] = useState<Invoice | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [pendingData, setPendingData] = useState<PendingInvoiceData | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [invoicesData, productsData] = await Promise.all([
+          api.get<Invoice[]>('/invoices'),
+          api.get<Product[]>('/products'),
+        ]);
+        setInvoices(invoicesData);
+        setProducts(productsData);
+      } catch {
+        toast.error('Error', 'No se pudieron cargar los datos.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   // Form → stores pending data → closes form → BillingModal appears
   const handleFormSubmit = (data: PendingInvoiceData) => {
@@ -317,15 +329,16 @@ export const InvoicesPage: React.FC = () => {
     setPendingData(data);
   };
 
-  // BillingModal → creates sale + invoice
-  const handleBillingDone = (billing: { nit: string; name: string }) => {
+  // BillingModal → creates invoice via API
+  const handleBillingDone = async (billing: { nit: string; name: string }) => {
     if (!pendingData) return;
     try {
-      const invoice = createInvoiceFromItems({
+      const invoice = await api.post<Invoice>('/invoices', {
         ...pendingData,
         customerName: billing.name,
         nit: billing.nit,
       });
+      setInvoices((prev) => [invoice, ...prev]);
       toast.success('Factura emitida', `Se generó la factura ${invoice.code} a "${billing.name}".`);
     } catch {
       toast.error('Error', 'No se pudo emitir la factura.');
@@ -334,26 +347,56 @@ export const InvoicesPage: React.FC = () => {
     }
   };
 
-  const handleMarkPaid = () => {
+  const handleMarkPaid = async () => {
     if (!payingInvoice) return;
-    markInvoicePaid(payingInvoice.id);
-    toast.success('Factura pagada', `La factura ${payingInvoice.code} fue marcada como pagada.`);
-    setPayingInvoice(null);
+    try {
+      const updated = await api.put<Invoice>(`/invoices/${payingInvoice.id}/pay`, {});
+      setInvoices((prev) => prev.map((inv) => inv.id === payingInvoice.id ? updated : inv));
+      toast.success('Factura pagada', `La factura ${payingInvoice.code} fue marcada como pagada.`);
+    } catch {
+      toast.error('Error', 'No se pudo marcar la factura como pagada.');
+    } finally {
+      setPayingInvoice(null);
+    }
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (!cancellingInvoice) return;
-    cancelInvoice(cancellingInvoice.id);
-    toast.success('Factura cancelada', `La factura ${cancellingInvoice.code} fue cancelada.`);
-    setCancellingInvoice(null);
+    try {
+      const updated = await api.put<Invoice>(`/invoices/${cancellingInvoice.id}/cancel`, {});
+      setInvoices((prev) => prev.map((inv) => inv.id === cancellingInvoice.id ? updated : inv));
+      toast.success('Factura cancelada', `La factura ${cancellingInvoice.code} fue cancelada.`);
+    } catch {
+      toast.error('Error', 'No se pudo cancelar la factura.');
+    } finally {
+      setCancellingInvoice(null);
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deletingInvoice) return;
-    deleteInvoice(deletingInvoice.id);
-    toast.success('Factura eliminada', 'La factura fue eliminada correctamente.');
-    setDeletingInvoice(null);
+    try {
+      await api.delete(`/invoices/${deletingInvoice.id}`);
+      setInvoices((prev) => prev.filter((inv) => inv.id !== deletingInvoice.id));
+      toast.success('Factura eliminada', 'La factura fue eliminada correctamente.');
+    } catch {
+      toast.error('Error', 'No se pudo eliminar la factura.');
+    } finally {
+      setDeletingInvoice(null);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <PageContainer>
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-coffee-600" />
+          </div>
+        </PageContainer>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -479,6 +522,7 @@ export const InvoicesPage: React.FC = () => {
           size="full"
         >
           <InvoiceForm
+            products={products}
             onSubmit={handleFormSubmit}
             onCancel={() => setIsFormOpen(false)}
           />

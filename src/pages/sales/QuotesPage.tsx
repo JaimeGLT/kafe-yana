@@ -6,7 +6,7 @@ import { Badge, ConfirmModal, Modal } from '../../components/ui';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../utils';
-import type { Quote } from '../../types';
+import type { Quote, Sale } from '../../types';
 
 const quoteStatusConfig: Record<
   Quote['status'],
@@ -43,7 +43,7 @@ export const QuotesPage: React.FC = () => {
 
   const convertQuoteToSale = useCallback(async (quoteId: string) => {
     try {
-      const sale = await api.post('/quotes/' + quoteId + '/convert');
+      const sale = await api.post<Sale>('/quotes/' + quoteId + '/convert');
       return sale;
     } catch (error) {
       console.error('Error converting quote:', error);
@@ -61,11 +61,11 @@ export const QuotesPage: React.FC = () => {
     }
   }, []);
 
-  const handleConvert = () => {
+  const handleConvert = async () => {
     if (!convertingQuote) return;
     setIsConverting(true);
     try {
-      const sale = convertQuoteToSale(convertingQuote.id);
+      const sale = await convertQuoteToSale(convertingQuote.id);
       if (sale) {
         toast.success('Cotización convertida', `Se creó la venta ${sale.code} exitosamente.`);
       } else {

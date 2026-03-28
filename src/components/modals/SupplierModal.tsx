@@ -11,7 +11,7 @@ interface SupplierModalProps {
   onClose: () => void;
   supplier?: Supplier;
   onSuccess: () => void;
-  onSave: (input: SupplierInput, isEdit: boolean, supplierId?: string) => void;
+  onSave?: (input: SupplierInput, isEdit: boolean, supplierId?: string) => void;
 }
 
 interface SupplierFormData {
@@ -124,7 +124,7 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
         isActive: formData.isActive,
       };
 
-      onSave(input, !!supplier, supplier?.id);
+      onSave?.(input, !!supplier, supplier?.id);
       onSuccess();
       onClose();
     } catch (error) {

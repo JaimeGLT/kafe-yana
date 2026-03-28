@@ -6,16 +6,16 @@ import { Input, Textarea } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { FormField, Form, FormRow, FormActions } from '../forms/FormField';
 import { toast } from '../ui/Toast';
-import type { CashMovementInput, CashRegister } from '../../types';
+import type { CashMovementInput } from '../../types';
 
 interface CashMovementModalProps {
   isOpen: boolean;
   onClose: () => void;
   type?: 'income' | 'expense';
   onSuccess: () => void;
-  categories: { id: string; name: string; type: 'income' | 'expense'; isActive: boolean }[];
-  currentRegister: CashRegister | null;
-  onSave: (input: CashMovementInput) => void;
+  categories?: { id: string; name: string; type: 'income' | 'expense'; isActive: boolean }[];
+  currentRegister?: { status: string } | null;
+  onSave?: (input: CashMovementInput) => void;
 }
 
 interface MovementFormData {
@@ -32,8 +32,8 @@ export const CashMovementModal: React.FC<CashMovementModalProps> = ({
   onClose,
   type: initialType = 'income',
   onSuccess,
-  categories,
-  currentRegister,
+  categories = [],
+  currentRegister = null,
   onSave,
 }) => {
   const [isLoading, setIsLoading] = React.useState(false);
@@ -119,7 +119,7 @@ export const CashMovementModal: React.FC<CashMovementModalProps> = ({
         notes: formData.notes.trim() || undefined,
       };
 
-      onSave(input);
+      onSave?.(input);
 
       const typeLabel = formData.type === 'income' ? 'Ingreso' : 'Egreso';
       toast.success(`${typeLabel} registrado`, `Se registró S/ ${parseFloat(formData.amount).toFixed(2)} correctamente.`);

@@ -36,7 +36,7 @@ interface UseStockManagerProps {
 
 export const useStockManager = ({ products, combos, insumos, recetas }: UseStockManagerProps) => {
   const getRecetaByProductId = useMemo(() => {
-    return (productId: string) => recetas.find((r) => r.productoId === productId);
+    return (productId: string) => recetas.find((r: any) => r.productoId === productId);
   }, [recetas]);
 
   /** Returns how many portions of `productId` (elaborado) are possible given current insumo stock */

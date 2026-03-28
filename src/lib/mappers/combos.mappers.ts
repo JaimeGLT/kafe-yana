@@ -24,6 +24,7 @@ export function mapProduct(n: ProductNode): Product {
     maxStock: 0,
     barcode: '',
     variations: [],
+    hasVariations: false,
     isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),

@@ -10,7 +10,8 @@ import { MainLayout } from '../../components/layout';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { formatCurrency } from '../../utils';
-import type { Product, Category, Customer, SaleInput, PaymentMethodType, OpcionSeleccionada, VariacionAtributo } from '../../types';
+import type { Product, Category, Customer, Sale, SaleInput, PaymentMethodType, OpcionSeleccionada, VariacionAtributo } from '../../types';
+import type { BillingData } from '../../components/modals/BillingModal';
 import type { LoyaltyProfile, PointsCalculation, MilestoneReward } from '../../types/loyalty';
 import { VariacionPickerModal } from '../../components/modals/VariacionPickerModal';
 import { BillingModal } from '../../components/modals/BillingModal';
@@ -278,7 +279,7 @@ export const POSPage: React.FC = () => {
 
   const addSale = useCallback(async (saleInput: SaleInput) => {
     try {
-      const sale = await api.post('/sales', saleInput);
+      const sale = await api.post<Sale>('/sales', saleInput);
       return sale;
     } catch (error) {
       console.error('Error adding sale:', error);
@@ -1391,9 +1392,12 @@ export const POSPage: React.FC = () => {
         <BillingModal
           isOpen={modalView === 'billing'}
           saleCode={lastSaleResult?.code}
-          onDone={async (billing: { tipoDocumento: 'boleta' | 'factura'; ruc?: string; razonSocial?: string; direccionFiscal?: string }) => {
+          onDone={async (billing: BillingData) => {
             if (pendingBillingSaleId) {
-              await generateInvoiceForSale(pendingBillingSaleId, billing);
+              const invoicePayload = billing.nit === '0'
+                ? { tipoDocumento: 'boleta' as const }
+                : { tipoDocumento: 'factura' as const, ruc: billing.nit, razonSocial: billing.name };
+              await generateInvoiceForSale(pendingBillingSaleId, invoicePayload);
             }
             setPendingBillingSaleId(null);
             setModalView('success');

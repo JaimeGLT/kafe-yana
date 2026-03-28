@@ -18,7 +18,7 @@ interface StockAdjustmentModalProps {
   onClose: () => void;
   onSuccess: () => void;
   products: Product[];
-  onSave: (input: StockAdjustmentInput) => void;
+  onSave?: (input: StockAdjustmentInput) => void;
 }
 
 const emptyItem = (): AdjustmentItem => ({ productId: '', adjustment: '' });
@@ -136,7 +136,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
         })),
       };
 
-      onSave(input);
+      onSave?.(input);
 
       const typeLabel = type === 'positive' ? 'Entrada' : 'Salida';
       toast.success(
