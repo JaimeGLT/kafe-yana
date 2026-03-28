@@ -6,6 +6,7 @@ import { PageContainer, PageHeader } from '../../components/layout';
 import { Button, Input } from '../../components/ui';
 import { VariacionModal } from '../../components/modals/VariacionModal';
 import { api } from '../../lib/api';
+import { gql } from '../../lib/graphql';
 import { formatCurrency } from '../../utils';
 import type { Product, VariacionAtributo, Insumo } from '../../types';
 
@@ -191,26 +192,56 @@ const ProductRow: React.FC<ProductRowProps> = ({
 const VariacionesPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
-  const [insumos, setInsumos] = useState<Insumo[]>([]);
+  const [insumos, _setInsumos] = useState<Insumo[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-
+  
   const fetchAtributos = useCallback(async () => {
-    const data = await api.get<VariacionAtributo[]>('/Inventory/variaciones');
-    setAtributos(data);
+    // TODO: implement when variaciones endpoint is ready
+    setAtributos([]);
   }, []);
 
   useEffect(() => {
+    interface ElaboradoNode {
+      id: number;
+      nombre: string;
+      descripcion: string;
+      precio: number;
+      categoria_Id: number;
+      unidad_medida: string;
+    }
+    interface ElaboradosResponse { elaborados: ElaboradoNode[] }
+
     const fetchData = async () => {
       try {
-        const [productsData, atributosData, insumosData] = await Promise.all([
-          api.get<Product[]>('/Inventory/products'),
-          api.get<VariacionAtributo[]>('/Inventory/variaciones'),
-          api.get<Insumo[]>('/Recipes/insumos'),
-        ]);
-        setProducts(productsData);
-        setAtributos(atributosData);
-        setInsumos(insumosData);
+        const elaboradosData = await gql<ElaboradosResponse>(`
+          query {
+            elaborados {
+              id nombre descripcion precio categoria_Id unidad_medida
+            }
+          }
+        `);
+        const mapped: Product[] = elaboradosData.elaborados.map((node) => ({
+          id: String(node.id),
+          code: String(node.id),
+          name: node.nombre,
+          description: node.descripcion,
+          tipo: 'elaborado' as const,
+          categoryId: String(node.categoria_Id),
+          categoryName: '',
+          unit: node.unidad_medida,
+          costPrice: 0,
+          salePrice: node.precio,
+          stock: 0,
+          minStock: 0,
+          maxStock: 0,
+          variations: [],
+          hasVariations: false,
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }));
+        setProducts(mapped);
       } catch (error) {
         console.error('Error loading variaciones data:', error);
       } finally {
@@ -307,8 +338,49 @@ const VariacionesPage: React.FC = () => {
     return (
       <MainLayout>
         <PageContainer>
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-coffee-600"></div>
+          {/* Header skeleton */}
+          <div className="space-y-2">
+            <div className="h-7 w-64 bg-coffee-100 rounded-lg animate-pulse" />
+            <div className="h-4 w-96 bg-coffee-100 rounded animate-pulse" />
+          </div>
+
+          {/* Info banner skeleton */}
+          <div className="h-12 w-full bg-amber-50 border border-amber-100 rounded-xl animate-pulse" />
+
+          {/* KPI cards skeleton */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="bg-white rounded-xl border border-coffee-100 shadow-sm p-5 flex items-center gap-4">
+                <div className="h-12 w-12 rounded-xl bg-coffee-100 animate-pulse flex-shrink-0" />
+                <div className="space-y-2 flex-1">
+                  <div className="h-6 w-16 bg-coffee-100 rounded animate-pulse" />
+                  <div className="h-3 w-32 bg-coffee-100 rounded animate-pulse" />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Product list skeleton */}
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm">
+            <div className="px-6 py-4 border-b border-coffee-100 flex items-center justify-between">
+              <div className="space-y-1.5">
+                <div className="h-5 w-44 bg-coffee-100 rounded animate-pulse" />
+                <div className="h-3 w-64 bg-coffee-100 rounded animate-pulse" />
+              </div>
+              <div className="h-9 w-48 bg-coffee-100 rounded-lg animate-pulse" />
+            </div>
+            <div className="p-4 space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="border border-coffee-100 rounded-xl p-4 flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-amber-100 animate-pulse flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-40 bg-coffee-100 rounded animate-pulse" />
+                    <div className="h-3 w-56 bg-coffee-100 rounded animate-pulse" />
+                  </div>
+                  <div className="h-8 w-24 bg-coffee-100 rounded-lg animate-pulse" />
+                </div>
+              ))}
+            </div>
           </div>
         </PageContainer>
       </MainLayout>
