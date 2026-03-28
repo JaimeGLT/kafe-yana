@@ -69,11 +69,12 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
 
   const handleSaveReceta = (
     recetaId: string | undefined,
-    data: { productId: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string },
+    data: { productId: string; nombre?: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string },
     _productName: string,
   ) => {
     const payload = {
       productoId: data.productId,
+      nombre: data.nombre,
       porcionesBase: data.porcionesBase,
       ingredientes: data.ingredientes,
       notas: data.notas,

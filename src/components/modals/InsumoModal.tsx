@@ -232,7 +232,7 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onCreate
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-coffee-700 mb-1">
-              Stock actual ({form.unidadMinima})
+              Stock actual ({form.unidadCompra})
             </label>
             <Input
               type="number"
@@ -244,7 +244,7 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onCreate
           </div>
           <div>
             <label className="block text-sm font-medium text-coffee-700 mb-1">
-              Stock mínimo ({form.unidadMinima}) — alerta
+              Stock mínimo ({form.unidadCompra}) — alerta
             </label>
             <Input
               type="number"

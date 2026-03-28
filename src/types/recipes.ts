@@ -50,6 +50,7 @@ export interface Receta extends BaseEntity {
   id: UUID;
   productId: UUID;
   productName: string;
+  nombre?: string;
   porcionesBase: number;         // cuántas porciones produce esta receta
   ingredientes: RecetaIngrediente[];
   costoTotal: number;            // suma de todos los subtotales
@@ -60,6 +61,7 @@ export interface Receta extends BaseEntity {
 
 export interface RecetaInput {
   productId: UUID;
+  nombre?: string;
   porcionesBase: number;
   ingredientes: {
     insumoId: UUID;

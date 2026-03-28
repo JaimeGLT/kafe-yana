@@ -341,7 +341,7 @@ const RecetasPage: React.FC = () => {
         insumos={insumos}
         products={products}
         onSave={async (recetaId, data) => {
-          const payload = { productoId: data.productId, porcionesBase: data.porcionesBase, ingredientes: data.ingredientes, notas: data.notas };
+          const payload = { productoId: data.productId, nombre: data.nombre, porcionesBase: data.porcionesBase, ingredientes: data.ingredientes, notas: data.notas };
           if (recetaId) {
             await api.put(`/Recipes/recetas/${recetaId}`, payload);
           } else {

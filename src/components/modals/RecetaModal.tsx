@@ -31,7 +31,7 @@ export interface RecetaFormProps {
   productOverride?: { id: string; name: string; salePrice: number };
   insumos: Insumo[];
   products: Product[];
-  onSave: (recetaId: string | undefined, data: { productId: string; porcionesBase: number; ingredientes: IngredienteLine[]; notas?: string }, productName: string) => void;
+  onSave: (recetaId: string | undefined, data: { productId: string; nombre?: string; porcionesBase: number; ingredientes: IngredienteLine[]; notas?: string }, productName: string) => void;
 }
 
 // ── Form content (reusable without Modal wrapper) ─────────────────────────────
@@ -48,6 +48,7 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
   const [isLoading, setIsLoading] = useState(false);
 
   const [productId, setProductId] = useState('');
+  const [nombre, setNombre] = useState('');
   const [porcionesBase, setPorcionesBase] = useState(1);
   const [ingredientes, setIngredientes] = useState<IngredienteLine[]>([
     { insumoId: '', quantity: 0, merma: 0 },
@@ -80,6 +81,7 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
   useEffect(() => {
     if (receta) {
       setProductId(receta.productId);
+      setNombre(receta.nombre ?? '');
       setPorcionesBase(receta.porcionesBase);
       setIngredientes(
         receta.ingredientes.map((ing) => ({
@@ -91,6 +93,7 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
       setNotas(receta.notas ?? '');
     } else {
       setProductId(preselectedProductId ?? '');
+      setNombre('');
       setPorcionesBase(1);
       setIngredientes([{ insumoId: '', quantity: 0, merma: 0 }]);
       setNotas('');
@@ -153,7 +156,7 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
     setIsLoading(true);
     const productName = productOverride?.name ?? products.find((p) => p.id === productId)?.name ?? '';
     try {
-      onSave(receta?.id, { productId, porcionesBase, ingredientes, notas }, productName);
+      onSave(receta?.id, { productId, nombre: nombre.trim() || undefined, porcionesBase, ingredientes, notas }, productName);
       onClose();
     } finally {
       setIsLoading(false);
@@ -187,6 +190,18 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
           />
           <p className="text-xs text-coffee-400 mt-1">Ej: 1 torta = 8 porciones</p>
         </div>
+      </div>
+
+      {/* Nombre de la receta */}
+      <div>
+        <label className="block text-sm font-medium text-coffee-700 mb-1">
+          Nombre de la receta <span className="text-coffee-400 font-normal">(opcional)</span>
+        </label>
+        <Input
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          placeholder="Ej: Cappuccino clásico, Torta de chocolate 20cm…"
+        />
       </div>
 
       {/* Ingredients table */}

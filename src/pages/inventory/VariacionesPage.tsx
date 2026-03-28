@@ -5,7 +5,6 @@ import { MainLayout } from '../../components/layout';
 import { PageContainer, PageHeader } from '../../components/layout';
 import { Button, Input } from '../../components/ui';
 import { VariacionModal } from '../../components/modals/VariacionModal';
-import { api } from '../../lib/api';
 import { gql } from '../../lib/graphql';
 import { formatCurrency } from '../../utils';
 import type { Product, VariacionAtributo, Insumo } from '../../types';
@@ -196,11 +195,6 @@ const VariacionesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   
-  const fetchAtributos = useCallback(async () => {
-    // TODO: implement when variaciones endpoint is ready
-    setAtributos([]);
-  }, []);
-
   useEffect(() => {
     interface ElaboradoNode {
       id: number;
@@ -251,55 +245,85 @@ const VariacionesPage: React.FC = () => {
     fetchData();
   }, []);
 
-  // ── Handlers de API ──────────────────────────────────────────────────────────
+  // ── Handlers locales (sin API) ───────────────────────────────────────────────
 
   const handleAddAtributo = useCallback(async (
     productId: string,
     data: { nombre: string; esRequerido: boolean }
   ): Promise<VariacionAtributo> => {
-    const nuevo = await api.post<VariacionAtributo>('/Inventory/variaciones', {
+    const nuevo: VariacionAtributo = {
+      id: `local-${Date.now()}`,
       productId,
       nombre: data.nombre,
       esRequerido: data.esRequerido,
-    });
-    await fetchAtributos();
+      opciones: [],
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    setAtributos((prev) => [...prev, nuevo]);
     return nuevo;
-  }, [fetchAtributos]);
+  }, []);
 
   const handleUpdateAtributo = useCallback(async (
     atributoId: string,
     data: { nombre: string; esRequerido: boolean }
   ): Promise<void> => {
-    await api.put(`/Inventory/variaciones/${atributoId}`, data);
-    await fetchAtributos();
-  }, [fetchAtributos]);
+    setAtributos((prev) =>
+      prev.map((a) => a.id === atributoId ? { ...a, ...data, updatedAt: new Date() } : a)
+    );
+  }, []);
 
   const handleDeleteAtributo = useCallback(async (atributoId: string): Promise<void> => {
-    await api.delete(`/Inventory/variaciones/${atributoId}`);
-    await fetchAtributos();
-  }, [fetchAtributos]);
+    setAtributos((prev) =>
+      prev.map((a) => a.id === atributoId ? { ...a, isActive: false } : a)
+    );
+  }, []);
 
   const handleAddOpcion = useCallback(async (
     atributoId: string,
     data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }
   ): Promise<void> => {
-    await api.post(`/Inventory/variaciones/${atributoId}/opciones`, data);
-    await fetchAtributos();
-  }, [fetchAtributos]);
+    const nuevaOpcion = {
+      id: `local-${Date.now()}`,
+      atributoId,
+      nombre: data.nombre,
+      precioAjuste: data.precioAjuste,
+      insumoReemplazadoId: data.insumoReemplazadoId,
+      insumoExtraId: data.insumoExtraId,
+      cantidadExtra: data.cantidadExtra,
+      isActive: true,
+    };
+    setAtributos((prev) =>
+      prev.map((a) =>
+        a.id === atributoId ? { ...a, opciones: [...a.opciones, nuevaOpcion] } : a
+      )
+    );
+  }, []);
 
   const handleUpdateOpcion = useCallback(async (
     atributoId: string,
     opcionId: string,
     data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }
   ): Promise<void> => {
-    await api.put(`/Inventory/variaciones/${atributoId}/opciones/${opcionId}`, data);
-    await fetchAtributos();
-  }, [fetchAtributos]);
+    setAtributos((prev) =>
+      prev.map((a) =>
+        a.id === atributoId
+          ? { ...a, opciones: a.opciones.map((o) => o.id === opcionId ? { ...o, ...data } : o) }
+          : a
+      )
+    );
+  }, []);
 
   const handleDeleteOpcion = useCallback(async (atributoId: string, opcionId: string): Promise<void> => {
-    await api.delete(`/Inventory/variaciones/${atributoId}/opciones/${opcionId}`);
-    await fetchAtributos();
-  }, [fetchAtributos]);
+    setAtributos((prev) =>
+      prev.map((a) =>
+        a.id === atributoId
+          ? { ...a, opciones: a.opciones.map((o) => o.id === opcionId ? { ...o, isActive: false } : o) }
+          : a
+      )
+    );
+  }, []);
 
   // ── Computed ─────────────────────────────────────────────────────────────────
 
