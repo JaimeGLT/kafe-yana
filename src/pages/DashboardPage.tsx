@@ -22,8 +22,8 @@ import type { InventoryStats, SalesStats, CashStats } from '../types';
 const DashboardPage: React.FC = () => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [movements, setMovements] = useState<CashMovement[]>([]);
-  const [cashRegisters, setCashRegisters] = useState<CashRegister[]>([]);
+  const [_movements, setMovements] = useState<CashMovement[]>([]);
+  const [_cashRegisters, setCashRegisters] = useState<CashRegister[]>([]);
   const [salesStats, setSalesStats] = useState<SalesStats | null>(null);
   const [inventoryStats, setInventoryStats] = useState<InventoryStats | null>(null);
   const [cashStats, setCashStats] = useState<CashStats | null>(null);

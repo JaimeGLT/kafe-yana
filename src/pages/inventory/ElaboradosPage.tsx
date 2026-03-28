@@ -21,11 +21,10 @@ import { MainLayout } from '../../components/layout';
 import { PageContainer, PageHeader } from '../../components/layout';
 import { Button, Input, Select } from '../../components/ui';
 import { HelpTooltip } from '../../components/ui/Tooltip';
-import { RecetaModal, RecetaFormContent } from '../../components/modals/RecetaModal';
+import { RecetaModal } from '../../components/modals/RecetaModal';
 import { InsumoModal } from '../../components/modals/InsumoModal';
 import { EditElaboradoModal } from '../../components/modals/EditElaboradoModal';
 import { toast } from '../../components/ui/Toast';
-import { useStockManager } from '../../hooks/useStockManager';
 import type { Product, Receta, Insumo } from '../../types';
 import { formatCurrency } from '../../utils';
 
@@ -784,7 +783,7 @@ const ElaboradosPage: React.FC = () => {
     return recetas.find((r: Receta) => r.productId === productId);
   }, [recetas]);
 
-  const getElaboradoAvailability = useCallback((productId: string) => {
+  const getElaboradoAvailability = useCallback((_productId: string) => {
     // Simple implementation - in production this would calculate based on insumos
     return 999 as number; // Default availability
   }, []);

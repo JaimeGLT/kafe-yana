@@ -12,6 +12,7 @@ export interface Category extends BaseEntity {
   parentId?: UUID;
   sortOrder: number;
   isActive: boolean;
+  productCount?: number;
 }
 
 export interface CategoryInput {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, Tag } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
@@ -43,6 +43,7 @@ const CategoriesPage: React.FC = () => {
       isActive: n.estado,
       color: n.color,
       productCount: n.cantidad,
+      sortOrder: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     }));
