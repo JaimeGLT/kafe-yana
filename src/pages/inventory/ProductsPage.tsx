@@ -13,8 +13,6 @@ import { api } from '../../lib/api';
 import type { Product, Category, Brand, Location, ProductTipo, Combo } from '../../types';
 import { formatCurrency } from '../../utils';
 
-interface ProductsPageProps {}
-
 type TabTipo = 'todos' | ProductTipo;
 
 interface TabDef {
@@ -99,17 +97,6 @@ interface CompradoDetailGqlResponse {
   };
 }
 
-interface ElaboradoDetailGqlResponse {
-  elaborado: {
-    id: number;
-    nombre: string;
-    descripcion: string;
-    precio: number;
-    categoria_Id: number;
-    unidad_medida: string;
-  };
-}
-
 interface ComboDetailGqlResponse {
   combo: {
     id: number;
@@ -156,7 +143,7 @@ function mapNode(node: ProductNode): Product {
   };
 }
 
-const ProductsPage: React.FC<ProductsPageProps> = () => {
+const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [recetaApiMap, setRecetaApiMap] = useState<Record<string, boolean>>({});
