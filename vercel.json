@@ -1,16 +1,20 @@
 {
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/:path*",
-      "destination": "https://kafeyanaapi20260321224446-bqdjh9acame8gydt.centralus-01.azurewebsites.net/:path*"
+      "src": "/api/(.*)",
+      "dest": "https://kafeyanaapi20260321224446-bqdjh9acame8gydt.centralus-01.azurewebsites.net/api/$1"
     },
     {
-      "source": "/graphql/:path*",
-      "destination": "https://kafeyanaapi20260321224446-bqdjh9acame8gydt.centralus-01.azurewebsites.net/graphql/:path*"
+      "src": "/graphql/(.*)",
+      "dest": "https://kafeyanaapi20260321224446-bqdjh9acame8gydt.centralus-01.azurewebsites.net/graphql/$1"
     },
     {
-      "source": "/(.*)",
-      "destination": "/index.html" 
+      "src": "/graphql",
+      "dest": "https://kafeyanaapi20260321224446-bqdjh9acame8gydt.centralus-01.azurewebsites.net/graphql/"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }
