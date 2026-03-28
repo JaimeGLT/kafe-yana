@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://kafeyanaapi20260321224446-bqdjh9acame8gydt.centralus-01.azurewebsites.net/:path*"
+    },
+    {
+      "source": "/graphql/:path*",
+      "destination": "https://kafeyanaapi20260321224446-bqdjh9acame8gydt.centralus-01.azurewebsites.net/graphql/:path*"
+    }
+  ]
+}
