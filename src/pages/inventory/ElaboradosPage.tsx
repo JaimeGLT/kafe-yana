@@ -789,7 +789,7 @@ const ElaboradosPage: React.FC = () => {
     return 999 as number; // Default availability
   }, []);
 
-  const addReceta = useCallback(async (recetaData: { productId: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string }, productName: string) => {
+  const addReceta = useCallback(async (recetaData: { productId: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string }, _productName: string) => {
     try {
       await api.post('/Recipes/recetas', {
         productoId: recetaData.productId,

@@ -32,7 +32,7 @@ const tooltipStyle = {
 const CashReportPage: React.FC = () => {
   const [movements, setMovements] = useState<CashMovement[]>([]);
   const [cashRegisters, setCashRegisters] = useState<CashRegister[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {

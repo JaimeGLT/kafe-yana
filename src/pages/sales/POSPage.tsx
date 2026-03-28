@@ -240,7 +240,7 @@ export const POSPage: React.FC = () => {
   const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
   const [loyaltyProfiles, setLoyaltyProfiles] = useState<LoyaltyProfile[]>([]);
   const [milestones, setMilestones] = useState<MilestoneReward[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
 
   // Load data from API
   useEffect(() => {
@@ -337,7 +337,7 @@ export const POSPage: React.FC = () => {
     };
   }, [getOrCreateProfile]);
 
-  const awardPointsForSale = useCallback((customerId: string, saleId: string, total: number, hasCombo: boolean): PointsCalculation | null => {
+  const awardPointsForSale = useCallback((customerId: string, _saleId: string, total: number, hasCombo: boolean): PointsCalculation | null => {
     const calc = calculatePointsForAmount(customerId, total, hasCombo);
     if (!calc) return null;
 

@@ -29,7 +29,7 @@ const payableStatusConfig: Record<
 
 export const PayablesPage: React.FC = () => {
   const [accountsPayable, setAccountsPayable] = useState<AccountsPayable[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [_isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const [payingPayable, setPayingPayable] = useState<AccountsPayable | null>(null);

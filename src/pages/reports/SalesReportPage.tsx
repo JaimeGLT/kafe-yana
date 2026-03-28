@@ -35,7 +35,7 @@ const tooltipStyle = {
 
 const SalesReportPage: React.FC = () => {
   const [sales, setSales] = useState<Sale[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchSales = async () => {

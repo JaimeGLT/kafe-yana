@@ -386,7 +386,7 @@ export const FidelizacionPage: React.FC = () => {
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [milestones, setMilestones] = useState<MilestoneReward[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);

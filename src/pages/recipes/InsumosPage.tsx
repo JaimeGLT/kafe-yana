@@ -13,7 +13,7 @@ import { formatCurrency } from '../../utils';
 const InsumosPage: React.FC = () => {
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [recetas, setRecetas] = useState<Receta[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterCategoria, setFilterCategoria] = useState('');
   const [filterStock, setFilterStock] = useState('');
