@@ -283,7 +283,7 @@ interface OpcionRowProps {
   atributoId: string;
   insumoOptions: { value: string; label: string }[];
   onDelete: (opcionId: string) => void;
-  onUpdateOpcion: (atributoId: string, opcionId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }) => void;
+  onUpdateOpcion: (atributoId: string, opcionId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: AjusteCantidad[] }) => void;
 }
 
 const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, insumoOptions, onDelete, onUpdateOpcion }) => {
