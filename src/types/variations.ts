@@ -1,14 +1,21 @@
 import type { UUID } from './common';
 
+export interface AjusteCantidad {
+  insumoId: UUID;
+  cantidad: number;
+}
+
 export interface VariacionOpcion {
   id: UUID;
   atributoId: UUID;
   nombre: string;
   precioAjuste: number;
-  // Optional ingredient override for this option
+  // Ingredient substitution (reemplazar)
   insumoExtraId?: UUID;
   cantidadExtra?: number;
-  insumoReemplazadoId?: UUID; // which base recipe ingredient this replaces
+  insumoReemplazadoId?: UUID;
+  // Ingredient quantity overrides (modifica cantidad)
+  ajustesCantidad?: AjusteCantidad[];
   isActive: boolean;
 }
 
@@ -35,6 +42,7 @@ export interface VariacionOpcionInput {
   insumoExtraId?: UUID;
   cantidadExtra?: number;
   insumoReemplazadoId?: UUID;
+  ajustesCantidad?: AjusteCantidad[];
   isActive?: boolean;
 }
 
@@ -48,4 +56,5 @@ export interface OpcionSeleccionada {
   insumoExtraId?: UUID;
   cantidadExtra?: number;
   insumoReemplazadoId?: UUID;
+  ajustesCantidad?: AjusteCantidad[];
 }

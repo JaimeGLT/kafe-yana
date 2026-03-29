@@ -1,6 +1,6 @@
 import React from 'react';
 import { clsx } from 'clsx';
-import { Plus, Trash2, ChevronDown, ChevronRight, Edit2, Check, X, ArrowRight, Repeat2 } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronRight, Edit2, Check, X, ArrowRight, Repeat2, SlidersHorizontal } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -8,7 +8,7 @@ import { Select } from '../ui/Select';
 import { HelpTooltip } from '../ui/Tooltip';
 import { ConfirmModal } from '../ui/Modal';
 import { toast } from '../ui/Toast';
-import type { VariacionAtributo, VariacionOpcion, Insumo } from '../../types';
+import type { VariacionAtributo, VariacionOpcion, Insumo, AjusteCantidad } from '../../types';
 
 interface Props {
   isOpen: boolean;
@@ -20,21 +20,29 @@ interface Props {
   onAddAtributo: (productId: string, data: { nombre: string; esRequerido: boolean }) => Promise<VariacionAtributo>;
   onUpdateAtributo: (atributoId: string, data: { nombre: string; esRequerido: boolean }) => Promise<void>;
   onDeleteAtributo: (atributoId: string) => Promise<void>;
-  onAddOpcion: (atributoId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }) => Promise<void>;
-  onUpdateOpcion: (atributoId: string, opcionId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }) => Promise<void>;
+  onAddOpcion: (atributoId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: AjusteCantidad[] }) => Promise<void>;
+  onUpdateOpcion: (atributoId: string, opcionId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: AjusteCantidad[] }) => Promise<void>;
   onDeleteOpcion: (atributoId: string, opcionId: string) => Promise<void>;
 }
 
 // ── Opcion form state ─────────────────────────────────────────────────────────
 
+interface AjusteCantidadRow {
+  insumoId: string;
+  cantidad: string;
+}
+
 interface OpcionFormState {
   nombre: string;
   precioAjuste: string;
-  // Ingredient swap (the three fields always belong together)
-  sustituye: boolean;           // toggle: does this option swap an ingredient?
-  insumoReemplazadoId: string;  // which base-recipe ingredient to REMOVE
-  insumoExtraId: string;        // which ingredient to USE instead
-  cantidadExtra: string;        // how much of the replacement
+  // Mode 1: ingredient substitution
+  sustituye: boolean;
+  insumoReemplazadoId: string;
+  insumoExtraId: string;
+  cantidadExtra: string;
+  // Mode 2: quantity override (multiple ingredients)
+  modificaCantidad: boolean;
+  ajustesCantidad: AjusteCantidadRow[];
 }
 
 const emptyOpcionForm = (): OpcionFormState => ({
@@ -44,6 +52,8 @@ const emptyOpcionForm = (): OpcionFormState => ({
   insumoReemplazadoId: '',
   insumoExtraId: '',
   cantidadExtra: '',
+  modificaCantidad: false,
+  ajustesCantidad: [],
 });
 
 const opcionToForm = (opcion: VariacionOpcion): OpcionFormState => ({
@@ -53,6 +63,8 @@ const opcionToForm = (opcion: VariacionOpcion): OpcionFormState => ({
   insumoReemplazadoId: opcion.insumoReemplazadoId ?? '',
   insumoExtraId: opcion.insumoExtraId ?? '',
   cantidadExtra: opcion.cantidadExtra !== undefined ? String(opcion.cantidadExtra) : '',
+  modificaCantidad: !!(opcion.ajustesCantidad?.length),
+  ajustesCantidad: opcion.ajustesCantidad?.map((a) => ({ insumoId: a.insumoId, cantidad: String(a.cantidad) })) ?? [],
 });
 
 // ── Ingredient swap sub-form ──────────────────────────────────────────────────
@@ -76,7 +88,7 @@ const SustitucionFields: React.FC<SustitucionFieldsProps> = ({ form, setForm, in
         <input
           type="checkbox"
           checked={form.sustituye}
-          onChange={(e) => setForm({ ...form, sustituye: e.target.checked, insumoReemplazadoId: '', insumoExtraId: '', cantidadExtra: '' })}
+          onChange={(e) => setForm({ ...form, sustituye: e.target.checked, insumoReemplazadoId: '', insumoExtraId: '', cantidadExtra: '', modificaCantidad: false, ajustesCantidad: [] })}
           className="mt-0.5 h-4 w-4 rounded border-coffee-300 text-blue-600 focus:ring-blue-400"
         />
         <div>
@@ -152,6 +164,118 @@ const SustitucionFields: React.FC<SustitucionFieldsProps> = ({ form, setForm, in
   );
 };
 
+// ── Quantity-override sub-form ────────────────────────────────────────────────
+
+interface ModificaCantidadFieldsProps {
+  form: OpcionFormState;
+  setForm: (f: OpcionFormState) => void;
+  insumoOptions: { value: string; label: string }[];
+  compact?: boolean;
+}
+
+const ModificaCantidadFields: React.FC<ModificaCantidadFieldsProps> = ({ form, setForm, insumoOptions, compact }) => {
+  const labelClass = compact ? 'text-xs font-medium text-coffee-600' : 'text-sm font-medium text-coffee-700';
+
+  const addRow = () =>
+    setForm({ ...form, ajustesCantidad: [...form.ajustesCantidad, { insumoId: '', cantidad: '' }] });
+
+  const removeRow = (i: number) =>
+    setForm({ ...form, ajustesCantidad: form.ajustesCantidad.filter((_, idx) => idx !== i) });
+
+  const updateRow = (i: number, field: keyof AjusteCantidadRow, value: string) => {
+    const rows = form.ajustesCantidad.map((r, idx) => (idx === i ? { ...r, [field]: value } : r));
+    setForm({ ...form, ajustesCantidad: rows });
+  };
+
+  return (
+    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 space-y-3">
+      {/* Toggle header */}
+      <label className="flex items-start gap-2.5 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={form.modificaCantidad}
+          onChange={(e) =>
+            setForm({
+              ...form,
+              modificaCantidad: e.target.checked,
+              ajustesCantidad: e.target.checked ? [{ insumoId: '', cantidad: '' }] : [],
+              // clear the other mode
+              sustituye: false,
+              insumoReemplazadoId: '',
+              insumoExtraId: '',
+              cantidadExtra: '',
+            })
+          }
+          className="mt-0.5 h-4 w-4 rounded border-coffee-300 text-emerald-600 focus:ring-emerald-400"
+        />
+        <div>
+          <p className="text-sm font-semibold text-emerald-800 flex items-center gap-1.5">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Esta opción modifica la cantidad de un ingrediente
+          </p>
+          <p className="text-xs text-emerald-600 mt-0.5">
+            Solo para productos con receta. Ej: "Grande" usa 300 ml de leche en vez de 200 ml.
+          </p>
+        </div>
+      </label>
+
+      {/* Ingredient rows — only visible when toggle is on */}
+      {form.modificaCantidad && (
+        <div className="space-y-2 pt-1 border-t border-emerald-200">
+          {form.ajustesCantidad.map((row, i) => (
+            <div key={i} className="flex items-end gap-2">
+              <div className="flex-1">
+                {i === 0 && (
+                  <span className={clsx(labelClass, 'text-emerald-700 block mb-1')}>
+                    Ingrediente a modificar
+                  </span>
+                )}
+                <Select
+                  options={[{ value: '', label: '— Seleccionar… —' }, ...insumoOptions]}
+                  value={row.insumoId}
+                  onChange={(v) => updateRow(i, 'insumoId', v)}
+                />
+              </div>
+              <div className="w-28 shrink-0">
+                {i === 0 && (
+                  <span className={clsx(labelClass, 'block mb-1')}>Nueva cantidad</span>
+                )}
+                <Input
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  value={row.cantidad}
+                  onChange={(e) => updateRow(i, 'cantidad', e.target.value)}
+                  placeholder="Ej: 300"
+                  disabled={!row.insumoId}
+                />
+              </div>
+              {form.ajustesCantidad.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeRow(i)}
+                  className="mb-0.5 p-1.5 rounded hover:bg-red-100 text-coffee-400 hover:text-red-500 transition-colors shrink-0"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={addRow}
+            className="flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-900 font-medium"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Añadir otro ingrediente
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Opcion display row (read mode) ────────────────────────────────────────────
 
 interface OpcionRowProps {
@@ -171,12 +295,18 @@ const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, insumoOptions
       toast.warning('Campo requerido', 'El nombre de la opción es obligatorio.');
       return;
     }
+    const ajustesCantidad = form.modificaCantidad
+      ? form.ajustesCantidad
+          .filter((r) => r.insumoId && r.cantidad)
+          .map((r) => ({ insumoId: r.insumoId, cantidad: parseFloat(r.cantidad) }))
+      : undefined;
     await onUpdateOpcion(atributoId, opcion.id, {
       nombre: form.nombre.trim(),
       precioAjuste: parseFloat(form.precioAjuste) || 0,
       insumoReemplazadoId: form.sustituye && form.insumoReemplazadoId ? form.insumoReemplazadoId : undefined,
       insumoExtraId: form.sustituye && form.insumoExtraId ? form.insumoExtraId : undefined,
       cantidadExtra: form.sustituye && form.cantidadExtra ? parseFloat(form.cantidadExtra) : undefined,
+      ajustesCantidad: ajustesCantidad?.length ? ajustesCantidad : undefined,
     });
     setEditing(false);
     toast.success('Opción actualizada');
@@ -189,6 +319,10 @@ const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, insumoOptions
   const insumoUsarNombre = opcion.insumoExtraId
     ? insumoOptions.find((o) => o.value === opcion.insumoExtraId)?.label
     : null;
+  const ajustesNombres = opcion.ajustesCantidad?.map((a) => ({
+    nombre: insumoOptions.find((o) => o.value === a.insumoId)?.label ?? a.insumoId,
+    cantidad: a.cantidad,
+  })) ?? [];
 
   if (!editing) {
     return (
@@ -216,6 +350,19 @@ const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, insumoOptions
               usa <strong>{insumoUsarNombre}</strong>
               {opcion.cantidadExtra && ` (${opcion.cantidadExtra})`}
             </p>
+          )}
+          {/* Quantity-override summary */}
+          {ajustesNombres.length > 0 && (
+            <div className="space-y-0.5">
+              {ajustesNombres.map((a, i) => (
+                <p key={i} className="text-xs text-emerald-700 flex items-center gap-1">
+                  <SlidersHorizontal className="h-3 w-3 shrink-0" />
+                  <strong>{a.nombre}</strong>
+                  <ArrowRight className="h-3 w-3 shrink-0" />
+                  {a.cantidad}
+                </p>
+              ))}
+            </div>
           )}
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -262,6 +409,7 @@ const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, insumoOptions
       </div>
 
       <SustitucionFields form={form} setForm={setForm} insumoOptions={insumoOptions} />
+      <ModificaCantidadFields form={form} setForm={setForm} insumoOptions={insumoOptions} />
 
       <div className="flex gap-2 justify-end pt-1">
         <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
@@ -314,6 +462,7 @@ const NuevaOpcionForm: React.FC<NuevaOpcionFormProps> = ({ form, setForm, insumo
     </div>
 
     <SustitucionFields form={form} setForm={setForm} insumoOptions={insumoOptions} compact />
+    <ModificaCantidadFields form={form} setForm={setForm} insumoOptions={insumoOptions} compact />
 
     <Button
       size="sm"
@@ -425,12 +574,18 @@ export const VariacionModal: React.FC<Props> = ({
       toast.warning('Campo requerido', 'El nombre de la opción es obligatorio.');
       return;
     }
+    const ajustesCantidad = form.modificaCantidad
+      ? form.ajustesCantidad
+          .filter((r) => r.insumoId && r.cantidad)
+          .map((r) => ({ insumoId: r.insumoId, cantidad: parseFloat(r.cantidad) }))
+      : undefined;
     await onAddOpcion(atributoId, {
       nombre: form.nombre.trim(),
       precioAjuste: parseFloat(form.precioAjuste) || 0,
       insumoReemplazadoId: form.sustituye && form.insumoReemplazadoId ? form.insumoReemplazadoId : undefined,
       insumoExtraId: form.sustituye && form.insumoExtraId ? form.insumoExtraId : undefined,
       cantidadExtra: form.sustituye && form.cantidadExtra ? parseFloat(form.cantidadExtra) : undefined,
+      ajustesCantidad: ajustesCantidad?.length ? ajustesCantidad : undefined,
     });
     setOpcionForm(atributoId, emptyOpcionForm());
     toast.success('Opción añadida');
