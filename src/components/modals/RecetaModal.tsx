@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { toast } from '../ui/Toast';
+import { api } from '../../lib/api';
 import type { Receta, Insumo, Product } from '../../types';
 import { formatCurrency } from '../../utils';
 
@@ -31,7 +32,7 @@ export interface RecetaFormProps {
   productOverride?: { id: string; name: string; salePrice: number };
   insumos: Insumo[];
   products: Product[];
-  onSave: (recetaId: string | undefined, data: { productId: string; nombre?: string; porcionesBase: number; ingredientes: IngredienteLine[]; notas?: string }, productName: string) => void;
+  onSuccess: () => void;
 }
 
 // ── Form content (reusable without Modal wrapper) ─────────────────────────────
@@ -43,7 +44,7 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
   productOverride,
   insumos,
   products,
-  onSave,
+  onSuccess,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
 
@@ -150,14 +151,38 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
     return errs.length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
     setIsLoading(true);
     const productName = productOverride?.name ?? products.find((p) => p.id === productId)?.name ?? '';
     try {
-      onSave(receta?.id, { productId, nombre: nombre.trim() || undefined, porcionesBase, ingredientes, notas }, productName);
+      const body = {
+        nombre: nombre.trim() || productName,
+        nota: notas.trim(),
+        id_Elaborado: Number(productId),
+        detalles: ingredientes.map((ing) => {
+          const insumo = insumos.find((i) => i.id === ing.insumoId);
+          const subTotal = insumo ? insumo.costoUnitario * ing.quantity * (1 + ing.merma / 100) : 0;
+          return {
+            cantidad: ing.quantity,
+            merma: ing.merma,
+            subTotal,
+            id_insumo: Number(ing.insumoId),
+          };
+        }),
+      };
+      if (receta) {
+        await api.put(`/Receta/${receta.id}`, body);
+        toast.success('Receta actualizada', `La receta de "${productName}" fue actualizada.`);
+      } else {
+        await api.post('/Receta', body);
+        toast.success('Receta creada', `La receta de "${productName}" fue creada.`);
+      }
+      onSuccess();
       onClose();
+    } catch {
+      toast.error('Error', 'No se pudo guardar la receta. Intente nuevamente.');
     } finally {
       setIsLoading(false);
     }
@@ -355,7 +380,7 @@ interface RecetaModalProps extends RecetaFormProps {
   isOpen: boolean;
 }
 
-export const RecetaModal: React.FC<RecetaModalProps> = ({ isOpen, onClose, receta, preselectedProductId, productOverride, insumos, products, onSave }) => {
+export const RecetaModal: React.FC<RecetaModalProps> = ({ isOpen, onClose, receta, preselectedProductId, productOverride, insumos, products, onSuccess }) => {
   return (
     <Modal
       isOpen={isOpen}
@@ -371,7 +396,7 @@ export const RecetaModal: React.FC<RecetaModalProps> = ({ isOpen, onClose, recet
           productOverride={productOverride}
           insumos={insumos}
           products={products}
-          onSave={onSave}
+          onSuccess={onSuccess}
         />
       )}
     </Modal>

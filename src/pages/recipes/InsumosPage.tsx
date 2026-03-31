@@ -3,17 +3,23 @@ import { Plus, Edit2, Trash2, Search, FlaskConical, AlertTriangle } from 'lucide
 import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
 import { PageContainer, PageHeader } from '../../components/layout';
-import { Button, Input, Select, ConfirmModal } from '../../components/ui';
+import { Button, Input, Select, ConfirmModal, SkeletonRow } from '../../components/ui';
 import { InsumoModal } from '../../components/modals/InsumoModal';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
+import { gql } from '../../lib/graphql';
+import { GET_ALL_INSUMOS } from '../../lib/queries/insumos.queries';
+import { GET_ALL_RECETAS } from '../../lib/queries/recetas.queries';
+import { mapInsumo } from '../../lib/mappers/insumos.mappers';
+import { mapReceta } from '../../lib/mappers/recetas.mappers';
+import type { InsumosResponse, RecetasResponse } from '../../types/graphql';
 import type { Insumo, Receta } from '../../types';
 import { formatCurrency } from '../../utils';
 
 const InsumosPage: React.FC = () => {
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [recetas, setRecetas] = useState<Receta[]>([]);
-  const [_loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterCategoria, setFilterCategoria] = useState('');
   const [filterStock, setFilterStock] = useState('');
@@ -26,11 +32,11 @@ const InsumosPage: React.FC = () => {
     const fetchData = async () => {
       try {
         const [insumosData, recetasData] = await Promise.all([
-          api.get<Insumo[]>('/recipes/insumos'),
-          api.get<Receta[]>('/recipes/recetas'),
+          gql<InsumosResponse>(GET_ALL_INSUMOS),
+          gql<RecetasResponse>(GET_ALL_RECETAS),
         ]);
-        setInsumos(insumosData);
-        setRecetas(recetasData);
+        setInsumos(insumosData.insumos.map(mapInsumo));
+        setRecetas(recetasData.recetas.map(mapReceta));
       } catch (error) {
         console.error('Error loading insumos data:', error);
       } finally {
@@ -93,7 +99,7 @@ const InsumosPage: React.FC = () => {
     if (!deleting) return;
     setIsDeleting(true);
     try {
-      await api.delete(`/recipes/insumos/${deleting.id}`);
+      await api.delete(`/Insumo/${deleting.id}`);
       setInsumos((prev) => prev.filter((i: Insumo) => i.id !== deleting.id));
       toast.success('Insumo eliminado', `"${deleting.name}" fue eliminado.`);
     } catch (error) {
@@ -166,7 +172,13 @@ const InsumosPage: React.FC = () => {
 
         {/* Table */}
         <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <table className="w-full text-sm">
+              <tbody>
+                {Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
+              </tbody>
+            </table>
+          ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-coffee-400">
               <FlaskConical className="h-10 w-10 mb-3 opacity-40" />
               <p className="font-medium">
@@ -201,7 +213,6 @@ const InsumosPage: React.FC = () => {
                     <tr key={ins.id} className="hover:bg-coffee-50/50 transition-colors">
                       <td className="px-4 py-3">
                         <p className="font-medium text-coffee-900">{ins.name}</p>
-                        <p className="text-xs text-coffee-400 font-mono">{ins.code}</p>
                       </td>
                       <td className="px-4 py-3">
                         <span className="text-xs bg-coffee-100 text-coffee-600 px-2 py-0.5 rounded-full">
@@ -225,7 +236,7 @@ const InsumosPage: React.FC = () => {
                               isEmpty ? 'text-red-600' : isLow ? 'text-amber-600' : 'text-emerald-700'
                             )}
                           >
-                            {ins.stock} {ins.unidadMinima}
+                            {ins.stock} {ins.unidadCompra}
                           </span>
                           {ins.stockMinimo > 0 && (
                             <p className="text-xs text-coffee-400">Mín: {ins.stockMinimo}</p>
@@ -282,18 +293,16 @@ const InsumosPage: React.FC = () => {
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); setEditing(undefined); }}
         insumo={editing}
-        onSave={async (input, isEdit, insumoId) => {
-          if (isEdit && insumoId) {
-            await api.put(`/Recipes/insumos/${insumoId}`, input);
-            const updated = await api.get<Insumo[]>('/recipes/insumos');
-            setInsumos(updated);
-          } else {
-            const created = await api.post<Insumo>('/Recipes/insumos', input);
-            setInsumos((prev) => [...prev, created]);
-            return created;
+        onSuccess={async () => {
+          setIsModalOpen(false);
+          setEditing(undefined);
+          try {
+            const data = await gql<InsumosResponse>(GET_ALL_INSUMOS);
+            setInsumos(data.insumos.map(mapInsumo));
+          } catch (error) {
+            console.error('Error reloading insumos:', error);
           }
         }}
-        onCreated={() => setIsModalOpen(false)}
       />
 
       <ConfirmModal

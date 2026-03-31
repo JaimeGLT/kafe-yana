@@ -5,10 +5,18 @@ import {
 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageContainer, PageHeader } from '../../components/layout';
-import { Button, Input, ConfirmModal } from '../../components/ui';
+import { Button, Input, ConfirmModal, SkeletonRecetaCard } from '../../components/ui';
 import { RecetaModal } from '../../components/modals/RecetaModal';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
+import { gql } from '../../lib/graphql';
+import { GET_ALL_RECETAS } from '../../lib/queries/recetas.queries';
+import { GET_ALL_INSUMOS } from '../../lib/queries/insumos.queries';
+import { GET_ALL_ELABORADOS } from '../../lib/queries/elaborados.queries';
+import { mapReceta } from '../../lib/mappers/recetas.mappers';
+import { mapInsumo } from '../../lib/mappers/insumos.mappers';
+import { mapElaborado } from '../../lib/mappers/elaborados.mappers';
+import type { RecetasResponse, InsumosResponse, ElaboradosResponse } from '../../types/graphql';
 import type { Receta, Insumo, Product } from '../../types';
 import { formatCurrency } from '../../utils';
 
@@ -26,7 +34,7 @@ const RecetasPage: React.FC = () => {
   const [recetas, setRecetas] = useState<Receta[]>([]);
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [_loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -39,14 +47,14 @@ const RecetasPage: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [recetasData, insumosData, productsData] = await Promise.all([
-          api.get<Receta[]>('/recipes/recetas'),
-          api.get<Insumo[]>('/recipes/insumos'),
-          api.get<Product[]>('/products'),
+        const [recetasData, insumosData, elaboradosData] = await Promise.all([
+          gql<RecetasResponse>(GET_ALL_RECETAS),
+          gql<InsumosResponse>(GET_ALL_INSUMOS),
+          gql<ElaboradosResponse>(GET_ALL_ELABORADOS),
         ]);
-        setRecetas(recetasData);
-        setInsumos(insumosData);
-        setProducts(productsData);
+        setRecetas(recetasData.recetas.map(mapReceta));
+        setInsumos(insumosData.insumos.map(mapInsumo));
+        setProducts(elaboradosData.elaborados.map(mapElaborado));
       } catch (error) {
         console.error('Error loading recetas data:', error);
       } finally {
@@ -82,7 +90,7 @@ const RecetasPage: React.FC = () => {
     if (!deleting) return;
     setIsDeleting(true);
     try {
-      await api.delete(`/recipes/recetas/${deleting.id}`);
+      await api.delete(`/Receta/${deleting.id}`);
       setRecetas((prev) => prev.filter((r: Receta) => r.id !== deleting.id));
       toast.success('Receta eliminada', `La receta de "${deleting.productName}" fue eliminada.`);
       if (expandedId === deleting.id) setExpandedId(null);
@@ -158,8 +166,15 @@ const RecetasPage: React.FC = () => {
           />
         </div>
 
+        {/* Skeleton */}
+        {loading && (
+          <div className="space-y-2">
+            {Array.from({ length: 5 }).map((_, i) => <SkeletonRecetaCard key={i} />)}
+          </div>
+        )}
+
         {/* Empty state */}
-        {filtered.length === 0 && recetas.length === 0 ? (
+        {!loading && filtered.length === 0 && recetas.length === 0 ? (
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm flex flex-col items-center justify-center py-16 text-coffee-400">
             <BookOpen className="h-10 w-10 mb-3 opacity-40" />
             <p className="font-medium">Sin recetas todavía</p>
@@ -168,7 +183,7 @@ const RecetasPage: React.FC = () => {
               Crear primera receta
             </Button>
           </div>
-        ) : (
+        ) : !loading && (
           <div className="space-y-2">
             {filtered.map((receta: Receta) => {
               const product = products.find((p: Product) => p.id === receta.productId);
@@ -340,16 +355,14 @@ const RecetasPage: React.FC = () => {
         preselectedProductId={preselectedProductId}
         insumos={insumos}
         products={products}
-        onSave={async (recetaId, data) => {
-          const payload = { productoId: data.productId, nombre: data.nombre, porcionesBase: data.porcionesBase, ingredientes: data.ingredientes, notas: data.notas };
-          if (recetaId) {
-            await api.put(`/Recipes/recetas/${recetaId}`, payload);
-          } else {
-            await api.post('/Recipes/recetas', payload);
-          }
-          const updated = await api.get<Receta[]>('/recipes/recetas');
-          setRecetas(updated);
+        onSuccess={async () => {
           setIsModalOpen(false);
+          try {
+            const data = await gql<RecetasResponse>(GET_ALL_RECETAS);
+            setRecetas(data.recetas.map(mapReceta));
+          } catch (error) {
+            console.error('Error reloading recetas:', error);
+          }
         }}
       />
 

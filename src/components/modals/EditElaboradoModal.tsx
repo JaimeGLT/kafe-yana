@@ -8,6 +8,12 @@ import { HelpTooltip } from '../ui/Tooltip';
 import { RecetaFormContent } from './RecetaModal';
 import { toast } from '../ui/Toast';
 import { api } from '../../lib/api';
+import { gql } from '../../lib/graphql';
+import { GET_ALL_INSUMOS } from '../../lib/queries/insumos.queries';
+import { GET_ALL_ELABORADOS } from '../../lib/queries/elaborados.queries';
+import { mapInsumo } from '../../lib/mappers/insumos.mappers';
+import { mapElaborado } from '../../lib/mappers/elaborados.mappers';
+import type { InsumosResponse, ElaboradosResponse } from '../../types/graphql';
 import type { Product, Receta, Insumo } from '../../types';
 
 const UNIT_OPTIONS = [
@@ -58,34 +64,14 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
       setUnit(product.unit || 'unidad');
       setErrors({});
       Promise.all([
-        api.get<Insumo[]>('/Recipes/insumos'),
-        api.get<Product[]>('/Inventory/products'),
+        gql<InsumosResponse>(GET_ALL_INSUMOS),
+        gql<ElaboradosResponse>(GET_ALL_ELABORADOS),
       ]).then(([ins, prods]) => {
-        setInsumos(ins);
-        setProducts(prods);
+        setInsumos(ins.insumos.map(mapInsumo));
+        setProducts(prods.elaborados.map(mapElaborado));
       }).catch(() => {});
     }
   }, [isOpen, product]);
-
-  const handleSaveReceta = (
-    recetaId: string | undefined,
-    data: { productId: string; nombre?: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string },
-    _productName: string,
-  ) => {
-    const payload = {
-      productoId: data.productId,
-      nombre: data.nombre,
-      porcionesBase: data.porcionesBase,
-      ingredientes: data.ingredientes,
-      notas: data.notas,
-    };
-    const request = recetaId
-      ? api.put(`/Recipes/recetas/${recetaId}`, payload)
-      : api.post('/Recipes/recetas', payload);
-    request
-      .then(() => toast.success('Receta guardada'))
-      .catch(() => toast.error('Error', 'No se pudo guardar la receta.'));
-  };
 
   const receta = getRecetaByProductId(product.id);
 
@@ -261,7 +247,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
                 productOverride={productForReceta}
                 insumos={insumos}
                 products={products}
-                onSave={handleSaveReceta}
+                onSuccess={() => {}}
               />
             </div>
           )}

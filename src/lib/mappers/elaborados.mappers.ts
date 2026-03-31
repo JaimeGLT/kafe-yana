@@ -1,0 +1,26 @@
+import type { ElaboradoNode } from '../../types/graphql';
+import type { Product } from '../../types';
+
+export function mapElaborado(n: ElaboradoNode): Product {
+  return {
+    id: String(n.id),
+    code: String(n.id),
+    name: n.nombre,
+    description: n.descripcion ?? '',
+    tipo: 'elaborado',
+    categoryId: String(n.categoria_Id),
+    categoryName: '',
+    unit: n.unidad_medida ?? 'unidad',
+    costPrice: 0,
+    salePrice: n.precio,
+    stock: 0,
+    minStock: 0,
+    maxStock: 0,
+    barcode: '',
+    variations: [],
+    hasVariations: false,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}

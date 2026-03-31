@@ -97,6 +97,7 @@ const CategoriesPage: React.FC = () => {
         color: input.color,
         estado: input.isActive,
       });
+      
       toast.success('Categoría actualizada', `"${input.name}" fue actualizada correctamente.`);
     } else {
       await api.post('/Categoria', {

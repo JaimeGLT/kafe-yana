@@ -4,6 +4,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { toast } from '../ui/Toast';
+import { api } from '../../lib/api';
 import type { Insumo, InsumoInput } from '../../types';
 import { formatCurrency } from '../../utils';
 
@@ -47,11 +48,10 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   insumo?: Insumo;
-  onCreated?: (insumo: Insumo) => void;
-  onSave: (input: InsumoInput, isEdit: boolean, insumoId?: string) => Insumo | void | Promise<Insumo | void | undefined>;
+  onSuccess: () => void;
 }
 
-export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onCreated, onSave }) => {
+export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [form, setForm] = useState<InsumoInput>(empty);
   const [errors, setErrors] = useState<Partial<Record<keyof InsumoInput, string>>>({});
@@ -64,7 +64,7 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onCreate
         unidadMinima: insumo.unidadMinima,
         unidadCompra: insumo.unidadCompra,
         factorConversion: insumo.factorConversion,
-        costoCompra: insumo.costoCompra,
+        costoCompra: Number(insumo.costoCompra.toFixed(2)),
         stock: insumo.stock,
         stockMinimo: insumo.stockMinimo,
         proveedorId: insumo.proveedorId,
@@ -98,26 +98,46 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onCreate
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
     setIsLoading(true);
     try {
       if (insumo) {
-        onSave(form, true, insumo.id);
+        await api.put(`/Insumo/${insumo.id}`, {
+          nombre: form.name,
+          categoria: form.categoriaInsumo,
+          unidad_min_uso: form.unidadMinima,
+          unidad_compra: form.unidadCompra,
+          factor_conversion: form.factorConversion,
+          costo: Number(form.costoCompra).toFixed(2),
+          stock_actual: form.stock,
+          stock_min: form.stockMinimo,
+        });
         toast.success(
           'Insumo actualizado',
-          `"${form.name}" actualizado. Costo/unidad: ${formatCurrency(costoUnitario)}/${form.unidadMinima}. Los costos de las recetas se recalcularon automáticamente.`
+          `"${form.name}" actualizado. Costo/unidad: ${formatCurrency(costoUnitario)}/${form.unidadMinima}.`
         );
       } else {
-        const created = onSave(form, false) as Insumo;
+        await api.post('/Insumo', {
+          nombre: form.name,
+          categoria: form.categoriaInsumo,
+          unidad_min_uso: form.unidadMinima,
+          unidad_compra: form.unidadCompra,
+          factor_conversion: form.factorConversion,
+          costo: Number(form.costoCompra).toFixed(2),
+          stock_actual: form.stock,
+          stock_min: form.stockMinimo,
+        });
         toast.success(
           'Insumo creado',
           `"${form.name}" — ${formatCurrency(costoUnitario)} por ${form.unidadMinima}.`
         );
-        onCreated?.(created);
       }
+      onSuccess();
       onClose();
+    } catch {
+      toast.error('Error', 'No se pudo guardar el insumo. Intente nuevamente.');
     } finally {
       setIsLoading(false);
     }

@@ -1,6 +1,13 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { gql } from '../../lib/graphql';
 import { api } from '../../lib/api';
+import { GET_ALL_RECETAS } from '../../lib/queries/recetas.queries';
+import { GET_ALL_INSUMOS } from '../../lib/queries/insumos.queries';
+import { GET_ALL_ELABORADOS } from '../../lib/queries/elaborados.queries';
+import { mapReceta } from '../../lib/mappers/recetas.mappers';
+import { mapInsumo } from '../../lib/mappers/insumos.mappers';
+import { mapElaborado } from '../../lib/mappers/elaborados.mappers';
+import type { RecetasResponse, InsumosResponse, ElaboradosResponse } from '../../types/graphql';
 import {
   Plus,
   FlaskConical,
@@ -294,11 +301,12 @@ interface RecetaStepTwoProps {
   onAddReceta: (receta: { productId: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string }, productName: string) => void;
 }
 
-const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, productName, productSalePrice, onDone, onSkip, insumos, recetas, onAddReceta }) => {
+const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, productName, productSalePrice, onDone, onSkip, insumos: insumosProp, recetas, onAddReceta }) => {
   const product = { id: productId, name: productName, salePrice: productSalePrice };
 
   const [mode, setMode] = useState<'nueva' | 'existente'>('nueva');
   const [selectedRecetaId, setSelectedRecetaId] = useState('');
+  const [localInsumos, setLocalInsumos] = useState<Insumo[]>(insumosProp);
 
   const [porcionesBase, setPorcionesBase] = useState(1);
   const [ingredientes, setIngredientes] = useState([{ insumoId: '', quantity: 0, merma: 0 }]);
@@ -317,19 +325,19 @@ const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, productName, p
   const insumoOptions = useMemo(
     () =>
       [{ value: '', label: 'Seleccionar insumo…' }].concat(
-        insumos.filter((i) => i.isActive).map((i) => ({ value: i.id, label: `${i.name} (${i.unidadMinima})` }))
+        localInsumos.filter((i) => i.isActive).map((i) => ({ value: i.id, label: `${i.name} (${i.unidadMinima})` }))
       ),
-    [insumos]
+    [localInsumos]
   );
 
   const costoTotal = useMemo(
     () =>
       ingredientes.reduce((sum, ing) => {
-        const insumo = insumos.find((i) => i.id === ing.insumoId);
+        const insumo = localInsumos.find((i) => i.id === ing.insumoId);
         if (!insumo || ing.quantity <= 0) return sum;
         return sum + insumo.costoUnitario * ing.quantity * (1 + ing.merma / 100);
       }, 0),
-    [ingredientes, insumos]
+    [ingredientes, localInsumos]
   );
 
   const porciones = porcionesBase > 0 ? porcionesBase : 1;
@@ -524,7 +532,7 @@ const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, productName, p
 
         <div className="space-y-2">
           {ingredientes.map((line, idx) => {
-            const insumo = insumos.find((i) => i.id === line.insumoId);
+            const insumo = localInsumos.find((i) => i.id === line.insumoId);
             const subtotal =
               insumo && line.quantity > 0
                 ? insumo.costoUnitario * line.quantity * (1 + line.merma / 100)
@@ -638,15 +646,12 @@ const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, productName, p
       <InsumoModal
         isOpen={insumoModalOpen}
         onClose={() => setInsumoModalOpen(false)}
-        onCreated={(insumo) => {
-          setIngredientes((prev) => [...prev, { insumoId: insumo.id, quantity: 0, merma: 0 }]);
-        }}
-        onSave={async (input, isEdit, insumoId) => {
-          if (isEdit && insumoId) {
-            await api.put(`/Recipes/insumos/${insumoId}`, input);
-          } else {
-            return await api.post<Insumo>('/Recipes/insumos', input);
-          }
+        onSuccess={async () => {
+          setInsumoModalOpen(false);
+          try {
+            const data = await gql<InsumosResponse>(GET_ALL_INSUMOS);
+            setLocalInsumos(data.insumos.map(mapInsumo));
+          } catch {}
         }}
       />
       </>}
@@ -790,15 +795,19 @@ const ElaboradosPage: React.FC = () => {
 
   const addReceta = useCallback(async (recetaData: { productId: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string }, _productName: string) => {
     try {
-      await api.post('/Recipes/recetas', {
-        productoId: recetaData.productId,
-        porcionesBase: recetaData.porcionesBase,
-        ingredientes: recetaData.ingredientes,
-        notas: recetaData.notas,
+      await api.post('/Receta', {
+        nombre: '',
+        nota: recetaData.notas ?? '',
+        id_Elaborado: Number(recetaData.productId),
+        detalles: recetaData.ingredientes.map((ing) => ({
+          cantidad: ing.quantity,
+          merma: ing.merma,
+          subTotal: 0,
+          id_insumo: Number(ing.insumoId),
+        })),
       });
-      // Reload recetas after adding
-      const recetasData = await api.get<Receta[]>('/Recipes/recetas');
-      setRecetas(recetasData);
+      const data = await gql<RecetasResponse>(GET_ALL_RECETAS);
+      setRecetas(data.recetas.map(mapReceta));
     } catch (error) {
       console.error('Error adding receta:', error);
       throw error;
@@ -810,11 +819,11 @@ const ElaboradosPage: React.FC = () => {
     const fetchData = async () => {
       try {
         const [recetasData, insumosData] = await Promise.all([
-          api.get<Receta[]>('/Recipes/recetas'),
-          api.get<Insumo[]>('/Recipes/insumos'),
+          gql<RecetasResponse>(GET_ALL_RECETAS),
+          gql<InsumosResponse>(GET_ALL_INSUMOS),
         ]);
-        setRecetas(recetasData);
-        setInsumos(insumosData);
+        setRecetas(recetasData.recetas.map(mapReceta));
+        setInsumos(insumosData.insumos.map(mapInsumo));
       } catch (error) {
         console.error('Error loading recipes:', error);
       }
@@ -829,53 +838,15 @@ const ElaboradosPage: React.FC = () => {
     isOpen: false,
   });
 
-  interface ElaboradoNode {
-    id: number;
-    nombre: string;
-    descripcion: string;
-    precio: number;
-    categoria_Id: number;
-    unidad_medida: string;
-  }
-  interface ElaboradosResponse {
-    elaborados: ElaboradoNode[];
-  }
   interface CatNode { id: number; nombre: string; estado: boolean; }
   interface CatsResponse { categorias: { nodes: CatNode[] }; }
 
   const loadElaborados = useCallback(async (cats?: { id: string; nombre: string }[]) => {
-    const data = await gql<ElaboradosResponse>(`
-      query {
-        elaborados {
-          id
-          nombre
-          descripcion
-          precio
-          categoria_Id
-          unidad_medida
-        }
-      }
-    `);
+    const data = await gql<ElaboradosResponse>(GET_ALL_ELABORADOS);
     const catList = cats ?? rawCategories;
     const mapped: Product[] = data.elaborados.map((node) => ({
-      id: String(node.id),
-      code: String(node.id),
-      name: node.nombre,
-      description: node.descripcion,
-      tipo: 'elaborado' as const,
-      categoryId: String(node.categoria_Id),
+      ...mapElaborado(node),
       categoryName: catList.find((c) => c.id === String(node.categoria_Id))?.nombre ?? '',
-      unit: node.unidad_medida,
-      costPrice: 0,
-      salePrice: node.precio,
-      stock: 0,
-      minStock: 0,
-      maxStock: 0,
-      variations: [],
-      hasVariations: false,
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
     }));
     setElaborados(mapped);
   }, [rawCategories]);
@@ -1124,15 +1095,12 @@ const ElaboradosPage: React.FC = () => {
         preselectedProductId={recetaModal.product?.id}
         insumos={insumos}
         products={elaborados}
-        onSave={async (recetaId, data) => {
-          const payload = { productoId: data.productId, porcionesBase: data.porcionesBase, ingredientes: data.ingredientes, notas: data.notas };
-          if (recetaId) {
-            await api.put(`/Recipes/recetas/${recetaId}`, payload);
-          } else {
-            await api.post('/Recipes/recetas', payload);
-          }
-          const recetasData = await api.get<Receta[]>('/Recipes/recetas');
-          setRecetas(recetasData);
+        onSuccess={async () => {
+          setRecetaModal({ isOpen: false });
+          try {
+            const data = await gql<RecetasResponse>(GET_ALL_RECETAS);
+            setRecetas(data.recetas.map(mapReceta));
+          } catch {}
         }}
       />
     </MainLayout>
