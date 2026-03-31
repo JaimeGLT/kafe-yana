@@ -42,7 +42,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       )}
 
       {/* Title and Actions */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-display font-bold text-coffee-900">
             {title}
@@ -52,7 +52,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
           )}
         </div>
         {actions && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 sm:flex-shrink-0">
             {actions}
           </div>
         )}

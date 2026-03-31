@@ -10,6 +10,7 @@ export const GET_ALL_RECETAS = `
         cantidad
         merma
         subTotal
+        nombre
       }
     }
   }
@@ -27,6 +28,7 @@ export const GET_RECETA_BY_ID = `
         cantidad
         merma
         subTotal
+        nombre
       }
     }
   }

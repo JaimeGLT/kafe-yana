@@ -20,7 +20,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <main
         className={clsx(
           'transition-all duration-300',
-          sidebarCollapsed ? 'ml-20' : 'ml-64'
+          sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'
         )}
       >
         {/* Header */}

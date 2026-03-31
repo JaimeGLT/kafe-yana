@@ -5,7 +5,7 @@ export function mapReceta(n: RecetaNode): Receta {
   const ingredientes = n.detalles.map((d) => ({
     id: String(d.id_insumo),
     insumoId: String(d.id_insumo),
-    insumoName: '',
+    insumoName: d.nombre,
     unidadMinima: '',
     quantity: d.cantidad,
     merma: d.merma,

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Plus, Edit2, Trash2, ChevronDown, ChevronUp,
-  BookOpen, TrendingUp, TrendingDown, Search,
+  BookOpen, Search,
 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageContainer, PageHeader } from '../../components/layout';
@@ -20,15 +20,26 @@ import type { RecetasResponse, InsumosResponse, ElaboradosResponse } from '../..
 import type { Receta, Insumo, Product } from '../../types';
 import { formatCurrency } from '../../utils';
 
-// Semaphore: verde ≥60%, amarillo 30-60%, rojo <30%
 const semaforo = (pct: number) => {
-  if (pct >= 60) return { bg: 'bg-emerald-100 text-emerald-700', label: '🟢' };
-  if (pct >= 30) return { bg: 'bg-amber-100 text-amber-700', label: '🟡' };
-  return { bg: 'bg-red-100 text-red-600', label: '🔴' };
+  if (pct >= 60) return {
+    bar: 'bg-emerald-400',
+    badge: 'bg-emerald-100 text-emerald-700',
+    summary: 'bg-emerald-50 text-emerald-800',
+    text: 'text-emerald-700',
+  };
+  if (pct >= 30) return {
+    bar: 'bg-amber-400',
+    badge: 'bg-amber-100 text-amber-700',
+    summary: 'bg-amber-50 text-amber-800',
+    text: 'text-amber-600',
+  };
+  return {
+    bar: 'bg-red-400',
+    badge: 'bg-red-100 text-red-600',
+    summary: 'bg-red-50 text-red-700',
+    text: 'text-red-600',
+  };
 };
-
-const marginColor = (pct: number) =>
-  pct >= 60 ? 'text-emerald-700' : pct >= 30 ? 'text-amber-600' : 'text-red-600';
 
 const RecetasPage: React.FC = () => {
   const [recetas, setRecetas] = useState<Receta[]>([]);
@@ -143,7 +154,7 @@ const RecetasPage: React.FC = () => {
               {
                 label: 'Margen promedio',
                 value: avgMargin !== null ? `${avgMargin.toFixed(1)}%` : '—',
-                color: avgMargin !== null ? marginColor(avgMargin) : 'text-coffee-500',
+                color: avgMargin !== null ? semaforo(avgMargin).text : 'text-coffee-500',
                 bg: 'bg-white',
               },
             ].map(({ label, value, color, bg }) => (
@@ -184,7 +195,7 @@ const RecetasPage: React.FC = () => {
             </Button>
           </div>
         ) : !loading && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {filtered.map((receta: Receta) => {
               const product = products.find((p: Product) => p.id === receta.productId);
               const salePrice = product?.salePrice ?? 0;
@@ -195,54 +206,79 @@ const RecetasPage: React.FC = () => {
 
               return (
                 <div key={receta.id} className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
-                  {/* Header row */}
+
+                  {/* Barra de color superior según margen */}
+                  {salePrice > 0 && <div className={`h-1 ${sem.bar}`} />}
+
+                  {/* Fila colapsada */}
                   <div
-                    className="flex items-center gap-3 px-5 py-4 cursor-pointer hover:bg-coffee-50/50 transition-colors"
+                    className="flex items-center gap-4 px-5 py-4 cursor-pointer hover:bg-coffee-50/40 transition-colors"
                     onClick={() => setExpandedId(isExpanded ? null : receta.id)}
                   >
+                    {/* Nombre + meta */}
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-coffee-900 truncate">{receta.productName}</p>
-                      <p className="text-xs text-coffee-400 mt-0.5">
-                        {receta.ingredientes.length} ingrediente{receta.ingredientes.length !== 1 ? 's' : ''}
-                        {receta.porcionesBase > 1 ? ` · ${receta.porcionesBase} porciones` : ''}
-                        {receta.notas ? ` · ${receta.notas}` : ''}
-                      </p>
-                    </div>
-
-                    <div className="text-right hidden sm:block min-w-[100px]">
-                      <p className="text-xs text-coffee-400">Costo/porción</p>
-                      <p className="font-semibold text-coffee-900">{formatCurrency(receta.costoPorPorcion)}</p>
-                    </div>
-
-                    {salePrice > 0 && (
-                      <div className="text-right hidden sm:block min-w-[80px]">
-                        <p className="text-xs text-coffee-400">Venta</p>
-                        <p className="font-semibold text-coffee-700">{formatCurrency(salePrice)}</p>
+                      <p className="font-semibold text-coffee-900 truncate">{receta.productName}</p>
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        <span className="inline-flex items-center text-xs bg-coffee-100 text-coffee-600 px-2 py-0.5 rounded-full font-medium">
+                          {receta.ingredientes.length} ingrediente{receta.ingredientes.length !== 1 ? 's' : ''}
+                        </span>
+                        {receta.porcionesBase > 1 && (
+                          <span className="inline-flex items-center text-xs bg-coffee-100 text-coffee-600 px-2 py-0.5 rounded-full font-medium">
+                            {receta.porcionesBase} porciones
+                          </span>
+                        )}
+                        {receta.notas && (
+                          <span className="text-xs text-coffee-400 italic truncate max-w-[180px]">{receta.notas}</span>
+                        )}
                       </div>
-                    )}
+                    </div>
 
+                    {/* Datos financieros (desktop) */}
+                    <div className="hidden sm:flex items-center gap-5">
+                      <div className="text-right">
+                        <p className="text-xs text-coffee-400 mb-0.5">Costo / porción</p>
+                        <p className="font-semibold text-coffee-900 text-sm tabular-nums">
+                          {formatCurrency(receta.costoPorPorcion)}
+                        </p>
+                      </div>
+
+                      {salePrice > 0 && (
+                        <div className="text-right">
+                          <p className="text-xs text-coffee-400 mb-0.5">Precio venta</p>
+                          <p className="font-semibold text-coffee-600 text-sm tabular-nums">
+                            {formatCurrency(salePrice)}
+                          </p>
+                        </div>
+                      )}
+
+                      {salePrice > 0 && (
+                        <div className={`px-3 py-2 rounded-xl ${sem.badge} text-center min-w-[72px]`}>
+                          <p className="text-xs font-medium opacity-70 mb-0.5">Margen</p>
+                          <p className="font-bold text-sm tabular-nums">{margenPct.toFixed(1)}%</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Margen badge (solo mobile) */}
                     {salePrice > 0 && (
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${sem.bg} flex items-center gap-1`}>
-                        {sem.label} {margenPct.toFixed(1)}%
-                        {margenPct >= 50
-                          ? <TrendingUp className="h-3 w-3" />
-                          : <TrendingDown className="h-3 w-3" />
-                        }
+                      <span className={`sm:hidden text-xs font-bold px-2.5 py-1 rounded-full ${sem.badge}`}>
+                        {margenPct.toFixed(1)}%
                       </span>
                     )}
 
-                    <div className="flex items-center gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
+                    {/* Acciones */}
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => openEdit(receta)}
-                        className="p-1.5 text-coffee-400 hover:text-coffee-700 hover:bg-coffee-100 rounded transition-colors"
-                        title="Editar"
+                        className="p-1.5 text-coffee-400 hover:text-coffee-700 hover:bg-coffee-100 rounded-lg transition-colors"
+                        title="Editar receta"
                       >
                         <Edit2 className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => setDeleting(receta)}
-                        className="p-1.5 text-coffee-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                        title="Eliminar"
+                        className="p-1.5 text-coffee-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Eliminar receta"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -254,70 +290,84 @@ const RecetasPage: React.FC = () => {
                     }
                   </div>
 
-                  {/* Expanded detail */}
+                  {/* Detalle expandido */}
                   {isExpanded && (
-                    <div className="border-t border-coffee-100 px-5 pb-5 pt-3">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-left text-xs text-coffee-400 border-b border-coffee-100">
-                            <th className="pb-2 font-medium">Insumo</th>
-                            <th className="pb-2 font-medium text-right">Cantidad</th>
-                            <th className="pb-2 font-medium text-right">Merma</th>
-                            <th className="pb-2 font-medium text-right">Costo/un.</th>
-                            <th className="pb-2 font-medium text-right">Subtotal</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-coffee-50">
+                    <div className="border-t border-coffee-100">
+
+                      {/* Lista de ingredientes */}
+                      <div className="px-5 pt-4 pb-3">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-coffee-400 mb-2">
+                          Ingredientes
+                        </p>
+                        <div className="space-y-0.5">
                           {receta.ingredientes.map((ing) => {
                             const insumo = insumos.find((i: Insumo) => i.id === ing.insumoId);
-                            const unitCost = insumo?.costoUnitario ?? ing.unitCost;
-                            const subtotal = ing.quantity * unitCost * (1 + ing.merma / 100);
+                            const unitCost = insumo?.costoUnitario ?? 0;
+                            const unidad = insumo?.unidadMinima ?? '';
+
                             return (
-                              <tr key={ing.id} className="text-coffee-700">
-                                <td className="py-2">{ing.insumoName}</td>
-                                <td className="py-2 text-right text-coffee-500">
-                                  {ing.quantity} {ing.unidadMinima}
-                                </td>
-                                <td className="py-2 text-right text-coffee-500">
-                                  {ing.merma > 0 ? `${ing.merma}%` : '—'}
-                                </td>
-                                <td className="py-2 text-right text-coffee-500">
-                                  {formatCurrency(unitCost)}/{ing.unidadMinima}
-                                </td>
-                                <td className="py-2 text-right font-medium">
-                                  {formatCurrency(subtotal)}
-                                </td>
-                              </tr>
+                              <div
+                                key={ing.id}
+                                className="flex items-center justify-between gap-4 py-2.5 px-3 rounded-lg hover:bg-coffee-50 transition-colors"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-coffee-800 truncate">
+                                    {ing.insumoName || '—'}
+                                  </p>
+                                  <p className="text-xs text-coffee-400 mt-0.5">
+                                    {ing.quantity} {unidad}
+                                    {ing.merma > 0 && (
+                                      <span className="text-amber-600 ml-2">· +{ing.merma}% merma</span>
+                                    )}
+                                    {unitCost > 0 && (
+                                      <span className="ml-2">· {formatCurrency(unitCost)}/{unidad}</span>
+                                    )}
+                                  </p>
+                                </div>
+                                <p className="text-sm font-semibold text-coffee-900 tabular-nums flex-shrink-0">
+                                  {formatCurrency(ing.subtotal)}
+                                </p>
+                              </div>
                             );
                           })}
-                        </tbody>
-                        <tfoot>
-                          {receta.porcionesBase > 1 && (
-                            <tr className="text-coffee-500 text-xs">
-                              <td colSpan={4} className="pt-2">Costo total ({receta.porcionesBase} porciones)</td>
-                              <td className="pt-2 text-right">{formatCurrency(receta.costoTotal)}</td>
-                            </tr>
-                          )}
-                          <tr className="border-t border-coffee-200 font-semibold text-coffee-900">
-                            <td colSpan={4} className="pt-2 text-sm">Costo por porción</td>
-                            <td className="pt-2 text-right">{formatCurrency(receta.costoPorPorcion)}</td>
-                          </tr>
+                        </div>
+                      </div>
+
+                      {/* Resumen de costos */}
+                      <div className="px-5 pb-5 pt-2 border-t border-coffee-50">
+                        <div className={`grid gap-3 ${salePrice > 0 ? 'grid-cols-3' : 'grid-cols-1 max-w-[160px]'}`}>
+                          <div className="bg-coffee-50 rounded-xl px-4 py-3">
+                            <p className="text-xs text-coffee-400 mb-0.5">Costo por porción</p>
+                            <p className="font-bold text-coffee-900 tabular-nums">
+                              {formatCurrency(receta.costoPorPorcion)}
+                            </p>
+                            {receta.porcionesBase > 1 && (
+                              <p className="text-xs text-coffee-400 mt-0.5">
+                                Total {formatCurrency(receta.costoTotal)} · {receta.porcionesBase} porciones
+                              </p>
+                            )}
+                          </div>
+
                           {salePrice > 0 && (
-                            <>
-                              <tr className="text-coffee-600 text-sm">
-                                <td colSpan={4} className="pt-1">Precio de venta</td>
-                                <td className="pt-1 text-right">{formatCurrency(salePrice)}</td>
-                              </tr>
-                              <tr className={`text-sm font-bold ${marginColor(margenPct)}`}>
-                                <td colSpan={4} className="pt-1">
-                                  {sem.label} Margen ({margenPct.toFixed(1)}%)
-                                </td>
-                                <td className="pt-1 text-right">{formatCurrency(margen)}</td>
-                              </tr>
-                            </>
+                            <div className="bg-coffee-50 rounded-xl px-4 py-3">
+                              <p className="text-xs text-coffee-400 mb-0.5">Precio de venta</p>
+                              <p className="font-bold text-coffee-700 tabular-nums">
+                                {formatCurrency(salePrice)}
+                              </p>
+                            </div>
                           )}
-                        </tfoot>
-                      </table>
+
+                          {salePrice > 0 && (
+                            <div className={`rounded-xl px-4 py-3 ${sem.summary}`}>
+                              <p className="text-xs opacity-70 mb-0.5">Margen</p>
+                              <p className="font-bold tabular-nums">{margenPct.toFixed(1)}%</p>
+                              <p className="text-xs opacity-70 mt-0.5 tabular-nums">
+                                {formatCurrency(margen)} por porción
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

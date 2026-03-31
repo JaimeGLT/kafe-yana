@@ -1,6 +1,5 @@
 import React from 'react';
-import { clsx } from 'clsx';
-import { Bell, Search, Settings, User, LogOut, ChevronDown } from 'lucide-react';
+import { Bell, Settings, User, LogOut, ChevronDown, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useUI } from '../../contexts/UIContext';
 import { useSettings } from '../../contexts/SettingsContext';
@@ -8,7 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Dropdown } from '../ui';
 
 export const Header: React.FC = () => {
-  const { searchQuery, setSearchQuery } = useUI();
+  const { toggleMobileSidebar } = useUI();
   const { currentBranch } = useSettings();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -39,27 +38,16 @@ export const Header: React.FC = () => {
   return (
     <header className="sticky top-0 z-20 bg-white border-b border-coffee-100 shadow-sm">
       <div className="flex items-center justify-between px-6 py-4">
-        {/* Left side - Page title will be handled by PageHeader */}
-        <div className="flex-1" />
-
-        {/* Center - Search */}
-        <div className="flex-1 max-w-md">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-coffee-400" />
-            <input
-              type="text"
-              placeholder="Buscar productos, clientes, órdenes..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className={clsx(
-                'w-full pl-10 pr-4 py-2 rounded-lg border border-coffee-200',
-                'text-sm text-coffee-900 placeholder-coffee-400',
-                'focus:outline-none focus:ring-2 focus:ring-coffee-500 focus:border-transparent',
-                'hover:border-coffee-300 transition-colors'
-              )}
-            />
-          </div>
+        {/* Left side - hamburger on mobile */}
+        <div className="flex-1 flex items-center">
+          <button
+            onClick={toggleMobileSidebar}
+            className="md:hidden p-2 rounded-lg hover:bg-coffee-50 transition-colors mr-2"
+          >
+            <Menu className="h-5 w-5 text-coffee-600" />
+          </button>
         </div>
+
 
         {/* Right side - Actions */}
         <div className="flex-1 flex items-center justify-end gap-4">

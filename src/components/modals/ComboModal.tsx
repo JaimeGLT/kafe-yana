@@ -154,8 +154,8 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
     <Modal isOpen={isOpen} onClose={onClose} title={combo ? 'Editar Combo' : 'Nuevo Combo'} size="lg">
       <form onSubmit={handleSubmit} className="space-y-5">
 
-        {/* Name + description */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* Name + price */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
               Nombre del combo
@@ -211,8 +211,8 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
             </Button>
           </div>
 
-          {/* Header */}
-          <div className="grid grid-cols-[1fr_70px_auto_20px] gap-2 text-xs text-coffee-400 font-medium mb-1 px-1">
+          {/* Header — solo visible en desktop */}
+          <div className="hidden sm:grid grid-cols-[1fr_70px_auto_20px] gap-2 text-xs text-coffee-400 font-medium mb-1 px-1">
             <span>Producto</span>
             <span className="text-center">Cantidad</span>
             <span className="text-right">Subtotal</span>
@@ -227,7 +227,8 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
               const subtotal = prod && line.quantity > 0 ? unitCost * line.quantity : 0;
 
               return (
-                <div key={idx} className="grid grid-cols-[1fr_70px_auto_20px] gap-2 items-center">
+                <div key={idx} className="rounded-lg border border-coffee-100 bg-white p-2.5 sm:p-0 sm:border-0 sm:rounded-none sm:grid sm:grid-cols-[1fr_70px_auto_20px] sm:gap-2 sm:items-start">
+                  {/* Producto + hint (col 1 en desktop) */}
                   <div>
                     <Select
                       value={line.productId}
@@ -236,30 +237,36 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
                     />
                     {prod && (
                       <p className="text-xs text-coffee-400 mt-0.5 pl-1">
-                        Costo: {formatCurrency(unitCost)} · Precio: {formatCurrency(prod.salePrice)}
-                        {prod.tipo === 'elaborado' && (receta ? ' (receta)' : ' ⚠ sin receta')}
+                        Costo: {formatCurrency(unitCost)} · PVP: {formatCurrency(prod.salePrice)}
+                        {prod.tipo === 'elaborado' && (receta ? '' : ' · ⚠ sin receta')}
                       </p>
                     )}
                   </div>
-                  <Input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={line.quantity}
-                    onChange={(e) => updateLine(idx, 'quantity', parseInt(e.target.value) || 1)}
-                    className="text-center"
-                  />
-                  <span className="text-xs text-coffee-500 text-right">
-                    {subtotal > 0 ? formatCurrency(subtotal) : '—'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => removeLine(idx)}
-                    className="text-red-400 hover:text-red-600 transition-colors"
-                    disabled={items.length === 1}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  {/* Controles: fila flex en mobile, sm:contents en desktop */}
+                  <div className="flex gap-2 items-end mt-2 sm:mt-0 sm:contents">
+                    <div className="sm:contents">
+                      <p className="sm:hidden text-xs text-coffee-400 mb-0.5">Cantidad</p>
+                      <Input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={line.quantity}
+                        onChange={(e) => updateLine(idx, 'quantity', parseInt(e.target.value) || 1)}
+                        className="text-center w-20 sm:w-full"
+                      />
+                    </div>
+                    <span className="text-xs text-coffee-500 text-right shrink-0 self-center min-w-[48px]">
+                      {subtotal > 0 ? formatCurrency(subtotal) : '—'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeLine(idx)}
+                      className="text-red-400 hover:text-red-600 transition-colors shrink-0 self-center"
+                      disabled={items.length === 1}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -286,12 +293,12 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
                   <span className="text-coffee-700 font-medium">{formatCurrency(comboPrice)}</span>
                 </div>
                 {ahorro > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-coffee-500 flex items-center gap-1">
+                  <div className="flex justify-between text-sm gap-2">
+                    <span className="text-coffee-500 flex items-center gap-1 shrink-0">
                       <Tag className="h-3.5 w-3.5" />
                       Ahorro para el cliente
                     </span>
-                    <span className="text-emerald-700 font-medium">{formatCurrency(ahorro)} ({((ahorro / sumaIndividual) * 100).toFixed(0)}%)</span>
+                    <span className="text-emerald-700 font-medium text-right">{formatCurrency(ahorro)} ({((ahorro / sumaIndividual) * 100).toFixed(0)}%)</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm items-center">
@@ -319,11 +326,11 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
           </ul>
         )}
 
-        <div className="flex justify-end gap-3 pt-1">
-          <Button variant="ghost" type="button" onClick={onClose} disabled={isLoading}>
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-1">
+          <Button variant="ghost" type="button" onClick={onClose} disabled={isLoading} className="w-full sm:w-auto">
             Cancelar
           </Button>
-          <Button variant="primary" type="submit" isLoading={isLoading}>
+          <Button variant="primary" type="submit" isLoading={isLoading} className="w-full sm:w-auto">
             {combo ? 'Guardar cambios' : 'Crear combo'}
           </Button>
         </div>

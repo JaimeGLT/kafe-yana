@@ -62,6 +62,7 @@ export interface ElaboradoResponse {
 
 export interface RecetaDetalleNode {
   id_insumo: number;
+  nombre: string;
   cantidad: number;
   merma: number;
   subTotal: number;

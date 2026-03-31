@@ -1,46 +1,32 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Plus, Search, Package, ShoppingBag, Coffee, Grid3X3, AlertTriangle, BookOpen, Edit, Trash2 } from 'lucide-react';
+import {
+  Plus, Search, ShoppingBag, Edit, Trash2,
+  X, TrendingUp, Tag, ChevronRight,
+  AlertTriangle, PackageX,
+} from 'lucide-react';
 import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
 import { Button, Input, Select, ConfirmModal, Badge } from '../../components/ui';
 import { useToast } from '../../components/ui/Toast';
 import { ProductModal } from '../../components/modals/ProductModal';
-import { EditElaboradoModal } from '../../components/modals/EditElaboradoModal';
-import { ComboModal } from '../../components/modals/ComboModal';
 import { gql } from '../../lib/graphql';
 import { api } from '../../lib/api';
-import type { Product, Category, Brand, Location, ProductTipo, Combo } from '../../types';
+import { GET_COMPRADOS_QUERY, GET_COMPRADO_DETAIL } from '../../lib/queries/products.queries';
+import type { Product, Category, Brand, Location } from '../../types';
 import { formatCurrency } from '../../utils';
 
-type TabTipo = 'todos' | ProductTipo;
+// ── Constantes ─────────────────────────────────────────────────────────────────
 
-interface TabDef {
-  id: TabTipo;
-  label: string;
-  icon: React.ReactNode;
-}
+const EMPTY_BRANDS: Brand[] = [];
+const EMPTY_LOCATIONS: Location[] = [];
 
-const TABS: TabDef[] = [
-  { id: 'todos', label: 'Todos', icon: <Grid3X3 className="h-4 w-4" /> },
-  { id: 'comprado', label: 'Comprados', icon: <ShoppingBag className="h-4 w-4" /> },
-  { id: 'elaborado', label: 'Elaborados', icon: <Coffee className="h-4 w-4" /> },
-  { id: 'combo', label: 'Combos', icon: <Package className="h-4 w-4" /> },
-];
+const calcMargin = (costPrice: number, salePrice: number): number | null =>
+  costPrice > 0 && salePrice > 0
+    ? ((salePrice - costPrice) / salePrice) * 100
+    : null;
 
-const TIPO_LABELS: Record<ProductTipo, string> = {
-  comprado: 'Comprado',
-  elaborado: 'Elaborado',
-  combo: 'Combo',
-};
-
-const TIPO_COLORS: Record<ProductTipo, string> = {
-  comprado: 'bg-blue-100 text-blue-700',
-  elaborado: 'bg-amber-100 text-amber-700',
-  combo: 'bg-purple-100 text-purple-700',
-};
-
-const getMarginBg = (pct: number) => {
+const getMarginColor = (pct: number) => {
   if (pct >= 60) return 'text-emerald-700 font-semibold';
   if (pct >= 30) return 'text-amber-600 font-semibold';
   return 'text-red-600 font-semibold';
@@ -56,7 +42,6 @@ interface ProductNode {
   precioVenta: number;
   costo: number;
   stock: number;
-  recetaName: string | null;
 }
 
 interface CategoriaNode {
@@ -68,21 +53,15 @@ interface CategoriaNode {
   cantidad: number;
 }
 
-interface ComboListNode {
-  id: number;
-  productos: { productoId: number; cantidad: number }[];
-}
-
-interface InitialLoadResponse {
+interface CompradosLoadResponse {
   productos: {
     nodes: ProductNode[];
     pageInfo: { hasNextPage: boolean; endCursor: string | null };
   };
-  combos: ComboListNode[];
   categorias: { nodes: CategoriaNode[] };
 }
 
-interface CompradoDetailGqlResponse {
+interface CompradoDetailResponse {
   comprado: {
     id: number;
     nombre: string;
@@ -100,41 +79,7 @@ interface CompradoDetailGqlResponse {
   };
 }
 
-interface ComboDetailGqlResponse {
-  combo: {
-    id: number;
-    nombre: string;
-    descripcion: string;
-    precio: number;
-    productos: { productoId: number; cantidad: number; opcional: boolean }[];
-  };
-}
-
-// ── Query unificada ────────────────────────────────────────────────────────────
-
-const INITIAL_LOAD_QUERY = `
-  query InitialLoad($cursor: String) {
-    productos(first: 50, after: $cursor) {
-      nodes { id nombre tipo categoriaNombre precioVenta costo stock recetaName }
-      pageInfo { hasNextPage endCursor }
-    }
-    combos {
-      id
-      productos { productoId cantidad }
-    }
-    categorias(order: [{ nombre: ASC }]) {
-      nodes { id nombre descripcion estado color cantidad }
-    }
-  }
-`;
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-const TIPO_MAP: Record<string, ProductTipo> = {
-  Comprado: 'comprado',
-  Elaborado: 'elaborado',
-  Combos: 'combo',
-};
+// ── Mapper ─────────────────────────────────────────────────────────────────────
 
 function mapNode(node: ProductNode): Product {
   return {
@@ -142,7 +87,7 @@ function mapNode(node: ProductNode): Product {
     code: String(node.id),
     name: node.nombre,
     description: '',
-    tipo: TIPO_MAP[node.tipo] ?? 'comprado',
+    tipo: 'comprado',
     categoryId: '',
     categoryName: node.categoriaNombre,
     unit: 'unidad',
@@ -165,87 +110,52 @@ function mapNode(node: ProductNode): Product {
 const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [recetaApiMap, setRecetaApiMap] = useState<Record<string, boolean>>({});
-  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [endCursor, setEndCursor] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<TabTipo>('todos');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
-  const [isElaboradoModalOpen, setIsElaboradoModalOpen] = useState(false);
-  const [isComboModalOpen, setIsComboModalOpen] = useState(false);
-  const [editingCombo, setEditingCombo] = useState<Combo | undefined>(undefined);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
   const [isLoadingEditDetail, setIsLoadingEditDetail] = useState(false);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+
   const toast = useToast();
 
-  // ── Una sola llamada para productos + combos + categorías ──────────────────
+  // ── Carga de datos ─────────────────────────────────────────────────────────
 
   const loadAll = useCallback(async (cursor?: string) => {
-    const data = await gql<InitialLoadResponse>(
-      INITIAL_LOAD_QUERY,
+    const data = await gql<CompradosLoadResponse>(
+      GET_COMPRADOS_QUERY,
       cursor ? { cursor } : {},
     );
 
-    // Mapear productos
-    const nodes = data.productos.nodes.map(mapNode);
+    const nodes = data.productos.nodes
+      .filter((n) => n.tipo === 'Comprado')
+      .map(mapNode);
 
-    // Stock lookup para productos no-combo
-    const stockById: Record<string, number> = {};
-    data.productos.nodes.forEach((n) => {
-      if (n.tipo !== 'Combos') stockById[String(n.id)] = n.stock;
-    });
-
-    // Calcular stock disponible de cada combo
-    const comboStockById: Record<string, number> = {};
-    data.combos.forEach((combo) => {
-      if (combo.productos.length === 0) {
-        comboStockById[String(combo.id)] = 0;
-        return;
-      }
-      const available = Math.min(
-        ...combo.productos.map((p) => {
-          const s = stockById[String(p.productoId)] ?? 0;
-          return p.cantidad > 0 ? Math.floor(s / p.cantidad) : 0;
-        }),
-      );
-      comboStockById[String(combo.id)] = available;
-    });
-
-    const withComboStock = nodes.map((p) =>
-      p.tipo === 'combo' ? { ...p, stock: comboStockById[p.id] ?? 0 } : p,
-    );
-
-    // Mapa de recetas
-    const recMap: Record<string, boolean> = {};
-    data.productos.nodes.forEach((n) => {
-      if (n.recetaName) recMap[String(n.id)] = true;
-    });
-
-    // Categorías (solo en carga inicial, no en "cargar más")
     if (!cursor) {
-      const mappedCats: Category[] = data.categorias.nodes.map((n) => ({
-        id: String(n.id),
-        name: n.nombre,
-        description: n.descripcion,
-        isActive: n.estado,
-        color: n.color,
-        sortOrder: 0,
-        productCount: n.cantidad,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }));
-      setCategories(mappedCats);
-      setProducts(withComboStock);
-      setRecetaApiMap(recMap);
+      setCategories(
+        data.categorias.nodes.map((n) => ({
+          id: String(n.id),
+          name: n.nombre,
+          description: n.descripcion,
+          isActive: n.estado,
+          color: n.color,
+          sortOrder: 0,
+          productCount: n.cantidad,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })),
+      );
+      setProducts(nodes);
     } else {
-      setProducts((prev) => [...prev, ...withComboStock]);
-      setRecetaApiMap((prev) => ({ ...prev, ...recMap }));
+      setProducts((prev) => [...prev, ...nodes]);
     }
 
     setHasNextPage(data.productos.pageInfo.hasNextPage);
@@ -253,8 +163,10 @@ const ProductsPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    loadAll().finally(() => setIsLoadingProducts(false));
-  }, []);
+    loadAll()
+      .catch((err) => console.error('Error loading comprados:', err))
+      .finally(() => setIsLoading(false));
+  }, [loadAll]);
 
   const handleLoadMore = async () => {
     if (!endCursor) return;
@@ -264,9 +176,8 @@ const ProductsPage: React.FC = () => {
 
   // ── Filtros ────────────────────────────────────────────────────────────────
 
-  const filteredProducts = useMemo(() => {
+  const filtered = useMemo(() => {
     return products.filter((p) => {
-      if (activeTab !== 'todos' && p.tipo !== activeTab) return false;
       const q = searchQuery.toLowerCase();
       const matchesSearch =
         !searchQuery ||
@@ -276,12 +187,18 @@ const ProductsPage: React.FC = () => {
       const matchesCategory = !selectedCategory || p.categoryName === selectedCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [products, activeTab, searchQuery, selectedCategory]);
+  }, [products, searchQuery, selectedCategory]);
 
-  const counts = useMemo(() => {
-    const c: Record<string, number> = { todos: products.length };
-    products.forEach((p) => { c[p.tipo] = (c[p.tipo] ?? 0) + 1; });
-    return c;
+  const kpis = useMemo(() => {
+    const sinStock = products.filter((p) => p.stock <= 0).length;
+    const stockBajo = products.filter((p) => p.stock > 0 && p.stock <= p.minStock).length;
+    const margins = products
+      .map((p) => calcMargin(p.costPrice, p.salePrice))
+      .filter((m): m is number => m !== null);
+    const avgMargin = margins.length > 0
+      ? margins.reduce((s, m) => s + m, 0) / margins.length
+      : null;
+    return { total: products.length, sinStock, stockBajo, avgMargin };
   }, [products]);
 
   const categoryOptions = useMemo(
@@ -294,69 +211,18 @@ const ProductsPage: React.FC = () => {
 
   // ── Acciones ───────────────────────────────────────────────────────────────
 
-  const handleOpenCreate = () => { setEditingProduct(undefined); setIsProductModalOpen(true); };
+  const handleOpenCreate = () => {
+    setEditingProduct(undefined);
+    setIsProductModalOpen(true);
+  };
 
   const handleEdit = async (p: Product) => {
     const catId = categories.find((c) => c.name === p.categoryName)?.id || p.categoryId || '';
-
-    if (p.tipo === 'elaborado') {
-      setEditingProduct({ ...p, categoryId: catId });
-      setIsElaboradoModalOpen(true);
-      return;
-    }
-
-    if (p.tipo === 'combo') {
-      setIsComboModalOpen(true);
-      try {
-        const res = await gql<ComboDetailGqlResponse>(`
-          query {
-            combo(id: ${p.id}) {
-              id nombre descripcion precio
-              productos { productoId cantidad opcional }
-            }
-          }
-        `);
-        const d = res.combo;
-        setEditingCombo({
-          id: String(d.id),
-          name: d.nombre,
-          description: d.descripcion,
-          price: d.precio,
-          costoTotal: 0,
-          items: d.productos.map((pr) => ({
-            id: String(pr.productoId),
-            productId: String(pr.productoId),
-            productName: products.find((x) => x.id === String(pr.productoId))?.name ?? '',
-            productTipo: products.find((x) => x.id === String(pr.productoId))?.tipo ?? 'comprado',
-            quantity: pr.cantidad,
-            unitCost: 0,
-            esOpcional: pr.opcional,
-          })),
-          isActive: true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
-      } catch {
-        setIsComboModalOpen(false);
-        toast.error('Error', 'No se pudo cargar el combo.');
-      }
-      return;
-    }
-
-    // comprado
     setEditingProduct({ ...p, categoryId: catId });
     setIsLoadingEditDetail(true);
     setIsProductModalOpen(true);
     try {
-      const res = await gql<CompradoDetailGqlResponse>(`
-        query {
-          comprado(id: ${p.id}) {
-            id nombre descripcion codigo_barra categoria_Id
-            unidad_medida marca ubicacion costo_compra precio
-            stock_actual stock_minimo disponible
-          }
-        }
-      `);
+      const res = await gql<CompradoDetailResponse>(GET_COMPRADO_DETAIL, { id: Number(p.id) });
       const d = res.comprado;
       setEditingProduct({
         ...p,
@@ -378,15 +244,11 @@ const ProductsPage: React.FC = () => {
     }
   };
 
-  const handleDeleteRequest = (p: Product) => setDeletingProduct(p);
-
   const handleConfirmDelete = async () => {
     if (!deletingProduct) return;
     setIsDeleting(true);
     try {
-      const tipo = deletingProduct.tipo;
-      const endpoint = tipo === 'comprado' ? '/Producto' : tipo === 'elaborado' ? '/Elaborado' : '/Combo';
-      await api.delete(`${endpoint}/${deletingProduct.id}`);
+      await api.delete(`/Producto/${deletingProduct.id}`);
       toast.success('Producto eliminado', `"${deletingProduct.name}" fue eliminado.`);
       setDeletingProduct(null);
       await loadAll();
@@ -397,8 +259,8 @@ const ProductsPage: React.FC = () => {
     }
   };
 
-  const emptyBrands: Brand[] = [];
-  const emptyLocations: Location[] = [];
+  // ── Detalle (modal móvil) ──────────────────────────────────────────────────
+
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -406,89 +268,127 @@ const ProductsPage: React.FC = () => {
     <MainLayout>
       <PageContainer>
         <PageHeader
-          title="Productos"
-          subtitle={`${filteredProducts.length} producto${filteredProducts.length !== 1 ? 's' : ''} encontrado${filteredProducts.length !== 1 ? 's' : ''}`}
+          title="Comprados"
+          subtitle={`${filtered.length} producto${filtered.length !== 1 ? 's' : ''} encontrado${filtered.length !== 1 ? 's' : ''}`}
           actions={
-            <Button variant="primary" leftIcon={<Plus className="h-4 w-4" />} onClick={handleOpenCreate}>
+            <Button variant="primary" leftIcon={<Plus className="h-4 w-4" />} onClick={handleOpenCreate} className="w-full sm:w-auto">
               Nuevo Producto
             </Button>
           }
         />
 
-        {/* Tabs */}
-        <div className="bg-white rounded-xl border border-coffee-100 shadow-sm">
-          <div className="flex border-b border-coffee-100 overflow-x-auto">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={clsx(
-                  'flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px',
-                  activeTab === tab.id
-                    ? 'border-coffee-500 text-coffee-900'
-                    : 'border-transparent text-coffee-500 hover:text-coffee-700',
-                )}
-              >
-                {tab.icon}
-                {tab.label}
-                <span className={clsx(
-                  'text-xs rounded-full px-1.5 py-0.5 min-w-[20px] text-center',
-                  activeTab === tab.id ? 'bg-coffee-100 text-coffee-700' : 'bg-coffee-50 text-coffee-400',
-                )}>
-                  {counts[tab.id] ?? 0}
-                </span>
-              </button>
-            ))}
-          </div>
+        {/* KPIs */}
+        {!isLoading && products.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white rounded-xl border border-coffee-100 shadow-sm px-3 py-3 sm:px-4 flex items-center gap-2 sm:gap-3">
+              <div className="p-1.5 sm:p-2 rounded-lg bg-blue-50 flex-shrink-0">
+                <ShoppingBag className="h-4 w-4 text-blue-500" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-coffee-400 truncate">Total</p>
+                <p className="text-base sm:text-lg font-bold text-coffee-900">{kpis.total}</p>
+              </div>
+            </div>
 
-          {/* Filters */}
-          <div className="p-4 flex flex-col sm:flex-row gap-3">
-            <div className="flex-1">
-              <Input
-                placeholder="Buscar por nombre, código o código de barras…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                leftIcon={<Search className="h-4 w-4" />}
-              />
+            <div className="bg-white rounded-xl border border-coffee-100 shadow-sm px-3 py-3 sm:px-4 flex items-center gap-2 sm:gap-3">
+              <div className={clsx('p-1.5 sm:p-2 rounded-lg flex-shrink-0', kpis.sinStock > 0 ? 'bg-red-50' : 'bg-emerald-50')}>
+                <PackageX className={clsx('h-4 w-4', kpis.sinStock > 0 ? 'text-red-500' : 'text-emerald-500')} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-coffee-400 truncate">Sin stock</p>
+                <p className={clsx('text-base sm:text-lg font-bold', kpis.sinStock > 0 ? 'text-red-600' : 'text-coffee-900')}>
+                  {kpis.sinStock}
+                </p>
+              </div>
             </div>
-            <div className="sm:w-52">
-              <Select
-                options={categoryOptions}
-                value={selectedCategory}
-                onChange={setSelectedCategory}
-                placeholder="Todas las categorías"
-              />
+
+            <div className="bg-white rounded-xl border border-coffee-100 shadow-sm px-3 py-3 sm:px-4 flex items-center gap-2 sm:gap-3">
+              <div className={clsx('p-1.5 sm:p-2 rounded-lg flex-shrink-0', kpis.stockBajo > 0 ? 'bg-amber-50' : 'bg-emerald-50')}>
+                <AlertTriangle className={clsx('h-4 w-4', kpis.stockBajo > 0 ? 'text-amber-500' : 'text-emerald-500')} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-coffee-400 truncate">Stock bajo</p>
+                <p className={clsx('text-base sm:text-lg font-bold', kpis.stockBajo > 0 ? 'text-amber-600' : 'text-coffee-900')}>
+                  {kpis.stockBajo}
+                </p>
+              </div>
             </div>
+
+            <div className="bg-white rounded-xl border border-coffee-100 shadow-sm px-3 py-3 sm:px-4 flex items-center gap-2 sm:gap-3">
+              <div className="p-1.5 sm:p-2 rounded-lg bg-emerald-50 flex-shrink-0">
+                <TrendingUp className="h-4 w-4 text-emerald-500" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-coffee-400 truncate">Margen prom.</p>
+                <p className={clsx(
+                  'text-base sm:text-lg font-bold',
+                  kpis.avgMargin === null ? 'text-coffee-400'
+                  : kpis.avgMargin >= 60 ? 'text-emerald-700'
+                  : kpis.avgMargin >= 30 ? 'text-amber-600'
+                  : 'text-red-600',
+                )}>
+                  {kpis.avgMargin !== null ? `${kpis.avgMargin.toFixed(1)}%` : '—'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Filtros */}
+        <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-3 sm:p-4 flex flex-col sm:flex-row gap-3">
+          <div className="flex-1">
+            <Input
+              placeholder="Buscar por nombre o código…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              leftIcon={<Search className="h-4 w-4" />}
+            />
+          </div>
+          <div className="sm:w-52">
+            <Select
+              options={categoryOptions}
+              value={selectedCategory}
+              onChange={setSelectedCategory}
+              placeholder="Todas las categorías"
+            />
           </div>
         </div>
 
-        {/* Table */}
-        {isLoadingProducts ? (
-          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
-            <table className="min-w-full divide-y divide-coffee-100 text-sm">
+        {/* Tabla / estados */}
+        {isLoading ? (
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden animate-pulse">
+            <div className="sm:hidden divide-y divide-coffee-50">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="px-4 py-3 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-coffee-100 flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 w-40 bg-coffee-200 rounded" />
+                    <div className="h-3 w-24 bg-coffee-100 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <table className="hidden sm:table min-w-full divide-y divide-coffee-100 text-sm">
               <thead className="bg-coffee-50">
                 <tr>
-                  {['Producto', 'Tipo', 'Categoría', 'Precio venta', 'Costo', 'Stock', ''].map((h) => (
+                  {['Producto', 'Categoría', 'Precio venta', 'Costo', 'Margen', 'Stock', ''].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-coffee-50">
                 {Array.from({ length: 8 }).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
+                  <tr key={i}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-lg bg-coffee-100" />
-                        <div className="space-y-1.5">
-                          <div className="h-3 w-32 bg-coffee-200 rounded" />
-                          <div className="h-2.5 w-16 bg-coffee-100 rounded" />
-                        </div>
+                        <div className="h-3 w-32 bg-coffee-200 rounded" />
                       </div>
                     </td>
                     <td className="px-4 py-3"><div className="h-5 w-20 bg-coffee-100 rounded-full" /></td>
-                    <td className="px-4 py-3"><div className="h-5 w-20 bg-coffee-100 rounded-full" /></td>
                     <td className="px-4 py-3"><div className="h-3 w-14 bg-coffee-100 rounded ml-auto" /></td>
                     <td className="px-4 py-3"><div className="h-3 w-14 bg-coffee-100 rounded ml-auto" /></td>
+                    <td className="px-4 py-3"><div className="h-3 w-10 bg-coffee-100 rounded ml-auto" /></td>
                     <td className="px-4 py-3"><div className="h-3 w-8 bg-coffee-100 rounded mx-auto" /></td>
                     <td className="px-4 py-3"><div className="h-6 w-12 bg-coffee-100 rounded ml-auto" /></td>
                   </tr>
@@ -496,14 +396,12 @@ const ProductsPage: React.FC = () => {
               </tbody>
             </table>
           </div>
-        ) : filteredProducts.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm py-16 flex flex-col items-center justify-center text-coffee-500">
-            <Package className="h-12 w-12 mb-3 text-coffee-300" />
-            <p className="text-lg font-medium">Sin productos en esta vista</p>
+            <ShoppingBag className="h-12 w-12 mb-3 text-coffee-300" />
+            <p className="text-lg font-medium">Sin productos comprados</p>
             <p className="text-sm mt-1">
-              {searchQuery || selectedCategory
-                ? 'Prueba con otros filtros.'
-                : 'Agrega tu primer producto para comenzar.'}
+              {searchQuery || selectedCategory ? 'Prueba con otros filtros.' : 'Agrega tu primer producto para comenzar.'}
             </p>
             {!searchQuery && !selectedCategory && (
               <Button variant="primary" className="mt-4" leftIcon={<Plus className="h-4 w-4" />} onClick={handleOpenCreate}>
@@ -513,127 +411,88 @@ const ProductsPage: React.FC = () => {
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
-            <table className="min-w-full divide-y divide-coffee-100 text-sm">
+
+            {/* ── Mobile: tarjetas ─────────────────────────────────────────── */}
+            <div className="sm:hidden divide-y divide-coffee-50">
+              {filtered.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setDetailProduct(p)}
+                  className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-coffee-50/60 active:bg-coffee-100 transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+                    <ShoppingBag className="h-5 w-5 text-blue-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-coffee-900 truncate text-sm">{p.name}</p>
+                    <p className="text-xs text-coffee-400 mt-0.5">{p.categoryName || '—'}</p>
+                  </div>
+                  <div className="flex-shrink-0 text-right">
+                    <p className="font-semibold text-coffee-900 text-sm">{formatCurrency(p.salePrice)}</p>
+                    <p className={clsx(
+                      'text-xs mt-0.5',
+                      p.stock <= 0 ? 'text-red-500' : p.stock <= p.minStock ? 'text-amber-500' : 'text-coffee-400',
+                    )}>
+                      {p.stock} en stock
+                    </p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-coffee-300 flex-shrink-0" />
+                </button>
+              ))}
+            </div>
+
+            {/* ── Desktop: tabla ───────────────────────────────────────────── */}
+            <table className="hidden sm:table min-w-full divide-y divide-coffee-100 text-sm">
               <thead className="bg-coffee-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Producto</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Tipo</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Categoría</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Precio venta</th>
-                  {(activeTab === 'comprado' || activeTab === 'todos') && (
-                    <th className="px-4 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Costo</th>
-                  )}
-                  {(activeTab === 'comprado' || activeTab === 'todos') && (
-                    <th className="px-4 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Margen</th>
-                  )}
-                  {(activeTab === 'comprado' || activeTab === 'todos') && (
-                    <th className="px-4 py-3 text-center text-xs font-medium text-coffee-600 uppercase tracking-wider">Stock</th>
-                  )}
-                  {(activeTab === 'elaborado' || activeTab === 'todos') && (
-                    <th className="px-4 py-3 text-center text-xs font-medium text-coffee-600 uppercase tracking-wider">Receta</th>
-                  )}
+                  <th className="px-4 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Costo</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Margen</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-coffee-600 uppercase tracking-wider">Stock</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-coffee-50">
-                {filteredProducts.map((p) => {
-                  const margin =
-                    p.costPrice > 0 && p.salePrice > 0
-                      ? ((p.salePrice - p.costPrice) / p.salePrice) * 100
-                      : null;
-                  const tieneReceta = recetaApiMap[p.id] ?? false;
-
+                {filtered.map((p) => {
+                  const margin = calcMargin(p.costPrice, p.salePrice);
                   return (
                     <tr key={p.id} className="hover:bg-coffee-50/50 transition-colors">
-                      {/* Producto */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-coffee-100 flex items-center justify-center flex-shrink-0">
-                            <Package className="h-4 w-4 text-coffee-400" />
+                          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                            <ShoppingBag className="h-4 w-4 text-blue-400" />
                           </div>
-                          <div>
-                            <p className="font-medium text-coffee-900">{p.name}</p>
-                          </div>
+                          <p className="font-medium text-coffee-900">{p.name}</p>
                         </div>
                       </td>
-
-                      {/* Tipo */}
-                      <td className="px-4 py-3">
-                        <span className={clsx('text-xs font-medium px-2 py-0.5 rounded-full', TIPO_COLORS[p.tipo])}>
-                          {TIPO_LABELS[p.tipo]}
-                        </span>
-                      </td>
-
-                      {/* Categoría */}
                       <td className="px-4 py-3">
                         <Badge variant="default" size="sm">{p.categoryName || '—'}</Badge>
                       </td>
-
-                      {/* Precio */}
                       <td className="px-4 py-3 text-right font-medium text-coffee-900">
                         {formatCurrency(p.salePrice)}
                       </td>
-
-                      {/* Costo (comprado/todos) */}
-                      {(activeTab === 'comprado' || activeTab === 'todos') && (
-                        <td className="px-4 py-3 text-right text-coffee-600">
-                          {p.tipo === 'comprado'
-                            ? formatCurrency(p.costPrice)
-                            : <span className="text-coffee-300">—</span>
-                          }
-                        </td>
-                      )}
-
-                      {/* Margen (comprado/todos) */}
-                      {(activeTab === 'comprado' || activeTab === 'todos') && (
-                        <td className="px-4 py-3 text-right">
-                          {margin !== null ? (
-                            <span className={getMarginBg(margin)}>{margin.toFixed(1)}%</span>
-                          ) : (
-                            <span className="text-coffee-300">—</span>
+                      <td className="px-4 py-3 text-right text-coffee-600">
+                        {formatCurrency(p.costPrice)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {margin !== null
+                          ? <span className={getMarginColor(margin)}>{margin.toFixed(1)}%</span>
+                          : <span className="text-coffee-300">—</span>
+                        }
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={clsx(
+                          'font-medium',
+                          p.stock <= 0 ? 'text-red-600' : p.stock <= p.minStock ? 'text-amber-600' : 'text-coffee-700',
+                        )}>
+                          {p.stock}
+                          {p.stock > 0 && p.stock <= p.minStock && (
+                            <span className="text-xs text-coffee-400 block">Mín: {p.minStock}</span>
                           )}
-                        </td>
-                      )}
-
-                      {/* Stock (comprado/todos) */}
-                      {(activeTab === 'comprado' || activeTab === 'todos') && (
-                        <td className="px-4 py-3 text-center">
-                          {p.tipo === 'comprado' || p.tipo === 'combo' ? (
-                            <span className={clsx(
-                              'font-medium',
-                              p.stock <= 0 ? 'text-red-600' : p.stock <= p.minStock ? 'text-amber-600' : 'text-coffee-700',
-                            )}>
-                              {p.stock}
-                              {p.stock <= p.minStock && p.stock > 0 && (
-                                <span className="text-xs text-coffee-400 block">Mín: {p.minStock}</span>
-                              )}
-                            </span>
-                          ) : (
-                            <span className="text-coffee-300 text-xs">N/A</span>
-                          )}
-                        </td>
-                      )}
-
-                      {/* Receta (elaborado/todos) */}
-                      {(activeTab === 'elaborado' || activeTab === 'todos') && (
-                        <td className="px-4 py-3 text-center">
-                          {p.tipo === 'elaborado' ? (
-                            tieneReceta ? (
-                              <span className="inline-flex items-center gap-1 text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
-                                <BookOpen className="h-3 w-3" /> Con receta
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">
-                                <AlertTriangle className="h-3 w-3" /> Sin receta
-                              </span>
-                            )
-                          ) : (
-                            <span className="text-coffee-300 text-xs">—</span>
-                          )}
-                        </td>
-                      )}
-
-                      {/* Actions */}
+                        </span>
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           <button
@@ -643,7 +502,7 @@ const ProductsPage: React.FC = () => {
                             <Edit className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => handleDeleteRequest(p)}
+                            onClick={() => setDeletingProduct(p)}
                             className="p-1.5 text-coffee-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -672,32 +531,12 @@ const ProductsPage: React.FC = () => {
         onClose={() => setIsProductModalOpen(false)}
         product={editingProduct}
         categories={categories}
-        brands={emptyBrands}
-        locations={emptyLocations}
+        brands={EMPTY_BRANDS}
+        locations={EMPTY_LOCATIONS}
         onSuccess={() => { loadAll(); }}
-        compradoOnly={!editingProduct}
+        compradoOnly
         isLoadingDetail={isLoadingEditDetail}
       />
-
-      <ComboModal
-        isOpen={isComboModalOpen}
-        onClose={() => { setIsComboModalOpen(false); setEditingCombo(undefined); }}
-        combo={editingCombo}
-        products={products.filter((p) => p.tipo !== 'combo')}
-        recetas={[]}
-        onSuccess={() => { loadAll(); setIsComboModalOpen(false); setEditingCombo(undefined); }}
-      />
-
-      {editingProduct && (
-        <EditElaboradoModal
-          isOpen={isElaboradoModalOpen}
-          onClose={() => { setIsElaboradoModalOpen(false); setIsLoadingEditDetail(false); }}
-          product={editingProduct}
-          categoryOptions={categories.map((c) => ({ value: c.id, label: c.name }))}
-          onSaved={() => { loadAll(); setIsElaboradoModalOpen(false); }}
-          getRecetaByProductId={() => undefined}
-        />
-      )}
 
       <ConfirmModal
         isOpen={!!deletingProduct}
@@ -709,6 +548,125 @@ const ProductsPage: React.FC = () => {
         variant="danger"
         isLoading={isDeleting}
       />
+
+      {/* ── Modal de detalle ───────────────────────────────────────────────── */}
+      {detailProduct && (() => {
+        const p = detailProduct;
+        const margin = calcMargin(p.costPrice, p.salePrice);
+        const ganancia = p.salePrice - p.costPrice;
+        const marginBg = margin === null ? 'bg-coffee-50 text-coffee-500'
+          : margin >= 60 ? 'bg-emerald-50 text-emerald-800'
+          : margin >= 30 ? 'bg-amber-50 text-amber-800'
+          : 'bg-red-50 text-red-700';
+        const stockStatus = p.stock <= 0
+          ? { label: 'Agotado',    bg: 'bg-red-100 text-red-700',     dot: 'bg-red-500' }
+          : p.stock <= p.minStock
+          ? { label: 'Stock bajo', bg: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' }
+          : { label: 'Normal',     bg: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' };
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDetailProduct(null)} />
+            <div className="relative bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl overflow-hidden">
+
+              {/* Header */}
+              <div className="px-5 pt-5 pb-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+                      <ShoppingBag className="h-5 w-5 text-blue-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="font-bold text-coffee-900 text-base leading-tight truncate">{p.name}</h2>
+                      {p.categoryName && (
+                        <span className="inline-flex items-center gap-1 mt-1 text-xs bg-coffee-100 text-coffee-600 px-2 py-0.5 rounded-full font-medium">
+                          <Tag className="h-3 w-3" /> {p.categoryName}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setDetailProduct(null)}
+                    className="p-1.5 rounded-lg hover:bg-coffee-100 transition-colors text-coffee-400 flex-shrink-0"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="px-5 pb-5 space-y-4">
+
+                {/* Precios */}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-coffee-400 mb-2">Precios</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-coffee-50 rounded-xl p-3 text-center">
+                      <p className="text-xs text-coffee-400 mb-1">Venta</p>
+                      <p className="font-bold text-coffee-900 tabular-nums text-sm">{formatCurrency(p.salePrice)}</p>
+                    </div>
+                    <div className="bg-coffee-50 rounded-xl p-3 text-center">
+                      <p className="text-xs text-coffee-400 mb-1">Costo</p>
+                      <p className="font-bold text-coffee-900 tabular-nums text-sm">{formatCurrency(p.costPrice)}</p>
+                    </div>
+                    <div className={clsx('rounded-xl p-3 text-center', marginBg)}>
+                      <p className="text-xs opacity-70 mb-1">Margen</p>
+                      <p className="font-bold tabular-nums text-sm">
+                        {margin !== null ? `${margin.toFixed(1)}%` : '—'}
+                      </p>
+                    </div>
+                  </div>
+                  {ganancia > 0 && (
+                    <p className="text-xs text-coffee-400 mt-2 text-center">
+                      Ganancia por unidad: <span className="font-semibold text-coffee-700">{formatCurrency(ganancia)}</span>
+                    </p>
+                  )}
+                </div>
+
+                {/* Stock */}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-coffee-400 mb-2">Inventario</p>
+                  <div className="bg-coffee-50 rounded-xl p-4 flex items-center justify-between gap-4">
+                    <div>
+                      <p className={clsx(
+                        'text-3xl font-bold tabular-nums leading-none',
+                        p.stock <= 0 ? 'text-red-600'
+                        : p.stock <= p.minStock ? 'text-amber-600'
+                        : 'text-coffee-900',
+                      )}>
+                        {p.stock}
+                      </p>
+                      <p className="text-xs text-coffee-400 mt-1">
+                        unidades en stock
+                        {p.minStock > 0 && ` · mín. ${p.minStock}`}
+                      </p>
+                    </div>
+                    <span className={clsx('inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full', stockStatus.bg)}>
+                      <span className={clsx('w-1.5 h-1.5 rounded-full', stockStatus.dot)} />
+                      {stockStatus.label}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 py-3 border-t border-coffee-100 flex gap-2">
+                <button
+                  onClick={() => { setDetailProduct(null); setDeletingProduct(p); }}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors text-sm font-medium"
+                >
+                  <Trash2 className="h-4 w-4" /> Eliminar
+                </button>
+                <button
+                  onClick={() => { setDetailProduct(null); handleEdit(p); }}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-coffee-600 text-white hover:bg-coffee-700 transition-colors text-sm font-medium"
+                >
+                  <Edit className="h-4 w-4" /> Editar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </MainLayout>
   );
 };

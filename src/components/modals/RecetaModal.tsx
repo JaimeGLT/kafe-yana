@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 // RecetaFormContent is exported for inline use (e.g. inside another modal tab)
-import { Plus, Trash2, Copy } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -191,8 +191,8 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Product + Porciones */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="sm:col-span-2">
           <label className="block text-sm font-medium text-coffee-700 mb-1">
             Producto elaborado <span className="text-red-500">*</span>
           </label>
@@ -240,7 +240,7 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
           </Button>
         </div>
 
-        <div className="grid grid-cols-[1fr_90px_60px_56px_20px] gap-2 text-xs text-coffee-400 font-medium mb-1 px-1">
+        <div className="hidden sm:grid grid-cols-[1fr_90px_80px_56px_20px] gap-2 text-xs text-coffee-400 font-medium mb-1 px-1">
           <span>Insumo</span>
           <span className="text-right">Cantidad</span>
           <span className="text-right">Merma %</span>
@@ -257,42 +257,50 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
                 : 0;
 
             return (
-              <div key={idx} className="grid grid-cols-[1fr_90px_60px_56px_20px] gap-2 items-center">
+              <div key={idx} className="rounded-lg border border-coffee-100 bg-white p-2.5 sm:p-0 sm:border-0 sm:rounded-none sm:grid sm:grid-cols-[1fr_90px_80px_56px_20px] sm:gap-2 sm:items-center">
                 <Select
                   value={line.insumoId}
                   onChange={(v) => updateLine(idx, 'insumoId', v)}
                   options={insumoOptions}
                 />
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.001"
-                  value={line.quantity === 0 ? '' : line.quantity}
-                  onChange={(e) => updateLine(idx, 'quantity', parseFloat(e.target.value) || 0)}
-                  placeholder={insumo?.unidadMinima ?? ''}
-                  className="text-right"
-                />
-                <Input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.5"
-                  value={line.merma === 0 ? '' : line.merma}
-                  onChange={(e) => updateLine(idx, 'merma', parseFloat(e.target.value) || 0)}
-                  placeholder="0"
-                  className="text-right"
-                />
-                <span className="text-xs text-right text-coffee-500 font-medium">
-                  {subtotal > 0 ? formatCurrency(subtotal) : '—'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => removeLine(idx)}
-                  className="text-red-400 hover:text-red-600 transition-colors"
-                  disabled={ingredientes.length === 1}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-1.5 items-end mt-2 sm:mt-0 sm:contents">
+                  <div className="sm:contents">
+                    <p className="sm:hidden text-xs text-coffee-400 mb-0.5">Cantidad</p>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      value={line.quantity === 0 ? '' : line.quantity}
+                      onChange={(e) => updateLine(idx, 'quantity', parseFloat(e.target.value) || 0)}
+                      placeholder={insumo?.unidadMinima ?? '0'}
+                      className="text-right"
+                    />
+                  </div>
+                  <div className="sm:contents">
+                    <p className="sm:hidden text-xs text-coffee-400 mb-0.5">Merma %</p>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.5"
+                      value={line.merma === 0 ? '' : line.merma}
+                      onChange={(e) => updateLine(idx, 'merma', parseFloat(e.target.value) || 0)}
+                      placeholder="0"
+                      className="text-right"
+                    />
+                  </div>
+                  <span className="text-xs text-coffee-500 font-medium shrink-0 text-right self-center min-w-[48px]">
+                    {subtotal > 0 ? formatCurrency(subtotal) : '—'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeLine(idx)}
+                    className="text-red-400 hover:text-red-600 transition-colors shrink-0 self-center"
+                    disabled={ingredientes.length === 1}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -349,26 +357,13 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
         </ul>
       )}
 
-      <div className="flex justify-between items-center pt-1">
-        {receta && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            leftIcon={<Copy className="h-4 w-4" />}
-            onClick={() => toast.success('Duplicar', 'Usa "Nueva Receta" y selecciona el producto destino.')}
-          >
-            Duplicar receta
-          </Button>
-        )}
-        <div className="flex gap-3 ml-auto">
-          <Button variant="ghost" type="button" onClick={onClose} disabled={isLoading}>
-            Cancelar
-          </Button>
-          <Button variant="primary" type="submit" isLoading={isLoading}>
-            {receta ? 'Guardar cambios' : 'Crear receta'}
-          </Button>
-        </div>
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-1">
+        <Button variant="ghost" type="button" onClick={onClose} disabled={isLoading} className="w-full sm:w-auto">
+          Cancelar
+        </Button>
+        <Button variant="primary" type="submit" isLoading={isLoading} className="w-full sm:w-auto">
+          {receta ? 'Guardar cambios' : 'Crear receta'}
+        </Button>
       </div>
     </form>
   );
@@ -386,7 +381,7 @@ export const RecetaModal: React.FC<RecetaModalProps> = ({ isOpen, onClose, recet
       isOpen={isOpen}
       onClose={onClose}
       title={receta ? 'Editar Receta' : 'Nueva Receta'}
-      size="lg"
+      size="xl"
     >
       {isOpen && (
         <RecetaFormContent

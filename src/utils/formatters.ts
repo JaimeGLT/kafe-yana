@@ -1,9 +1,9 @@
 /**
- * Formats a number as Peruvian Soles currency.
- * Example: 1234.5 → "S/ 1,234.50"
+ * Formats a number as Bolivianos currency.
+ * Example: 1234.5 → "Bs 1.234,50"
  */
 export function formatCurrency(amount: number): string {
-  return `S/ ${amount.toLocaleString('es-PE', {
+  return `Bs ${amount.toLocaleString('es-BO', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -15,7 +15,7 @@ export function formatCurrency(amount: number): string {
  */
 export function formatDate(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleDateString('es-PE', {
+  return d.toLocaleDateString('es-BO', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -28,7 +28,7 @@ export function formatDate(date: Date | string): string {
  */
 export function formatDateTime(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleString('es-PE', {
+  return d.toLocaleString('es-BO', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -75,7 +75,7 @@ export function formatPercent(value: number): string {
  * Example: 1234 → "1,234"
  */
 export function formatNumber(value: number): string {
-  return value.toLocaleString('es-PE');
+  return value.toLocaleString('es-BO');
 }
 
 /**

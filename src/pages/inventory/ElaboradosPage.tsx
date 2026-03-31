@@ -124,7 +124,7 @@ const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCreated, ca
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-coffee-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -194,7 +194,7 @@ const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCreated, ca
               </div>
 
               {/* Category + Unit */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
                     Categoría
@@ -253,11 +253,11 @@ const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCreated, ca
                 </p>
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
-                <Button variant="ghost" type="button" onClick={handleClose}>
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
+                <Button variant="ghost" type="button" onClick={handleClose} className="w-full sm:w-auto">
                   Cancelar
                 </Button>
-                <Button variant="primary" type="submit" rightIcon={<ChevronRight className="h-4 w-4" />}>
+                <Button variant="primary" type="submit" rightIcon={<ChevronRight className="h-4 w-4" />} className="w-full sm:w-auto">
                   Siguiente — Definir receta
                 </Button>
               </div>
@@ -453,11 +453,11 @@ const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, productName, p
               {errors.map((e, i) => <li key={i}>• {e}</li>)}
             </ul>
           )}
-          <div className="flex justify-between items-center pt-1 border-t border-coffee-100">
-            <Button variant="ghost" type="button" onClick={onSkip} className="text-coffee-400">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-between sm:items-center pt-1 border-t border-coffee-100 gap-3">
+            <Button variant="ghost" type="button" onClick={onSkip} className="text-coffee-400 w-full sm:w-auto">
               Omitir — añadir receta después
             </Button>
-            <Button variant="primary" type="button" onClick={handleSave} leftIcon={<CheckCircle2 className="h-4 w-4" />}>
+            <Button variant="primary" type="button" onClick={handleSave} leftIcon={<CheckCircle2 className="h-4 w-4" />} className="w-full sm:w-auto">
               Asignar receta y finalizar
             </Button>
           </div>
@@ -467,7 +467,7 @@ const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, productName, p
       {/* Nueva receta form */}
       {mode === 'nueva' && <>
       {/* Porciones */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
             Porciones que produce
@@ -499,7 +499,7 @@ const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, productName, p
             <span className="text-red-500 ml-1">*</span>
             <HelpTooltip text="Cada insumo que se consume al preparar este producto. La cantidad es por receta completa (no por porción). El % de merma es el desperdicio normal al preparar (Ej: 5% para pelar, 10% para hervir)." />
           </label>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               type="button"
               variant="ghost"
@@ -516,7 +516,7 @@ const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, productName, p
           </div>
         </div>
 
-        <div className="grid grid-cols-[1fr_90px_60px_56px_24px] gap-2 text-xs text-coffee-400 font-medium mb-1 px-1">
+        <div className="hidden sm:grid grid-cols-[1fr_90px_60px_56px_24px] gap-2 text-xs text-coffee-400 font-medium mb-1 px-1">
           <span>Insumo</span>
           <span className="text-right">
             Cantidad
@@ -539,42 +539,51 @@ const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, productName, p
                 : 0;
 
             return (
-              <div key={idx} className="grid grid-cols-[1fr_90px_60px_56px_24px] gap-2 items-center">
+              <div key={idx} className="rounded-lg border border-coffee-100 bg-white p-2.5 sm:p-0 sm:border-0 sm:rounded-none sm:grid sm:grid-cols-[1fr_90px_60px_56px_24px] sm:gap-2 sm:items-center">
                 <Select
                   value={line.insumoId}
                   onChange={(v) => updateLine(idx, 'insumoId', v)}
                   options={insumoOptions}
                 />
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.001"
-                  value={line.quantity === 0 ? '' : line.quantity}
-                  onChange={(e) => updateLine(idx, 'quantity', parseFloat(e.target.value) || 0)}
-                  placeholder={insumo?.unidadMinima ?? ''}
-                  className="text-right"
-                />
-                <Input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.5"
-                  value={line.merma === 0 ? '' : line.merma}
-                  onChange={(e) => updateLine(idx, 'merma', parseFloat(e.target.value) || 0)}
-                  placeholder="0"
-                  className="text-right"
-                />
-                <span className="text-xs text-right text-coffee-500 font-medium">
-                  {subtotal > 0 ? formatCurrency(subtotal) : '—'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => removeLine(idx)}
-                  className="text-red-400 hover:text-red-600 transition-colors"
-                  disabled={ingredientes.length === 1}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                {/* On mobile: labeled grid; on desktop: sm:contents makes div transparent so children are direct grid cells */}
+                <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-1.5 items-end mt-2 sm:mt-0 sm:contents">
+                  <div className="sm:contents">
+                    <p className="sm:hidden text-xs text-coffee-400 mb-0.5">Cantidad</p>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      value={line.quantity === 0 ? '' : line.quantity}
+                      onChange={(e) => updateLine(idx, 'quantity', parseFloat(e.target.value) || 0)}
+                      placeholder={insumo?.unidadMinima ?? '0'}
+                      className="text-right"
+                    />
+                  </div>
+                  <div className="sm:contents">
+                    <p className="sm:hidden text-xs text-coffee-400 mb-0.5">Merma %</p>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.5"
+                      value={line.merma === 0 ? '' : line.merma}
+                      onChange={(e) => updateLine(idx, 'merma', parseFloat(e.target.value) || 0)}
+                      placeholder="0"
+                      className="text-right"
+                    />
+                  </div>
+                  <span className="text-xs text-coffee-500 font-medium shrink-0 text-right self-center min-w-[48px]">
+                    {subtotal > 0 ? formatCurrency(subtotal) : '—'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeLine(idx)}
+                    className="text-red-400 hover:text-red-600 transition-colors shrink-0 self-center"
+                    disabled={ingredientes.length === 1}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -634,11 +643,11 @@ const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, productName, p
         </ul>
       )}
 
-      <div className="flex justify-between items-center pt-1 border-t border-coffee-100">
-        <Button variant="ghost" type="button" onClick={onSkip} className="text-coffee-400">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-between sm:items-center pt-1 border-t border-coffee-100 gap-3">
+        <Button variant="ghost" type="button" onClick={onSkip} className="text-coffee-400 w-full sm:w-auto">
           Omitir — añadir receta después
         </Button>
-        <Button variant="primary" type="button" onClick={handleSave} leftIcon={<CheckCircle2 className="h-4 w-4" />}>
+        <Button variant="primary" type="button" onClick={handleSave} leftIcon={<CheckCircle2 className="h-4 w-4" />} className="w-full sm:w-auto">
           Guardar receta y finalizar
         </Button>
       </div>
@@ -915,6 +924,7 @@ const ElaboradosPage: React.FC = () => {
               variant="primary"
               leftIcon={<Plus className="h-4 w-4" />}
               onClick={() => setIsWizardOpen(true)}
+              className="w-full sm:w-auto"
             >
               Nuevo producto elaborado
             </Button>
@@ -922,47 +932,47 @@ const ElaboradosPage: React.FC = () => {
         />
 
         {/* KPI cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" aria-busy={isLoading}>
-          <div className="bg-white rounded-xl border border-coffee-100 p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-amber-50">
-              <FlaskConical className="h-5 w-5 text-amber-600" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3" aria-busy={isLoading}>
+          <div className="bg-white rounded-xl border border-coffee-100 px-3 py-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-amber-50 flex-shrink-0">
+              <FlaskConical className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" />
             </div>
-            <div>
-              <p className="text-xs text-coffee-400">Total elaborados</p>
-              <p className="text-xl font-bold text-coffee-900">{elaborados.length}</p>
+            <div className="min-w-0">
+              <p className="text-xs text-coffee-400 truncate">Total</p>
+              <p className="text-base sm:text-xl font-bold text-coffee-900">{elaborados.length}</p>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-coffee-100 p-4 flex items-center gap-3">
-            <div className={clsx('p-2 rounded-lg', sinReceta > 0 ? 'bg-amber-50' : 'bg-emerald-50')}>
+          <div className="bg-white rounded-xl border border-coffee-100 px-3 py-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <div className={clsx('p-1.5 sm:p-2 rounded-lg flex-shrink-0', sinReceta > 0 ? 'bg-amber-50' : 'bg-emerald-50')}>
               {sinReceta > 0
-                ? <AlertTriangle className="h-5 w-5 text-amber-600" />
-                : <CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+                ? <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" />
+                : <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />}
             </div>
-            <div>
-              <p className="text-xs text-coffee-400">Sin receta</p>
-              <p className={clsx('text-xl font-bold', sinReceta > 0 ? 'text-amber-700' : 'text-coffee-900')}>
+            <div className="min-w-0">
+              <p className="text-xs text-coffee-400 truncate">Sin receta</p>
+              <p className={clsx('text-base sm:text-xl font-bold', sinReceta > 0 ? 'text-amber-700' : 'text-coffee-900')}>
                 {sinReceta}
               </p>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-coffee-100 p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-blue-50">
-              <TrendingUp className="h-5 w-5 text-blue-600" />
+          <div className="bg-white rounded-xl border border-coffee-100 px-3 py-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-blue-50 flex-shrink-0">
+              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
             </div>
-            <div>
-              <p className="text-xs text-coffee-400">Margen promedio</p>
-              <p className={clsx('text-xl font-bold', avgMargen === null ? 'text-coffee-400' : avgMargen >= 30 ? 'text-emerald-700' : 'text-red-600')}>
+            <div className="min-w-0">
+              <p className="text-xs text-coffee-400 truncate">Margen prom.</p>
+              <p className={clsx('text-base sm:text-xl font-bold', avgMargen === null ? 'text-coffee-400' : avgMargen >= 30 ? 'text-emerald-700' : 'text-red-600')}>
                 {avgMargen !== null ? `${avgMargen.toFixed(1)}%` : '—'}
               </p>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-coffee-100 p-4 flex items-center gap-3">
-            <div className={clsx('p-2 rounded-lg', sinStock > 0 ? 'bg-red-50' : 'bg-emerald-50')}>
-              <Layers className={clsx('h-5 w-5', sinStock > 0 ? 'text-red-600' : 'text-emerald-600')} />
+          <div className="bg-white rounded-xl border border-coffee-100 px-3 py-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <div className={clsx('p-1.5 sm:p-2 rounded-lg flex-shrink-0', sinStock > 0 ? 'bg-red-50' : 'bg-emerald-50')}>
+              <Layers className={clsx('h-4 w-4 sm:h-5 sm:w-5', sinStock > 0 ? 'text-red-600' : 'text-emerald-600')} />
             </div>
-            <div>
-              <p className="text-xs text-coffee-400">Sin stock hoy</p>
-              <p className={clsx('text-xl font-bold', sinStock > 0 ? 'text-red-700' : 'text-coffee-900')}>
+            <div className="min-w-0">
+              <p className="text-xs text-coffee-400 truncate">Sin stock</p>
+              <p className={clsx('text-base sm:text-xl font-bold', sinStock > 0 ? 'text-red-700' : 'text-coffee-900')}>
                 {sinStock}
               </p>
             </div>
@@ -980,27 +990,27 @@ const ElaboradosPage: React.FC = () => {
         )}
 
         {/* Filters */}
-        <div className="flex gap-3 mb-4">
-          <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-coffee-400" />
-            <input
+        <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-3 sm:p-4 flex flex-col sm:flex-row gap-3 mb-4">
+          <div className="flex-1">
+            <Input
+              placeholder="Buscar producto…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar producto…"
-              className="w-full pl-9 pr-4 py-2 border border-coffee-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
+              leftIcon={<Search className="h-4 w-4" />}
             />
           </div>
-          <Select
-            value={filterStatus}
-            onChange={(v) => setFilterStatus(v)}
-            options={[
-              { value: '', label: 'Todos los estados' },
-              { value: 'con_receta', label: 'Con receta' },
-              { value: 'sin_receta', label: 'Sin receta' },
-              { value: 'sin_stock', label: 'Sin stock disponible' },
-            ]}
-            className="w-52"
-          />
+          <div className="sm:w-52">
+            <Select
+              value={filterStatus}
+              onChange={(v) => setFilterStatus(v)}
+              options={[
+                { value: '', label: 'Todos los estados' },
+                { value: 'con_receta', label: 'Con receta' },
+                { value: 'sin_receta', label: 'Sin receta' },
+                { value: 'sin_stock', label: 'Sin stock disponible' },
+              ]}
+            />
+          </div>
         </div>
 
         {/* Empty state / loading */}

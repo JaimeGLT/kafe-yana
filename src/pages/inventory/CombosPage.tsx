@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { MainLayout, PageContainer, PageHeader } from '../../components/layout';
-import { Button, ConfirmModal } from '../../components/ui';
+import { Button, ConfirmModal, Input, Select } from '../../components/ui';
 import { ComboModal } from '../../components/modals/ComboModal';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
@@ -198,8 +198,7 @@ const ComboCard: React.FC<ComboCardProps> = ({
 const CombosPage: React.FC = () => {
   // ── Datos desde el hook ──
   const { combos, products: allProducts, recetas, isLoading, loadData } = useCombosData();
-  console.log(combos);
-  
+
   // ── Estado de UI ──
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -293,46 +292,46 @@ const CombosPage: React.FC = () => {
           title="Combos"
           subtitle="Paquetes de productos a precio especial — el stock se descuenta por componente"
           actions={
-            <Button variant="primary" leftIcon={<Plus className="h-4 w-4" />} onClick={() => setIsModalOpen(true)}>
+            <Button variant="primary" leftIcon={<Plus className="h-4 w-4" />} onClick={() => setIsModalOpen(true)} className="w-full sm:w-auto">
               Nuevo combo
             </Button>
           }
         />
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl border border-coffee-100 p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-blue-50">
-              <Layers className="h-5 w-5 text-blue-600" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div className="bg-white rounded-xl border border-coffee-100 px-3 py-3 sm:p-4 flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-blue-50 shrink-0">
+              <Layers className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
             </div>
-            <div>
-              <p className="text-xs text-coffee-400">Total combos</p>
-              <p className="text-xl font-bold text-coffee-900">{activeCombos.length}</p>
+            <div className="min-w-0">
+              <p className="text-xs text-coffee-400 truncate">Total combos</p>
+              <p className="text-base sm:text-xl font-bold text-coffee-900">{activeCombos.length}</p>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-coffee-100 p-4 flex items-center gap-3">
-            <div className={clsx('p-2 rounded-lg', sinStock > 0 ? 'bg-red-50' : 'bg-emerald-50')}>
+          <div className="bg-white rounded-xl border border-coffee-100 px-3 py-3 sm:p-4 flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className={clsx('p-1.5 sm:p-2 rounded-lg shrink-0', sinStock > 0 ? 'bg-red-50' : 'bg-emerald-50')}>
               {sinStock > 0
-                ? <AlertTriangle className="h-5 w-5 text-red-600" />
-                : <CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+                ? <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" />
+                : <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />}
             </div>
-            <div>
-              <p className="text-xs text-coffee-400">Sin stock hoy</p>
-              <p className={clsx('text-xl font-bold', sinStock > 0 ? 'text-red-700' : 'text-coffee-900')}>
+            <div className="min-w-0">
+              <p className="text-xs text-coffee-400 truncate">Sin stock hoy</p>
+              <p className={clsx('text-base sm:text-xl font-bold', sinStock > 0 ? 'text-red-700' : 'text-coffee-900')}>
                 {sinStock}
               </p>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-coffee-100 p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-emerald-50">
-              <TrendingUp className="h-5 w-5 text-emerald-600" />
+          <div className="bg-white rounded-xl border border-coffee-100 px-3 py-3 sm:p-4 flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-emerald-50 shrink-0">
+              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
             </div>
-            <div>
-              <p className="text-xs text-coffee-400">Margen promedio</p>
+            <div className="min-w-0">
+              <p className="text-xs text-coffee-400 truncate">Margen promedio</p>
               <p className={clsx(
-                'text-xl font-bold',
+                'text-base sm:text-xl font-bold',
                 avgMargen === null ? 'text-coffee-400' : avgMargen >= 30 ? 'text-emerald-700' : 'text-red-600',
               )}>
                 {avgMargen !== null ? `${avgMargen.toFixed(1)}%` : '—'}
@@ -340,13 +339,13 @@ const CombosPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-coffee-100 p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-purple-50">
-              <Tag className="h-5 w-5 text-purple-600" />
+          <div className="bg-white rounded-xl border border-coffee-100 px-3 py-3 sm:p-4 flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-purple-50 shrink-0">
+              <Tag className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
             </div>
-            <div>
-              <p className="text-xs text-coffee-400">Ahorro promedio</p>
-              <p className="text-xl font-bold text-coffee-900">
+            <div className="min-w-0">
+              <p className="text-xs text-coffee-400 truncate">Ahorro promedio</p>
+              <p className="text-base sm:text-xl font-bold text-coffee-900 truncate">
                 {avgAhorro !== null ? formatCurrency(avgAhorro) : '—'}
               </p>
             </div>
@@ -354,25 +353,26 @@ const CombosPage: React.FC = () => {
         </div>
 
         {/* Filtros */}
-        <div className="flex gap-3 mb-4">
-          <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-coffee-400" />
-            <input
+        <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-3 sm:p-4 flex flex-col sm:flex-row gap-3 mb-4">
+          <div className="flex-1">
+            <Input
+              placeholder="Buscar combo…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar combo…"
-              className="w-full pl-9 pr-4 py-2 border border-coffee-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
+              leftIcon={<Search className="h-4 w-4" />}
             />
           </div>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="border border-coffee-200 rounded-lg text-sm px-3 py-2 text-coffee-700 focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
-          >
-            <option value="">Todos los combos</option>
-            <option value="disponible">Disponibles hoy</option>
-            <option value="sin_stock">Sin stock</option>
-          </select>
+          <div className="sm:w-52">
+            <Select
+              value={filterStatus}
+              onChange={(v) => setFilterStatus(v)}
+              options={[
+                { value: '', label: 'Todos los combos' },
+                { value: 'disponible', label: 'Disponibles hoy' },
+                { value: 'sin_stock', label: 'Sin stock' },
+              ]}
+            />
+          </div>
         </div>
 
         {/* Contenido */}

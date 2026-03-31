@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { clsx } from 'clsx';
 import {
   Home,
@@ -39,7 +39,7 @@ const navItems: NavItem[] = [
     icon: <Package className="h-5 w-5" />,
     path: '/inventory',
     children: [
-      { id: 'products', label: 'Productos', icon: null, path: '/inventory/products', groupLabel: 'Productos' },
+      { id: 'products', label: 'Comprados', icon: null, path: '/inventory/products', groupLabel: 'Productos' },
       { id: 'elaborados', label: 'Elaborados', icon: null, path: '/inventory/elaborados' },
       { id: 'combos', label: 'Combos', icon: null, path: '/inventory/combos' },
       { id: 'categories', label: 'Categorías', icon: null, path: '/inventory/categories', groupLabel: 'Gestión' },
@@ -118,10 +118,20 @@ const navItems: NavItem[] = [
 ];
 
 export const Sidebar: React.FC = () => {
-  const { sidebarCollapsed, toggleSidebar } = useUI();
+  const { sidebarCollapsed, toggleSidebar, mobileSidebarOpen, closeMobileSidebar } = useUI();
   const location = useLocation();
   const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+
+  // En mobile el sidebar siempre se muestra expandido
+  const collapsed = isMobile ? false : sidebarCollapsed;
 
   const isActive = (path: string) => location.pathname === path;
   const isParentActive = (item: NavItem) =>
@@ -135,22 +145,38 @@ export const Sidebar: React.FC = () => {
 
   const handleNavClick = (item: NavItem) => {
     if (item.children) {
-      if (sidebarCollapsed) {
+      if (collapsed) {
         navigate(item.children[0].path);
+        closeMobileSidebar();
       } else {
         toggleExpand(item.id);
       }
     } else {
       navigate(item.path);
+      closeMobileSidebar();
     }
   };
 
   return (
+    <>
+      {/* Mobile backdrop */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          onClick={closeMobileSidebar}
+        />
+      )}
+
     <aside
       className={clsx(
         'fixed left-0 top-0 h-screen bg-cafe-sidebar text-white transition-all duration-300',
-        'flex flex-col z-30',
-        sidebarCollapsed ? 'w-20' : 'w-64'
+        'flex flex-col z-40',
+        // Desktop
+        'md:translate-x-0',
+        sidebarCollapsed ? 'md:w-20' : 'md:w-64',  // ancho desktop usa sidebarCollapsed real
+        // Mobile
+        'w-64',
+        mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
       )}
     >
       {/* Logo */}
@@ -159,13 +185,14 @@ export const Sidebar: React.FC = () => {
           <div className="flex-shrink-0 w-10 h-10 bg-cream rounded-lg flex items-center justify-center">
             <Coffee className="h-6 w-6 text-coffee-700" />
           </div>
-          {!sidebarCollapsed && (
+          {!collapsed && (
             <span className="font-display text-xl font-bold">Kafe-Yana</span>
           )}
         </div>
+        {/* Botón colapsar solo en desktop */}
         <button
           onClick={toggleSidebar}
-          className="p-2 rounded-lg hover:bg-coffee-700 transition-colors"
+          className="hidden md:block p-2 rounded-lg hover:bg-coffee-700 transition-colors"
         >
           {sidebarCollapsed ? (
             <ChevronRight className="h-5 w-5" />
@@ -191,7 +218,7 @@ export const Sidebar: React.FC = () => {
                 )}
               >
                 <span className="flex-shrink-0">{item.icon}</span>
-                {!sidebarCollapsed && (
+                {!collapsed && (
                   <>
                     <span className="flex-1">{item.label}</span>
                     {item.children && (
@@ -207,7 +234,7 @@ export const Sidebar: React.FC = () => {
               </button>
 
               {/* Submenu */}
-              {!sidebarCollapsed && item.children && expandedItems.includes(item.id) && (
+              {!collapsed && item.children && expandedItems.includes(item.id) && (
                 <ul className="mt-1 ml-10 space-y-1">
                   {item.children.map((child) => (
                     <li key={child.id}>
@@ -217,7 +244,7 @@ export const Sidebar: React.FC = () => {
                         </p>
                       )}
                       <button
-                        onClick={() => navigate(child.path)}
+                        onClick={() => { navigate(child.path); closeMobileSidebar(); }}
                         className={clsx(
                           'w-full px-3 py-2 text-sm rounded-lg transition-colors text-left',
                           isActive(child.path)
@@ -237,7 +264,7 @@ export const Sidebar: React.FC = () => {
       </nav>
 
       {/* User info */}
-      {!sidebarCollapsed && (
+      {!collapsed && (
         <div className="px-4 py-4 border-t border-coffee-700">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-cream rounded-full flex items-center justify-center">
@@ -251,5 +278,6 @@ export const Sidebar: React.FC = () => {
         </div>
       )}
     </aside>
+    </>
   );
 };
