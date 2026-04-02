@@ -36,6 +36,20 @@ export const GET_COMPRADO_DETAIL = `
   }
 `;
 
+export const GET_KARDEX_PRODUCTS_QUERY = `
+  query {
+    productos(first: 50) {
+      nodes { id nombre tipo categoriaNombre precioVenta costo stock }
+    }
+    elaborados {
+      id nombre precio cantidadProducible unidad_medida
+    }
+    combos {
+      id nombre precio cantidadProducible
+    }
+  }
+`;
+
 export const GET_COMBO_DETAIL = `
   query GetComboDetail($id: Int!) {
     combo(id: $id) {

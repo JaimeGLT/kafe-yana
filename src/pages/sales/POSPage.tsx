@@ -3,7 +3,7 @@ import { clsx } from 'clsx';
 import {
   Plus, Minus, Trash2, Coffee, CheckCircle, Printer,
   CreditCard, Banknote, Smartphone, UserCheck, AlertTriangle,
-  FlaskConical, Layers, X, Star, Users,
+  FlaskConical, Layers, X, Star,
   UtensilsCrossed, ChevronRight, Search, PenLine, History, ShoppingBag,
 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
@@ -15,7 +15,7 @@ import {
   mockAddSale, mockGenerateInvoice,
 } from './posMocks';
 import { formatCurrency } from '../../utils';
-import type { Product, Category, Customer, Sale, SaleInput, PaymentMethodType, OpcionSeleccionada, VariacionAtributo } from '../../types';
+import type { Product, Category, Customer, SaleInput, PaymentMethodType, OpcionSeleccionada, VariacionAtributo } from '../../types';
 import type { BillingData } from '../../components/modals/BillingModal';
 import type { LoyaltyProfile, PointsCalculation, MilestoneReward } from '../../types/loyalty';
 import { VariacionPickerModal } from '../../components/modals/VariacionPickerModal';
@@ -241,7 +241,7 @@ let getAttrCount = (_p: Product) => 0;
 export const POSPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [_customers, setCustomers] = useState<Customer[]>([]);
   const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
   const [loyaltyProfiles, setLoyaltyProfiles] = useState<LoyaltyProfile[]>([]);
   const [milestones, setMilestones] = useState<MilestoneReward[]>([]);
@@ -536,15 +536,6 @@ export const POSPage: React.FC = () => {
     }));
   };
 
-  const addDirectProduct = (product: Product) => {
-    const attrs = getAtributosByProductId(product.id);
-    if (attrs.length > 0) {
-      setVarPickerDirect(true);
-      setVarPickerProduct(product);
-    } else {
-      addDirectToMesa(product);
-    }
-  };
 
   /* ── Mesa order controls ── */
   const incMesaQty = (cartKey: string) =>
