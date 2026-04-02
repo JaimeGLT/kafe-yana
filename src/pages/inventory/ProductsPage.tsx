@@ -13,13 +13,10 @@ import { ProductModal } from '../../components/modals/ProductModal';
 import { gql } from '../../lib/graphql';
 import { api } from '../../lib/api';
 import { GET_COMPRADOS_QUERY, GET_COMPRADO_DETAIL } from '../../lib/queries/products.queries';
-import type { Product, Category, Brand, Location } from '../../types';
+import type { Product, Category } from '../../types';
 import { formatCurrency } from '../../utils';
 
 // ── Constantes ─────────────────────────────────────────────────────────────────
-
-const EMPTY_BRANDS: Brand[] = [];
-const EMPTY_LOCATIONS: Location[] = [];
 
 const calcMargin = (costPrice: number, salePrice: number): number | null =>
   costPrice > 0 && salePrice > 0
@@ -531,10 +528,7 @@ const ProductsPage: React.FC = () => {
         onClose={() => setIsProductModalOpen(false)}
         product={editingProduct}
         categories={categories}
-        brands={EMPTY_BRANDS}
-        locations={EMPTY_LOCATIONS}
         onSuccess={() => { loadAll(); }}
-        compradoOnly
         isLoadingDetail={isLoadingEditDetail}
       />
 

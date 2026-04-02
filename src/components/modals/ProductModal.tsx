@@ -3,17 +3,14 @@ import { Modal } from '../ui/Modal';
 import { ProductForm } from '../forms/ProductForm';
 import { useToast } from '../ui/Toast';
 import { api } from '../../lib/api';
-import type { Product, ProductInput, Category, Brand, Location } from '../../types';
+import type { Product, ProductInput, Category } from '../../types';
 
 interface ProductModalProps {
   isOpen: boolean;
   onClose: () => void;
   product?: Product;
   categories: Category[];
-  brands: Brand[];
-  locations: Location[];
   onSuccess: () => void;
-  compradoOnly?: boolean;
   isLoadingDetail?: boolean;
 }
 
@@ -22,10 +19,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   onClose,
   product,
   categories,
-  brands,
-  locations,
   onSuccess,
-  compradoOnly = false,
   isLoadingDetail = false,
 }) => {
   const [isLoading, setIsLoading] = React.useState(false);
@@ -35,31 +29,20 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     setIsLoading(true);
     try {
       if (product) {
-        const tipo = product.tipo;
-        if (tipo === 'comprado') {
-          await api.put(`/Producto/${product.id}`, {
-            nombre: data.name,
-            codigo_barra: data.barcode ?? '',
-            descripcion: data.description ?? '',
-            categoria_Id: Number(data.categoryId) || 0,
-            unidad_medida: data.unit,
-            marca: data.brandId ?? '',
-            ubicacion: data.locationId ?? '',
-            costo_compra: data.costPrice,
-            precio: data.salePrice,
-            stock_actual: data.stock ?? 0,
-            stock_minimo: data.minStock ?? 0,
-            disponible: data.isActive ?? true,
-          });
-        } else if (tipo === 'elaborado') {
-          await api.put(`/Elaborado/${product.id}`, {
-            nombre: data.name,
-            descripcion: data.description ?? '',
-            precio: data.salePrice,
-            categoria_Id: Number(data.categoryId) || 0,
-            unidad_medida: data.unit,
-          });
-        }
+        await api.put(`/Producto/${product.id}`, {
+          nombre: data.name,
+          codigo_barra: data.barcode ?? '',
+          descripcion: data.description ?? '',
+          categoria_Id: Number(data.categoryId) || 0,
+          unidad_medida: data.unit,
+          marca: data.brandId ?? '',
+          ubicacion: data.locationId ?? '',
+          costo_compra: data.costPrice,
+          precio: data.salePrice,
+          stock_actual: data.stock ?? 0,
+          stock_minimo: data.minStock ?? 0,
+          disponible: data.isActive ?? true,
+        });
         toast.success('Producto actualizado', `"${data.name}" fue actualizado correctamente.`);
       } else {
         // CREATE — always comprado (compradoOnly enforces tipo='comprado')
@@ -107,13 +90,13 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         <ProductForm
           product={product}
           categories={categories}
-          brands={brands}
-          locations={locations}
+          brands={[]}
+          locations={[]}
           onSubmit={handleSubmit}
           onCancel={onClose}
           isLoading={isLoading}
-          hideTipo={compradoOnly}
-          forceTipo={compradoOnly && !product ? 'comprado' : undefined}
+          hideTipo
+          forceTipo={!product ? 'comprado' : undefined}
         />
       )}
     </Modal>
