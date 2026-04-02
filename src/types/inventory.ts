@@ -152,6 +152,8 @@ export interface Combo extends BaseEntity {
   price: number;
   /** Auto-calculated: sum of each item's unitCost × quantity */
   costoTotal: number;
+  /** Quantity producible today (from backend cantidadProducible) */
+  availability: number;
   image?: string;
   isActive: boolean;
 }

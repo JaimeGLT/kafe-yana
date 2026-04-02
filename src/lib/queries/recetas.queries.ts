@@ -5,6 +5,7 @@ export const GET_ALL_RECETAS = `
       nombre
       nota
       id_Elaborado
+      porciones
       detalles {
         id_insumo
         cantidad
@@ -23,6 +24,7 @@ export const GET_RECETA_BY_ID = `
       nombre
       nota
       id_Elaborado
+      porciones
       detalles {
         id_insumo
         cantidad

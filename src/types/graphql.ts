@@ -12,6 +12,7 @@ id: number;
   precio: number;
   tipo: string;
   categoria_Id: number;
+  cantidadProducible: number;
   productos: {
     productoId: number;
     cantidad: number;
@@ -50,6 +51,7 @@ export interface ElaboradoNode {
   tipo: string;
   categoria_Id: number;
   unidad_medida: string;
+  cantidadProducible: number;
 }
 
 export interface ElaboradosResponse {
@@ -73,6 +75,7 @@ export interface RecetaNode {
   nombre: string;
   nota: string | null;
   id_Elaborado: number;
+  porciones: number;
   detalles: RecetaDetalleNode[];
 }
 

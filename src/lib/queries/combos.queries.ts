@@ -7,6 +7,7 @@ export const COMBOS_QUERY = `
       precio
       tipo
       categoria_Id
+      cantidadProducible
       productos {
         productoId
         cantidad

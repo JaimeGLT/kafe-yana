@@ -161,6 +161,7 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
         nombre: nombre.trim() || productName,
         nota: notas.trim(),
         id_Elaborado: Number(productId),
+        porciones: porcionesBase,
         detalles: ingredientes.map((ing) => {
           const insumo = insumos.find((i) => i.id === ing.insumoId);
           const subTotal = insumo ? insumo.costoUnitario * ing.quantity * (1 + ing.merma / 100) : 0;

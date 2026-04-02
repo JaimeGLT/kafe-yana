@@ -797,10 +797,9 @@ const ElaboradosPage: React.FC = () => {
     return recetas.find((r: Receta) => r.productId === productId);
   }, [recetas]);
 
-  const getElaboradoAvailability = useCallback((_productId: string) => {
-    // Simple implementation - in production this would calculate based on insumos
-    return 999 as number; // Default availability
-  }, []);
+  const getElaboradoAvailability = useCallback((productId: string) => {
+    return elaborados.find((p) => p.id === productId)?.stock ?? 0;
+  }, [elaborados]);
 
   const addReceta = useCallback(async (recetaData: { productId: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string }, _productName: string) => {
     try {
@@ -894,7 +893,8 @@ const ElaboradosPage: React.FC = () => {
     if (filterStatus === 'sin_stock') list = list.filter((p) => getElaboradoAvailability(p.id) === 0);
     return list;
   }, [elaborados, search, filterStatus, recetas, getRecetaByProductId, getElaboradoAvailability]);
-
+  console.log(filtered);
+  
   // KPIs
   const sinReceta = elaborados.filter((p) => !getRecetaByProductId(p.id)).length;
   const conReceta = elaborados.filter((p) => !!getRecetaByProductId(p.id));

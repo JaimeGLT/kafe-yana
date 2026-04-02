@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Plus, Edit2, Trash2, Search, Layers, Tag,
   TrendingUp, AlertTriangle, CheckCircle2, XCircle,
@@ -30,7 +30,7 @@ const getMarginInfo = (pct: number) => {
     badge: 'bg-amber-50 text-amber-700 border-amber-200',
   };
   return {
-    label: 'Revisar precio',
+    label: 'Revisar',
     dot: 'bg-red-500',
     text: 'text-red-700',
     badge: 'bg-red-50 text-red-700 border-red-200',
@@ -71,10 +71,10 @@ const ComboCard: React.FC<ComboCardProps> = ({
     recetas.find((r) => r.productId === productId);
 
   return (
-    <div className="bg-white rounded-xl border border-coffee-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+    <div className="bg-white rounded-xl border border-coffee-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col">
       <div className={clsx('h-1', semaforo ? semaforo.dot : 'bg-coffee-200')} />
 
-      <div className="p-4 space-y-3">
+      <div className="p-4 space-y-3 flex-1">
         {/* Header */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -174,7 +174,7 @@ const ComboCard: React.FC<ComboCardProps> = ({
       </div>
 
       {/* Acciones */}
-      <div className="px-4 pb-4 flex gap-2">
+      <div className="px-4 pb-4 flex gap-2 mt-auto">
         <button
           onClick={() => onEdit(combo)}
           className="flex-1 text-xs font-medium py-1.5 px-2 rounded-lg border border-coffee-200 text-coffee-600 hover:bg-coffee-50 transition-colors flex items-center justify-center gap-1"
@@ -211,22 +211,6 @@ const CombosPage: React.FC = () => {
     loadData().catch(() => toast.error('Error', 'No se pudieron cargar los combos.'));
   }, [loadData]);
 
-  // ── Disponibilidad local ──
-  const getLocalAvailability = useCallback((combo: Combo): number => {
-    const required = combo.items.filter((i) => !i.esOpcional);
-    if (required.length === 0) return 0;
-    let min = Infinity;
-    for (const item of required) {
-      const prod = allProducts.find((p) => p.id === item.productId);
-      if (!prod) return 0;
-      if (prod.tipo === 'comprado') {
-        const av = Math.floor(prod.stock / item.quantity);
-        if (av < min) min = av;
-      }
-    }
-    return min === Infinity ? 0 : min;
-  }, [allProducts]);
-
   // ── Derivados ──
   const activeCombos = useMemo(() => combos.filter((c) => c.isActive), [combos]);
 
@@ -238,13 +222,13 @@ const CombosPage: React.FC = () => {
         c.name.toLowerCase().includes(q) || c.description?.toLowerCase().includes(q),
       );
     }
-    if (filterStatus === 'sin_stock') list = list.filter((c) => getLocalAvailability(c) === 0);
-    if (filterStatus === 'disponible') list = list.filter((c) => getLocalAvailability(c) > 0);
+    if (filterStatus === 'sin_stock') list = list.filter((c) => c.availability === 0);
+    if (filterStatus === 'disponible') list = list.filter((c) => c.availability > 0);
     return list;
-  }, [activeCombos, search, filterStatus, getLocalAvailability]);
+  }, [activeCombos, search, filterStatus]);
 
   // ── KPIs ──
-  const sinStock = activeCombos.filter((c) => getLocalAvailability(c) === 0).length;
+  const sinStock = activeCombos.filter((c) => c.availability === 0).length;
 
   const avgMargen = useMemo(() => {
     const valid = activeCombos.filter((c) => c.price > 0 && c.costoTotal > 0);
@@ -416,7 +400,7 @@ const CombosPage: React.FC = () => {
               <ComboCard
                 key={combo.id}
                 combo={combo}
-                availability={getLocalAvailability(combo)}
+                availability={combo.availability}
                 products={allProducts}
                 recetas={recetas}
                 onEdit={openEdit}

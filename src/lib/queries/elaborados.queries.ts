@@ -8,6 +8,7 @@ export const GET_ALL_ELABORADOS = `
       tipo
       categoria_Id
       unidad_medida
+      cantidadProducible
     }
   }
 `

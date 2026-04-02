@@ -4,8 +4,10 @@ import { Layers, ChevronDown, ChevronRight, FlaskConical, Coffee, Package, Info 
 import { MainLayout } from '../../components/layout';
 import { PageContainer, PageHeader } from '../../components/layout';
 import { Button, Input } from '../../components/ui';
+import { toast } from '../../components/ui/Toast';
 import { VariacionModal } from '../../components/modals/VariacionModal';
 import { gql } from '../../lib/graphql';
+import { api } from '../../lib/api';
 import { formatCurrency } from '../../utils';
 import type { Product, VariacionAtributo, Insumo } from '../../types';
 
@@ -245,24 +247,35 @@ const VariacionesPage: React.FC = () => {
     fetchData();
   }, []);
 
-  // ── Handlers locales (sin API) ───────────────────────────────────────────────
+  // ── Handlers ─────────────────────────────────────────────────────────────────
 
   const handleAddAtributo = useCallback(async (
     productId: string,
     data: { nombre: string; esRequerido: boolean }
   ): Promise<VariacionAtributo> => {
-    const nuevo: VariacionAtributo = {
-      id: `local-${Date.now()}`,
-      productId,
-      nombre: data.nombre,
-      esRequerido: data.esRequerido,
-      opciones: [],
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    setAtributos((prev) => [...prev, nuevo]);
-    return nuevo;
+    try {
+      const res = await api.post<{ id: number }>('/Variacion/Variacion', {
+        nombre: data.nombre,
+        requerido: data.esRequerido,
+        id_Producto: Number(productId),
+      });
+      const nuevo: VariacionAtributo = {
+        id: String(res.id),
+        productId,
+        nombre: data.nombre,
+        esRequerido: data.esRequerido,
+        opciones: [],
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      setAtributos((prev) => [...prev, nuevo]);
+      toast.success('Grupo creado', `"${data.nombre}" fue creado.`);
+      return nuevo;
+    } catch {
+      toast.error('Error', 'No se pudo crear el grupo de variación.');
+      throw new Error('Failed to create atributo');
+    }
   }, []);
 
   const handleUpdateAtributo = useCallback(async (
@@ -282,23 +295,51 @@ const VariacionesPage: React.FC = () => {
 
   const handleAddOpcion = useCallback(async (
     atributoId: string,
-    data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }
+    data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: { insumoId: string; cantidad: number }[] }
   ): Promise<void> => {
-    const nuevaOpcion = {
-      id: `local-${Date.now()}`,
-      atributoId,
-      nombre: data.nombre,
-      precioAjuste: data.precioAjuste,
-      insumoReemplazadoId: data.insumoReemplazadoId,
-      insumoExtraId: data.insumoExtraId,
-      cantidadExtra: data.cantidadExtra,
-      isActive: true,
-    };
-    setAtributos((prev) =>
-      prev.map((a) =>
-        a.id === atributoId ? { ...a, opciones: [...a.opciones, nuevaOpcion] } : a
-      )
-    );
+    // Build ajustes array for the backend
+    let ajustes: { id_Insumo: number; id_InsumoNuevo: number | null; cantidad: number }[] = [];
+    if (data.insumoReemplazadoId) {
+      ajustes = [{
+        id_Insumo: Number(data.insumoReemplazadoId),
+        id_InsumoNuevo: data.insumoExtraId ? Number(data.insumoExtraId) : null,
+        cantidad: data.cantidadExtra ?? 1,
+      }];
+    } else if (data.ajustesCantidad?.length) {
+      ajustes = data.ajustesCantidad.map((a) => ({
+        id_Insumo: Number(a.insumoId),
+        id_InsumoNuevo: null,
+        cantidad: a.cantidad,
+      }));
+    }
+
+    try {
+      const res = await api.post<{ id: number }>('/Variacion/Opcion', {
+        nombre: data.nombre,
+        ajustePrecio: data.precioAjuste,
+        id_variacion: Number(atributoId),
+        ajustes,
+      });
+      const nuevaOpcion = {
+        id: String(res.id),
+        atributoId,
+        nombre: data.nombre,
+        precioAjuste: data.precioAjuste,
+        insumoReemplazadoId: data.insumoReemplazadoId,
+        insumoExtraId: data.insumoExtraId,
+        cantidadExtra: data.cantidadExtra,
+        ajustesCantidad: data.ajustesCantidad,
+        isActive: true,
+      };
+      setAtributos((prev) =>
+        prev.map((a) =>
+          a.id === atributoId ? { ...a, opciones: [...a.opciones, nuevaOpcion] } : a
+        )
+      );
+    } catch {
+      toast.error('Error', 'No se pudo crear la opción.');
+      throw new Error('Failed to create opcion');
+    }
   }, []);
 
   const handleUpdateOpcion = useCallback(async (

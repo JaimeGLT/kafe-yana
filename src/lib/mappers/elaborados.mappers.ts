@@ -13,7 +13,7 @@ export function mapElaborado(n: ElaboradoNode): Product {
     unit: n.unidad_medida ?? 'unidad',
     costPrice: 0,
     salePrice: n.precio,
-    stock: 0,
+    stock: n.cantidadProducible,
     minStock: 0,
     maxStock: 0,
     barcode: '',
