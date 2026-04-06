@@ -6,12 +6,9 @@ export interface ComboDetalleNode {
 }
 
 export interface ComboNode {
-id: number;
+  id: number;
   nombre: string;
-  descripcion: string;
   precio: number;
-  tipo: string;
-  categoria_Id: number;
   cantidadProducible: number;
   productos: {
     productoId: number;
@@ -93,7 +90,7 @@ export interface InsumosResponse {
 }
 
 export interface CombosResponse {
-  combos: ComboNode[];
+  combos: { nodes: ComboNode[] };
 }
 
 export interface ProductsResponse {

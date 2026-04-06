@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
-import { FlaskConical, BookOpen, ChevronRight, CheckCircle2, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { FlaskConical, BookOpen, ChevronRight, CheckCircle2, ArrowRight, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
 import { api } from '../../lib/api';
+import { gql } from '../../lib/graphql';
 import { Button, Input, Select } from '../ui';
 import { HelpTooltip } from '../ui/Tooltip';
 import { toast } from '../ui/Toast';
 import { RecetaStepTwo } from './RecetaStepTwo';
-import type { Receta, Insumo } from '../../types';
+import { CategoryModal } from '../modals/CategoryModal';
+import { GET_ALL_ELABORADOS } from '../../lib/queries/elaborados.queries';
+import type { Receta, Insumo, CategoryInput } from '../../types';
 
 interface WizardProps {
   isOpen: boolean;
@@ -31,6 +34,12 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
   const [salePrice, setSalePrice] = useState<number | ''>('');
   const [unit, setUnit] = useState('unidad');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [localCategories, setLocalCategories] = useState(categories);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) setLocalCategories(categories);
+  }, [isOpen, categories]);
 
   const reset = () => {
     setStep(1);
@@ -43,6 +52,25 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
     setSalePrice('');
     setUnit('unidad');
     setErrors({});
+  };
+
+  const handleSaveCategory = async (input: CategoryInput) => {
+    await api.post('/Categoria', {
+      nombre: input.name,
+      descripcion: input.description ?? '',
+      color: input.color,
+      estado: input.isActive,
+    });
+    const data = await gql<{ categorias: { nodes: { id: number; nombre: string; estado: boolean }[] } }>(
+      `query { categorias { nodes { id nombre estado } } }`
+    );
+    const cats = data.categorias.nodes
+      .filter((n) => n.estado)
+      .map((n) => ({ value: String(n.id), label: n.nombre }));
+    setLocalCategories(cats);
+    const created = cats.find((c) => c.label === input.name);
+    if (created) setCategoryId(created.value);
+    toast.success('Categoría creada', `"${input.name}" fue creada y seleccionada.`);
   };
 
   const handleClose = () => {
@@ -62,16 +90,18 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
   const handleStep1Submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep1()) return;
-
+    
     try {
-      const result = await api.post<{ id: number }>('/Elaborado', {
+      await api.post('/Elaborado', {
         nombre: name.trim(),
         descripcion: description.trim() || '',
         precio: Number(salePrice),
         categoria_Id: Number(categoryId) || 0,
         unidad_medida: unit,
       });
-      const id = String(result.id);
+      const data = await gql<{ elaborados: { id: number; nombre: string }[] }>(GET_ALL_ELABORADOS);
+      const created = data.elaborados.find((e) => e.nombre === name.trim());
+      const id = created ? String(created.id) : null;
       setNewProductId(id);
       setNewProductName(name.trim());
       setNewProductSalePrice(Number(salePrice));
@@ -86,6 +116,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
   if (!isOpen) return null;
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
@@ -164,11 +195,23 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
                     <span className="text-red-500 ml-1">*</span>
                     <HelpTooltip text="Agrupa productos para filtrar y reportar ventas por categoría." />
                   </label>
-                  <Select
-                    value={categoryId}
-                    onChange={(v) => setCategoryId(v)}
-                    options={[{ value: '', label: 'Seleccionar categoría…' }, ...categories]}
-                  />
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Select
+                        value={categoryId}
+                        onChange={(v) => setCategoryId(v)}
+                        options={[{ value: '', label: 'Seleccionar categoría…' }, ...localCategories]}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsCategoryModalOpen(true)}
+                      className="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-lg border border-coffee-200 text-coffee-500 hover:bg-coffee-50 hover:text-coffee-800 transition-colors"
+                      title="Nueva categoría"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
                   {errors.categoryId && <p className="text-xs text-red-600 mt-1">{errors.categoryId}</p>}
                 </div>
                 <div>
@@ -247,5 +290,12 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
         </div>
       </div>
     </div>
+    <CategoryModal
+      isOpen={isCategoryModalOpen}
+      onClose={() => setIsCategoryModalOpen(false)}
+      onSave={(input) => handleSaveCategory(input)}
+      onSuccess={() => setIsCategoryModalOpen(false)}
+    />
+    </>
   );
 };

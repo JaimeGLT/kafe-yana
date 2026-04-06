@@ -254,7 +254,7 @@ const CombosPage: React.FC = () => {
     if (!deleting) return;
     setIsDeleting(true);
     try {
-      await api.delete(`/Combo/${deleting.id}`);
+      await api.delete(`/Producto/${deleting.id}`);
       toast.success('Combo eliminado', `"${deleting.name}" fue eliminado.`);
       setDeleting(null);
       await loadData();

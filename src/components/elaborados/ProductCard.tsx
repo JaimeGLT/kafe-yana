@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, Edit2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { BookOpen, Edit2, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { getMarginInfo } from '../../lib/elaborados.utils';
 import type { Product, Receta } from '../../types';
@@ -11,6 +11,7 @@ interface ProductCardProps {
   portionsAvailable: number;
   onEditProduct: (p: Product) => void;
   onManageReceta: (p: Product) => void;
+  onDeleteProduct: (p: Product) => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -19,6 +20,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   portionsAvailable,
   onEditProduct,
   onManageReceta,
+  onDeleteProduct,
 }) => {
   const margenPct = receta && product.salePrice > 0
     ? ((product.salePrice - receta.costoPorPorcion) / product.salePrice) * 100
@@ -113,6 +115,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           title="Editar producto"
         >
           <Edit2 className="h-3.5 w-3.5" />
+        </button>
+        <button
+          onClick={() => onDeleteProduct(product)}
+          className="p-1.5 rounded-lg border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+          title="Eliminar producto"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>

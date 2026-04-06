@@ -188,16 +188,17 @@ export const VariacionPickerModal: React.FC<Props> = ({
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3">
-          <Button variant="ghost" className="flex-1" onClick={onClose}>
+        <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+          <Button variant="ghost" size="sm" className="flex-1" onClick={onClose}>
             Cancelar
           </Button>
           <Button
+            size="sm"
             className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
-            leftIcon={<ShoppingCart className="h-4 w-4" />}
+            leftIcon={<ShoppingCart className="h-3.5 w-3.5" />}
             onClick={handleConfirm}
           >
-            Agregar al carrito — {formatCurrency(precioFinal)}
+            Agregar — {formatCurrency(precioFinal)}
           </Button>
         </div>
       </div>

@@ -96,6 +96,33 @@ export const MOCK_PRODUCTS: Product[] = [
 ];
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   COMBO DETAILS
+═══════════════════════════════════════════════════════════════════════════*/
+export interface ComboDetailItem {
+  name: string;
+  quantity: number;
+  emoji: string;
+}
+
+export const MOCK_COMBO_DETAILS: Record<string, ComboDetailItem[]> = {
+  'prod-combo-desayuno': [
+    { name: 'Café Americano',  quantity: 1, emoji: '☕' },
+    { name: 'Pan de Yema',     quantity: 2, emoji: '🥐' },
+    { name: 'Jugo Natural',    quantity: 1, emoji: '🥤' },
+  ],
+  'prod-combo-tarde': [
+    { name: 'Café Latte',      quantity: 1, emoji: '☕' },
+    { name: 'Alfajor Triple',  quantity: 2, emoji: '🍪' },
+  ],
+  'prod-combo-especial': [
+    { name: 'Café Capuchino',  quantity: 1, emoji: '☕' },
+    { name: 'Brownie',         quantity: 1, emoji: '🎂' },
+    { name: 'Jugo Natural',    quantity: 1, emoji: '🥤' },
+    { name: 'Chocotejas x6',   quantity: 1, emoji: '🍫' },
+  ],
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
    VARIACIONES
 ═══════════════════════════════════════════════════════════════════════════*/
 export const MOCK_ATRIBUTOS: VariacionAtributo[] = [
@@ -182,22 +209,22 @@ export const MOCK_ATRIBUTOS: VariacionAtributo[] = [
 export const MOCK_CUSTOMERS: Customer[] = [
   {
     id: 'cust-1', code: 'C-001', name: 'María García',
-    phone: '987 654 321', totalPurchases: 15, isActive: true,
+    phone: '987 654 321', ruc: '12345678', totalPurchases: 15, isActive: true,
     createdAt: now, updatedAt: now,
   },
   {
     id: 'cust-2', code: 'C-002', name: 'Carlos López',
-    phone: '976 543 210', totalPurchases: 5, isActive: true,
+    phone: '976 543 210', ruc: '87654321', totalPurchases: 5, isActive: true,
     createdAt: now, updatedAt: now,
   },
   {
     id: 'cust-3', code: 'C-003', name: 'Ana Torres',
-    phone: '965 432 109', totalPurchases: 32, isActive: true,
+    phone: '965 432 109', ruc: '11223344', totalPurchases: 32, isActive: true,
     createdAt: now, updatedAt: now,
   },
   {
     id: 'cust-4', code: 'C-004', name: 'Pedro Quispe',
-    phone: '954 321 098', totalPurchases: 68, isActive: true,
+    phone: '954 321 098', ruc: '44332211', totalPurchases: 68, isActive: true,
     createdAt: now, updatedAt: now,
   },
 ];

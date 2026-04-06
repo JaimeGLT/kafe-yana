@@ -1,17 +1,16 @@
 export const COMBOS_QUERY = `
   query {
     combos {
-      id
-      nombre
-      descripcion
-      precio
-      tipo
-      categoria_Id
-      cantidadProducible
-      productos {
-        productoId
-        cantidad
-        opcional
+      nodes {
+        id
+        nombre
+        precio
+        cantidadProducible
+        productos {
+          productoId
+          cantidad
+          opcional
+        }
       }
     }
   }

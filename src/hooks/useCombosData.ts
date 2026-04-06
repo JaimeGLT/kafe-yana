@@ -40,8 +40,8 @@ export function useCombosData() {
         fetchAllProducts(),
         gql<CombosResponse>(COMBOS_QUERY),
       ]);
-
-      const mappedCombos = combosData.combos.map((n) => mapCombo(n, mappedProducts));
+      
+      const mappedCombos = combosData.combos.nodes.map((n) => mapCombo(n, mappedProducts));
 
       setProducts(mappedProducts);
       setCombos(mappedCombos);

@@ -3,8 +3,13 @@ import type { Combo, Product } from '../../types';
 
 const TIPO_MAP: Record<string, 'comprado' | 'elaborado' | 'combo'> = {
   Comprado: 'comprado',
+  comprado: 'comprado',
   Elaborado: 'elaborado',
-  Combos: 'combo',  
+  elaborado: 'elaborado',
+  Combo: 'combo',
+  combo: 'combo',
+  Combos: 'combo',
+  combos: 'combo',
 };
 
 export function mapProduct(n: ProductNode): Product {
@@ -32,7 +37,7 @@ export function mapProduct(n: ProductNode): Product {
 }
 
 export function mapCombo(node: ComboNode, products: Product[]): Combo {
-  const items = node.productos.map((p) => {
+  const items = (node.productos ?? []).map((p) => {
     const prod = products.find((sp) => sp.id === String(p.productoId));
     return {
       id: String(p.productoId),
@@ -48,7 +53,6 @@ export function mapCombo(node: ComboNode, products: Product[]): Combo {
   return {
     id: String(node.id),
     name: node.nombre,
-    description: node.descripcion,
     items,
     price: node.precio,
     costoTotal: items.reduce((s, i) => s + i.unitCost * i.quantity, 0),

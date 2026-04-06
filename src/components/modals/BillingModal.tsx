@@ -1,6 +1,7 @@
 import React from 'react';
-import { FileText, User, Receipt } from 'lucide-react';
+import { FileText, User, Receipt, CheckCircle, Search } from 'lucide-react';
 import { Input } from '../ui';
+import type { Customer } from '../../types';
 
 export interface BillingData {
   nit: string;
@@ -10,31 +11,59 @@ export interface BillingData {
 interface BillingModalProps {
   isOpen: boolean;
   saleCode?: string;
+  customers?: Customer[];
   onDone: (billing: BillingData) => void;
 }
 
 /**
- * Modal de facturación boliviana.
- * Pregunta si el cliente desea factura con sus datos.
- * - No → emite a "Consumidor Final" (NIT: 0)
- * - Sí → pide NIT y Nombre
- * No tiene botón de cierre: toda venta debe tener una factura.
+ * Modal de facturación.
+ * Flujo:
+ *  1. ¿Desea factura? Sí / No
+ *  2. Cajero ingresa NIT → sistema busca en clientes existentes → autocompleta nombre
+ *     El nombre sigue siendo editable en caso de corrección.
  */
-export const BillingModal: React.FC<BillingModalProps> = ({ isOpen, saleCode, onDone }) => {
+export const BillingModal: React.FC<BillingModalProps> = ({ isOpen, saleCode, customers = [], onDone }) => {
   const [step, setStep] = React.useState<'ask' | 'data'>('ask');
   const [nit, setNit] = React.useState('');
   const [name, setName] = React.useState('');
+  const [autofilledFrom, setAutofilledFrom] = React.useState<string | null>(null); // nombre original antes de editar
   const [errors, setErrors] = React.useState<{ nit?: string; name?: string }>({});
 
-  // Reset cuando se abre
   React.useEffect(() => {
     if (isOpen) {
       setStep('ask');
       setNit('');
       setName('');
+      setAutofilledFrom(null);
       setErrors({});
     }
   }, [isOpen]);
+
+  // Buscar cliente por NIT cuando cambia el campo
+  const handleNitChange = (value: string) => {
+    setNit(value);
+    setErrors(prev => ({ ...prev, nit: undefined }));
+
+    const match = customers.find(c => c.ruc?.trim() === value.trim() && value.trim() !== '');
+    if (match) {
+      setName(match.name);
+      setAutofilledFrom(match.name);
+    } else {
+      // Si había un autocomplete anterior y el NIT ya no coincide, limpiar
+      if (autofilledFrom !== null) {
+        setName('');
+        setAutofilledFrom(null);
+      }
+    }
+  };
+
+  const handleNameChange = (value: string) => {
+    setName(value);
+    // Si el cajero edita el nombre, el badge "autocompletado" desaparece
+    if (autofilledFrom !== null && value !== autofilledFrom) {
+      setAutofilledFrom(null);
+    }
+  };
 
   const handleNo = () => {
     onDone({ nit: '0', name: 'Consumidor Final' });
@@ -54,7 +83,6 @@ export const BillingModal: React.FC<BillingModalProps> = ({ isOpen, saleCode, on
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
 
       <div className="relative bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
@@ -76,7 +104,6 @@ export const BillingModal: React.FC<BillingModalProps> = ({ isOpen, saleCode, on
             </p>
 
             <div className="grid grid-cols-2 gap-3">
-              {/* Sí */}
               <button
                 onClick={() => setStep('data')}
                 className="flex flex-col items-center gap-2 py-4 px-3 rounded-2xl border-2 border-coffee-200 hover:border-coffee-400 hover:bg-coffee-50 transition-all text-coffee-700"
@@ -85,7 +112,6 @@ export const BillingModal: React.FC<BillingModalProps> = ({ isOpen, saleCode, on
                 <span className="text-sm font-semibold">Sí, con datos</span>
               </button>
 
-              {/* No */}
               <button
                 onClick={handleNo}
                 className="flex flex-col items-center gap-2 py-4 px-3 rounded-2xl bg-coffee-800 hover:bg-coffee-700 transition-all text-white"
@@ -101,28 +127,46 @@ export const BillingModal: React.FC<BillingModalProps> = ({ isOpen, saleCode, on
           </div>
         ) : (
           <form onSubmit={handleSubmitData} className="p-6 space-y-4">
-            <p className="text-sm text-coffee-600 text-center">
-              Ingresa los datos del cliente para la factura
-            </p>
-
+            {/* NIT */}
             <div>
-              <Input
-                label="NIT o CI"
-                value={nit}
-                onChange={(e) => setNit(e.target.value)}
-                placeholder="Ej: 12345678"
-                autoFocus
-              />
+              <div className="relative">
+                <Input
+                  label="NIT o CI"
+                  value={nit}
+                  onChange={e => handleNitChange(e.target.value)}
+                  placeholder="Ej: 12345678"
+                  autoFocus
+                />
+                {nit.trim() !== '' && (
+                  <div className="absolute right-3 top-[34px]">
+                    <Search className="h-4 w-4 text-coffee-300" />
+                  </div>
+                )}
+              </div>
               {errors.nit && <p className="text-xs text-red-600 mt-1">{errors.nit}</p>}
             </div>
 
+            {/* Nombre */}
             <div>
-              <Input
-                label="Nombre / Razón Social"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ej: Juan Pérez López"
-              />
+              <div className="relative">
+                <Input
+                  label="Nombre / Razón Social"
+                  value={name}
+                  onChange={e => handleNameChange(e.target.value)}
+                  placeholder="Ej: Juan Pérez López"
+                />
+                {autofilledFrom !== null && (
+                  <div className="absolute right-3 top-[34px]">
+                    <CheckCircle className="h-4 w-4 text-emerald-500" />
+                  </div>
+                )}
+              </div>
+              {autofilledFrom !== null && (
+                <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                  <CheckCircle className="h-3 w-3" />
+                  Cliente encontrado — puedes editar el nombre si es necesario
+                </p>
+              )}
               {errors.name && <p className="text-xs text-red-600 mt-1">{errors.name}</p>}
             </div>
 

@@ -22,6 +22,7 @@ import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
 import { PageContainer, PageHeader } from '../../components/layout';
 import { Button, Input, Select } from '../../components/ui';
+import { ConfirmModal } from '../../components/ui/Modal';
 import { RecetaModal } from '../../components/modals/RecetaModal';
 import { EditElaboradoModal } from '../../components/modals/EditElaboradoModal';
 import { ProductCard } from '../../components/elaborados/ProductCard';
@@ -87,6 +88,8 @@ const ElaboradosPage: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState('');
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [recetaModal, setRecetaModal] = useState<{ isOpen: boolean; product?: Product; receta?: Receta }>({
     isOpen: false,
   });
@@ -152,6 +155,20 @@ const ElaboradosPage: React.FC = () => {
   }, [conReceta, recetas]);
 
   const sinStock = elaborados.filter((p) => getElaboradoAvailability(p.id) === 0).length;
+
+  const handleDelete = useCallback(async () => {
+    if (!deletingProduct) return;
+    setIsDeleting(true);
+    try {
+      await api.delete(`/Producto/${deletingProduct.id}`);
+      setElaborados((prev) => prev.filter((p) => p.id !== deletingProduct.id));
+      setDeletingProduct(null);
+    } catch (error) {
+      console.error('Error eliminando elaborado:', error);
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [deletingProduct]);
 
   return (
     <MainLayout>
@@ -304,6 +321,7 @@ const ElaboradosPage: React.FC = () => {
                     const r = getRecetaByProductId(p.id);
                     setRecetaModal({ isOpen: true, product: p, receta: r });
                   }}
+                  onDeleteProduct={(p) => setDeletingProduct(p)}
                 />
               );
             })}
@@ -336,6 +354,19 @@ const ElaboradosPage: React.FC = () => {
           getRecetaByProductId={getRecetaByProductId}
         />
       )}
+
+      {/* Confirm delete */}
+      <ConfirmModal
+        isOpen={!!deletingProduct}
+        onClose={() => setDeletingProduct(null)}
+        onConfirm={handleDelete}
+        title="Eliminar producto elaborado"
+        message={`¿Seguro que quieres eliminar "${deletingProduct?.name}"? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="danger"
+        isLoading={isDeleting}
+      />
 
       {/* RecetaModal for editing existing recipes */}
       <RecetaModal

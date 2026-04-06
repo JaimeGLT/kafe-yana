@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { clsx } from 'clsx';
-import { FlaskConical, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { FlaskConical, ArrowRight, CheckCircle2, Plus } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { HelpTooltip } from '../ui/Tooltip';
 import { RecetaFormContent } from './RecetaModal';
+import { CategoryModal } from './CategoryModal';
 import { toast } from '../ui/Toast';
 import { api } from '../../lib/api';
 import { gql } from '../../lib/graphql';
@@ -14,7 +15,7 @@ import { GET_ALL_ELABORADOS } from '../../lib/queries/elaborados.queries';
 import { mapInsumo } from '../../lib/mappers/insumos.mappers';
 import { mapElaborado } from '../../lib/mappers/elaborados.mappers';
 import type { InsumosResponse, ElaboradosResponse } from '../../types/graphql';
-import type { Product, Receta, Insumo } from '../../types';
+import type { Product, Receta, Insumo, CategoryInput } from '../../types';
 
 const UNIT_OPTIONS = [
   { value: 'unidad', label: 'Unidad' },
@@ -47,6 +48,8 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [localCategoryOptions, setLocalCategoryOptions] = useState(categoryOptions);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   const [name, setName] = useState(product.name);
   const [description, setDescription] = useState(product.description || '');
@@ -63,6 +66,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
       setCategoryId(product.categoryId || '');
       setUnit(product.unit || 'unidad');
       setErrors({});
+      setLocalCategoryOptions(categoryOptions);
       Promise.all([
         gql<InsumosResponse>(GET_ALL_INSUMOS),
         gql<ElaboradosResponse>(GET_ALL_ELABORADOS),
@@ -72,6 +76,25 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
       }).catch(() => {});
     }
   }, [isOpen, product]);
+
+  const handleSaveCategory = async (input: CategoryInput) => {
+    await api.post('/Categoria', {
+      nombre: input.name,
+      descripcion: input.description ?? '',
+      color: input.color,
+      estado: input.isActive,
+    });
+    const data = await gql<{ categorias: { nodes: { id: number; nombre: string; estado: boolean }[] } }>(
+      `query { categorias { nodes { id nombre estado } } }`
+    );
+    const cats = data.categorias.nodes
+      .filter((n) => n.estado)
+      .map((n) => ({ value: String(n.id), label: n.nombre }));
+    setLocalCategoryOptions(cats);
+    const created = cats.find((c) => c.label === input.name);
+    if (created) setCategoryId(created.value);
+    toast.success('Categoría creada', `"${input.name}" fue creada y seleccionada.`);
+  };
 
   const receta = getRecetaByProductId(product.id);
 
@@ -84,13 +107,8 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
 
     setIsSaving(true);
     try {
-      await api.put(`/Elaborado/${product.id}`, {
-        nombre: name.trim(),
-        descripcion: description.trim(),
-        precio: Number(salePrice),
-        categoria_Id: Number(categoryId) || 0,
-        unidad_medida: unit,
-      });
+      const rawBody = `{"nombre":${JSON.stringify(name.trim())},"descripcion":${JSON.stringify(description.trim())},"precio":${Number(salePrice).toFixed(2)},"categoria_Id":${Number(categoryId) || 0},"unidad_medida":${JSON.stringify(unit)}}`;
+      await api.put(`/Elaborado/${product.id}`, undefined, { body: rawBody });
       const catName = categoryOptions.find((o) => o.value === categoryId)?.label ?? '';
       const updated = { ...product, name: name.trim(), description: description.trim(), salePrice: Number(salePrice), categoryId, categoryName: catName, unit };
       onSaved(updated);
@@ -108,6 +126,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
   if (!isOpen) return null;
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
 
@@ -191,11 +210,23 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
                     Categoría
                     <HelpTooltip text="Agrupa productos para filtrar y reportar ventas por categoría." />
                   </label>
-                  <Select
-                    value={categoryId}
-                    onChange={(v) => setCategoryId(v)}
-                    options={[{ value: '', label: 'Sin categoría' }, ...categoryOptions]}
-                  />
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Select
+                        value={categoryId}
+                        onChange={(v) => setCategoryId(v)}
+                        options={[{ value: '', label: 'Sin categoría' }, ...localCategoryOptions]}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsCategoryModalOpen(true)}
+                      className="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-lg border border-coffee-200 text-coffee-500 hover:bg-coffee-50 hover:text-coffee-800 transition-colors"
+                      title="Nueva categoría"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
@@ -254,5 +285,12 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
         </div>
       </div>
     </div>
+    <CategoryModal
+      isOpen={isCategoryModalOpen}
+      onClose={() => setIsCategoryModalOpen(false)}
+      onSave={(input) => handleSaveCategory(input)}
+      onSuccess={() => setIsCategoryModalOpen(false)}
+    />
+    </>
   );
 };

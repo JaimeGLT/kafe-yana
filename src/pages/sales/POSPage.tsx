@@ -4,7 +4,7 @@ import {
   Plus, Minus, Trash2, Coffee, CheckCircle, Printer,
   CreditCard, Banknote, Smartphone, UserCheck, AlertTriangle,
   FlaskConical, Layers, X, Star,
-  UtensilsCrossed, ChevronRight, Search, PenLine, History, ShoppingBag,
+  UtensilsCrossed, ChevronLeft, ChevronRight, Search, PenLine, History, ShoppingBag,
 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { toast } from '../../components/ui/Toast';
@@ -12,6 +12,7 @@ import { toast } from '../../components/ui/Toast';
 import {
   MOCK_CATEGORIES, MOCK_PRODUCTS, MOCK_ATRIBUTOS,
   MOCK_CUSTOMERS, MOCK_LOYALTY_PROFILES, MOCK_MILESTONES,
+  MOCK_COMBO_DETAILS,
   mockAddSale, mockGenerateInvoice,
 } from './posMocks';
 import { formatCurrency } from '../../utils';
@@ -49,8 +50,7 @@ type ModalView =
   | 'nueva_mesa'    // create / edit table
   | 'iniciar'       // confirm start table
   | 'detalle'       // table detail (order view)
-  | 'agregar'       // product picker
-  | 'review'        // order review before payment
+  |'review'        // order review before payment
   | 'pago'          // payment
   | 'billing'       // billing data after payment
   | 'success';      // done
@@ -174,8 +174,9 @@ interface ProdCardProps {
   onAdd: () => void;
   onInc: () => void;
   onDec: () => void;
+  onInfo?: () => void;
 }
-const ProdCard: React.FC<ProdCardProps> = ({ product, qty, unavailable, onAdd, onInc, onDec }) => (
+const ProdCard: React.FC<ProdCardProps> = ({ product, qty, unavailable, onAdd, onInc, onDec, onInfo }) => (
   <div className={clsx(
     'flex-shrink-0 w-36 sm:w-40 bg-white rounded-2xl overflow-hidden shadow-sm flex flex-col select-none',
     unavailable && 'opacity-50',
@@ -187,6 +188,14 @@ const ProdCard: React.FC<ProdCardProps> = ({ product, qty, unavailable, onAdd, o
         <span className="absolute top-1.5 left-1.5 text-[9px] bg-white text-amber-700 rounded-full px-1.5 py-0.5 font-semibold flex items-center gap-0.5 shadow-sm">
           <FlaskConical className="h-2 w-2" />Elab.
         </span>
+      )}
+      {product.tipo === 'combo' && onInfo && (
+        <button
+          onClick={e => { e.stopPropagation(); onInfo(); }}
+          className="absolute top-1.5 left-1.5 text-[9px] bg-white text-emerald-700 rounded-full px-1.5 py-0.5 font-semibold flex items-center gap-0.5 shadow-sm hover:bg-emerald-50 transition-colors"
+        >
+          <Layers className="h-2 w-2" />Ver
+        </button>
       )}
       {getAttrCount(product) > 0 && (
         <span className="absolute top-1.5 right-1.5 text-[9px] bg-white text-purple-700 rounded-full px-1.5 py-0.5 font-semibold flex items-center gap-0.5 shadow-sm">
@@ -206,7 +215,19 @@ const ProdCard: React.FC<ProdCardProps> = ({ product, qty, unavailable, onAdd, o
     </div>
     {/* Controls */}
     <div className="px-2.5 pb-2.5">
-      {qty === 0 ? (
+      {getAttrCount(product) > 0 ? (
+        /* Producto con variaciones: siempre muestra "Agregar" para poder elegir otra variación */
+        <button
+          disabled={unavailable}
+          onClick={onAdd}
+          className={clsx(
+            'w-full flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold transition-all',
+            unavailable ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-coffee-800 text-cream hover:bg-coffee-700 active:scale-95',
+          )}
+        >
+          <Plus className="h-3 w-3" /> Agregar
+        </button>
+      ) : qty === 0 ? (
         <button
           disabled={unavailable}
           onClick={onAdd}
@@ -349,8 +370,8 @@ export const POSPage: React.FC = () => {
   const [tempCart,      setTempCart]      = useState<CartItem[]>([]);
   const [varPickerProduct, setVarPickerProduct] = useState<Product | null>(null);
   const [varPickerDirect, setVarPickerDirect] = useState(false);
+  const [comboDetailProduct, setComboDetailProduct] = useState<Product | null>(null);
   const [productSearch, setProductSearch] = useState('');
-  const [showCartPreview, setShowCartPreview] = useState(false);
 
   /* ── Payment state ── */
   const [paymentMethod,  setPaymentMethod]  = useState<PaymentMethodType>('cash');
@@ -500,6 +521,8 @@ export const POSPage: React.FC = () => {
     setTempCart(prev => prev.map(i => i.cartKey === cartKey ? { ...i, quantity: i.quantity + 1 } : i));
   const decTempQty = (cartKey: string) =>
     setTempCart(prev => prev.map(i => i.cartKey === cartKey ? { ...i, quantity: i.quantity - 1 } : i).filter(i => i.quantity > 0));
+  const removeTempItem = (cartKey: string) =>
+    setTempCart(prev => prev.filter(i => i.cartKey !== cartKey));
   const getTempQty = (productId: string) =>
     tempCart.filter(i => i.product.id === productId).reduce((s, i) => s + i.quantity, 0);
 
@@ -517,9 +540,8 @@ export const POSPage: React.FC = () => {
     }));
     setTempCart([]);
     setProductSearch('');
-    setShowCartPreview(false);
     setModalView('detalle');
-    setDetalleView('pedido');
+    setDetalleView('historial');
     toast.success('Productos agregados', `${tempCart.reduce((s, i) => s + i.quantity, 0)} item(s) añadidos a la mesa`);
   };
 
@@ -644,15 +666,30 @@ export const POSPage: React.FC = () => {
       <div className="-m-6 min-h-[calc(100vh-4rem)] bg-coffee-900 overflow-y-auto">
 
         {/* ── Header ─────────────────────────────────────────────────── */}
-        <div className="px-6 pt-6 pb-4 flex items-center justify-between gap-4">
-          <div>
-            <h1 className="font-display font-bold text-white text-2xl">Punto de Venta</h1>
-            <p className="text-coffee-400 text-sm mt-0.5">
-              <span className="text-red-400 font-medium">{mesas.filter(m => m.status === 'ocupada').length}</span> ocupadas ·{' '}
-              <span className="text-amber-400 font-medium">{mesas.filter(m => m.status === 'esperando_pago').length}</span> esperando ·{' '}
-              <span className="text-emerald-400 font-medium">{mesas.filter(m => m.status === 'libre').length}</span> libres
-              {' '}· {mesas.length} total
-            </p>
+        <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-4 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="font-display font-bold text-white text-xl sm:text-2xl leading-tight">Punto de Venta</h1>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+              <span className="text-xs sm:text-sm text-coffee-400">
+                <span className="text-red-400 font-medium">{mesas.filter(m => m.status === 'ocupada').length}</span>
+                <span className="hidden sm:inline"> ocupadas</span>
+                <span className="sm:hidden"> ocup.</span>
+              </span>
+              <span className="text-coffee-600 text-xs">·</span>
+              <span className="text-xs sm:text-sm text-coffee-400">
+                <span className="text-amber-400 font-medium">{mesas.filter(m => m.status === 'esperando_pago').length}</span>
+                <span className="hidden sm:inline"> esperando</span>
+                <span className="sm:hidden"> esp.</span>
+              </span>
+              <span className="text-coffee-600 text-xs">·</span>
+              <span className="text-xs sm:text-sm text-coffee-400">
+                <span className="text-emerald-400 font-medium">{mesas.filter(m => m.status === 'libre').length}</span>
+                <span className="hidden sm:inline"> libres</span>
+                <span className="sm:hidden"> lib.</span>
+              </span>
+              <span className="text-coffee-600 text-xs">·</span>
+              <span className="text-xs sm:text-sm text-coffee-500">{mesas.length} total</span>
+            </div>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
             {/* Legend — hidden on small screens */}
@@ -666,9 +703,10 @@ export const POSPage: React.FC = () => {
             </div>
             <button
               onClick={openNuevaMesa}
-              className="flex items-center gap-2 bg-coffee-600 hover:bg-coffee-500 text-white font-semibold text-sm px-4 py-2.5 rounded-xl transition-colors shadow-sm"
+              className="flex items-center gap-2 bg-coffee-600 hover:bg-coffee-500 text-white font-semibold text-sm px-3 sm:px-4 py-2.5 rounded-xl transition-colors shadow-sm"
             >
-              <Plus className="h-4 w-4" /> Nueva Mesa
+              <Plus className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Nueva Mesa</span>
             </button>
           </div>
         </div>
@@ -843,114 +881,188 @@ export const POSPage: React.FC = () => {
 
               {/* ── Header ── */}
               <div className="bg-coffee-800 px-5 py-4 flex items-center justify-between flex-shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-white/10 flex items-center justify-center">
-                    <UtensilsCrossed className="h-5 w-5 text-cream" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-coffee-400 uppercase tracking-widest">
-                      {STATUS_CFG[activeMesa.status].label}
-                    </p>
-                    <h3 className="font-display font-bold text-cream text-lg">{activeMesa.name}</h3>
-                  </div>
-                </div>
-                <button onClick={closeAll} className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center text-coffee-300 hover:bg-white/20">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/* ── Category tabs ── */}
-              <div
-                ref={dragScrollDetalleCat.ref}
-                onMouseDown={dragScrollDetalleCat.onMouseDown}
-                onMouseMove={dragScrollDetalleCat.onMouseMove}
-                onMouseUp={dragScrollDetalleCat.onMouseUp}
-                onMouseLeave={dragScrollDetalleCat.onMouseLeave}
-                className="px-4 pt-3 pb-2 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-shrink-0 cursor-grab active:cursor-grabbing select-none"
-                style={{ WebkitOverflowScrolling: 'touch' }}
-              >
-                {activeCategories.map(cat => (
+                {detalleView !== 'none' ? (
+                  /* Vista secundaria: botón volver + título */
                   <button
-                    key={cat.id}
-                    onClick={() => setSelectedCatId(cat.id)}
-                    className={clsx(
-                      'flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all',
-                      (selectedCatId || activeCategories[0]?.id) === cat.id
-                        ? 'bg-coffee-800 text-cream shadow-md'
-                        : 'bg-coffee-100 text-coffee-600 hover:bg-coffee-200',
-                    )}
+                    onClick={() => setDetalleView('none')}
+                    className="flex items-center gap-2 text-cream hover:text-coffee-200 transition-colors"
                   >
-                    {cat.name}
+                    <ChevronLeft className="h-5 w-5" />
+                    <span className="font-display font-bold text-lg">
+                      {detalleView === 'historial' ? 'Historial' : 'Ver pedido'}
+                    </span>
                   </button>
-                ))}
-              </div>
-
-              {/* ── Product row (single row, drag) ── */}
-              <div
-                ref={dragScrollDetalleProd.ref}
-                onMouseDown={dragScrollDetalleProd.onMouseDown}
-                onMouseMove={dragScrollDetalleProd.onMouseMove}
-                onMouseUp={dragScrollDetalleProd.onMouseUp}
-                onMouseLeave={dragScrollDetalleProd.onMouseLeave}
-                className="flex gap-2.5 overflow-x-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-shrink-0 cursor-grab active:cursor-grabbing select-none border-b border-coffee-100"
-                style={{ WebkitOverflowScrolling: 'touch' }}
-              >
-                {pickerProducts.length === 0 ? (
-                  <div className="flex items-center gap-2 text-coffee-300 h-24 w-full justify-center">
-                    <Coffee className="h-5 w-5 opacity-40" />
-                    <p className="text-xs">Sin productos en esta categoría</p>
+                ) : (
+                  /* Vista normal: icon + mesa */
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-xl bg-white/10 flex items-center justify-center">
+                      <UtensilsCrossed className="h-5 w-5 text-cream" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-coffee-400 uppercase tracking-widest">
+                        {STATUS_CFG[activeMesa.status].label}
+                      </p>
+                      <h3 className="font-display font-bold text-cream text-lg">{activeMesa.name}</h3>
+                    </div>
                   </div>
-                ) : pickerProducts.map(product => {
-                  const stock = getEffectiveStock(product);
-                  const qty   = getTempQty(product.id);
-                  return (
-                    <ProdCard
-                      key={product.id}
-                      product={product}
-                      qty={qty}
-                      unavailable={!stock.ok}
-                      onAdd={() => addTempProduct(product)}
-                      onInc={() => incTempQty(buildCartKey(product.id))}
-                      onDec={() => decTempQty(buildCartKey(product.id))}
-                    />
-                  );
-                })}
-              </div>
-
-              {/* ── Panel expandible: Ver pedido / Historial ── */}
-              {detalleView !== 'none' && (
-                <div className="flex-1 overflow-y-auto min-h-0 border-b border-coffee-100">
-                  <div className="sticky top-0 bg-white px-5 py-2.5 flex items-center justify-between border-b border-coffee-50 z-10">
-                    <p className="text-xs font-bold text-coffee-500 uppercase tracking-wider">
-                      {detalleView === 'pedido' ? 'Pedido actual' : 'Historial'}
-                    </p>
-                    <button onClick={() => setDetalleView('none')} className="text-coffee-400 hover:text-coffee-700">
-                      <X className="h-4 w-4" />
+                )}
+                <div className="flex items-center gap-2">
+                  {detalleView === 'none' && (
+                    <button
+                      onClick={() => setDetalleView(v => v === 'historial' ? 'none' : 'historial')}
+                      className="h-8 rounded-xl flex items-center justify-center gap-1.5 px-2 sm:px-3 transition-all text-xs font-semibold bg-white/10 text-coffee-300 hover:bg-white/20"
+                    >
+                      <History className="h-4 w-4 flex-shrink-0" />
+                      <span className="hidden sm:inline">Historial</span>
                     </button>
+                  )}
+                  <button onClick={closeAll} className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center text-coffee-300 hover:bg-white/20">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* ── Picker (categorías + productos) — solo visible en estado normal ── */}
+              {detalleView === 'none' && (
+                <>
+                  <div
+                    ref={dragScrollDetalleCat.ref}
+                    onMouseDown={dragScrollDetalleCat.onMouseDown}
+                    onMouseMove={dragScrollDetalleCat.onMouseMove}
+                    onMouseUp={dragScrollDetalleCat.onMouseUp}
+                    onMouseLeave={dragScrollDetalleCat.onMouseLeave}
+                    className="px-4 pt-3 pb-2 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-shrink-0 cursor-grab active:cursor-grabbing select-none"
+                    style={{ WebkitOverflowScrolling: 'touch' }}
+                  >
+                    {activeCategories.map(cat => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setSelectedCatId(cat.id)}
+                        className={clsx(
+                          'flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all',
+                          (selectedCatId || activeCategories[0]?.id) === cat.id
+                            ? 'bg-coffee-800 text-cream shadow-md'
+                            : 'bg-coffee-100 text-coffee-600 hover:bg-coffee-200',
+                        )}
+                      >
+                        {cat.name}
+                      </button>
+                    ))}
                   </div>
 
-                  {detalleView === 'pedido' && (
-                    activeMesa.order.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center h-32 gap-2 text-coffee-300">
-                        <Coffee className="h-8 w-8 opacity-30" />
-                        <p className="text-xs">Sin pedidos aún</p>
+                  <div
+                    ref={dragScrollDetalleProd.ref}
+                    onMouseDown={dragScrollDetalleProd.onMouseDown}
+                    onMouseMove={dragScrollDetalleProd.onMouseMove}
+                    onMouseUp={dragScrollDetalleProd.onMouseUp}
+                    onMouseLeave={dragScrollDetalleProd.onMouseLeave}
+                    className="flex gap-2.5 overflow-x-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-shrink-0 cursor-grab active:cursor-grabbing select-none border-b border-coffee-100"
+                    style={{ WebkitOverflowScrolling: 'touch' }}
+                  >
+                    {pickerProducts.length === 0 ? (
+                      <div className="flex items-center gap-2 text-coffee-300 h-24 w-full justify-center">
+                        <Coffee className="h-5 w-5 opacity-40" />
+                        <p className="text-xs">Sin productos en esta categoría</p>
                       </div>
-                    ) : (
-                      <>
-                        <div className="divide-y divide-coffee-50">
-                          {activeMesa.order.map(item => (
-                            <div key={item.cartKey} className="flex items-center gap-3 px-5 py-3">
-                              <div className="h-8 w-8 rounded-lg bg-coffee-50 flex items-center justify-center flex-shrink-0 text-base">
-                                {getProductEmoji(item.product)}
+                    ) : pickerProducts.map(product => {
+                      const stock = getEffectiveStock(product);
+                      const qty   = getTempQty(product.id);
+                      return (
+                        <ProdCard
+                          key={product.id}
+                          product={product}
+                          qty={qty}
+                          unavailable={!stock.ok}
+                          onAdd={() => addTempProduct(product)}
+                          onInc={() => incTempQty(buildCartKey(product.id))}
+                          onDec={() => decTempQty(buildCartKey(product.id))}
+                          onInfo={product.tipo === 'combo' ? () => setComboDetailProduct(product) : undefined}
+                        />
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* ── Lista de selección actual (tempCart) ── */}
+              {detalleView === 'pedido' && (
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  {tempCart.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-40 gap-2 text-coffee-300">
+                      <ShoppingBag className="h-8 w-8 opacity-30" />
+                      <p className="text-xs">Aún no seleccionaste nada</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="divide-y divide-coffee-50">
+                        {tempCart.map((item, idx) => (
+                          <div key={item.cartKey} className="flex items-center gap-3 px-5 py-3">
+                            <span className="text-xs font-bold text-coffee-300 w-4 flex-shrink-0">{idx + 1}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-coffee-900 line-clamp-2 leading-snug">{item.product.name}</p>
+                              {item.opciones?.length ? (
+                                <p className="text-xs text-coffee-400 line-clamp-1 mt-0.5">{item.opciones.map(o => o.opcionNombre).join(' · ')}</p>
+                              ) : null}
+                            </div>
+                            <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-sm font-bold text-coffee-900">{formatCurrency(item.precioFinal * item.quantity)}</p>
+                                <button onClick={() => removeTempItem(item.cartKey)} className="text-coffee-200 hover:text-red-400 transition-colors">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-coffee-900 line-clamp-1">{item.product.name}</p>
-                                {item.opciones?.length ? (
-                                  <p className="text-xs text-coffee-400 line-clamp-1">{item.opciones.map(o => o.opcionNombre).join(' · ')}</p>
-                                ) : null}
-                                <p className="text-xs text-coffee-400">{formatCurrency(item.precioFinal)} c/u</p>
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => decTempQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-100 hover:bg-coffee-200 flex items-center justify-center text-coffee-600">
+                                  <Minus className="h-3 w-3" />
+                                </button>
+                                <span className="w-5 text-center text-sm font-bold text-coffee-900">{item.quantity}</span>
+                                <button onClick={() => incTempQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-800 hover:bg-coffee-700 flex items-center justify-center text-cream">
+                                  <Plus className="h-3 w-3" />
+                                </button>
                               </div>
-                              <div className="flex items-center gap-1 flex-shrink-0">
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="px-5 py-3 bg-coffee-50 flex items-center justify-between">
+                        <span className="text-xs font-medium text-coffee-500">Subtotal</span>
+                        <span className="text-lg font-display font-black text-coffee-900">
+                          {formatCurrency(tempCart.reduce((s, i) => s + i.precioFinal * i.quantity, 0))}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* ── Historial: reemplaza el picker ── */}
+              {detalleView === 'historial' && (
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  {activeMesa.order.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-32 gap-2 text-coffee-300">
+                      <ShoppingBag className="h-8 w-8 opacity-30" />
+                      <p className="text-xs">Sin pedidos añadidos aún</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="divide-y divide-coffee-50">
+                        {activeMesa.order.map((item, idx) => (
+                          <div key={item.cartKey} className="flex items-center gap-3 px-5 py-3">
+                            <span className="text-xs font-bold text-coffee-300 w-4 flex-shrink-0">{idx + 1}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-coffee-900 line-clamp-2 leading-snug">{item.product.name}</p>
+                              {item.opciones?.length ? (
+                                <p className="text-xs text-coffee-400 line-clamp-1 mt-0.5">{item.opciones.map(o => o.opcionNombre).join(' · ')}</p>
+                              ) : null}
+                            </div>
+                            <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-sm font-bold text-coffee-900">{formatCurrency(item.precioFinal * item.quantity)}</p>
+                                <button onClick={() => removeMesaItem(item.cartKey)} className="text-coffee-200 hover:text-red-400 transition-colors">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                              <div className="flex items-center gap-1">
                                 <button onClick={() => decMesaQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-100 hover:bg-coffee-200 flex items-center justify-center text-coffee-600">
                                   <Minus className="h-3 w-3" />
                                 </button>
@@ -959,48 +1071,21 @@ export const POSPage: React.FC = () => {
                                   <Plus className="h-3 w-3" />
                                 </button>
                               </div>
-                              <div className="text-right flex-shrink-0 min-w-[52px]">
-                                <p className="text-sm font-bold text-coffee-900">{formatCurrency(item.precioFinal * item.quantity)}</p>
-                                <button onClick={() => removeMesaItem(item.cartKey)} className="text-coffee-200 hover:text-red-400 transition-colors">
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              </div>
                             </div>
-                          ))}
-                        </div>
-                        <div className="px-5 py-3 bg-coffee-50 flex items-center justify-between">
-                          <span className="text-xs font-medium text-coffee-500">Total</span>
-                          <span className="text-lg font-display font-black text-coffee-900">{formatCurrency(mesaSubtotal)}</span>
-                        </div>
-                      </>
-                    )
-                  )}
-
-                  {detalleView === 'historial' && (
-                    <div className="flex flex-col items-center justify-center h-32 gap-2 text-coffee-300">
-                      <History className="h-8 w-8 opacity-30" />
-                      <p className="text-xs">Sin historial disponible</p>
-                    </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="px-5 py-3 bg-coffee-50 flex items-center justify-between">
+                        <span className="text-xs font-medium text-coffee-500">Total</span>
+                        <span className="text-lg font-display font-black text-coffee-900">{formatCurrency(mesaSubtotal)}</span>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
 
               {/* ── Bottom bar ── */}
               <div className="px-4 py-3 border-t border-coffee-100 flex items-center gap-2 flex-shrink-0">
-                {/* Historial */}
-                <button
-                  onClick={() => setDetalleView(v => v === 'historial' ? 'none' : 'historial')}
-                  className={clsx(
-                    'flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all flex-shrink-0',
-                    detalleView === 'historial'
-                      ? 'bg-coffee-800 text-cream'
-                      : 'bg-coffee-100 text-coffee-600 hover:bg-coffee-200',
-                  )}
-                >
-                  <History className="h-4 w-4" />
-                  Historial
-                </button>
-
                 {/* Ver pedido */}
                 <button
                   onClick={() => setDetalleView(v => v === 'pedido' ? 'none' : 'pedido')}
@@ -1013,9 +1098,9 @@ export const POSPage: React.FC = () => {
                 >
                   <ShoppingBag className="h-4 w-4" />
                   Ver pedido
-                  {activeMesa.order.length > 0 && (
+                  {tempCart.length > 0 && (
                     <span className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-amber-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
-                      {activeMesa.order.reduce((s, i) => s + i.quantity, 0)}
+                      {tempCart.reduce((s, i) => s + i.quantity, 0)}
                     </span>
                   )}
                 </button>
@@ -1065,158 +1150,6 @@ export const POSPage: React.FC = () => {
           </Overlay>
         )}
 
-        {/* ══════════════════════════════════════════════════════════════
-            MODAL: AGREGAR PRODUCTOS
-        ═════════════════════════════════════════════════════════════════*/}
-        {modalView === 'agregar' && activeMesa && (
-          <Overlay onClose={() => setModalView('detalle')}>
-            <div className="bg-white w-full sm:max-w-2xl rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-              {/* Header */}
-              <div className="bg-coffee-800 px-5 py-4 flex items-center justify-between flex-shrink-0">
-                <div>
-                  <p className="text-[10px] text-coffee-400 uppercase tracking-widest">Añadir a</p>
-                  <h3 className="font-display font-bold text-cream text-lg">{activeMesa.name}</h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  {tempCart.length > 0 && (
-                    <button
-                      onClick={() => setShowCartPreview(v => !v)}
-                      className="flex items-center gap-1.5 text-xs bg-cream text-coffee-900 font-bold px-2.5 py-1 rounded-full hover:bg-coffee-50 active:scale-95 transition-all"
-                    >
-                      {tempCart.reduce((s, i) => s + i.quantity, 0)} items
-                      <ChevronRight className={clsx('h-3 w-3 transition-transform', showCartPreview ? 'rotate-90' : '-rotate-90')} />
-                    </button>
-                  )}
-                  <button onClick={() => setModalView('detalle')} className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center text-coffee-300 hover:bg-white/20">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Cart preview dropdown */}
-              {showCartPreview && tempCart.length > 0 && (
-                <div className="bg-coffee-900 border-b border-coffee-700 flex-shrink-0 max-h-52 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {tempCart.map(item => (
-                    <div key={item.cartKey} className="flex items-center gap-3 px-5 py-2.5 border-b border-coffee-800 last:border-0">
-                      <span className="text-base">{getProductEmoji(item.product)}</span>
-                      <p className="flex-1 text-sm font-semibold text-cream line-clamp-1">{item.product.name}</p>
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => decTempQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-700 hover:bg-coffee-600 flex items-center justify-center text-coffee-200">
-                          <Minus className="h-3 w-3" />
-                        </button>
-                        <span className="w-5 text-center text-sm font-bold text-cream">{item.quantity}</span>
-                        <button onClick={() => incTempQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-600 hover:bg-coffee-500 flex items-center justify-center text-cream">
-                          <Plus className="h-3 w-3" />
-                        </button>
-                      </div>
-                      <p className="text-sm font-bold text-cream w-16 text-right">{formatCurrency(item.precioFinal * item.quantity)}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Search */}
-              <div className="px-4 pt-3 pb-2 flex-shrink-0">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-coffee-400" />
-                  <input
-                    type="text"
-                    placeholder="Buscar producto..."
-                    value={productSearch}
-                    onChange={e => setProductSearch(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-coffee-200 text-sm text-coffee-800 placeholder-coffee-400 focus:outline-none focus:ring-2 focus:ring-coffee-400"
-                  />
-                </div>
-              </div>
-
-              {/* Category tabs — drag-to-scroll */}
-              <div
-                ref={dragScrollCat.ref}
-                onMouseDown={dragScrollCat.onMouseDown}
-                onMouseMove={dragScrollCat.onMouseMove}
-                onMouseUp={dragScrollCat.onMouseUp}
-                onMouseLeave={dragScrollCat.onMouseLeave}
-                className="px-4 pb-3 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-shrink-0 cursor-grab active:cursor-grabbing select-none"
-                style={{ WebkitOverflowScrolling: 'touch' }}
-              >
-                {activeCategories.map(cat => (
-                  <button
-                    key={cat.id}
-                    onClick={() => { setSelectedCatId(cat.id); setProductSearch(''); }}
-                    className={clsx(
-                      'flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-all',
-                      selectedCatId === cat.id
-                        ? 'bg-coffee-800 text-cream shadow-md'
-                        : 'bg-coffee-100 text-coffee-600 hover:bg-coffee-200',
-                    )}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
-              </div>
-
-              {/* Product row — SINGLE ROW, drag-to-scroll */}
-              <div className="flex-shrink-0 border-t border-coffee-100">
-                {pickerProducts.length === 0 ? (
-                  <div className="flex items-center justify-center h-48 text-coffee-300 gap-2">
-                    <Coffee className="h-8 w-8 opacity-30" />
-                    <p className="text-sm">Sin productos en esta categoría</p>
-                  </div>
-                ) : (
-                  <div
-                    ref={dragScroll.ref}
-                    onMouseDown={dragScroll.onMouseDown}
-                    onMouseMove={dragScroll.onMouseMove}
-                    onMouseUp={dragScroll.onMouseUp}
-                    onMouseLeave={dragScroll.onMouseLeave}
-                    className="flex gap-3 overflow-x-auto px-4 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden cursor-grab active:cursor-grabbing select-none"
-                    style={{ WebkitOverflowScrolling: 'touch' }}
-                  >
-                    {pickerProducts.map(product => {
-                      const stock = getEffectiveStock(product);
-                      const qty = getTempQty(product.id);
-                      return (
-                        <ProdCard
-                          key={product.id}
-                          product={product}
-                          qty={qty}
-                          unavailable={!stock.ok}
-                          onAdd={() => addTempProduct(product)}
-                          onInc={() => {
-                            const key = buildCartKey(product.id);
-                            incTempQty(key);
-                          }}
-                          onDec={() => {
-                            const key = buildCartKey(product.id);
-                            decTempQty(key);
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Confirm button */}
-              <div className="px-5 py-4 border-t border-coffee-100 flex-shrink-0">
-                <button
-                  onClick={confirmAddToMesa}
-                  disabled={tempCart.length === 0}
-                  className={clsx(
-                    'w-full py-4 rounded-2xl font-bold text-base transition-all',
-                    tempCart.length > 0
-                      ? 'bg-coffee-800 text-cream hover:bg-coffee-700 active:scale-95 shadow-lg'
-                      : 'bg-coffee-100 text-coffee-400 cursor-not-allowed',
-                  )}
-                >
-                  {tempCart.length > 0
-                    ? `Añadir ${tempCart.reduce((s, i) => s + i.quantity, 0)} item(s) a ${activeMesa.name}`
-                    : 'Selecciona productos'}
-                </button>
-              </div>
-            </div>
-          </Overlay>
-        )}
 
         {/* ══════════════════════════════════════════════════════════════
             MODAL: REVIEW
@@ -1467,6 +1400,7 @@ export const POSPage: React.FC = () => {
         <BillingModal
           isOpen={modalView === 'billing'}
           saleCode={lastSaleResult?.code}
+          customers={_customers}
           onDone={async (billing: BillingData) => {
             if (pendingBillingSaleId) {
               const invoicePayload = billing.nit === '0'
@@ -1478,6 +1412,44 @@ export const POSPage: React.FC = () => {
             setModalView('success');
           }}
         />
+
+        {/* Combo detail */}
+        {comboDetailProduct && (
+          <Overlay onClose={() => setComboDetailProduct(null)}>
+            <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
+              <div className="bg-coffee-800 px-5 py-4 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-coffee-400 uppercase tracking-widest">Contenido del combo</p>
+                  <h3 className="font-display font-bold text-cream text-lg">{comboDetailProduct.name}</h3>
+                </div>
+                <button onClick={() => setComboDetailProduct(null)} className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center text-coffee-300 hover:bg-white/20">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="divide-y divide-coffee-50">
+                {(MOCK_COMBO_DETAILS[comboDetailProduct.id] ?? []).map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-3 px-5 py-3">
+                    <span className="text-2xl">{item.emoji}</span>
+                    <p className="flex-1 text-sm font-semibold text-coffee-900">{item.name}</p>
+                    <span className="text-xs font-bold text-coffee-400 bg-coffee-50 rounded-full px-2.5 py-1">x{item.quantity}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="px-5 py-4 border-t border-coffee-100 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-coffee-400">Precio combo</p>
+                  <p className="text-xl font-display font-black text-coffee-900">{formatCurrency(comboDetailProduct.salePrice)}</p>
+                </div>
+                <button
+                  onClick={() => { addTempProduct(comboDetailProduct); setComboDetailProduct(null); }}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-coffee-800 text-cream text-sm font-bold hover:bg-coffee-700 active:scale-95 transition-all"
+                >
+                  <Plus className="h-4 w-4" /> Agregar
+                </button>
+              </div>
+            </div>
+          </Overlay>
+        )}
 
         {/* Variacion picker */}
         {varPickerProduct && (
