@@ -1,10 +1,14 @@
 import React from 'react';
-import type { Product, ProductInput, ProductTipo, Category, Brand, Location, Receta } from '../../types';
+import type { Product, ProductInput, ProductTipo, Category, Brand, Location, Receta, CategoryInput } from '../../types';
 import { Form, FormField, FormRow, FormActions } from './FormField';
 import { Input, Textarea, Select } from '../ui';
 import { Button } from '../ui';
-import { AlertTriangle, BookOpen, Layers } from 'lucide-react';
+import { AlertTriangle, BookOpen, Layers, Plus } from 'lucide-react';
 import { formatCurrency } from '../../utils';
+import { CategoryModal } from '../modals/CategoryModal';
+import { api } from '../../lib/api';
+import { gql } from '../../lib/graphql';
+import { toast } from '../ui/Toast';
 
 interface ProductFormProps {
   product?: Product;
@@ -73,6 +77,34 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   });
 
   const [errors, setErrors] = React.useState<Record<string, string>>({});
+  const [localCategories, setLocalCategories] = React.useState<Category[]>(categories);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = React.useState(false);
+
+  const handleSaveCategory = async (input: CategoryInput) => {
+    await api.post('/Categoria', {
+      nombre: input.name,
+      descripcion: input.description ?? '',
+      color: input.color,
+      estado: input.isActive,
+    });
+    const data = await gql<{ categorias: { nodes: { id: number; nombre: string; estado: boolean; descripcion: string }[] } }>(
+      `query { categorias { nodes { id nombre estado descripcion } } }`
+    );
+    const cats: Category[] = data.categorias.nodes.map((n) => ({
+      id: String(n.id),
+      name: n.nombre,
+      description: n.descripcion ?? '',
+      isActive: n.estado,
+      color: '',
+      sortOrder: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+    setLocalCategories(cats);
+    const created = cats.find((c) => c.name === input.name);
+    if (created) handleChange('categoryId', created.id);
+    toast.success('Categoría creada', `"${input.name}" fue creada y seleccionada.`);
+  };
 
   const tipo = formData.tipo as ProductTipo;
   const isElaborado = tipo === 'elaborado';
@@ -96,7 +128,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     if (!formData.name.trim()) newErrors.name = 'El nombre es requerido';
     if (!formData.categoryId) newErrors.categoryId = 'La categoría es requerida';
     if (formData.salePrice <= 0) newErrors.salePrice = 'El precio de venta debe ser mayor a 0';
-    if (isComprado && formData.costPrice < 0) newErrors.costPrice = 'El costo debe ser ≥ 0';
+    if (isComprado && formData.costPrice <= 0) newErrors.costPrice = 'El costo de compra debe ser mayor a 0';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -107,6 +139,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   };
 
   return (
+    <>
     <Form onSubmit={handleSubmit}>
       <div className="space-y-5">
 
@@ -182,12 +215,24 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         {/* Category + Unit */}
         <FormRow>
           <FormField label="Categoría" required error={errors.categoryId}>
-            <Select
-              value={formData.categoryId}
-              onChange={(value) => handleChange('categoryId', value)}
-              options={categories.filter(c => c.isActive).map(c => ({ value: c.id, label: c.name }))}
-              placeholder="Seleccionar categoría"
-            />
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Select
+                  value={formData.categoryId}
+                  onChange={(value) => handleChange('categoryId', value)}
+                  options={localCategories.filter(c => c.isActive).map(c => ({ value: c.id, label: c.name }))}
+                  placeholder="Seleccionar categoría"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(true)}
+                className="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-lg border border-coffee-200 text-coffee-500 hover:bg-coffee-50 hover:text-coffee-800 transition-colors"
+                title="Nueva categoría"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
           </FormField>
           <FormField label="Unidad de venta">
             <Select
@@ -306,5 +351,12 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         </Button>
       </FormActions>
     </Form>
+    <CategoryModal
+      isOpen={isCategoryModalOpen}
+      onClose={() => setIsCategoryModalOpen(false)}
+      onSave={(input) => handleSaveCategory(input)}
+      onSuccess={() => setIsCategoryModalOpen(false)}
+    />
+    </>
   );
 };

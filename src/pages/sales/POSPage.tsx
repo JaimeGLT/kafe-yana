@@ -2,23 +2,24 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { clsx } from 'clsx';
 import {
   Plus, Minus, Trash2, Coffee, CheckCircle, Printer,
-  CreditCard, Banknote, Smartphone, UserCheck, AlertTriangle,
-  FlaskConical, Layers, X, Star,
-  UtensilsCrossed, ChevronLeft, ChevronRight, Search, PenLine, History, ShoppingBag,
+  CreditCard, Banknote, Smartphone, AlertTriangle,
+  FlaskConical, Layers, X, Star, Gift,
+  UtensilsCrossed, ChevronLeft, ChevronRight, PenLine, History, ShoppingBag,
 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { toast } from '../../components/ui/Toast';
 // import { api } from '../../lib/api'; // TODO: reconectar cuando el backend esté listo
 import {
   MOCK_CATEGORIES, MOCK_PRODUCTS, MOCK_ATRIBUTOS,
-  MOCK_CUSTOMERS, MOCK_LOYALTY_PROFILES, MOCK_MILESTONES,
+  MOCK_CUSTOMERS, MOCK_LOYALTY_PROFILES, MOCK_MILESTONES, MOCK_REWARDS,
   MOCK_COMBO_DETAILS,
   mockAddSale, mockGenerateInvoice,
 } from './posMocks';
 import { formatCurrency } from '../../utils';
+import qrPago from '../../assets/qr-pago.svg';
 import type { Product, Category, Customer, SaleInput, PaymentMethodType, OpcionSeleccionada, VariacionAtributo } from '../../types';
 import type { BillingData } from '../../components/modals/BillingModal';
-import type { LoyaltyProfile, PointsCalculation, MilestoneReward } from '../../types/loyalty';
+import type { LoyaltyProfile, PointsCalculation, MilestoneReward, Reward } from '../../types/loyalty';
 import { VariacionPickerModal } from '../../components/modals/VariacionPickerModal';
 import { BillingModal } from '../../components/modals/BillingModal';
 
@@ -31,6 +32,7 @@ interface CartItem {
   opciones?: OpcionSeleccionada[];
   precioFinal: number;
   cartKey: string;
+  redeemRewardId?: string;  // si está seteado, el ítem fue canjeado (precio 0)
 }
 
 type MesaStatus = 'libre' | 'ocupada' | 'esperando_pago';
@@ -50,10 +52,11 @@ type ModalView =
   | 'nueva_mesa'    // create / edit table
   | 'iniciar'       // confirm start table
   | 'detalle'       // table detail (order view)
-  |'review'        // order review before payment
+  | 'review'        // order review before payment
   | 'pago'          // payment
   | 'billing'       // billing data after payment
-  | 'success';      // done
+  | 'success'       // done
+  | 'canje_rapido'; // standalone reward redemption
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CONSTANTS
@@ -64,8 +67,7 @@ const TOTAL_MESAS_INIT = 12;
 const PAYMENT_METHODS: { type: PaymentMethodType; label: string; icon: React.ReactNode }[] = [
   { type: 'cash',     label: 'Efectivo',  icon: <Banknote   className="h-5 w-5" /> },
   { type: 'card',     label: 'Tarjeta',   icon: <CreditCard className="h-5 w-5" /> },
-  { type: 'transfer', label: 'Yape/Plin', icon: <Smartphone className="h-5 w-5" /> },
-  { type: 'credit',   label: 'Crédito',   icon: <UserCheck  className="h-5 w-5" /> },
+  { type: 'transfer', label: 'QR', icon: <Smartphone className="h-5 w-5" /> },
 ];
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -175,8 +177,11 @@ interface ProdCardProps {
   onInc: () => void;
   onDec: () => void;
   onInfo?: () => void;
+  rewardInfo?: { icon: string; pointsCost: number } | null;
+  onRedeem?: () => void;
+  alreadyRedeemed?: boolean;
 }
-const ProdCard: React.FC<ProdCardProps> = ({ product, qty, unavailable, onAdd, onInc, onDec, onInfo }) => (
+const ProdCard: React.FC<ProdCardProps> = ({ product, qty, unavailable, onAdd, onInc, onDec, onInfo, rewardInfo, onRedeem, alreadyRedeemed }) => (
   <div className={clsx(
     'flex-shrink-0 w-36 sm:w-40 bg-white rounded-2xl overflow-hidden shadow-sm flex flex-col select-none',
     unavailable && 'opacity-50',
@@ -205,6 +210,11 @@ const ProdCard: React.FC<ProdCardProps> = ({ product, qty, unavailable, onAdd, o
       {qty > 0 && (
         <div className="absolute bottom-1.5 right-1.5 h-5 w-5 bg-coffee-800 text-cream text-[10px] font-black rounded-full flex items-center justify-center shadow">
           {qty}
+        </div>
+      )}
+      {rewardInfo && (
+        <div className="absolute bottom-1.5 left-1.5 text-[9px] bg-amber-400 text-white rounded-full px-1.5 py-0.5 font-bold flex items-center gap-0.5 shadow">
+          <Gift className="h-2 w-2" />{rewardInfo.pointsCost} pts
         </div>
       )}
     </div>
@@ -249,6 +259,21 @@ const ProdCard: React.FC<ProdCardProps> = ({ product, qty, unavailable, onAdd, o
           </button>
         </div>
       )}
+      {rewardInfo && onRedeem && (
+        <button
+          disabled={alreadyRedeemed}
+          onClick={e => { e.stopPropagation(); onRedeem(); }}
+          className={clsx(
+            'mt-1.5 w-full flex items-center justify-center gap-1 py-1.5 rounded-xl text-[11px] font-bold transition-all border',
+            alreadyRedeemed
+              ? 'bg-amber-50 border-amber-200 text-amber-300 cursor-not-allowed'
+              : 'bg-amber-400 border-amber-400 text-white hover:bg-amber-300 active:scale-95',
+          )}
+        >
+          <Gift className="h-3 w-3" />
+          {alreadyRedeemed ? 'Canjeado' : `Canjear · ${rewardInfo.pointsCost} pts`}
+        </button>
+      )}
     </div>
   </div>
 );
@@ -265,6 +290,7 @@ export const POSPage: React.FC = () => {
   const [_customers, setCustomers] = useState<Customer[]>([]);
   const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
   const [loyaltyProfiles, setLoyaltyProfiles] = useState<LoyaltyProfile[]>([]);
+  const [rewards, setRewards] = useState<Reward[]>([]);
   const [milestones, setMilestones] = useState<MilestoneReward[]>([]);
   const [_loading, setLoading] = useState(true);
 
@@ -278,6 +304,7 @@ export const POSPage: React.FC = () => {
       setAtributos(MOCK_ATRIBUTOS);
       setLoyaltyProfiles(MOCK_LOYALTY_PROFILES);
       setMilestones(MOCK_MILESTONES);
+      setRewards(MOCK_REWARDS);
       setLoading(false);
     }, 200);
     return () => clearTimeout(t);
@@ -345,13 +372,15 @@ export const POSPage: React.FC = () => {
     return calc;
   }, [calculatePointsForAmount]);
 
-  const redeemPointsForDiscount = useCallback((customerId: string, points: number): boolean => {
+  const redeemReward = useCallback((customerId: string, rewardId: string): boolean => {
     const profile = getOrCreateProfile(customerId);
-    if (!profile || profile.points < points) return false;
-
-    // In real implementation, this would call the API
+    const reward = rewards.find(r => r.id === rewardId);
+    if (!profile || !reward || profile.points < reward.pointsCost) return false;
+    setLoyaltyProfiles(prev => prev.map(p =>
+      p.customerId === customerId ? { ...p, points: p.points - reward.pointsCost } : p
+    ));
     return true;
-  }, [getOrCreateProfile]);
+  }, [getOrCreateProfile, rewards]);
 
   /* ── Mesa state ── */
   const [mesas, setMesas] = useState<Mesa[]>(initMesas);
@@ -361,6 +390,7 @@ export const POSPage: React.FC = () => {
   /* ── Nueva mesa form ── */
   const [nuevaMesaName, setNuevaMesaName] = useState('');
   const [editMesaId,    setEditMesaId]    = useState<string | null>(null);
+  const [iniciarClienteId, setIniciarClienteId] = useState('');
 
   /* ── Detalle view ── */
   const [detalleView, setDetalleView] = useState<'none' | 'pedido' | 'historial'>('none');
@@ -374,17 +404,14 @@ export const POSPage: React.FC = () => {
   const [productSearch, setProductSearch] = useState('');
 
   /* ── Payment state ── */
-  const [paymentMethod,  setPaymentMethod]  = useState<PaymentMethodType>('cash');
-  const [cashReceived,   setCashReceived]   = useState('');
-  const [isProcessing,   setIsProcessing]   = useState(false);
-  const [usePoints,      setUsePoints]      = useState(false);
-  const [pointsToRedeem, setPointsToRedeem] = useState(0);
-  const [lastSaleResult, setLastSaleResult] = useState<{ code: string; points: PointsCalculation | null; newBalance: number } | null>(null);
+  const [paymentMethod,    setPaymentMethod]    = useState<PaymentMethodType>('cash');
+  const [cashReceived,     setCashReceived]     = useState('');
+  const [isProcessing,     setIsProcessing]     = useState(false);
+  const [canjeClienteId,   setCanjeClienteId]   = useState('');
+  const [lastSaleResult,   setLastSaleResult]   = useState<{ code: string; points: PointsCalculation | null; newBalance: number } | null>(null);
   const [pendingBillingSaleId, setPendingBillingSaleId] = useState<string | null>(null);
 
   /* ── Drag scroll refs ── */
-  const dragScroll            = useDragScroll<HTMLDivElement>();
-  const dragScrollCat         = useDragScroll<HTMLDivElement>();
   const dragScrollDetalleCat  = useDragScroll<HTMLDivElement>();
   const dragScrollDetalleProd = useDragScroll<HTMLDivElement>();
 
@@ -416,10 +443,8 @@ export const POSPage: React.FC = () => {
   /* ── Mesa order totals ── */
   const mesaSubtotal   = activeMesa ? mesaOrderTotal(activeMesa.order) : 0;
   const loyaltyProfile = activeMesa?.customerId ? getOrCreateProfile(activeMesa.customerId) : null;
-  const maxRedeem      = loyaltyProfile ? Math.min(loyaltyProfile.points, Math.floor(mesaSubtotal * 0.3)) : 0;
-  const pointsDiscount = usePoints ? pointsToRedeem : 0;
-  const mesaTax        = (mesaSubtotal - pointsDiscount) * TAX_RATE;
-  const mesaTotal      = mesaSubtotal - pointsDiscount + mesaTax;
+  const mesaTax        = mesaSubtotal * TAX_RATE;
+  const mesaTotal      = mesaSubtotal + mesaTax;
   const cashNum        = parseFloat(cashReceived) || 0;
   const change         = Math.max(0, cashNum - mesaTotal);
   const hasCombo       = !!activeMesa?.order.some(i => i.product.tipo === 'combo' || i.product.name.toLowerCase().includes('combo'));
@@ -437,10 +462,9 @@ export const POSPage: React.FC = () => {
     setModalView('none');
     setTempCart([]);
     setProductSearch('');
-    setUsePoints(false);
-    setPointsToRedeem(0);
     setCashReceived('');
     setDetalleView('none');
+    setIniciarClienteId('');
   };
 
   /* ── Mesa operations ── */
@@ -545,6 +569,17 @@ export const POSPage: React.FC = () => {
     toast.success('Productos agregados', `${tempCart.reduce((s, i) => s + i.quantity, 0)} item(s) añadidos a la mesa`);
   };
 
+  /* ── Canjear recompensa directo al order de la mesa ── */
+  const addRedeemToMesa = (product: Product, rewardId: string) => {
+    if (!activeMesaId) return;
+    const canjeKey = `${product.id}__canje`;
+    setMesas(prev => prev.map(m => {
+      if (m.id !== activeMesaId) return m;
+      if (m.order.some(i => i.redeemRewardId === rewardId)) return m; // ya canjeado
+      return { ...m, order: [...m.order, { product, quantity: 1, precioFinal: 0, cartKey: canjeKey, redeemRewardId: rewardId }] };
+    }));
+  };
+
   /* ── Add directly to mesa order (inline product browser) ── */
   const addDirectToMesa = (product: Product, opciones?: OpcionSeleccionada[], precioFinal?: number) => {
     if (!activeMesaId) return;
@@ -597,7 +632,7 @@ export const POSPage: React.FC = () => {
       const saleInput: SaleInput = {
         customerId: activeMesa.customerId,
         items: activeMesa.order.map((i: CartItem) => ({ productId: i.product.id, quantity: i.quantity, discount: 0 })),
-        discount: pointsDiscount,
+        discount: 0,
         taxPercentage: 18,
         paymentMethods: [{ type: paymentMethod, amount: mesaTotal }],
       };
@@ -615,7 +650,10 @@ export const POSPage: React.FC = () => {
       let earnedPoints: PointsCalculation | null = null;
       let newBalance = 0;
       if (activeMesa.customerId && newSale) {
-        if (usePoints && pointsToRedeem > 0) redeemPointsForDiscount(activeMesa.customerId, pointsToRedeem);
+        // canjear todas las recompensas incluidas en el order
+        for (const item of activeMesa.order) {
+          if (item.redeemRewardId) redeemReward(activeMesa.customerId, item.redeemRewardId);
+        }
         earnedPoints = awardPointsForSale(activeMesa.customerId, newSale.id, mesaTotal, hasCombo);
         const profile = getOrCreateProfile(activeMesa.customerId);
         newBalance = profile?.points ?? 0;
@@ -701,6 +739,13 @@ export const POSPage: React.FC = () => {
                 </span>
               ))}
             </div>
+            <button
+              onClick={() => { setCanjeClienteId(''); setModalView('canje_rapido'); }}
+              className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-sm px-3 sm:px-4 py-2.5 rounded-xl transition-colors shadow-sm"
+            >
+              <Gift className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Canjear</span>
+            </button>
             <button
               onClick={openNuevaMesa}
               className="flex items-center gap-2 bg-coffee-600 hover:bg-coffee-500 text-white font-semibold text-sm px-3 sm:px-4 py-2.5 rounded-xl transition-colors shadow-sm"
@@ -860,9 +905,29 @@ export const POSPage: React.FC = () => {
                 </button>
               </div>
 
-              <div className="p-6">
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-coffee-400 uppercase tracking-wider">
+                    Cliente <span className="font-normal text-coffee-300">(opcional)</span>
+                  </label>
+                  <select
+                    value={iniciarClienteId}
+                    onChange={e => setIniciarClienteId(e.target.value)}
+                    className="mt-1.5 w-full px-3.5 py-3 rounded-xl border-2 border-coffee-200 focus:border-coffee-500 focus:outline-none text-coffee-900 text-sm font-medium bg-white"
+                  >
+                    <option value="">— Sin cliente —</option>
+                    {_customers.map(c => {
+                      const prof = getOrCreateProfile(c.id);
+                      return (
+                        <option key={c.id} value={c.id}>
+                          {c.name}{prof ? ` · ${prof.points} pts` : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
                 <button
-                  onClick={() => handleIniciarMesa(activeMesa)}
+                  onClick={() => { handleIniciarMesa(activeMesa, iniciarClienteId || undefined); setIniciarClienteId(''); }}
                   className="w-full py-4 rounded-2xl bg-coffee-800 text-cream font-bold text-base hover:bg-coffee-700 active:scale-95 transition-all shadow-lg"
                 >
                   Iniciar {activeMesa.name}
@@ -903,6 +968,15 @@ export const POSPage: React.FC = () => {
                         {STATUS_CFG[activeMesa.status].label}
                       </p>
                       <h3 className="font-display font-bold text-cream text-lg">{activeMesa.name}</h3>
+                      {(() => {
+                        const cliente = _customers.find(c => c.id === activeMesa.customerId);
+                        return activeMesa.customerId ? (
+                          <p className="text-[11px] text-amber-300 font-medium flex items-center gap-1">
+                            <Star className="h-3 w-3 fill-amber-300 text-amber-300" />
+                            {cliente?.name ?? 'Cliente vinculado'}
+                          </p>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
                 )}
@@ -967,6 +1041,10 @@ export const POSPage: React.FC = () => {
                     ) : pickerProducts.map(product => {
                       const stock = getEffectiveStock(product);
                       const qty   = getTempQty(product.id);
+                      const reward = loyaltyProfile
+                        ? rewards.find(r => r.isActive && r.productId === product.id && loyaltyProfile.points >= r.pointsCost) ?? null
+                        : null;
+                      const alreadyRedeemed = !!activeMesa.order.find(i => i.redeemRewardId && rewards.find(r => r.id === i.redeemRewardId)?.productId === product.id);
                       return (
                         <ProdCard
                           key={product.id}
@@ -977,6 +1055,12 @@ export const POSPage: React.FC = () => {
                           onInc={() => incTempQty(buildCartKey(product.id))}
                           onDec={() => decTempQty(buildCartKey(product.id))}
                           onInfo={product.tipo === 'combo' ? () => setComboDetailProduct(product) : undefined}
+                          rewardInfo={reward ? { icon: reward.icon, pointsCost: reward.pointsCost } : null}
+                          onRedeem={reward ? () => {
+                            addRedeemToMesa(product, reward.id);
+                            toast.success('¡Canje agregado!', `${reward.name} añadido al pedido.`);
+                          } : undefined}
+                          alreadyRedeemed={alreadyRedeemed}
                         />
                       );
                     })}
@@ -1084,6 +1168,50 @@ export const POSPage: React.FC = () => {
                 </div>
               )}
 
+              {/* ── Cliente vinculado ── */}
+              {detalleView === 'none' && (
+                <div className="px-4 py-2.5 border-t border-coffee-100 flex-shrink-0">
+                  {activeMesa.customerId ? (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs text-coffee-600">
+                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                        <span className="font-semibold">
+                          {_customers.find(c => c.id === activeMesa.customerId)?.name ?? 'Cliente'}
+                        </span>
+                        <span className="text-coffee-400">
+                          · {getOrCreateProfile(activeMesa.customerId)?.points ?? 0} pts
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => updateMesa(activeMesa.id, { customerId: undefined })}
+                        className="text-[11px] text-coffee-400 hover:text-red-400 transition-colors"
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-coffee-400 flex-shrink-0">Cliente:</span>
+                      <select
+                        value=""
+                        onChange={e => { if (e.target.value) updateMesa(activeMesa.id, { customerId: e.target.value }); }}
+                        className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-coffee-200 focus:border-coffee-500 focus:outline-none text-coffee-900 bg-white"
+                      >
+                        <option value="">— Vincular cliente —</option>
+                        {_customers.map(c => {
+                          const prof = getOrCreateProfile(c.id);
+                          return (
+                            <option key={c.id} value={c.id}>
+                              {c.name}{prof ? ` · ${prof.points} pts` : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* ── Bottom bar ── */}
               <div className="px-4 py-3 border-t border-coffee-100 flex items-center gap-2 flex-shrink-0">
                 {/* Ver pedido */}
@@ -1186,9 +1314,6 @@ export const POSPage: React.FC = () => {
               <div className="flex-shrink-0 border-t border-coffee-100">
                 <div className="px-5 py-3 space-y-1 bg-coffee-50">
                   <div className="flex justify-between text-sm text-coffee-600"><span>Subtotal</span><span>{formatCurrency(mesaSubtotal)}</span></div>
-                  {usePoints && pointsToRedeem > 0 && (
-                    <div className="flex justify-between text-sm text-amber-600 font-medium"><span>Descuento pts.</span><span>-{formatCurrency(pointsToRedeem)}</span></div>
-                  )}
                   <div className="flex justify-between text-sm text-coffee-600"><span>IGV 18%</span><span>{formatCurrency(mesaTax)}</span></div>
                   <div className="flex justify-between font-bold text-coffee-900 text-lg border-t border-coffee-200 pt-2">
                     <span>Total a Enviar</span>
@@ -1236,28 +1361,20 @@ export const POSPage: React.FC = () => {
                   <p className="text-5xl font-display font-black text-coffee-900">{formatCurrency(mesaTotal)}</p>
                 </div>
 
-                {/* Points toggle */}
-                {loyaltyProfile && loyaltyProfile.points >= 5 && (
-                  <div className="flex items-center justify-between bg-amber-50 rounded-xl px-3.5 py-2.5 border border-amber-100">
-                    <div>
-                      <p className="text-xs font-bold text-amber-800 flex items-center gap-1">
-                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                        Usar {maxRedeem} pts = {formatCurrency(maxRedeem)} dto.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => { const n = !usePoints; setUsePoints(n); setPointsToRedeem(n ? maxRedeem : 0); }}
-                      className={clsx('relative w-10 h-5 rounded-full transition-colors flex-shrink-0', usePoints ? 'bg-amber-500' : 'bg-coffee-200')}
-                    >
-                      <span className={clsx('absolute top-0.5 h-4 w-4 bg-white rounded-full shadow transition-transform', usePoints ? 'translate-x-5' : 'translate-x-0.5')} />
-                    </button>
+                {/* Canjes incluidos en el pedido */}
+                {loyaltyProfile && activeMesa.order.some(i => i.redeemRewardId) && (
+                  <div className="flex items-center gap-2 bg-amber-50 rounded-xl px-3.5 py-2.5 border border-amber-100">
+                    <Gift className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                    <p className="text-xs font-semibold text-amber-800">
+                      {activeMesa.order.filter(i => i.redeemRewardId).length} recompensa(s) canjeada(s) en este pedido
+                    </p>
                   </div>
                 )}
 
                 {/* Payment methods */}
                 <div>
                   <p className="text-xs font-bold text-coffee-400 uppercase tracking-wider mb-2.5">Método de pago</p>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     {PAYMENT_METHODS.map(pm => (
                       <button
                         key={pm.type}
@@ -1295,6 +1412,14 @@ export const POSPage: React.FC = () => {
                         <span className="text-sm font-black text-emerald-700">{formatCurrency(change)}</span>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* QR image */}
+                {paymentMethod === 'transfer' && (
+                  <div className="flex flex-col items-center gap-2 py-2">
+                    <p className="text-xs font-bold text-coffee-400 uppercase tracking-wider">Escanea para pagar</p>
+                    <img src={qrPago} alt="QR de pago" className="w-44 h-44 rounded-xl border-2 border-coffee-200 shadow" />
                   </div>
                 )}
 
@@ -1450,6 +1575,111 @@ export const POSPage: React.FC = () => {
             </div>
           </Overlay>
         )}
+
+        {/* ══════════════════════════════════════════════════════════════
+            MODAL: CANJE RÁPIDO (sin mesa)
+        ═════════════════════════════════════════════════════════════════*/}
+        {modalView === 'canje_rapido' && (() => {
+          const canjeProfile = canjeClienteId ? getOrCreateProfile(canjeClienteId) : null;
+          const canjeRewards = canjeProfile
+            ? rewards.filter(r => r.isActive && canjeProfile.points >= r.pointsCost)
+            : [];
+          return (
+            <Overlay onClose={() => setModalView('none')}>
+              <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
+                <div className="bg-amber-600 px-5 py-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-xl bg-white/20 flex items-center justify-center">
+                      <Gift className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-amber-200 uppercase tracking-widest">Fidelización</p>
+                      <p className="text-white font-semibold text-sm">Canje de recompensa</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setModalView('none')} className="h-8 w-8 rounded-xl bg-white/20 flex items-center justify-center text-white hover:bg-white/30">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="p-5 space-y-4">
+                  {/* Selector de cliente */}
+                  <div>
+                    <p className="text-xs font-bold text-coffee-400 uppercase tracking-wider mb-2">Cliente</p>
+                    <select
+                      value={canjeClienteId}
+                      onChange={e => setCanjeClienteId(e.target.value)}
+                      className="w-full px-3.5 py-3 rounded-xl border-2 border-coffee-200 focus:border-amber-400 focus:outline-none text-coffee-900 text-sm font-medium bg-white"
+                    >
+                      <option value="">— Seleccionar cliente —</option>
+                      {_customers.map(c => {
+                        const prof = getOrCreateProfile(c.id);
+                        return (
+                          <option key={c.id} value={c.id}>
+                            {c.name}{prof ? ` · ${prof.points} pts` : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  {/* Recompensas disponibles */}
+                  {canjeProfile && (
+                    <div>
+                      <p className="text-xs font-bold text-coffee-400 uppercase tracking-wider mb-2">
+                        Recompensas disponibles
+                        <span className="ml-1.5 font-normal text-amber-600">{canjeProfile.points} pts</span>
+                      </p>
+                      {canjeRewards.length === 0 ? (
+                        <p className="text-sm text-coffee-400 italic text-center py-4">
+                          No hay recompensas disponibles con los puntos actuales.
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {canjeRewards.map(r => (
+                            <div key={r.id} className="flex items-center gap-3 px-3 py-3 rounded-xl border border-coffee-200 bg-white">
+                              <span className="text-2xl leading-none">{r.icon}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-coffee-900 leading-tight">{r.name}</p>
+                                <p className="text-xs text-coffee-400 leading-tight">{r.description}</p>
+                              </div>
+                              <div className="flex flex-col items-end gap-1.5">
+                                <div className="flex items-center gap-1">
+                                  <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                                  <span className="text-xs font-bold text-amber-700">{r.pointsCost} pts</span>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    const ok = redeemReward(canjeClienteId, r.id);
+                                    if (ok) {
+                                      toast.success('¡Canje exitoso!', `${r.name} canjeado correctamente.`);
+                                      setModalView('none');
+                                    } else {
+                                      toast.error('Error', 'No se pudo completar el canje.');
+                                    }
+                                  }}
+                                  className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-white transition-colors"
+                                >
+                                  Canjear
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {!canjeProfile && canjeClienteId && (
+                    <p className="text-sm text-coffee-400 italic text-center py-4">
+                      Este cliente no tiene perfil de puntos aún.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </Overlay>
+          );
+        })()}
 
         {/* Variacion picker */}
         {varPickerProduct && (

@@ -10,7 +10,7 @@
 
 import type { Product, Category, Customer } from '../../types';
 import type { VariacionAtributo } from '../../types/variations';
-import type { LoyaltyProfile, MilestoneReward } from '../../types/loyalty';
+import type { LoyaltyProfile, MilestoneReward, Reward } from '../../types/loyalty';
 import type { Sale, SaleInput } from '../../types/sales';
 
 const now = new Date();
@@ -263,6 +263,13 @@ export const MOCK_MILESTONES: MilestoneReward[] = [
   { purchaseNumber: 5,  reward: 'Café Americano gratis',   icon: '☕', description: 'Por tu 5ta compra' },
   { purchaseNumber: 10, reward: 'Combo Desayuno gratis',   icon: '🎁', description: 'Por tu 10ma compra' },
   { purchaseNumber: 25, reward: '20% de descuento',        icon: '⭐', description: 'Por tu 25ava compra' },
+];
+
+export const MOCK_REWARDS: Reward[] = [
+  { id: 'rw-1', name: 'Café Americano gratis', description: 'Un americano de cualquier tamaño',  pointsCost: 80,  category: 'diario',       icon: '☕', isActive: true, productId: 'prod-americano'      },
+  { id: 'rw-2', name: 'Cappuccino gratis',     description: 'Un cappuccino caliente',             pointsCost: 120, category: 'diario',       icon: '☕', isActive: true, productId: 'prod-cappuccino'     },
+  { id: 'rw-3', name: 'Cheesecake gratis',     description: 'Cheesecake de maracuyá del día',    pointsCost: 150, category: 'diario',       icon: '🍰', isActive: true, productId: 'prod-cheesecake'     },
+  { id: 'rw-4', name: 'Combo Desayuno gratis', description: 'Bebida + pan + jugo',                pointsCost: 280, category: 'premio_mayor', icon: '🎁', isActive: true, productId: 'prod-combo-desayuno', highlight: true },
 ];
 
 /* ═══════════════════════════════════════════════════════════════════════════

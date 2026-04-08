@@ -38,6 +38,7 @@ export interface Reward {
   icon: string;     // emoji
   isActive: boolean;
   highlight?: boolean;
+  productId?: string;  // producto canjeable en el POS
 }
 
 export interface Mission {

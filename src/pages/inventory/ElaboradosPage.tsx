@@ -51,6 +51,7 @@ const ElaboradosPage: React.FC = () => {
       await api.post('/Receta', {
         nombre: '',
         nota: recetaData.notas ?? '',
+        porciones: recetaData.porcionesBase,
         id_Elaborado: Number(recetaData.productId),
         detalles: recetaData.ingredientes.map((ing) => ({
           cantidad: ing.quantity,
