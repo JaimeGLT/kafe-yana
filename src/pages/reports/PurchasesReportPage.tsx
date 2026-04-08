@@ -4,13 +4,13 @@ import { es } from 'date-fns/locale';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import { ShoppingBag, Clock, CreditCard, Users, Calendar, FileText } from 'lucide-react';
+import { ShoppingBag, Clock, Users, Calendar, FileText } from 'lucide-react';
 import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Button, Input, Badge } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../utils';
-import type { PurchaseOrder, Supplier, AccountsPayable } from '../../types';
+import type { PurchaseOrder, Supplier } from '../../types';
 
 const CHART_COLORS = {
   primary: '#8B4513',
@@ -50,20 +50,17 @@ const STATUS_VARIANTS: Record<string, 'default' | 'warning' | 'success' | 'dange
 const PurchasesReportPage: React.FC = () => {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [accountsPayable, setAccountsPayable] = useState<AccountsPayable[]>([]);
   const [_loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [ordersData, suppliersData, payablesData] = await Promise.all([
+        const [ordersData, suppliersData] = await Promise.all([
           api.get<PurchaseOrder[]>('/purchases/orders'),
           api.get<Supplier[]>('/purchases/suppliers'),
-          api.get<AccountsPayable[]>('/purchases/payables'),
         ]);
         setPurchaseOrders(ordersData);
         setSuppliers(suppliersData);
-        setAccountsPayable(payablesData);
       } catch (error) {
         console.error('Error loading purchases data:', error);
       } finally {
@@ -96,12 +93,6 @@ const PurchasesReportPage: React.FC = () => {
   const pendingOrdersCount = useMemo(
     () => filteredOrders.filter((o: PurchaseOrder) => o.status === 'pending' || o.status === 'approved' || o.status === 'partial').length,
     [filteredOrders]
-  );
-  const pendingPaymentsAmount = useMemo(
-    () => accountsPayable
-      .filter((p: AccountsPayable) => p.status === 'pending' || p.status === 'partial')
-      .reduce((sum: number, p: AccountsPayable) => sum + p.pendingAmount, 0),
-    [accountsPayable]
   );
   const activeSuppliers = useMemo(() => suppliers.filter((s: Supplier) => s.isActive).length, [suppliers]);
 
@@ -180,13 +171,6 @@ const PurchasesReportPage: React.FC = () => {
             subtitle="Por recibir o aprobar"
             icon={<Clock className="h-6 w-6" />}
             color="yellow"
-          />
-          <KPICard
-            title="Pagos Pendientes"
-            value={formatCurrency(pendingPaymentsAmount)}
-            subtitle="Cuentas por pagar"
-            icon={<CreditCard className="h-6 w-6" />}
-            color="red"
           />
           <KPICard
             title="Proveedores Activos"

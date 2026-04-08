@@ -53,6 +53,7 @@ export function mapCombo(node: ComboNode, products: Product[]): Combo {
   return {
     id: String(node.id),
     name: node.nombre,
+    description: node.descripcion ?? '',
     items,
     price: node.precio,
     costoTotal: items.reduce((s, i) => s + i.unitCost * i.quantity, 0),

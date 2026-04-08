@@ -691,9 +691,9 @@ export const POSPage: React.FC = () => {
      STATUS CONFIG
   ═══════════════════════════════════════════════════════════════════════*/
   const STATUS_CFG: Record<MesaStatus, { label: string; dot: string; card: string; badge: string; icon: string; iconBg: string }> = {
-    libre:          { label: 'Libre',          dot: 'bg-emerald-400',              card: 'bg-coffee-800/70 border-coffee-600/30 hover:bg-coffee-700/60 hover:border-coffee-500/60', badge: 'bg-emerald-950/80 text-emerald-400',  icon: 'text-coffee-400', iconBg: 'bg-coffee-900/60' },
-    ocupada:        { label: 'Ocupada',        dot: 'bg-red-400 animate-pulse',    card: 'bg-red-950/40    border-red-600/60    hover:bg-red-950/60    hover:border-red-400',        badge: 'bg-red-950     text-red-400',          icon: 'text-red-400',    iconBg: 'bg-red-950/60'    },
-    esperando_pago: { label: 'Esperando pago', dot: 'bg-amber-400 animate-pulse',  card: 'bg-amber-950/30  border-amber-600/60  hover:bg-amber-950/50  hover:border-amber-400',     badge: 'bg-amber-950   text-amber-400',        icon: 'text-amber-400',  iconBg: 'bg-amber-950/60'  },
+    libre:          { label: 'Libre',          dot: 'bg-emerald-400',              card: 'bg-coffee-700/35 border-coffee-500/30 hover:bg-coffee-700/50 hover:border-coffee-400/50', badge: 'bg-emerald-500/20 text-emerald-300',  icon: 'text-coffee-300', iconBg: 'bg-coffee-800/70' },
+    ocupada:        { label: 'Ocupada',        dot: 'bg-red-400 animate-pulse',    card: 'bg-red-900/45    border-red-500/55    hover:bg-red-900/60    hover:border-red-400/75',     badge: 'bg-red-500/20     text-red-300',         icon: 'text-red-300',    iconBg: 'bg-red-900/50'    },
+    esperando_pago: { label: 'Esperando pago', dot: 'bg-amber-400 animate-pulse',  card: 'bg-amber-900/35  border-amber-500/50  hover:bg-amber-900/50  hover:border-amber-400/70',  badge: 'bg-amber-500/20   text-amber-300',       icon: 'text-amber-300',  iconBg: 'bg-amber-900/50'  },
   };
 
   /* ══════════════════════════════════════════════════════════════════════
@@ -701,32 +701,32 @@ export const POSPage: React.FC = () => {
   ═══════════════════════════════════════════════════════════════════════*/
   return (
     <MainLayout>
-      <div className="-m-6 min-h-[calc(100vh-4rem)] bg-coffee-900 overflow-y-auto">
+      <div className="-m-6 min-h-[calc(100vh-4rem)] bg-[#160c02] overflow-y-auto">
 
         {/* ── Header ─────────────────────────────────────────────────── */}
         <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="font-display font-bold text-white text-xl sm:text-2xl leading-tight">Punto de Venta</h1>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-              <span className="text-xs sm:text-sm text-coffee-400">
-                <span className="text-red-400 font-medium">{mesas.filter(m => m.status === 'ocupada').length}</span>
+              <span className="text-xs sm:text-sm text-coffee-300">
+                <span className="text-red-400 font-semibold">{mesas.filter(m => m.status === 'ocupada').length}</span>
                 <span className="hidden sm:inline"> ocupadas</span>
                 <span className="sm:hidden"> ocup.</span>
               </span>
-              <span className="text-coffee-600 text-xs">·</span>
-              <span className="text-xs sm:text-sm text-coffee-400">
-                <span className="text-amber-400 font-medium">{mesas.filter(m => m.status === 'esperando_pago').length}</span>
+              <span className="text-coffee-500 text-xs">·</span>
+              <span className="text-xs sm:text-sm text-coffee-300">
+                <span className="text-amber-400 font-semibold">{mesas.filter(m => m.status === 'esperando_pago').length}</span>
                 <span className="hidden sm:inline"> esperando</span>
                 <span className="sm:hidden"> esp.</span>
               </span>
-              <span className="text-coffee-600 text-xs">·</span>
-              <span className="text-xs sm:text-sm text-coffee-400">
-                <span className="text-emerald-400 font-medium">{mesas.filter(m => m.status === 'libre').length}</span>
+              <span className="text-coffee-500 text-xs">·</span>
+              <span className="text-xs sm:text-sm text-coffee-300">
+                <span className="text-emerald-400 font-semibold">{mesas.filter(m => m.status === 'libre').length}</span>
                 <span className="hidden sm:inline"> libres</span>
                 <span className="sm:hidden"> lib.</span>
               </span>
-              <span className="text-coffee-600 text-xs">·</span>
-              <span className="text-xs sm:text-sm text-coffee-500">{mesas.length} total</span>
+              <span className="text-coffee-500 text-xs">·</span>
+              <span className="text-xs sm:text-sm text-coffee-400">{mesas.length} total</span>
             </div>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">

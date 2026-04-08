@@ -8,6 +8,7 @@ export interface ComboDetalleNode {
 export interface ComboNode {
   id: number;
   nombre: string;
+  descripcion: string;
   precio: number;
   cantidadProducible: number;
   productos: {

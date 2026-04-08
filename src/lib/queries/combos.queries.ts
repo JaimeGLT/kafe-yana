@@ -4,6 +4,7 @@ export const COMBOS_QUERY = `
       nodes {
         id
         nombre
+        descripcion
         precio
         cantidadProducible
         productos {

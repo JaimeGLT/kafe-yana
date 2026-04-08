@@ -7,11 +7,13 @@ export interface Supplier extends BaseEntity {
   id: UUID;
   code: string;
   name: string;
-  contactName?: string;
-  email?: string;
-  phone: string;
-  address?: string;
   ruc?: string;
+  phone: string;
+  mobile?: string;
+  email?: string;
+  address?: string;
+  // legacy fields kept for backend compatibility
+  contactName?: string;
   website?: string;
   notes?: string;
   paymentTerms?: string;
@@ -24,15 +26,11 @@ export interface Supplier extends BaseEntity {
 
 export interface SupplierInput {
   name: string;
-  contactName?: string;
-  email?: string;
-  phone: string;
-  address?: string;
   ruc?: string;
-  website?: string;
-  notes?: string;
-  paymentTerms?: string;
-  creditLimit?: number;
+  phone: string;
+  mobile?: string;
+  email?: string;
+  address?: string;
   isActive?: boolean;
 }
 
@@ -107,40 +105,6 @@ export interface PurchaseReceipt extends BaseEntity {
   notes?: string;
   receivedBy: UUID;
   receivedByName?: string;
-}
-
-// Accounts Payable
-export interface AccountsPayable extends BaseEntity {
-  id: UUID;
-  code: string;
-  purchaseOrderId: UUID;
-  purchaseOrderCode?: string;
-  supplierId: UUID;
-  supplierName?: string;
-  amount: number;
-  paidAmount: number;
-  pendingAmount: number;
-  date: Date;
-  dueDate: Date;
-  status: 'pending' | 'partial' | 'paid' | 'overdue';
-  payments: PayablePayment[];
-}
-
-export interface PayablePayment {
-  id: UUID;
-  date: Date;
-  amount: number;
-  method: 'cash' | 'card' | 'transfer' | 'check';
-  reference?: string;
-  notes?: string;
-}
-
-export interface PayablePaymentInput {
-  payableId: UUID;
-  amount: number;
-  method: 'cash' | 'card' | 'transfer' | 'check';
-  reference?: string;
-  notes?: string;
 }
 
 // Purchases Stats

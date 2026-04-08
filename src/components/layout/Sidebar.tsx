@@ -69,7 +69,6 @@ const navItems: NavItem[] = [
     children: [
       { id: 'orders', label: 'Órdenes de Compra', icon: null, path: '/purchases/orders' },
       { id: 'suppliers', label: 'Proveedores', icon: null, path: '/purchases/suppliers' },
-      { id: 'payables', label: 'Cuentas por Pagar', icon: null, path: '/purchases/payables' },
     ],
   },
   {
@@ -79,7 +78,6 @@ const navItems: NavItem[] = [
     path: '/cash',
     children: [
       { id: 'register', label: 'Caja', icon: null, path: '/cash/register' },
-      { id: 'movements', label: 'Movimientos', icon: null, path: '/cash/movements' },
     ],
   },
   {

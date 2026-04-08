@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Plus, Search, Edit2, Trash2, Building2, Phone, Mail, Globe } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Building2, Phone, Mail } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Button, Badge, Modal, ConfirmModal } from '../../components/ui';
 import { SupplierModal } from '../../components/modals';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import { formatCurrency, formatDate } from '../../utils';
+import { formatCurrency } from '../../utils';
 import type { Supplier } from '../../types';
 
 export const SuppliersPage: React.FC = () => {
@@ -26,7 +26,7 @@ export const SuppliersPage: React.FC = () => {
     try {
       const data = await api.get<Supplier[]>('/Supplier');
       setSuppliers(data);
-    } catch (error) {
+    } catch {
       toast.error('Error', 'No se pudieron cargar los proveedores.');
     } finally {
       setIsLoading(false);
@@ -42,9 +42,10 @@ export const SuppliersPage: React.FC = () => {
     return suppliers.filter(
       (s) =>
         s.name.toLowerCase().includes(q) ||
-        (s.contactName || '').toLowerCase().includes(q) ||
+        (s.ruc || '').toLowerCase().includes(q) ||
         (s.email || '').toLowerCase().includes(q) ||
         s.phone.includes(q) ||
+        (s.mobile || '').includes(q) ||
         s.code.toLowerCase().includes(q)
     );
   }, [suppliers, search]);
@@ -85,6 +86,8 @@ export const SuppliersPage: React.FC = () => {
     }
   };
 
+  const COLUMNS = ['Código', 'Razón Social', 'N° Documento', 'Teléfono', 'Dirección', 'Email', 'Celular', ''];
+
   return (
     <MainLayout>
       <PageContainer>
@@ -104,7 +107,7 @@ export const SuppliersPage: React.FC = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-coffee-400" />
             <input
               type="text"
-              placeholder="Buscar por nombre, contacto, email..."
+              placeholder="Buscar por nombre, RUC, email, teléfono..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 border border-coffee-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-coffee-400"
@@ -118,22 +121,20 @@ export const SuppliersPage: React.FC = () => {
             <table className="min-w-full divide-y divide-coffee-200">
               <thead className="bg-coffee-50">
                 <tr>
-                  {['Código', 'Proveedor', 'Contacto', 'Teléfono', 'Email', 'Total Compras', 'Deuda Actual', 'Estado', ''].map(
-                    (h) => (
-                      <th
-                        key={h}
-                        className="px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider"
-                      >
-                        {h}
-                      </th>
-                    )
-                  )}
+                  {COLUMNS.map((h) => (
+                    <th
+                      key={h}
+                      className="px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider"
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-coffee-100">
                 {filteredSuppliers.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-6 py-10 text-center text-coffee-400">
+                    <td colSpan={COLUMNS.length} className="px-6 py-10 text-center text-coffee-400">
                       No hay proveedores registrados
                     </td>
                   </tr>
@@ -152,22 +153,20 @@ export const SuppliersPage: React.FC = () => {
                           <div className="h-8 w-8 rounded-full bg-coffee-100 flex items-center justify-center flex-shrink-0">
                             <Building2 className="h-4 w-4 text-coffee-500" />
                           </div>
-                          <div>
-                            <p className="font-medium text-coffee-900">{supplier.name}</p>
-                            {supplier.ruc && (
-                              <p className="text-xs text-coffee-400">RUC: {supplier.ruc}</p>
-                            )}
-                          </div>
+                          <p className="font-medium text-coffee-900">{supplier.name}</p>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-700">
-                        {supplier.contactName || <span className="text-coffee-300">—</span>}
+                        {supplier.ruc || <span className="text-coffee-300">—</span>}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-700">
                         <div className="flex items-center gap-1">
                           <Phone className="h-3.5 w-3.5 text-coffee-400" />
                           {supplier.phone}
                         </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-600 max-w-[180px] truncate">
+                        {supplier.address || <span className="text-coffee-300">—</span>}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-600">
                         {supplier.email ? (
@@ -179,24 +178,8 @@ export const SuppliersPage: React.FC = () => {
                           <span className="text-coffee-300">—</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap font-semibold text-coffee-900">
-                        {formatCurrency(supplier.totalPurchases)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={
-                            supplier.currentDebt > 0
-                              ? 'font-semibold text-red-600'
-                              : 'text-coffee-400'
-                          }
-                        >
-                          {formatCurrency(supplier.currentDebt)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant={supplier.isActive ? 'success' : 'default'}>
-                          {supplier.isActive ? 'Activo' : 'Inactivo'}
-                        </Badge>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-700">
+                        {supplier.mobile || <span className="text-coffee-300">—</span>}
                       </td>
                       <td
                         className="px-6 py-4 whitespace-nowrap"
@@ -255,23 +238,20 @@ export const SuppliersPage: React.FC = () => {
           >
             <div className="space-y-5">
               <div className="flex items-center gap-4">
-                <div className="h-16 w-16 rounded-full bg-coffee-100 flex items-center justify-center">
-                  <Building2 className="h-8 w-8 text-coffee-500" />
+                <div className="h-14 w-14 rounded-full bg-coffee-100 flex items-center justify-center">
+                  <Building2 className="h-7 w-7 text-coffee-500" />
                 </div>
                 <div>
                   <p className="font-display font-bold text-coffee-900 text-lg">{viewingSupplier.name}</p>
-                  <p className="text-sm text-coffee-500">{viewingSupplier.code}</p>
-                  <Badge variant={viewingSupplier.isActive ? 'success' : 'default'} size="sm">
-                    {viewingSupplier.isActive ? 'Activo' : 'Inactivo'}
-                  </Badge>
+                  <p className="text-sm font-mono text-coffee-400">{viewingSupplier.code}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4 text-sm">
-                {viewingSupplier.contactName && (
+                {viewingSupplier.ruc && (
                   <div>
-                    <p className="text-coffee-500 mb-0.5">Contacto</p>
-                    <p className="font-medium text-coffee-900">{viewingSupplier.contactName}</p>
+                    <p className="text-coffee-500 mb-0.5">N° Documento</p>
+                    <p className="font-medium text-coffee-900">{viewingSupplier.ruc}</p>
                   </div>
                 )}
                 <div>
@@ -281,6 +261,12 @@ export const SuppliersPage: React.FC = () => {
                     {viewingSupplier.phone}
                   </p>
                 </div>
+                {viewingSupplier.mobile && (
+                  <div>
+                    <p className="text-coffee-500 mb-0.5">Celular</p>
+                    <p className="font-medium text-coffee-900">{viewingSupplier.mobile}</p>
+                  </div>
+                )}
                 {viewingSupplier.email && (
                   <div>
                     <p className="text-coffee-500 mb-0.5">Email</p>
@@ -290,68 +276,13 @@ export const SuppliersPage: React.FC = () => {
                     </p>
                   </div>
                 )}
-                {viewingSupplier.ruc && (
-                  <div>
-                    <p className="text-coffee-500 mb-0.5">RUC</p>
-                    <p className="font-medium text-coffee-900">{viewingSupplier.ruc}</p>
-                  </div>
-                )}
-                {viewingSupplier.website && (
-                  <div>
-                    <p className="text-coffee-500 mb-0.5">Sitio Web</p>
-                    <a
-                      href={viewingSupplier.website}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-medium text-coffee-500 hover:text-coffee-700 flex items-center gap-1"
-                    >
-                      <Globe className="h-3.5 w-3.5" />
-                      {viewingSupplier.website}
-                    </a>
-                  </div>
-                )}
-                {viewingSupplier.paymentTerms && (
-                  <div>
-                    <p className="text-coffee-500 mb-0.5">Términos de Pago</p>
-                    <p className="font-medium text-coffee-900">{viewingSupplier.paymentTerms}</p>
+                {viewingSupplier.address && (
+                  <div className="col-span-2">
+                    <p className="text-coffee-500 mb-0.5">Dirección</p>
+                    <p className="font-medium text-coffee-900">{viewingSupplier.address}</p>
                   </div>
                 )}
               </div>
-
-              <div className="grid grid-cols-2 gap-4 bg-coffee-50 rounded-xl p-4">
-                <div>
-                  <p className="text-xs text-coffee-500 uppercase tracking-wider mb-1">Total Compras</p>
-                  <p className="text-xl font-display font-bold text-coffee-900">
-                    {formatCurrency(viewingSupplier.totalPurchases)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-coffee-500 uppercase tracking-wider mb-1">Deuda Actual</p>
-                  <p
-                    className={`text-xl font-display font-bold ${
-                      viewingSupplier.currentDebt > 0 ? 'text-red-600' : 'text-coffee-400'
-                    }`}
-                  >
-                    {formatCurrency(viewingSupplier.currentDebt)}
-                  </p>
-                </div>
-              </div>
-
-              {viewingSupplier.lastPurchaseDate && (
-                <p className="text-sm text-coffee-500">
-                  Última compra:{' '}
-                  <span className="font-medium text-coffee-700">
-                    {formatDate(viewingSupplier.lastPurchaseDate)}
-                  </span>
-                </p>
-              )}
-
-              {viewingSupplier.notes && (
-                <div className="bg-coffee-50 rounded-lg p-3">
-                  <p className="text-xs text-coffee-500 mb-1">Notas</p>
-                  <p className="text-sm text-coffee-700">{viewingSupplier.notes}</p>
-                </div>
-              )}
 
               <div className="flex justify-end gap-2 pt-2">
                 <Button

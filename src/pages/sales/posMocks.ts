@@ -12,6 +12,7 @@ import type { Product, Category, Customer } from '../../types';
 import type { VariacionAtributo } from '../../types/variations';
 import type { LoyaltyProfile, MilestoneReward, Reward } from '../../types/loyalty';
 import type { Sale, SaleInput } from '../../types/sales';
+import { cashStore } from '../../lib/mockCashStore';
 
 const now = new Date();
 
@@ -307,6 +308,7 @@ export const mockAddSale = (input: SaleInput): Promise<Sale> => {
         createdAt:   new Date(),
         updatedAt:   new Date(),
       };
+      cashStore.recordSale({ code: sale.code, total: sale.total, date: sale.date });
       resolve(sale);
     }, 300); // simula latencia
   });

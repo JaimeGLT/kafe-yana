@@ -13,9 +13,7 @@ import { InvoicesPage } from './pages/sales/InvoicesPage';
 import { FidelizacionPage } from './pages/sales/FidelizacionPage';
 import { PurchaseOrdersPage } from './pages/purchases/PurchaseOrdersPage';
 import { SuppliersPage } from './pages/purchases/SuppliersPage';
-import { PayablesPage } from './pages/purchases/PayablesPage';
 import { CashRegisterPage } from './pages/cash/CashRegisterPage';
-import { MovementsPage } from './pages/cash/MovementsPage';
 import SalesReportPage from './pages/reports/SalesReportPage';
 import InventoryReportPage from './pages/reports/InventoryReportPage';
 import PurchasesReportPage from './pages/reports/PurchasesReportPage';
@@ -68,11 +66,9 @@ function App() {
                 {/* Purchases */}
                 <Route path="/purchases/orders" element={<ProtectedRoute><PurchaseOrdersPage /></ProtectedRoute>} />
                 <Route path="/purchases/suppliers" element={<ProtectedRoute><SuppliersPage /></ProtectedRoute>} />
-                <Route path="/purchases/payables" element={<ProtectedRoute><PayablesPage /></ProtectedRoute>} />
 
                 {/* Cash */}
                 <Route path="/cash/register" element={<ProtectedRoute><CashRegisterPage /></ProtectedRoute>} />
-                <Route path="/cash/movements" element={<ProtectedRoute><MovementsPage /></ProtectedRoute>} />
 
                 {/* Reports */}
                 <Route path="/reports/sales" element={<ProtectedRoute><SalesReportPage /></ProtectedRoute>} />
