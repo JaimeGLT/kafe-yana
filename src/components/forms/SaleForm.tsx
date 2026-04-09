@@ -1,14 +1,17 @@
 import React from 'react';
-import type { SaleInput, Customer, Product } from '../../types';
+import { QRCodeSVG } from 'qrcode.react';
+import type { SaleInput, Customer, CustomerInput, Product } from '../../types';
 import { Form, FormActions } from './FormField';
 import { Input, Select, Button } from '../ui';
 import { Plus, Trash2, ShoppingCart } from 'lucide-react';
+import { CustomerCombobox } from './CustomerCombobox';
 
 interface SaleFormProps {
   customers: Customer[];
   products: Product[];
   onSubmit: (data: SaleInput) => void;
   onCancel: () => void;
+  onCreateCustomer: (input: CustomerInput) => Promise<Customer>;
   isLoading?: boolean;
 }
 
@@ -26,13 +29,14 @@ export const SaleForm: React.FC<SaleFormProps> = ({
   products,
   onSubmit,
   onCancel,
+  onCreateCustomer,
   isLoading = false,
 }) => {
   const [customerId, setCustomerId] = React.useState('');
   const [items, setItems] = React.useState<SaleItem[]>([
     { productId: '', productName: '', quantity: 1, unitPrice: 0, discount: 0 },
   ]);
-  const [paymentMethod, setPaymentMethod] = React.useState<'cash' | 'card' | 'transfer' | 'credit'>('cash');
+  const [paymentMethod, setPaymentMethod] = React.useState<'cash' | 'card' | 'transfer' | 'qr'>('cash');
   const [notes, setNotes] = React.useState('');
   const [errors, setErrors] = React.useState<Record<string, string>>({});
 
@@ -67,8 +71,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
 
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
   const totalDiscount = items.reduce((sum, item) => sum + item.discount, 0);
-  const tax = (subtotal - totalDiscount) * 0.18;
-  const total = subtotal - totalDiscount + tax;
+  const total = subtotal - totalDiscount;
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -93,7 +96,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
           discount: item.discount,
         })),
         discount: totalDiscount,
-        taxPercentage: 18,
+        taxPercentage: 0,
         paymentMethods: [{ type: paymentMethod, amount: total }],
         notes,
       });
@@ -104,14 +107,11 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     <Form onSubmit={handleSubmit}>
       <div className="space-y-6">
         {/* Customer Selection */}
-        <Select
-          label="Cliente (opcional)"
+        <CustomerCombobox
+          customers={customers}
           value={customerId}
           onChange={setCustomerId}
-          options={customers
-            .filter(c => c.isActive)
-            .map(c => ({ value: c.id, label: `${c.name} - ${c.phone}` }))}
-          placeholder="Seleccionar cliente"
+          onCreateCustomer={onCreateCustomer}
         />
 
         {/* Items */}
@@ -136,11 +136,20 @@ export const SaleForm: React.FC<SaleFormProps> = ({
             <p className="text-sm text-red-600">{errors.items}</p>
           )}
 
+          {/* Column headers */}
+          <div className="grid grid-cols-12 gap-3 px-3 text-xs font-medium text-coffee-500 uppercase tracking-wide">
+            <div className="col-span-5">Producto</div>
+            <div className="col-span-2">Cantidad</div>
+            <div className="col-span-2">Precio unit.</div>
+            <div className="col-span-2">Subtotal</div>
+            <div className="col-span-1" />
+          </div>
+
           <div className="space-y-3">
             {items.map((item, index) => (
               <div
                 key={index}
-                className="grid grid-cols-12 gap-3 p-3 bg-coffee-50 rounded-lg"
+                className="grid grid-cols-12 gap-3 p-3 bg-coffee-50 rounded-lg items-center"
               >
                 <div className="col-span-5">
                   <Select
@@ -149,7 +158,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
                     options={products
                       .filter(p => p.isActive)
                       .map(p => ({ value: p.id, label: `${p.code} - ${p.name}` }))}
-                    placeholder="Producto"
+                    placeholder="Seleccionar producto..."
                   />
                 </div>
                 <div className="col-span-2">
@@ -158,21 +167,16 @@ export const SaleForm: React.FC<SaleFormProps> = ({
                     min="1"
                     value={item.quantity}
                     onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
-                    placeholder="Cant."
+                    placeholder="0"
                   />
                 </div>
                 <div className="col-span-2">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={item.unitPrice}
-                    onChange={(e) => updateItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                    placeholder="Precio"
-                  />
+                  <div className="px-3 py-2.5 bg-coffee-50 border border-coffee-200 rounded-lg text-coffee-700 text-sm">
+                    S/ {item.unitPrice.toFixed(2)}
+                  </div>
                 </div>
                 <div className="col-span-2">
-                  <div className="px-3 py-2.5 bg-white border border-coffee-200 rounded-lg text-coffee-700 font-medium">
+                  <div className="px-3 py-2.5 bg-white border border-coffee-200 rounded-lg text-coffee-700 font-medium text-sm">
                     S/ {(item.quantity * item.unitPrice).toFixed(2)}
                   </div>
                 </div>
@@ -197,14 +201,28 @@ export const SaleForm: React.FC<SaleFormProps> = ({
         <Select
           label="Método de Pago"
           value={paymentMethod}
-          onChange={(value) => setPaymentMethod(value as 'cash' | 'card' | 'transfer' | 'credit')}
+          onChange={(value) => setPaymentMethod(value as 'cash' | 'card' | 'transfer' | 'qr')}
           options={[
             { value: 'cash', label: 'Efectivo' },
             { value: 'card', label: 'Tarjeta' },
             { value: 'transfer', label: 'Transferencia' },
-            { value: 'credit', label: 'Crédito' },
+            { value: 'qr', label: 'QR' },
           ]}
         />
+
+        {paymentMethod === 'qr' && (
+          <div className="flex flex-col items-center gap-2 p-4 bg-coffee-50 rounded-xl border border-coffee-100">
+            <p className="text-xs text-coffee-500">Escanea el código para pagar</p>
+            <QRCodeSVG
+              value={`pago:kafe-yana:${total.toFixed(2)}`}
+              size={160}
+              bgColor="#ffffff"
+              fgColor="#1a1a1a"
+              level="M"
+            />
+            <p className="text-sm font-semibold text-coffee-900">S/ {total.toFixed(2)}</p>
+          </div>
+        )}
 
         {/* Totals */}
         <div className="flex justify-end">
@@ -212,10 +230,6 @@ export const SaleForm: React.FC<SaleFormProps> = ({
             <div className="flex justify-between text-sm">
               <span className="text-coffee-600">Subtotal:</span>
               <span className="text-coffee-900">S/ {subtotal.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-coffee-600">IGV (18%):</span>
-              <span className="text-coffee-900">S/ {tax.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-lg font-semibold border-t border-coffee-200 pt-2">
               <span className="text-coffee-900">Total:</span>

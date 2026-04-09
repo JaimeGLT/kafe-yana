@@ -1,14 +1,20 @@
 export const GET_ALL_ELABORADOS = `
   query {
     elaborados {
-      id
-      nombre
-      descripcion
-      precio
-      tipo
-      categoria_Id
+      id_Producto
       unidad_medida
-      cantidadProducible
+      producto {
+        id
+        nombre
+        descripcion
+        precio
+        tipo
+        categoria_Id
+      }
+      receta {
+        nombre
+        cantidadProducible
+      }
     }
   }
 `

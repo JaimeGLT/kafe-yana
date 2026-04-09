@@ -20,7 +20,6 @@ interface CustomerFormData {
   email: string;
   address: string;
   ruc: string;
-  creditLimit: string;
   isActive: boolean;
 }
 
@@ -40,7 +39,6 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
     email: customer?.email || '',
     address: customer?.address || '',
     ruc: customer?.ruc || '',
-    creditLimit: customer?.creditLimit != null ? String(customer.creditLimit) : '',
     isActive: customer?.isActive ?? true,
   });
 
@@ -52,7 +50,6 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
         email: customer?.email || '',
         address: customer?.address || '',
         ruc: customer?.ruc || '',
-        creditLimit: customer?.creditLimit != null ? String(customer.creditLimit) : '',
         isActive: customer?.isActive ?? true,
       });
       setErrors({});
@@ -81,13 +78,6 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
     if (formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
       newErrors.email = 'El correo electrónico no es válido';
     }
-    if (formData.creditLimit !== '' && isNaN(parseFloat(formData.creditLimit))) {
-      newErrors.creditLimit = 'El límite de crédito debe ser un número válido';
-    }
-    if (formData.creditLimit !== '' && parseFloat(formData.creditLimit) < 0) {
-      newErrors.creditLimit = 'El límite de crédito no puede ser negativo';
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -104,7 +94,6 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
         email: formData.email.trim() || undefined,
         address: formData.address.trim() || undefined,
         ruc: formData.ruc.trim() || undefined,
-        creditLimit: formData.creditLimit !== '' ? parseFloat(formData.creditLimit) : undefined,
         isActive: formData.isActive,
       };
 
@@ -161,25 +150,13 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
           />
         </FormField>
 
-        <FormRow>
-          <FormField label="RUC / DNI">
-            <Input
-              value={formData.ruc}
-              onChange={(e) => handleChange('ruc', e.target.value)}
-              placeholder="Número de documento"
-            />
-          </FormField>
-          <FormField label="Límite de crédito" error={errors.creditLimit}>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.creditLimit}
-              onChange={(e) => handleChange('creditLimit', e.target.value)}
-              placeholder="0.00"
-            />
-          </FormField>
-        </FormRow>
+        <FormField label="CI / NIT">
+          <Input
+            value={formData.ruc}
+            onChange={(e) => handleChange('ruc', e.target.value)}
+            placeholder="Carnet de identidad o NIT"
+          />
+        </FormField>
 
         <FormField label="Estado">
           <label className="flex items-center gap-2 cursor-pointer">

@@ -96,7 +96,12 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
   }
 
   const text = await response.text();
-  return (text ? JSON.parse(text) : undefined) as T;
+  if (!text) return undefined as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return undefined as T;
+  }
 }
 
 export const api = {

@@ -9,7 +9,7 @@ import { BillingModal } from '../../components/modals/BillingModal';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDateTime, getPaymentMethodLabel } from '../../utils';
-import type { Sale, Customer, Product, Invoice, SaleInput } from '../../types';
+import type { Sale, Customer, Product, Invoice, SaleInput, CustomerInput } from '../../types';
 
 interface SaleStats {
   totalSalesToday: number;
@@ -60,6 +60,12 @@ export const SalesListPage: React.FC = () => {
     const newSale = await api.post<Sale>('/ventas', data);
     setSales(prev => [newSale, ...prev]);
     return newSale;
+  }, []);
+
+  const createCustomer = useCallback(async (input: CustomerInput) => {
+    const newCustomer = await api.post<Customer>('/clientes', input);
+    setCustomers(prev => [...prev, newCustomer]);
+    return newCustomer;
   }, []);
 
   const generateInvoiceForSale = useCallback(async (saleId: string, billing: { nit: string; name: string }) => {
@@ -224,6 +230,7 @@ export const SalesListPage: React.FC = () => {
             products={products}
             onSubmit={handleNewSale}
             onCancel={() => setIsNewSaleOpen(false)}
+            onCreateCustomer={createCustomer}
             isLoading={isLoading}
           />
         </Modal>

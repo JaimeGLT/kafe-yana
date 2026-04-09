@@ -103,7 +103,7 @@ const ElaboradosPage: React.FC = () => {
     const catList = cats ?? rawCategories;
     const mapped: Product[] = data.elaborados.map((node) => ({
       ...mapElaborado(node),
-      categoryName: catList.find((c) => c.id === String(node.categoria_Id))?.nombre ?? '',
+      categoryName: catList.find((c) => c.id === String(node.producto.categoria_Id))?.nombre ?? '',
     }));
     setElaborados(mapped);
   }, [rawCategories]);

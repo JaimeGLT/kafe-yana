@@ -42,18 +42,73 @@ export interface InsumoNode {
 }
 
 export interface ElaboradoNode {
+  id_Producto: number;
+  unidad_medida: string;
+  producto: {
+    id: number;
+    nombre: string;
+    descripcion: string;
+    precio: number;
+    tipo: string;
+    categoria_Id: number;
+  };
+  receta: {
+    nombre: string;
+    cantidadProducible: number;
+  } | null;
+}
+
+export interface ElaboradosResponse {
+  elaborados: ElaboradoNode[];
+}
+
+// — Ajustes de stock —
+
+export interface CompradoNode {
   id: number;
   nombre: string;
   descripcion: string;
   precio: number;
   tipo: string;
   categoria_Id: number;
+  codigo_barra: string;
   unidad_medida: string;
-  cantidadProducible: number;
+  marca: string;
+  ubicacion: string;
+  costo_compra: number;
+  stock_actual: number;
+  stock_minimo: number;
+  disponible: boolean;
 }
 
-export interface ElaboradosResponse {
-  elaborados: ElaboradoNode[];
+export interface CompradosResponse {
+  comprados: CompradoNode[];
+}
+
+export interface RecetaDetalleAjusteNode {
+  id_insumo: number;
+  cantidad: number;
+  merma: number;
+  subTotal: number;
+}
+
+export interface ElaboradoAjusteNode {
+  id_Producto: number;
+  unidad_medida: string;
+  producto: {
+    id: number;
+    nombre: string;
+  };
+  receta: {
+    id: number;
+    porciones: number;
+    cantidadProducible: number;
+    detalles: RecetaDetalleAjusteNode[];
+  } | null;
+}
+
+export interface ElaboradosAjusteResponse {
+  elaborados: ElaboradoAjusteNode[];
 }
 
 export interface ElaboradoResponse {

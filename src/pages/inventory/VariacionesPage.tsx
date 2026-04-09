@@ -193,59 +193,167 @@ const ProductRow: React.FC<ProductRowProps> = ({
 const VariacionesPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
-  const [insumos, _setInsumos] = useState<Insumo[]>([]);
+  const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   
-  useEffect(() => {
-    interface ElaboradoNode {
+  const fetchData = useCallback(async () => {
+    interface AjusteNode {
+      id_Insumo: number;
+      id_InsumoNuevo: number | null;
+      cantidad: number;
+      tipoAjuste: string;
+    }
+    interface OpcionNode {
+      id: number;
+      nombre: string;
+      ajustePrecio: number;
+      ajustes: AjusteNode[];
+    }
+    interface VariacionNode {
+      id: number;
+      nombre: string;
+      requerido: boolean;
+      opciones: OpcionNode[];
+    }
+    interface ProductoNode {
       id: number;
       nombre: string;
       descripcion: string;
       precio: number;
       categoria_Id: number;
+      categoria: { nombre: string };
+    }
+    interface InsumoApiNode {
+      id: number;
+      nombre: string;
+      categoria: string;
+      unidad_min_uso: string;
+      unidad_compra: string;
+      factor_conversion: number;
+      costo: number;
+      stock_actual: number;
+      stock_min: number;
+    }
+    interface ElaboradoNode {
+      id_Producto: number;
       unidad_medida: string;
+      producto: ProductoNode;
+      variaciones: VariacionNode[];
     }
     interface ElaboradosResponse { elaborados: ElaboradoNode[] }
+    interface InsumosResponse { insumos: InsumoApiNode[] }
 
-    const fetchData = async () => {
-      try {
-        const elaboradosData = await gql<ElaboradosResponse>(`
+    try {
+      const [elaboradosData, insumosData] = await Promise.all([
+        gql<ElaboradosResponse>(`
           query {
             elaborados {
-              id nombre descripcion precio categoria_Id unidad_medida
+              id_Producto
+              unidad_medida
+              producto { id nombre descripcion precio categoria_Id categoria { nombre } }
+              variaciones {
+                id nombre requerido
+                opciones {
+                  id nombre ajustePrecio
+                  ajustes {
+                    id_Insumo id_InsumoNuevo cantidad tipoAjuste
+                  }
+                }
+              }
             }
           }
-        `);
-        const mapped: Product[] = elaboradosData.elaborados.map((node) => ({
-          id: String(node.id),
-          code: String(node.id),
-          name: node.nombre,
-          description: node.descripcion,
-          tipo: 'elaborado' as const,
-          categoryId: String(node.categoria_Id),
-          categoryName: '',
-          unit: node.unidad_medida,
-          costPrice: 0,
-          salePrice: node.precio,
-          stock: 0,
-          minStock: 0,
-          maxStock: 0,
-          variations: [],
-          hasVariations: false,
+        `),
+        gql<InsumosResponse>(`
+          query {
+            insumos {
+              id nombre categoria unidad_min_uso unidad_compra
+              factor_conversion costo stock_actual stock_min
+            }
+          }
+        `),
+      ]);
+
+      const mappedProducts: Product[] = elaboradosData.elaborados.map((node) => ({
+        id: String(node.id_Producto),
+        code: String(node.id_Producto),
+        name: node.producto.nombre,
+        description: node.producto.descripcion,
+        tipo: 'elaborado' as const,
+        categoryId: String(node.producto.categoria_Id),
+        categoryName: node.producto.categoria.nombre,
+        unit: node.unidad_medida,
+        costPrice: 0,
+        salePrice: node.producto.precio,
+        stock: 0,
+        minStock: 0,
+        maxStock: 0,
+        variations: [],
+        hasVariations: node.variaciones.length > 0,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+
+      const mappedAtributos: VariacionAtributo[] = elaboradosData.elaborados.flatMap((node) =>
+        node.variaciones.map((v) => ({
+          id: String(v.id),
+          productId: String(node.id_Producto),
+          nombre: v.nombre,
+          esRequerido: v.requerido,
+          opciones: v.opciones.map((o) => {
+            const sustitucion = o.ajustes.find((a) => a.id_InsumoNuevo !== null);
+            const ajustesCantidad = o.ajustes
+              .filter((a) => a.id_InsumoNuevo === null)
+              .map((a) => ({ insumoId: String(a.id_Insumo), cantidad: a.cantidad }));
+            return {
+              id: String(o.id),
+              atributoId: String(v.id),
+              nombre: o.nombre,
+              precioAjuste: o.ajustePrecio,
+              insumoReemplazadoId: sustitucion ? String(sustitucion.id_Insumo) : undefined,
+              insumoExtraId: sustitucion?.id_InsumoNuevo ? String(sustitucion.id_InsumoNuevo) : undefined,
+              cantidadExtra: sustitucion?.cantidad,
+              ajustesCantidad: ajustesCantidad.length > 0 ? ajustesCantidad : undefined,
+              isActive: true,
+            };
+          }),
           isActive: true,
           createdAt: new Date(),
           updatedAt: new Date(),
-        }));
-        setProducts(mapped);
-      } catch (error) {
-        console.error('Error loading variaciones data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+        }))
+      );
+
+      const mappedInsumos: Insumo[] = insumosData.insumos.map((i) => ({
+        id: String(i.id),
+        code: String(i.id),
+        name: i.nombre,
+        categoriaInsumo: i.categoria,
+        unidadMinima: i.unidad_min_uso,
+        unidadCompra: i.unidad_compra,
+        factorConversion: i.factor_conversion,
+        costoCompra: i.costo,
+        costoUnitario: i.costo,
+        stock: i.stock_actual,
+        stockMinimo: i.stock_min,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+
+      setProducts(mappedProducts);
+      setAtributos(mappedAtributos);
+      setInsumos(mappedInsumos);
+    } catch (error) {
+      console.error('Error loading variaciones data:', error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
@@ -282,15 +390,33 @@ const VariacionesPage: React.FC = () => {
     atributoId: string,
     data: { nombre: string; esRequerido: boolean }
   ): Promise<void> => {
-    setAtributos((prev) =>
-      prev.map((a) => a.id === atributoId ? { ...a, ...data, updatedAt: new Date() } : a)
-    );
-  }, []);
+    const atributo = atributos.find((a) => a.id === atributoId);
+    if (!atributo) return;
+    try {
+      await api.put(`/Variacion/Variacion/${atributoId}`, {
+        nombre: data.nombre,
+        requerido: data.esRequerido,
+        id_Producto: Number(atributo.productId),
+      });
+      setAtributos((prev) =>
+        prev.map((a) => a.id === atributoId ? { ...a, ...data, updatedAt: new Date() } : a)
+      );
+    } catch {
+      toast.error('Error', 'No se pudo actualizar el grupo de variación.');
+      throw new Error('Failed to update atributo');
+    }
+  }, [atributos]);
 
   const handleDeleteAtributo = useCallback(async (atributoId: string): Promise<void> => {
-    setAtributos((prev) =>
-      prev.map((a) => a.id === atributoId ? { ...a, isActive: false } : a)
-    );
+    try {
+      await api.delete(`/Variacion/Variacion/${atributoId}`);
+      setAtributos((prev) =>
+        prev.map((a) => a.id === atributoId ? { ...a, isActive: false } : a)
+      );
+    } catch {
+      toast.error('Error', 'No se pudo eliminar el grupo de variación.');
+      throw new Error('Failed to delete atributo');
+    }
   }, []);
 
   const handleAddOpcion = useCallback(async (
@@ -314,57 +440,68 @@ const VariacionesPage: React.FC = () => {
     }
 
     try {
-      const res = await api.post<{ id: number }>('/Variacion/Opcion', {
+      await api.post('/Variacion/Opcion', {
         nombre: data.nombre,
         ajustePrecio: data.precioAjuste,
         id_variacion: Number(atributoId),
         ajustes,
       });
-      const nuevaOpcion = {
-        id: String(res.id),
-        atributoId,
-        nombre: data.nombre,
-        precioAjuste: data.precioAjuste,
-        insumoReemplazadoId: data.insumoReemplazadoId,
-        insumoExtraId: data.insumoExtraId,
-        cantidadExtra: data.cantidadExtra,
-        ajustesCantidad: data.ajustesCantidad,
-        isActive: true,
-      };
-      setAtributos((prev) =>
-        prev.map((a) =>
-          a.id === atributoId ? { ...a, opciones: [...a.opciones, nuevaOpcion] } : a
-        )
-      );
+      await fetchData();
     } catch {
       toast.error('Error', 'No se pudo crear la opción.');
       throw new Error('Failed to create opcion');
     }
-  }, []);
+  }, [fetchData]);
 
   const handleUpdateOpcion = useCallback(async (
     atributoId: string,
     opcionId: string,
-    data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }
+    data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: { insumoId: string; cantidad: number }[] }
   ): Promise<void> => {
-    setAtributos((prev) =>
-      prev.map((a) =>
-        a.id === atributoId
-          ? { ...a, opciones: a.opciones.map((o) => o.id === opcionId ? { ...o, ...data } : o) }
-          : a
-      )
-    );
+    let ajustes: { id_Insumo: number; id_InsumoNuevo: number | null; cantidad: number }[] = [];
+    if (data.insumoReemplazadoId) {
+      ajustes = [{
+        id_Insumo: Number(data.insumoReemplazadoId),
+        id_InsumoNuevo: data.insumoExtraId ? Number(data.insumoExtraId) : null,
+        cantidad: data.cantidadExtra ?? 1,
+      }];
+    } else if (data.ajustesCantidad?.length) {
+      ajustes = data.ajustesCantidad.map((a) => ({
+        id_Insumo: Number(a.insumoId),
+        id_InsumoNuevo: null,
+        cantidad: a.cantidad,
+      }));
+    }
+
+    try {
+      await api.put(`/Variacion/Opcion/${opcionId}`, {
+        nombre: data.nombre,
+        ajustePrecio: data.precioAjuste,
+        id_variacion: Number(atributoId),
+        ajustes,
+      });
+      setAtributos((prev) =>
+        prev.map((a) =>
+          a.id === atributoId
+            ? { ...a, opciones: a.opciones.map((o) => o.id === opcionId ? { ...o, ...data } : o) }
+            : a
+        )
+      );
+    } catch {
+      toast.error('Error', 'No se pudo actualizar la opción.');
+      throw new Error('Failed to update opcion');
+    }
   }, []);
 
-  const handleDeleteOpcion = useCallback(async (atributoId: string, opcionId: string): Promise<void> => {
-    setAtributos((prev) =>
-      prev.map((a) =>
-        a.id === atributoId
-          ? { ...a, opciones: a.opciones.map((o) => o.id === opcionId ? { ...o, isActive: false } : o) }
-          : a
-      )
-    );
-  }, []);
+  const handleDeleteOpcion = useCallback(async (_atributoId: string, opcionId: string): Promise<void> => {
+    try {
+      await api.delete(`/Variacion/Opcion/${opcionId}`);
+      await fetchData();
+    } catch {
+      toast.error('Error', 'No se pudo eliminar la opción.');
+      throw new Error('Failed to delete opcion');
+    }
+  }, [fetchData]);
 
   // ── Computed ─────────────────────────────────────────────────────────────────
 
