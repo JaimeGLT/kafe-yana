@@ -31,7 +31,7 @@ export interface CustomerInput {
 }
 
 // Payment Method
-export type PaymentMethodType = 'cash' | 'card' | 'transfer' | 'credit' | 'mixed';
+export type PaymentMethodType = 'cash' | 'card' | 'transfer' | 'credit' | 'mixed' | 'qr';
 
 export interface PaymentMethod {
   id: UUID;

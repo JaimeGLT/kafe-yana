@@ -33,7 +33,7 @@ export const CashMovementModal: React.FC<CashMovementModalProps> = ({
   type: initialType = 'income',
   onSuccess,
   categories = [],
-  currentRegister = null,
+  currentRegister: _currentRegister = null,
   onSave,
 }) => {
   const [isLoading, setIsLoading] = React.useState(false);

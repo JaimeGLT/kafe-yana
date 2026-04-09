@@ -31,6 +31,11 @@ export interface SupplierInput {
   mobile?: string;
   email?: string;
   address?: string;
+  contactName?: string;
+  website?: string;
+  notes?: string;
+  paymentTerms?: string;
+  creditLimit?: number;
   isActive?: boolean;
 }
 

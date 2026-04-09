@@ -2,11 +2,10 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Plus, Search, Edit2, Trash2, Building2, Phone, Mail } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
-import { Button, Badge, Modal, ConfirmModal } from '../../components/ui';
+import { Button, Modal, ConfirmModal } from '../../components/ui';
 import { SupplierModal } from '../../components/modals';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import { formatCurrency } from '../../utils';
 import type { Supplier } from '../../types';
 
 export const SuppliersPage: React.FC = () => {
