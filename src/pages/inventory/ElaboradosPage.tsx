@@ -1,13 +1,11 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { gql } from '../../lib/graphql';
 import { api } from '../../lib/api';
-import { GET_ALL_RECETAS } from '../../lib/queries/recetas.queries';
 import { GET_ALL_INSUMOS } from '../../lib/queries/insumos.queries';
 import { GET_ALL_ELABORADOS } from '../../lib/queries/elaborados.queries';
-import { mapReceta } from '../../lib/mappers/recetas.mappers';
 import { mapInsumo } from '../../lib/mappers/insumos.mappers';
-import { mapElaborado } from '../../lib/mappers/elaborados.mappers';
-import type { RecetasResponse, InsumosResponse, ElaboradosResponse } from '../../types/graphql';
+import { mapElaborado, mapRecetaFromElaborado } from '../../lib/mappers/elaborados.mappers';
+import type { InsumosResponse, ElaboradosResponse } from '../../types/graphql';
 import {
   Plus,
   FlaskConical,
@@ -60,29 +58,17 @@ const ElaboradosPage: React.FC = () => {
           id_insumo: Number(ing.insumoId),
         })),
       });
-      const data = await gql<RecetasResponse>(GET_ALL_RECETAS);
-      setRecetas(data.recetas.map(mapReceta));
+      await loadElaborados();
     } catch (error) {
       console.error('Error adding receta:', error);
       throw error;
     }
   }, []);
 
-  // Load recetas and insumos
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [recetasData, insumosData] = await Promise.all([
-          gql<RecetasResponse>(GET_ALL_RECETAS),
-          gql<InsumosResponse>(GET_ALL_INSUMOS),
-        ]);
-        setRecetas(recetasData.recetas.map(mapReceta));
-        setInsumos(insumosData.insumos.map(mapInsumo));
-      } catch (error) {
-        console.error('Error loading recipes:', error);
-      }
-    };
-    fetchData();
+    gql<InsumosResponse>(GET_ALL_INSUMOS)
+      .then((data) => setInsumos(data.insumos.nodes.map(mapInsumo)))
+      .catch((err) => console.error('Error loading insumos:', err));
   }, []);
 
   const [search, setSearch] = useState('');
@@ -98,24 +84,24 @@ const ElaboradosPage: React.FC = () => {
   interface CatNode { id: number; nombre: string; estado: boolean; }
   interface CatsResponse { categorias: { nodes: CatNode[] }; }
 
-  const loadElaborados = useCallback(async (cats?: { id: string; nombre: string }[]) => {
+  const loadElaborados = useCallback(async () => {
     const data = await gql<ElaboradosResponse>(GET_ALL_ELABORADOS);
-    const catList = cats ?? rawCategories;
-    const mapped: Product[] = data.elaborados.map((node) => ({
-      ...mapElaborado(node),
-      categoryName: catList.find((c) => c.id === String(node.producto.categoria_Id))?.nombre ?? '',
-    }));
-    setElaborados(mapped);
-  }, [rawCategories]);
+    setElaborados(data.elaborados.nodes.map(mapElaborado));
+    setRecetas(
+      data.elaborados.nodes
+        .map(mapRecetaFromElaborado)
+        .filter((r): r is Receta => r !== null),
+    );
+  }, []);
 
   useEffect(() => {
     Promise.all([
       gql<CatsResponse>(`query { categorias { nodes { id nombre estado } } }`),
+      loadElaborados(),
     ])
       .then(([catsData]) => {
         const cats = catsData.categorias.nodes.map((n) => ({ id: String(n.id), nombre: n.nombre, estado: n.estado }));
         setRawCategories(cats);
-        return loadElaborados(cats);
       })
       .catch(() => {/* silencioso */})
       .finally(() => setIsLoading(false));
@@ -352,7 +338,6 @@ const ElaboradosPage: React.FC = () => {
             setElaborados((prev) => prev.map((p) => p.id === updated.id ? updated : p));
             setEditingProduct(null);
           }}
-          getRecetaByProductId={getRecetaByProductId}
         />
       )}
 
@@ -379,10 +364,7 @@ const ElaboradosPage: React.FC = () => {
         products={elaborados}
         onSuccess={async () => {
           setRecetaModal({ isOpen: false });
-          try {
-            const data = await gql<RecetasResponse>(GET_ALL_RECETAS);
-            setRecetas(data.recetas.map(mapReceta));
-          } catch {}
+          await loadElaborados().catch(() => {});
         }}
       />
     </MainLayout>

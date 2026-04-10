@@ -11,9 +11,9 @@ import { toast } from '../ui/Toast';
 import { api } from '../../lib/api';
 import { gql } from '../../lib/graphql';
 import { GET_ALL_INSUMOS } from '../../lib/queries/insumos.queries';
-import { GET_ALL_ELABORADOS } from '../../lib/queries/elaborados.queries';
+import { GET_ALL_ELABORADOS, GET_ELABORADO_BY_ID } from '../../lib/queries/elaborados.queries';
 import { mapInsumo } from '../../lib/mappers/insumos.mappers';
-import { mapElaborado } from '../../lib/mappers/elaborados.mappers';
+import { mapElaborado, mapRecetaFromElaborado } from '../../lib/mappers/elaborados.mappers';
 import type { InsumosResponse, ElaboradosResponse } from '../../types/graphql';
 import type { Product, Receta, Insumo, CategoryInput } from '../../types';
 
@@ -32,7 +32,6 @@ export interface EditElaboradoModalProps {
   product: Product;
   categoryOptions: { value: string; label: string }[];
   onSaved: (updated: Product) => void;
-  getRecetaByProductId: (productId: string) => Receta | undefined;
 }
 
 export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
@@ -41,13 +40,13 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
   product,
   categoryOptions,
   onSaved,
-  getRecetaByProductId,
 }) => {
   const [tab, setTab] = useState<'datos' | 'receta'>('datos');
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [receta, setReceta] = useState<Receta | undefined>(undefined);
   const [localCategoryOptions, setLocalCategoryOptions] = useState(categoryOptions);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
@@ -70,9 +69,12 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
       Promise.all([
         gql<InsumosResponse>(GET_ALL_INSUMOS),
         gql<ElaboradosResponse>(GET_ALL_ELABORADOS),
-      ]).then(([ins, prods]) => {
-        setInsumos(ins.insumos.map(mapInsumo));
-        setProducts(prods.elaborados.map(mapElaborado));
+        gql<ElaboradosResponse>(GET_ELABORADO_BY_ID, { idProducto: Number(product.id) }),
+      ]).then(([ins, prods, byId]) => {
+        setInsumos(ins.insumos.nodes.map(mapInsumo));
+        setProducts(prods.elaborados.nodes.map(mapElaborado));
+        const node = byId.elaborados.nodes[0];
+        setReceta(node ? mapRecetaFromElaborado(node) ?? undefined : undefined);
       }).catch(() => {});
     }
   }, [isOpen, product]);
@@ -95,8 +97,6 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
     if (created) setCategoryId(created.value);
     toast.success('Categoría creada', `"${input.name}" fue creada y seleccionada.`);
   };
-
-  const receta = getRecetaByProductId(product.id);
 
   const handleSaveDatos = async (e: React.FormEvent) => {
     e.preventDefault();

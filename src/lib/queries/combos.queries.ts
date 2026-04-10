@@ -1,14 +1,27 @@
-export const COMBOS_QUERY = `
+export const GET_PRODUCTS_FOR_COMBO = `
   query {
+    comprados {
+      nodes {
+        costo_compra
+        stock_actual
+        producto { id nombre descripcion precio tipo }
+      }
+    }
+    elaborados {
+      nodes {
+        producto { id nombre descripcion precio tipo }
+      }
+    }
+  }
+`;
+
+export const COMBOS_QUERY = `
+  query GetCombos {
     combos {
       nodes {
-        id
-        nombre
-        descripcion
-        precio
-        cantidadProducible
-        productos {
-          productoId
+        producto { id nombre descripcion precio tipo }
+        detalles {
+          producto { id nombre descripcion precio tipo }
           cantidad
           opcional
         }
@@ -17,22 +30,16 @@ export const COMBOS_QUERY = `
   }
 `;
 
-export const PRODUCTS_QUERY = `
-  query GetProductos($first: Int, $after: String) {
-    productos(first: $first, after: $after) {
+export const GET_COMBO_BY_ID = `
+  query GetComboById($idProducto: Int!) {
+    combos(where: { producto_Id: { eq: $idProducto } }) {
       nodes {
-        id
-        nombre
-        tipo
-        precioVenta
-        costo
-        stock
-        categoriaNombre
-        recetaName
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
+        producto { id nombre descripcion precio tipo }
+        detalles {
+          producto { id nombre descripcion precio tipo }
+          cantidad
+          opcional
+        }
       }
     }
   }

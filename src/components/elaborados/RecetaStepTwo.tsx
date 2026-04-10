@@ -381,7 +381,7 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
           setInsumoModalOpen(false);
           try {
             const data = await gql<InsumosResponse>(GET_ALL_INSUMOS);
-            setLocalInsumos(data.insumos.map(mapInsumo));
+            setLocalInsumos(data.insumos.nodes.map(mapInsumo));
           } catch {}
         }}
       />

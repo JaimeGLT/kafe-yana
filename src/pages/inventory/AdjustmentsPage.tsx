@@ -23,8 +23,8 @@ const AdjustmentsPage: React.FC = () => {
         gql<InsumosResponse>(GET_INSUMOS_AJUSTES),
         gql<ElaboradosAjusteResponse>(GET_ELABORADOS_AJUSTES),
       ]);
-      setComprados(compradosData.comprados ?? []);
-      setInsumos(insumosData.insumos ?? []);
+      setComprados(compradosData.comprados?.nodes ?? []);
+      setInsumos(insumosData.insumos?.nodes ?? []);
       setElaborados(
         (elaboradosData.elaborados ?? []).filter((e) => e.receta !== null)
       );

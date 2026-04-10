@@ -99,9 +99,9 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
         categoria_Id: Number(categoryId) || 0,
         unidad_medida: unit,
       });
-      const data = await gql<{ elaborados: { id: number; nombre: string }[] }>(GET_ALL_ELABORADOS);
-      const created = data.elaborados.find((e) => e.nombre === name.trim());
-      const id = created ? String(created.id) : null;
+      const data = await gql<{ elaborados: { nodes: { id_Producto: number; producto: { nombre: string } }[] } }>(GET_ALL_ELABORADOS);
+      const created = data.elaborados.nodes.find((e) => e.producto.nombre === name.trim());
+      const id = created ? String(created.id_Producto) : null;
       setNewProductId(id);
       setNewProductName(name.trim());
       setNewProductSalePrice(Number(salePrice));

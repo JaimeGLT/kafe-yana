@@ -35,8 +35,8 @@ const InsumosPage: React.FC = () => {
           gql<InsumosResponse>(GET_ALL_INSUMOS),
           gql<RecetasResponse>(GET_ALL_RECETAS),
         ]);
-        setInsumos(insumosData.insumos.map(mapInsumo));
-        setRecetas(recetasData.recetas.map(mapReceta));
+        setInsumos(insumosData.insumos.nodes.map(mapInsumo));
+        setRecetas(recetasData.recetas.nodes.map(mapReceta).filter((r): r is Receta => r !== null));
       } catch (error) {
         console.error('Error loading insumos data:', error);
       } finally {
@@ -298,7 +298,7 @@ const InsumosPage: React.FC = () => {
           setEditing(undefined);
           try {
             const data = await gql<InsumosResponse>(GET_ALL_INSUMOS);
-            setInsumos(data.insumos.map(mapInsumo));
+            setInsumos(data.insumos.nodes.map(mapInsumo));
           } catch (error) {
             console.error('Error reloading insumos:', error);
           }

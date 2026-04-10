@@ -96,7 +96,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
 
   // — Selected items —
   const selectedComprado = useMemo(
-    () => comprados.find((c) => String(c.id) === selectedId),
+    () => comprados.find((c) => String(c.producto.id) === selectedId),
     [comprados, selectedId]
   );
   const selectedInsumo = useMemo(
@@ -253,7 +253,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
       await new Promise((r) => setTimeout(r, 400));
       const productLabel =
         productType === 'comprado'
-          ? selectedComprado?.nombre
+          ? selectedComprado?.producto.nombre
           : productType === 'insumo'
           ? selectedInsumo?.nombre
           : selectedElaborado?.producto.nombre;
@@ -360,8 +360,8 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
             options={
               productType === 'comprado'
                 ? comprados.map((c) => ({
-                    value: String(c.id),
-                    label: `${c.nombre} — Stock: ${c.stock_actual} ${c.unidad_medida}`,
+                    value: String(c.producto.id),
+                    label: `${c.producto.nombre} — Stock: ${c.stock_actual} ${c.unidad_medida}`,
                   }))
                 : productType === 'insumo'
                 ? insumos.map((i) => ({

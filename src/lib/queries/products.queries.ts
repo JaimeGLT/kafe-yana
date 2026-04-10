@@ -8,20 +8,40 @@ export const INITIAL_LOAD_QUERY = `
       id
       productos { productoId cantidad }
     }
-    categorias(order: [{ nombre: ASC }]) {
+    categorias {
       nodes { id nombre descripcion estado color cantidad }
     }
   }
 `;
 
 export const GET_COMPRADOS_QUERY = `
-  query GetComprados($cursor: String) {
-    productos(first: 50, after: $cursor) {
-      nodes { id nombre tipo categoriaNombre precioVenta costo stock }
-      pageInfo { hasNextPage endCursor }
+  query GetComprados {
+    comprados {
+      nodes {
+        codigo_barra
+        unidad_medida
+        costo_compra
+        stock_actual
+        stock_minimo
+        disponible
+        producto {
+          id
+          nombre
+          descripcion
+          precio
+          tipo
+          categoria { id nombre estado color }
+          detalles { cantidad opcional }
+        }
+      }
     }
-    categorias(order: [{ nombre: ASC }]) {
-      nodes { id nombre descripcion estado color cantidad }
+  }
+`;
+
+export const GET_ALL_CATEGORIES_QUERY = `
+  query GetAllCategories {
+    categorias {
+      nodes { id nombre descripcion color estado }
     }
   }
 `;

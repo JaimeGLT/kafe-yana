@@ -1,15 +1,17 @@
 export const GET_ALL_INSUMOS = `
   query GetAllInsumos {
     insumos {
-      id
-      nombre
-      categoria
-      unidad_min_uso
-      unidad_compra
-      factor_conversion
-      costo
-      stock_actual
-      stock_min
+      nodes {
+        id
+        nombre
+        categoria
+        unidad_min_uso
+        unidad_compra
+        factor_conversion
+        costo
+        stock_actual
+        stock_min
+      }
     }
   }
 `

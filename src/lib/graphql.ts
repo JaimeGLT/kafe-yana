@@ -51,7 +51,7 @@ export async function gql<T>(query: string, variables?: Record<string, unknown>,
 
   const json = (await response.json()) as { data?: T; errors?: { message: string; extensions?: { code?: string } }[] };
 
-  // GraphQL puede devolver 200 pero con error de autenticación en el body
+  // GraphQL puede devolver 200 pero con errores en el body
   if (json.errors?.length) {
     const firstError = json.errors[0];
     const code = firstError.extensions?.code;
@@ -64,7 +64,19 @@ export async function gql<T>(query: string, variables?: Record<string, unknown>,
         return gql<T>(query, variables, true);
       }
     }
-    throw new ApiError(firstError.message, isUnauthorized ? 401 : 400);
+
+    if (isUnauthorized) {
+      throw new ApiError(firstError.message, 401);
+    }
+
+    // Error no-auth: si hay data parcial la usamos (spec GraphQL permite errors + data juntos).
+    // Solo tiramos excepción si no hay data en absoluto.
+    if (json.data != null) {
+      console.warn('[gql] Errores parciales en la respuesta GraphQL:', json.errors);
+      return json.data as T;
+    }
+
+    throw new ApiError(firstError.message, 400);
   }
 
   return json.data as T;

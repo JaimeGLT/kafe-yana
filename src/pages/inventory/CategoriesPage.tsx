@@ -15,7 +15,7 @@ interface CategoriaNode {
   descripcion: string;
   estado: boolean;
   color: string;
-  cantidad: number;
+  productos: { id: number }[];
 }
 
 interface CategoriasGqlResponse {
@@ -29,10 +29,8 @@ const CategoriesPage: React.FC = () => {
   const loadCategories = useCallback(async () => {
     const data = await gql<CategoriasGqlResponse>(`
       query {
-        categorias( order: [ {
-     nombre: ASC
-  }] ) {
-          nodes { id nombre descripcion estado color cantidad }
+        categorias {
+          nodes { id nombre descripcion estado color productos { id } }
         }
       }
     `);
@@ -42,7 +40,7 @@ const CategoriesPage: React.FC = () => {
       description: n.descripcion,
       isActive: n.estado,
       color: n.color,
-      productCount: n.cantidad,
+      productCount: n.productos.length,
       sortOrder: 0,
       createdAt: new Date(),
       updatedAt: new Date(),

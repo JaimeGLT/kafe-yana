@@ -1,4 +1,4 @@
-import type { ComboNode, ProductNode } from '../../types/graphql';
+import type { ComboNode, ProductsForComboResponse } from '../../types/graphql';
 import type { Combo, Product } from '../../types';
 
 const TIPO_MAP: Record<string, 'comprado' | 'elaborado' | 'combo'> = {
@@ -12,52 +12,68 @@ const TIPO_MAP: Record<string, 'comprado' | 'elaborado' | 'combo'> = {
   combos: 'combo',
 };
 
-export function mapProduct(n: ProductNode): Product {
+type CompradoItem = ProductsForComboResponse['comprados']['nodes'][number];
+type ElaboradoItem = ProductsForComboResponse['elaborados']['nodes'][number];
+
+export function mapComprado(node: CompradoItem): Product {
   return {
-    id: String(n.id),
-    code: String(n.id),
-    name: n.nombre,
-    description: '',
-    tipo: TIPO_MAP[n.tipo] ?? 'comprado',
+    id: String(node.producto.id),
+    code: '',
+    name: node.producto.nombre,
+    description: node.producto.descripcion,
+    tipo: 'comprado',
     categoryId: '',
-    categoryName: n.categoriaNombre,
-    unit: 'unidad',
-    costPrice: n.costo,
-    salePrice: n.precioVenta,
-    stock: n.stock,
+    unit: '',
+    costPrice: node.costo_compra,
+    salePrice: node.producto.precio,
+    stock: node.stock_actual,
     minStock: 0,
     maxStock: 0,
-    barcode: '',
     variations: [],
-    hasVariations: false,
     isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    hasVariations: false,
   };
 }
 
-export function mapCombo(node: ComboNode, products: Product[]): Combo {
-  const items = (node.productos ?? []).map((p) => {
-    const prod = products.find((sp) => sp.id === String(p.productoId));
-    return {
-      id: String(p.productoId),
-      productId: String(p.productoId),
-      productName: prod?.name ?? '',
-      productTipo: (prod?.tipo ?? 'comprado') as 'comprado' | 'elaborado' | 'combo',
-      quantity: p.cantidad,
-      unitCost: prod?.costPrice ?? 0,
-      esOpcional: p.opcional,
-    };
-  });
+export function mapElaboradoProduct(node: ElaboradoItem): Product {
+  return {
+    id: String(node.producto.id),
+    code: '',
+    name: node.producto.nombre,
+    description: node.producto.descripcion,
+    tipo: 'elaborado',
+    categoryId: '',
+    unit: '',
+    costPrice: 0,
+    salePrice: node.producto.precio,
+    stock: 0,
+    minStock: 0,
+    maxStock: 0,
+    variations: [],
+    isActive: true,
+    hasVariations: false,
+  };
+}
+
+export function mapCombo(node: ComboNode): Combo {
+  const items = node.detalles.map((d) => ({
+    id: String(d.producto.id),
+    productId: String(d.producto.id),
+    productName: d.producto.nombre,
+    productTipo: (TIPO_MAP[d.producto.tipo] ?? 'comprado') as 'comprado' | 'elaborado' | 'combo',
+    quantity: d.cantidad,
+    unitCost: d.producto.precio,
+    esOpcional: d.opcional,
+  }));
 
   return {
-    id: String(node.id),
-    name: node.nombre,
-    description: node.descripcion ?? '',
+    id: String(node.producto.id),
+    name: node.producto.nombre,
+    description: node.producto.descripcion ?? '',
     items,
-    price: node.precio,
+    price: node.producto.precio,
     costoTotal: items.reduce((s, i) => s + i.unitCost * i.quantity, 0),
-    availability: node.cantidadProducible,
+    availability: 0,
     isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),

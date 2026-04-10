@@ -1,17 +1,17 @@
 export const GET_ALL_RECETAS = `
-  query {
-    recetas {
-      id
-      nombre
-      nota
-      id_Elaborado
-      porciones
-      detalles {
-        id_insumo
-        cantidad
-        merma
-        subTotal
+  query GetRecetas {
+    recetas(where: { elaborado: { id_Producto: { gt: 0 } } }) {
+      nodes {
+        id
         nombre
+        nota
+        elaborado { id_Producto }
+        detalles {
+          id_insumo
+          cantidad
+          merma
+          insumo { id nombre costo unidad_min_uso stock_actual }
+        }
       }
     }
   }
@@ -19,18 +19,18 @@ export const GET_ALL_RECETAS = `
 
 export const GET_RECETA_BY_ID = `
   query GetRecetaById($id: Int!) {
-    receta(id: $id) {
-      id
-      nombre
-      nota
-      id_Elaborado
-      porciones
-      detalles {
-        id_insumo
-        cantidad
-        merma
-        subTotal
+    recetas(where: { id: { eq: $id } }) {
+      nodes {
+        id
         nombre
+        nota
+        elaborado { id_Producto }
+        detalles {
+          id_insumo
+          cantidad
+          merma
+          insumo { id nombre costo unidad_min_uso stock_actual }
+        }
       }
     }
   }

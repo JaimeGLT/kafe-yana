@@ -1,20 +1,17 @@
 export const GET_COMPRADOS_AJUSTES = `
   query GetCompradosAjustes {
     comprados {
-      id
-      nombre
-      descripcion
-      precio
-      tipo
-      categoria_Id
-      codigo_barra
-      unidad_medida
-      marca
-      ubicacion
-      costo_compra
-      stock_actual
-      stock_minimo
-      disponible
+      nodes {
+        codigo_barra
+        unidad_medida
+        marca
+        ubicacion
+        costo_compra
+        stock_actual
+        stock_minimo
+        producto { id nombre descripcion precio tipo detalles { cantidad opcional } }
+        disponible
+      }
     }
   }
 `;
@@ -22,15 +19,17 @@ export const GET_COMPRADOS_AJUSTES = `
 export const GET_INSUMOS_AJUSTES = `
   query GetInsumosAjustes {
     insumos {
-      id
-      nombre
-      categoria
-      unidad_min_uso
-      unidad_compra
-      factor_conversion
-      costo
-      stock_actual
-      stock_min
+      nodes {
+        id
+        nombre
+        categoria
+        unidad_min_uso
+        unidad_compra
+        factor_conversion
+        costo
+        stock_actual
+        stock_min
+      }
     }
   }
 `;
@@ -51,7 +50,6 @@ export const GET_ELABORADOS_AJUSTES = `
           id_insumo
           cantidad
           merma
-          subTotal
         }
       }
     }

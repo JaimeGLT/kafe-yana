@@ -1,21 +1,21 @@
 // Tipos que devuelve GraphQL (snake_case del backend)
+interface ComboProductoNode {
+  id: number;
+  nombre: string;
+  descripcion: string;
+  precio: number;
+  tipo: string;
+}
+
 export interface ComboDetalleNode {
-  productoId: number;
+  producto: ComboProductoNode;
   cantidad: number;
   opcional: boolean;
 }
 
 export interface ComboNode {
-  id: number;
-  nombre: string;
-  descripcion: string;
-  precio: number;
-  cantidadProducible: number;
-  productos: {
-    productoId: number;
-    cantidad: number;
-    opcional: boolean;
-  }[];
+  producto: ComboProductoNode;
+  detalles: ComboDetalleNode[];
 }
 
 export interface ProductNode {
@@ -41,6 +41,30 @@ export interface InsumoNode {
   stock_min: number;
 }
 
+export interface ElaboradoRecetaDetalleNode {
+  id_insumo: number;
+  cantidad: number;
+  merma: number;
+  insumo: {
+    id: number;
+    nombre: string;
+    costo: number;
+    stock_actual: number;
+    unidad_min_uso: string;
+  };
+}
+
+export interface ElaboradoVariacionNode {
+  id: number;
+  nombre: string;
+  requerido: boolean;
+  opciones: {
+    id: number;
+    nombre: string;
+    ajustePrecio: number;
+  }[];
+}
+
 export interface ElaboradoNode {
   id_Producto: number;
   unidad_medida: string;
@@ -50,27 +74,24 @@ export interface ElaboradoNode {
     descripcion: string;
     precio: number;
     tipo: string;
-    categoria_Id: number;
+    detalles: { cantidad: number; opcional: boolean }[];
   };
   receta: {
+    id: number;
     nombre: string;
-    cantidadProducible: number;
+    nota: string | null;
+    detalles: ElaboradoRecetaDetalleNode[];
   } | null;
+  variaciones: ElaboradoVariacionNode[];
 }
 
 export interface ElaboradosResponse {
-  elaborados: ElaboradoNode[];
+  elaborados: { nodes: ElaboradoNode[] };
 }
 
 // — Ajustes de stock —
 
 export interface CompradoNode {
-  id: number;
-  nombre: string;
-  descripcion: string;
-  precio: number;
-  tipo: string;
-  categoria_Id: number;
   codigo_barra: string;
   unidad_medida: string;
   marca: string;
@@ -78,18 +99,25 @@ export interface CompradoNode {
   costo_compra: number;
   stock_actual: number;
   stock_minimo: number;
+  producto: {
+    id: number;
+    nombre: string;
+    descripcion: string;
+    precio: number;
+    tipo: string;
+    detalles: { cantidad: number; opcional: boolean }[];
+  };
   disponible: boolean;
 }
 
 export interface CompradosResponse {
-  comprados: CompradoNode[];
+  comprados: { nodes: CompradoNode[] };
 }
 
 export interface RecetaDetalleAjusteNode {
   id_insumo: number;
   cantidad: number;
   merma: number;
-  subTotal: number;
 }
 
 export interface ElaboradoAjusteNode {
@@ -117,24 +145,28 @@ export interface ElaboradoResponse {
 
 export interface RecetaDetalleNode {
   id_insumo: number;
-  nombre: string;
   cantidad: number;
   merma: number;
-  subTotal: number;
+  insumo: {
+    id: number;
+    nombre: string;
+    costo: number;
+    unidad_min_uso: string;
+    stock_actual: number;
+  } | null;
 }
 
 export interface RecetaNode {
   id: number;
   nombre: string;
   nota: string | null;
-  id_Elaborado: number;
-  porciones: number;
+  elaborado: { id_Producto: number } | null;
   detalles: RecetaDetalleNode[];
 }
 
 // Shapes de respuesta para gql<T>()
 export interface RecetasResponse {
-  recetas: RecetaNode[];
+  recetas: { nodes: RecetaNode[] };
 }
 
 export interface RecetaResponse {
@@ -142,16 +174,22 @@ export interface RecetaResponse {
 }
 
 export interface InsumosResponse {
-  insumos: InsumoNode[];
+  insumos: { nodes: InsumoNode[] };
 }
 
 export interface CombosResponse {
   combos: { nodes: ComboNode[] };
 }
 
-export interface ProductsResponse {
-  productos: {
-    nodes: ProductNode[];
-    pageInfo: { hasNextPage: boolean; endCursor: string | null };
-  };
+interface SimpleProductNode {
+  id: number;
+  nombre: string;
+  descripcion: string;
+  precio: number;
+  tipo: string;
+}
+
+export interface ProductsForComboResponse {
+  comprados: { nodes: Array<{ costo_compra: number; stock_actual: number; producto: SimpleProductNode }> };
+  elaborados: { nodes: Array<{ producto: SimpleProductNode }> };
 }

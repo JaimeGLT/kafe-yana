@@ -12,7 +12,7 @@ import { useToast } from '../../components/ui/Toast';
 import { ProductModal } from '../../components/modals/ProductModal';
 import { gql } from '../../lib/graphql';
 import { api } from '../../lib/api';
-import { GET_COMPRADOS_QUERY, GET_COMPRADO_DETAIL } from '../../lib/queries/products.queries';
+import { GET_COMPRADOS_QUERY, GET_ALL_CATEGORIES_QUERY, GET_COMPRADO_DETAIL } from '../../lib/queries/products.queries';
 import type { Product, Category } from '../../types';
 import { formatCurrency } from '../../utils';
 
@@ -31,30 +31,36 @@ const getMarginColor = (pct: number) => {
 
 // ── GraphQL response types ─────────────────────────────────────────────────────
 
-interface ProductNode {
-  id: number;
-  nombre: string;
-  tipo: string;
-  categoriaNombre: string;
-  precioVenta: number;
-  costo: number;
-  stock: number;
-}
-
 interface CategoriaNode {
   id: number;
   nombre: string;
-  descripcion: string;
   estado: boolean;
   color: string;
-  cantidad: number;
+}
+
+interface CompradoListNode {
+  codigo_barra: string;
+  unidad_medida: string;
+  costo_compra: number;
+  stock_actual: number;
+  stock_minimo: number;
+  disponible: boolean;
+  producto: {
+    id: number;
+    nombre: string;
+    descripcion: string;
+    precio: number;
+    tipo: string;
+    categoria: CategoriaNode;
+    detalles: { cantidad: number; opcional: boolean }[];
+  };
 }
 
 interface CompradosLoadResponse {
-  productos: {
-    nodes: ProductNode[];
-    pageInfo: { hasNextPage: boolean; endCursor: string | null };
-  };
+  comprados: { nodes: CompradoListNode[] };
+}
+
+interface CategoriasResponse {
   categorias: { nodes: CategoriaNode[] };
 }
 
@@ -78,25 +84,26 @@ interface CompradoDetailResponse {
 
 // ── Mapper ─────────────────────────────────────────────────────────────────────
 
-function mapNode(node: ProductNode): Product {
+function mapNode(node: CompradoListNode): Product {
+  const cat = node.producto.categoria;
   return {
-    id: String(node.id),
-    code: String(node.id),
-    name: node.nombre,
-    description: '',
+    id: String(node.producto.id),
+    code: String(node.producto.id),
+    name: node.producto.nombre,
+    description: node.producto.descripcion,
     tipo: 'comprado',
-    categoryId: '',
-    categoryName: node.categoriaNombre,
-    unit: 'unidad',
-    costPrice: node.costo,
-    salePrice: node.precioVenta,
-    stock: node.stock,
-    minStock: 0,
+    categoryId: cat ? String(cat.id) : '',
+    categoryName: cat ? cat.nombre : '',
+    unit: node.unidad_medida,
+    costPrice: node.costo_compra,
+    salePrice: node.producto.precio,
+    stock: node.stock_actual,
+    minStock: node.stock_minimo,
     maxStock: 0,
-    barcode: '',
+    barcode: node.codigo_barra,
     variations: [],
     hasVariations: false,
-    isActive: true,
+    isActive: node.disponible,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -108,10 +115,6 @@ const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [hasNextPage, setHasNextPage] = useState(false);
-  const [endCursor, setEndCursor] = useState<string | null>(null);
-
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
 
@@ -126,50 +129,38 @@ const ProductsPage: React.FC = () => {
 
   // ── Carga de datos ─────────────────────────────────────────────────────────
 
-  const loadAll = useCallback(async (cursor?: string) => {
-    const data = await gql<CompradosLoadResponse>(
-      GET_COMPRADOS_QUERY,
-      cursor ? { cursor } : {},
-    );
-
-    const nodes = data.productos.nodes
-      .filter((n) => n.tipo === 'Comprado')
-      .map(mapNode);
-
-    if (!cursor) {
+  const loadAll = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [compradosData, categoriasData] = await Promise.all([
+        gql<CompradosLoadResponse>(GET_COMPRADOS_QUERY),
+        gql<CategoriasResponse>(GET_ALL_CATEGORIES_QUERY),
+      ]);
       setCategories(
-        data.categorias.nodes.map((n) => ({
+        categoriasData.categorias.nodes.map((n) => ({
           id: String(n.id),
           name: n.nombre,
-          description: n.descripcion,
+          description: '',
           isActive: n.estado,
           color: n.color,
           sortOrder: 0,
-          productCount: n.cantidad,
+          productCount: 0,
           createdAt: new Date(),
           updatedAt: new Date(),
         })),
       );
-      setProducts(nodes);
-    } else {
-      setProducts((prev) => [...prev, ...nodes]);
+      setProducts(compradosData.comprados.nodes.map(mapNode));
+    } catch (err) {
+      console.error('Error loading comprados:', err);
+      toast.error('Error al cargar', 'No se pudieron cargar los productos. Intenta de nuevo.');
+    } finally {
+      setIsLoading(false);
     }
-
-    setHasNextPage(data.productos.pageInfo.hasNextPage);
-    setEndCursor(data.productos.pageInfo.endCursor);
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
-    loadAll()
-      .catch((err) => console.error('Error loading comprados:', err))
-      .finally(() => setIsLoading(false));
+    loadAll();
   }, [loadAll]);
-
-  const handleLoadMore = async () => {
-    if (!endCursor) return;
-    setIsLoadingMore(true);
-    await loadAll(endCursor).finally(() => setIsLoadingMore(false));
-  };
 
   // ── Filtros ────────────────────────────────────────────────────────────────
 
@@ -512,13 +503,6 @@ const ProductsPage: React.FC = () => {
               </tbody>
             </table>
 
-            {hasNextPage && (
-              <div className="px-4 py-3 border-t border-coffee-100 flex justify-center">
-                <Button variant="ghost" onClick={handleLoadMore} isLoading={isLoadingMore}>
-                  Cargar más productos
-                </Button>
-              </div>
-            )}
           </div>
         )}
       </PageContainer>

@@ -1,28 +1,16 @@
 import { gql } from '../lib/graphql';
-import { COMBOS_QUERY, PRODUCTS_QUERY } from '../lib/queries/combos.queries';
-import { mapCombo, mapProduct } from '../lib/mappers/combos.mappers';
-import type { CombosResponse, ProductsResponse } from '../types/graphql';
+import { COMBOS_QUERY, GET_PRODUCTS_FOR_COMBO } from '../lib/queries/combos.queries';
+import { mapCombo, mapComprado, mapElaboradoProduct } from '../lib/mappers/combos.mappers';
+import type { CombosResponse, ProductsForComboResponse } from '../types/graphql';
 import type { Combo, Product, Receta } from '../types';
 import { useCallback, useState } from 'react';
 
 async function fetchAllProducts(): Promise<Product[]> {
-  const all: Product[] = [];
-  let after: string | null = null;
-
-  while (true) {
-    const data: ProductsResponse = await gql<ProductsResponse>(PRODUCTS_QUERY, {
-      first: 50,                          // ajusta al límite real del backend
-      after: after ?? undefined,
-    });
-
-    const { nodes, pageInfo } = data.productos;
-    all.push(...nodes.map(mapProduct));
-
-    if (!pageInfo.hasNextPage) break;
-    after = pageInfo.endCursor;
-  }
-
-  return all;
+  const data = await gql<ProductsForComboResponse>(GET_PRODUCTS_FOR_COMBO);
+  return [
+    ...data.comprados.nodes.map(mapComprado),
+    ...data.elaborados.nodes.map(mapElaboradoProduct),
+  ];
 }
 
 export function useCombosData() {
@@ -41,7 +29,7 @@ export function useCombosData() {
         gql<CombosResponse>(COMBOS_QUERY),
       ]);
       
-      const mappedCombos = combosData.combos.nodes.map((n) => mapCombo(n, mappedProducts));
+      const mappedCombos = combosData.combos.nodes.map((n) => mapCombo(n));
 
       setProducts(mappedProducts);
       setCombos(mappedCombos);

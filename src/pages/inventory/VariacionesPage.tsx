@@ -8,6 +8,22 @@ import { toast } from '../../components/ui/Toast';
 import { VariacionModal } from '../../components/modals/VariacionModal';
 import { gql } from '../../lib/graphql';
 import { api } from '../../lib/api';
+import { GET_ELABORADOS_VARIACIONES } from '../../lib/queries/elaborados.queries';
+import { GET_ALL_INSUMOS } from '../../lib/queries/insumos.queries';
+import { mapInsumo } from '../../lib/mappers/insumos.mappers';
+import type { InsumosResponse } from '../../types/graphql';
+
+interface ElaboradoVariacionNode {
+  id_Producto: number;
+  unidad_medida: string;
+  producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string };
+  receta: { id: number; detalles: { id_insumo: number }[] } | null;
+  variaciones: { id: number; nombre: string; requerido: boolean; opciones: { id: number; nombre: string; ajustePrecio: number }[] }[];
+}
+
+interface ElaboradosVariacionesResponse {
+  elaborados: { nodes: ElaboradoVariacionNode[] };
+}
 import { formatCurrency } from '../../utils';
 import type { Product, VariacionAtributo, Insumo } from '../../types';
 
@@ -51,6 +67,7 @@ interface ProductRowProps {
   product: Product;
   atributos: VariacionAtributo[];
   insumos: Insumo[];
+  recetaInsumos: Insumo[];
   onAddAtributo: (productId: string, data: { nombre: string; esRequerido: boolean }) => Promise<VariacionAtributo>;
   onUpdateAtributo: (atributoId: string, data: { nombre: string; esRequerido: boolean }) => Promise<void>;
   onDeleteAtributo: (atributoId: string) => Promise<void>;
@@ -63,6 +80,7 @@ const ProductRow: React.FC<ProductRowProps> = ({
   product,
   atributos,
   insumos,
+  recetaInsumos,
   onAddAtributo,
   onUpdateAtributo,
   onDeleteAtributo,
@@ -176,6 +194,7 @@ const ProductRow: React.FC<ProductRowProps> = ({
         productId={product.id}
         productName={product.name}
         insumos={insumos}
+        recetaInsumos={recetaInsumos}
         atributos={productAtributos}
         onAddAtributo={onAddAtributo}
         onUpdateAtributo={onUpdateAtributo}
@@ -194,100 +213,35 @@ const VariacionesPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
   const [insumos, setInsumos] = useState<Insumo[]>([]);
+  // Map productId → insumo IDs that belong to its recipe
+  const [recetaInsumoIdsByProduct, setRecetaInsumoIdsByProduct] = useState<Map<string, Set<string>>>(new Map());
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   
   const fetchData = useCallback(async () => {
-    interface AjusteNode {
-      id_Insumo: number;
-      id_InsumoNuevo: number | null;
-      cantidad: number;
-      tipoAjuste: string;
-    }
-    interface OpcionNode {
-      id: number;
-      nombre: string;
-      ajustePrecio: number;
-      ajustes: AjusteNode[];
-    }
-    interface VariacionNode {
-      id: number;
-      nombre: string;
-      requerido: boolean;
-      opciones: OpcionNode[];
-    }
-    interface ProductoNode {
-      id: number;
-      nombre: string;
-      descripcion: string;
-      precio: number;
-      categoria_Id: number;
-      categoria: { nombre: string };
-    }
-    interface InsumoApiNode {
-      id: number;
-      nombre: string;
-      categoria: string;
-      unidad_min_uso: string;
-      unidad_compra: string;
-      factor_conversion: number;
-      costo: number;
-      stock_actual: number;
-      stock_min: number;
-    }
-    interface ElaboradoNode {
-      id_Producto: number;
-      unidad_medida: string;
-      producto: ProductoNode;
-      variaciones: VariacionNode[];
-    }
-    interface ElaboradosResponse { elaborados: ElaboradoNode[] }
-    interface InsumosResponse { insumos: InsumoApiNode[] }
-
     try {
       const [elaboradosData, insumosData] = await Promise.all([
-        gql<ElaboradosResponse>(`
-          query {
-            elaborados {
-              id_Producto
-              unidad_medida
-              producto { id nombre descripcion precio categoria_Id categoria { nombre } }
-              variaciones {
-                id nombre requerido
-                opciones {
-                  id nombre ajustePrecio
-                  ajustes {
-                    id_Insumo id_InsumoNuevo cantidad tipoAjuste
-                  }
-                }
-              }
-            }
-          }
-        `),
-        gql<InsumosResponse>(`
-          query {
-            insumos {
-              id nombre categoria unidad_min_uso unidad_compra
-              factor_conversion costo stock_actual stock_min
-            }
-          }
-        `),
+        gql<ElaboradosVariacionesResponse>(GET_ELABORADOS_VARIACIONES),
+        gql<InsumosResponse>(GET_ALL_INSUMOS),
       ]);
 
-      const mappedProducts: Product[] = elaboradosData.elaborados.map((node) => ({
+      const nodes = elaboradosData.elaborados.nodes;
+
+      const mappedProducts: Product[] = nodes.map((node) => ({
         id: String(node.id_Producto),
         code: String(node.id_Producto),
         name: node.producto.nombre,
-        description: node.producto.descripcion,
+        description: node.producto.descripcion ?? '',
         tipo: 'elaborado' as const,
-        categoryId: String(node.producto.categoria_Id),
-        categoryName: node.producto.categoria.nombre,
-        unit: node.unidad_medida,
+        categoryId: '',
+        categoryName: '',
+        unit: node.unidad_medida ?? 'unidad',
         costPrice: 0,
         salePrice: node.producto.precio,
         stock: 0,
         minStock: 0,
         maxStock: 0,
+        barcode: '',
         variations: [],
         hasVariations: node.variaciones.length > 0,
         isActive: true,
@@ -295,55 +249,37 @@ const VariacionesPage: React.FC = () => {
         updatedAt: new Date(),
       }));
 
-      const mappedAtributos: VariacionAtributo[] = elaboradosData.elaborados.flatMap((node) =>
+      const mappedAtributos: VariacionAtributo[] = nodes.flatMap((node) =>
         node.variaciones.map((v) => ({
           id: String(v.id),
           productId: String(node.id_Producto),
           nombre: v.nombre,
           esRequerido: v.requerido,
-          opciones: v.opciones.map((o) => {
-            const sustitucion = o.ajustes.find((a) => a.id_InsumoNuevo !== null);
-            const ajustesCantidad = o.ajustes
-              .filter((a) => a.id_InsumoNuevo === null)
-              .map((a) => ({ insumoId: String(a.id_Insumo), cantidad: a.cantidad }));
-            return {
-              id: String(o.id),
-              atributoId: String(v.id),
-              nombre: o.nombre,
-              precioAjuste: o.ajustePrecio,
-              insumoReemplazadoId: sustitucion ? String(sustitucion.id_Insumo) : undefined,
-              insumoExtraId: sustitucion?.id_InsumoNuevo ? String(sustitucion.id_InsumoNuevo) : undefined,
-              cantidadExtra: sustitucion?.cantidad,
-              ajustesCantidad: ajustesCantidad.length > 0 ? ajustesCantidad : undefined,
-              isActive: true,
-            };
-          }),
+          opciones: v.opciones.map((o) => ({
+            id: String(o.id),
+            atributoId: String(v.id),
+            nombre: o.nombre,
+            precioAjuste: o.ajustePrecio,
+            isActive: true,
+          })),
           isActive: true,
           createdAt: new Date(),
           updatedAt: new Date(),
         }))
       );
 
-      const mappedInsumos: Insumo[] = insumosData.insumos.map((i) => ({
-        id: String(i.id),
-        code: String(i.id),
-        name: i.nombre,
-        categoriaInsumo: i.categoria,
-        unidadMinima: i.unidad_min_uso,
-        unidadCompra: i.unidad_compra,
-        factorConversion: i.factor_conversion,
-        costoCompra: i.costo,
-        costoUnitario: i.costo,
-        stock: i.stock_actual,
-        stockMinimo: i.stock_min,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }));
+      const recetaMap = new Map<string, Set<string>>();
+      for (const node of nodes) {
+        const ids = new Set<string>(
+          (node.receta?.detalles ?? []).map((d) => String(d.id_insumo))
+        );
+        recetaMap.set(String(node.id_Producto), ids);
+      }
 
       setProducts(mappedProducts);
       setAtributos(mappedAtributos);
-      setInsumos(mappedInsumos);
+      setRecetaInsumoIdsByProduct(recetaMap);
+      setInsumos(insumosData.insumos.nodes.map(mapInsumo));
     } catch (error) {
       console.error('Error loading variaciones data:', error);
     } finally {
@@ -660,20 +596,25 @@ const VariacionesPage: React.FC = () => {
                 <p className="text-sm">No se encontraron productos.</p>
               </div>
             ) : (
-              filteredProducts.map((product: Product) => (
-                <ProductRow
-                  key={product.id}
-                  product={product}
-                  atributos={atributos}
-                  insumos={insumos}
-                  onAddAtributo={handleAddAtributo}
-                  onUpdateAtributo={handleUpdateAtributo}
-                  onDeleteAtributo={handleDeleteAtributo}
-                  onAddOpcion={handleAddOpcion}
-                  onUpdateOpcion={handleUpdateOpcion}
-                  onDeleteOpcion={handleDeleteOpcion}
-                />
-              ))
+              filteredProducts.map((product: Product) => {
+                const recetaIds = recetaInsumoIdsByProduct.get(product.id) ?? new Set<string>();
+                const recetaInsumos = insumos.filter((i) => recetaIds.has(i.id));
+                return (
+                  <ProductRow
+                    key={product.id}
+                    product={product}
+                    atributos={atributos}
+                    insumos={insumos}
+                    recetaInsumos={recetaInsumos}
+                    onAddAtributo={handleAddAtributo}
+                    onUpdateAtributo={handleUpdateAtributo}
+                    onDeleteAtributo={handleDeleteAtributo}
+                    onAddOpcion={handleAddOpcion}
+                    onUpdateOpcion={handleUpdateOpcion}
+                    onDeleteOpcion={handleDeleteOpcion}
+                  />
+                );
+              })
             )}
           </div>
         </div>

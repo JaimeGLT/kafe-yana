@@ -16,6 +16,7 @@ interface Props {
   productId: string;
   productName: string;
   insumos: Insumo[];
+  recetaInsumos: Insumo[];
   atributos: VariacionAtributo[];
   onAddAtributo: (productId: string, data: { nombre: string; esRequerido: boolean }) => Promise<VariacionAtributo>;
   onUpdateAtributo: (atributoId: string, data: { nombre: string; esRequerido: boolean }) => Promise<void>;
@@ -72,11 +73,12 @@ const opcionToForm = (opcion: VariacionOpcion): OpcionFormState => ({
 interface SustitucionFieldsProps {
   form: OpcionFormState;
   setForm: (f: OpcionFormState) => void;
-  insumoOptions: { value: string; label: string }[];
+  recetaInsumoOptions: { value: string; label: string }[];
+  allInsumoOptions: { value: string; label: string }[];
   compact?: boolean;
 }
 
-const SustitucionFields: React.FC<SustitucionFieldsProps> = ({ form, setForm, insumoOptions, compact }) => {
+const SustitucionFields: React.FC<SustitucionFieldsProps> = ({ form, setForm, recetaInsumoOptions, allInsumoOptions, compact }) => {
   const labelClass = compact
     ? 'text-xs font-medium text-coffee-600'
     : 'text-sm font-medium text-coffee-700';
@@ -121,7 +123,7 @@ const SustitucionFields: React.FC<SustitucionFieldsProps> = ({ form, setForm, in
               <HelpTooltip text="El ingrediente que normalmente usa la receta base y que NO se va a usar cuando el cliente elija esta opción. Ej: 'leche entera'." />
             </div>
             <Select
-              options={[{ value: '', label: '— Seleccionar ingrediente a quitar… —' }, ...insumoOptions]}
+              options={[{ value: '', label: '— Seleccionar ingrediente a quitar… —' }, ...recetaInsumoOptions]}
               value={form.insumoReemplazadoId}
               onChange={(v) => setForm({ ...form, insumoReemplazadoId: v })}
             />
@@ -136,7 +138,7 @@ const SustitucionFields: React.FC<SustitucionFieldsProps> = ({ form, setForm, in
               <HelpTooltip text="El ingrediente alternativo que se desconta del inventario en vez del original. Ej: 'leche de avena'." />
             </div>
             <Select
-              options={[{ value: '', label: '— Seleccionar ingrediente alternativo… —' }, ...insumoOptions]}
+              options={[{ value: '', label: '— Seleccionar ingrediente alternativo… —' }, ...allInsumoOptions]}
               value={form.insumoExtraId}
               onChange={(v) => setForm({ ...form, insumoExtraId: v })}
             />
@@ -169,11 +171,11 @@ const SustitucionFields: React.FC<SustitucionFieldsProps> = ({ form, setForm, in
 interface ModificaCantidadFieldsProps {
   form: OpcionFormState;
   setForm: (f: OpcionFormState) => void;
-  insumoOptions: { value: string; label: string }[];
+  recetaInsumoOptions: { value: string; label: string }[];
   compact?: boolean;
 }
 
-const ModificaCantidadFields: React.FC<ModificaCantidadFieldsProps> = ({ form, setForm, insumoOptions, compact }) => {
+const ModificaCantidadFields: React.FC<ModificaCantidadFieldsProps> = ({ form, setForm, recetaInsumoOptions, compact }) => {
   const labelClass = compact ? 'text-xs font-medium text-coffee-600' : 'text-sm font-medium text-coffee-700';
 
   const addRow = () =>
@@ -231,7 +233,7 @@ const ModificaCantidadFields: React.FC<ModificaCantidadFieldsProps> = ({ form, s
                   </span>
                 )}
                 <Select
-                  options={[{ value: '', label: '— Seleccionar… —' }, ...insumoOptions]}
+                  options={[{ value: '', label: '— Seleccionar… —' }, ...recetaInsumoOptions]}
                   value={row.insumoId}
                   onChange={(v) => updateRow(i, 'insumoId', v)}
                 />
@@ -281,12 +283,13 @@ const ModificaCantidadFields: React.FC<ModificaCantidadFieldsProps> = ({ form, s
 interface OpcionRowProps {
   opcion: VariacionOpcion;
   atributoId: string;
-  insumoOptions: { value: string; label: string }[];
+  recetaInsumoOptions: { value: string; label: string }[];
+  allInsumoOptions: { value: string; label: string }[];
   onDelete: (opcionId: string) => void;
   onUpdateOpcion: (atributoId: string, opcionId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: AjusteCantidad[] }) => void;
 }
 
-const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, insumoOptions, onDelete, onUpdateOpcion }) => {
+const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, recetaInsumoOptions, allInsumoOptions, onDelete, onUpdateOpcion }) => {
   const [editing, setEditing] = React.useState(false);
   const [form, setForm] = React.useState<OpcionFormState>(opcionToForm(opcion));
 
@@ -312,15 +315,15 @@ const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, insumoOptions
     toast.success('Opción actualizada');
   };
 
-  // Find insumo names for display
+  // Find insumo names for display (search in all insumos so labels always resolve)
   const insumoQuitarNombre = opcion.insumoReemplazadoId
-    ? insumoOptions.find((o) => o.value === opcion.insumoReemplazadoId)?.label
+    ? allInsumoOptions.find((o) => o.value === opcion.insumoReemplazadoId)?.label
     : null;
   const insumoUsarNombre = opcion.insumoExtraId
-    ? insumoOptions.find((o) => o.value === opcion.insumoExtraId)?.label
+    ? allInsumoOptions.find((o) => o.value === opcion.insumoExtraId)?.label
     : null;
   const ajustesNombres = opcion.ajustesCantidad?.map((a) => ({
-    nombre: insumoOptions.find((o) => o.value === a.insumoId)?.label ?? a.insumoId,
+    nombre: allInsumoOptions.find((o) => o.value === a.insumoId)?.label ?? a.insumoId,
     cantidad: a.cantidad,
   })) ?? [];
 
@@ -408,8 +411,8 @@ const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, insumoOptions
         </div>
       </div>
 
-      <SustitucionFields form={form} setForm={setForm} insumoOptions={insumoOptions} />
-      <ModificaCantidadFields form={form} setForm={setForm} insumoOptions={insumoOptions} />
+      <SustitucionFields form={form} setForm={setForm} recetaInsumoOptions={recetaInsumoOptions} allInsumoOptions={allInsumoOptions} />
+      <ModificaCantidadFields form={form} setForm={setForm} recetaInsumoOptions={recetaInsumoOptions} />
 
       <div className="flex gap-2 justify-end pt-1">
         <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
@@ -429,11 +432,12 @@ interface NuevaOpcionFormProps {
   atributoId: string;
   form: OpcionFormState;
   setForm: (f: OpcionFormState) => void;
-  insumoOptions: { value: string; label: string }[];
+  recetaInsumoOptions: { value: string; label: string }[];
+  allInsumoOptions: { value: string; label: string }[];
   onAdd: () => void;
 }
 
-const NuevaOpcionForm: React.FC<NuevaOpcionFormProps> = ({ form, setForm, insumoOptions, onAdd }) => (
+const NuevaOpcionForm: React.FC<NuevaOpcionFormProps> = ({ form, setForm, recetaInsumoOptions, allInsumoOptions, onAdd }) => (
   <div className="mt-3 border-t border-coffee-100 pt-3 space-y-3">
     <p className="text-xs font-semibold text-coffee-500 uppercase tracking-wider">+ Nueva opción</p>
 
@@ -461,8 +465,8 @@ const NuevaOpcionForm: React.FC<NuevaOpcionFormProps> = ({ form, setForm, insumo
       </div>
     </div>
 
-    <SustitucionFields form={form} setForm={setForm} insumoOptions={insumoOptions} compact />
-    <ModificaCantidadFields form={form} setForm={setForm} insumoOptions={insumoOptions} compact />
+    <SustitucionFields form={form} setForm={setForm} recetaInsumoOptions={recetaInsumoOptions} allInsumoOptions={allInsumoOptions} compact />
+    <ModificaCantidadFields form={form} setForm={setForm} recetaInsumoOptions={recetaInsumoOptions} compact />
 
     <Button
       size="sm"
@@ -483,6 +487,7 @@ export const VariacionModal: React.FC<Props> = ({
   productId,
   productName,
   insumos,
+  recetaInsumos,
   atributos,
   onAddAtributo,
   onUpdateAtributo,
@@ -510,9 +515,14 @@ export const VariacionModal: React.FC<Props> = ({
     nombre: string;
   } | null>(null);
 
-  const insumoOptions = React.useMemo(
+  const allInsumoOptions = React.useMemo(
     () => insumos.filter((i) => i.isActive).map((i) => ({ value: i.id, label: i.name })),
     [insumos]
+  );
+
+  const recetaInsumoOptions = React.useMemo(
+    () => recetaInsumos.filter((i) => i.isActive).map((i) => ({ value: i.id, label: i.name })),
+    [recetaInsumos]
   );
 
   const toggleExpand = (id: string) => {
@@ -698,7 +708,8 @@ export const VariacionModal: React.FC<Props> = ({
                       key={opcion.id}
                       opcion={opcion}
                       atributoId={atributo.id}
-                      insumoOptions={insumoOptions}
+                      recetaInsumoOptions={recetaInsumoOptions}
+                      allInsumoOptions={allInsumoOptions}
                       onDelete={(opcionId) =>
                         setDeleteConfirm({ type: 'opcion', atributoId: atributo.id, opcionId, nombre: opcion.nombre })
                       }
@@ -710,7 +721,8 @@ export const VariacionModal: React.FC<Props> = ({
                     atributoId={atributo.id}
                     form={getOrInitForm(atributo.id)}
                     setForm={(f) => setOpcionForm(atributo.id, f)}
-                    insumoOptions={insumoOptions}
+                    recetaInsumoOptions={recetaInsumoOptions}
+                    allInsumoOptions={allInsumoOptions}
                     onAdd={() => handleAddOpcion(atributo.id)}
                   />
                 </div>

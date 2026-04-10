@@ -63,9 +63,9 @@ const RecetasPage: React.FC = () => {
           gql<InsumosResponse>(GET_ALL_INSUMOS),
           gql<ElaboradosResponse>(GET_ALL_ELABORADOS),
         ]);
-        setRecetas(recetasData.recetas.map(mapReceta));
-        setInsumos(insumosData.insumos.map(mapInsumo));
-        setProducts(elaboradosData.elaborados.map(mapElaborado));
+        setRecetas(recetasData.recetas.nodes.map(mapReceta).filter((r): r is Receta => r !== null));
+        setInsumos(insumosData.insumos.nodes.map(mapInsumo));
+        setProducts(elaboradosData.elaborados.nodes.map(mapElaborado));
       } catch (error) {
         console.error('Error loading recetas data:', error);
       } finally {
@@ -409,7 +409,7 @@ const RecetasPage: React.FC = () => {
           setIsModalOpen(false);
           try {
             const data = await gql<RecetasResponse>(GET_ALL_RECETAS);
-            setRecetas(data.recetas.map(mapReceta));
+            setRecetas(data.recetas.nodes.map(mapReceta).filter((r): r is Receta => r !== null));
           } catch (error) {
             console.error('Error reloading recetas:', error);
           }
