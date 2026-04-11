@@ -32,6 +32,8 @@ export function mapComprado(node: CompradoItem): Product {
     variations: [],
     isActive: true,
     hasVariations: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
 }
 
@@ -52,6 +54,8 @@ export function mapElaboradoProduct(node: ElaboradoItem): Product {
     variations: [],
     isActive: true,
     hasVariations: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
 }
 

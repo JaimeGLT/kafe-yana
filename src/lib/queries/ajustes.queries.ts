@@ -37,19 +37,22 @@ export const GET_INSUMOS_AJUSTES = `
 export const GET_ELABORADOS_AJUSTES = `
   query GetElaboradosAjustes {
     elaborados {
-      id_Producto
-      unidad_medida
-      producto {
-        id
-        nombre
-      }
-      receta {
-        id
-        porciones
-        detalles {
-          id_insumo
-          cantidad
-          merma
+      nodes {
+        id_Producto
+        unidad_medida
+        producto {
+          id
+          nombre
+        }
+        receta {
+          id
+          porciones
+          cantidadProducible
+          detalles {
+            id_insumo
+            cantidad
+            merma
+          }
         }
       }
     }

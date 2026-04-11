@@ -26,7 +26,7 @@ const AdjustmentsPage: React.FC = () => {
       setComprados(compradosData.comprados?.nodes ?? []);
       setInsumos(insumosData.insumos?.nodes ?? []);
       setElaborados(
-        (elaboradosData.elaborados ?? []).filter((e) => e.receta !== null)
+        (elaboradosData.elaborados?.nodes ?? []).filter((e) => e.receta !== null)
       );
     } catch (error) {
       console.error('Error loading adjustment data:', error);

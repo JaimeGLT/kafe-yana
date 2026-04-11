@@ -136,7 +136,7 @@ export interface ElaboradoAjusteNode {
 }
 
 export interface ElaboradosAjusteResponse {
-  elaborados: ElaboradoAjusteNode[];
+  elaborados: { nodes: ElaboradoAjusteNode[] };
 }
 
 export interface ElaboradoResponse {
