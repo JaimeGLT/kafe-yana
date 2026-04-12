@@ -27,6 +27,66 @@ import { ProductCard } from '../../components/elaborados/ProductCard';
 import { ElaboradoWizard } from '../../components/elaborados/ElaboradoWizard';
 import type { Product, Receta, Insumo } from '../../types';
 
+// ── Mock elaborados en_lote — se eliminan cuando el backend exponga tipoPreparacion ──
+
+const MOCK_EN_LOTE_IDS = new Set(['-1', '-2', '-3']);
+
+const MOCK_STOCK_ACTUAL: Record<string, number> = {
+  '-1': 6,
+  '-2': 12,
+  '-3': 0,
+};
+
+const MOCK_ELABORADOS_EN_LOTE: Product[] = [
+  {
+    id: '-1', code: '-1', name: 'Torta de chocolate', description: 'Preparada en lote, por porciones.',
+    tipo: 'elaborado', categoryId: '', categoryName: 'Repostería',
+    unit: 'porcion', costPrice: 0, salePrice: 25, stock: 6,
+    minStock: 0, maxStock: 0, variations: [], hasVariations: false,
+    isActive: true, createdAt: new Date(), updatedAt: new Date(),
+  },
+  {
+    id: '-2', code: '-2', name: 'Cheesecake de maracuyá', description: 'Elaborado en lote cada mañana.',
+    tipo: 'elaborado', categoryId: '', categoryName: 'Repostería',
+    unit: 'porcion', costPrice: 0, salePrice: 18, stock: 12,
+    minStock: 0, maxStock: 0, variations: [], hasVariations: false,
+    isActive: true, createdAt: new Date(), updatedAt: new Date(),
+  },
+  {
+    id: '-3', code: '-3', name: 'Brownie de café (sin stock)', description: 'Sin producción registrada hoy.',
+    tipo: 'elaborado', categoryId: '', categoryName: 'Repostería',
+    unit: 'unidad', costPrice: 0, salePrice: 12, stock: 4,
+    minStock: 0, maxStock: 0, variations: [], hasVariations: false,
+    isActive: true, createdAt: new Date(), updatedAt: new Date(),
+  },
+];
+
+const MOCK_RECETAS_EN_LOTE: Receta[] = [
+  {
+    id: 'r-1', productId: '-1', productName: 'Torta de chocolate',
+    nombre: 'Receta torta choc.', porcionesBase: 1,
+    ingredientes: [
+      { id: 'ri-1', insumoId: 'mock-1', insumoName: 'Harina', unidadMinima: 'g', quantity: 200, merma: 5, unitCost: 0.02, subtotal: 4 },
+      { id: 'ri-2', insumoId: 'mock-2', insumoName: 'Cacao', unidadMinima: 'g', quantity: 80, merma: 0, unitCost: 0.08, subtotal: 6.4 },
+      { id: 'ri-3', insumoId: 'mock-3', insumoName: 'Mantequilla', unidadMinima: 'g', quantity: 100, merma: 2, unitCost: 0.022, subtotal: 2.2 },
+    ],
+    costoTotal: 12.6, costoPorPorcion: 12.6,
+    isActive: true, createdAt: new Date(), updatedAt: new Date(),
+  },
+  {
+    id: 'r-2', productId: '-2', productName: 'Cheesecake de maracuyá',
+    nombre: 'Receta cheesecake', porcionesBase: 1,
+    ingredientes: [
+      { id: 'ri-4', insumoId: 'mock-4', insumoName: 'Queso crema', unidadMinima: 'g', quantity: 150, merma: 0, unitCost: 0.03, subtotal: 4.5 },
+      { id: 'ri-5', insumoId: 'mock-5', insumoName: 'Maracuyá', unidadMinima: 'ml', quantity: 80, merma: 10, unitCost: 0.025, subtotal: 2 },
+      { id: 'ri-6', insumoId: 'mock-6', insumoName: 'Galleta base', unidadMinima: 'g', quantity: 60, merma: 0, unitCost: 0.01, subtotal: 0.6 },
+    ],
+    costoTotal: 7.1, costoPorPorcion: 7.1,
+    isActive: true, createdAt: new Date(), updatedAt: new Date(),
+  },
+  // Brownie sin receta (intencionalmente sin entrada aquí para mostrar estado "Sin receta")
+];
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const ElaboradosPage: React.FC = () => {
@@ -86,12 +146,13 @@ const ElaboradosPage: React.FC = () => {
 
   const loadElaborados = useCallback(async () => {
     const data = await gql<ElaboradosResponse>(GET_ALL_ELABORADOS);
-    setElaborados(data.elaborados.nodes.map(mapElaborado));
-    setRecetas(
-      data.elaborados.nodes
+    setElaborados([...MOCK_ELABORADOS_EN_LOTE, ...data.elaborados.nodes.map(mapElaborado)]);
+    setRecetas([
+      ...MOCK_RECETAS_EN_LOTE,
+      ...data.elaborados.nodes
         .map(mapRecetaFromElaborado)
         .filter((r): r is Receta => r !== null),
-    );
+    ]);
   }, []);
 
   useEffect(() => {
@@ -297,12 +358,16 @@ const ElaboradosPage: React.FC = () => {
             {filtered.map((product) => {
               const receta = getRecetaByProductId(product.id);
               const portions = getElaboradoAvailability(product.id);
+              const tipoPreparacion = MOCK_EN_LOTE_IDS.has(product.id) ? 'en_lote' as const : 'al_momento' as const;
+              const stockActual = MOCK_EN_LOTE_IDS.has(product.id) ? MOCK_STOCK_ACTUAL[product.id] : undefined;
               return (
                 <ProductCard
                   key={product.id}
                   product={product}
                   receta={receta}
                   portionsAvailable={portions}
+                  tipoPreparacion={tipoPreparacion}
+                  stockActual={stockActual}
                   onEditProduct={(p) => setEditingProduct(p)}
                   onManageReceta={(p) => {
                     const r = getRecetaByProductId(p.id);

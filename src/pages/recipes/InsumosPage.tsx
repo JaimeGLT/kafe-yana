@@ -67,11 +67,12 @@ const InsumosPage: React.FC = () => {
         ins.categoriaInsumo.toLowerCase().includes(q) ||
         ins.code.toLowerCase().includes(q);
       const matchCat = !filterCategoria || ins.categoriaInsumo === filterCategoria;
-      const isLow = ins.stock <= ins.stockMinimo;
+      const stockEnCompra = ins.factorConversion > 0 ? ins.stock / ins.factorConversion : ins.stock;
+      const isLowFilter = ins.stockMinimo > 0 && stockEnCompra <= ins.stockMinimo;
       const matchStock =
         !filterStock ||
-        (filterStock === 'low' && isLow) ||
-        (filterStock === 'ok' && !isLow);
+        (filterStock === 'low' && isLowFilter) ||
+        (filterStock === 'ok' && !isLowFilter);
       return matchSearch && matchCat && matchStock;
     });
   }, [insumos, search, filterCategoria, filterStock]);
@@ -88,7 +89,10 @@ const InsumosPage: React.FC = () => {
   }, [recetas]);
 
   const lowStockCount = useMemo(
-    () => insumos.filter((i: Insumo) => i.stock <= i.stockMinimo && i.stockMinimo > 0).length,
+    () => insumos.filter((i: Insumo) => {
+      const stockEnCompra = i.factorConversion > 0 ? i.stock / i.factorConversion : i.stock;
+      return i.stockMinimo > 0 && stockEnCompra <= i.stockMinimo;
+    }).length,
     [insumos]
   );
 
@@ -206,11 +210,7 @@ const InsumosPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-coffee-50">
                 {filtered.map((ins) => {
-                  const isLow = ins.stockMinimo > 0 && ins.stock <= ins.stockMinimo;
-                  const isEmpty = ins.stock <= 0;
-
-                  return (
-                    <tr key={ins.id} className="hover:bg-coffee-50/50 transition-colors">
+                  return (<tr key={ins.id} className="hover:bg-coffee-50/50 transition-colors">
                       <td className="px-4 py-3">
                         <p className="font-medium text-coffee-900">{ins.name}</p>
                       </td>
@@ -229,29 +229,28 @@ const InsumosPage: React.FC = () => {
                         <span className="text-coffee-400">÷ {ins.factorConversion}</span>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <div>
-                          <span
-                            className={clsx(
-                              'font-semibold',
-                              isEmpty ? 'text-red-600' : isLow ? 'text-amber-600' : 'text-emerald-700'
-                            )}
-                          >
-                            {ins.stock} {ins.unidadCompra}
-                          </span>
-                          {ins.stockMinimo > 0 && (
-                            <p className="text-xs text-coffee-400">Mín: {ins.stockMinimo}</p>
-                          )}
-                          {isEmpty && (
-                            <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-medium">
-                              Sin stock
-                            </span>
-                          )}
-                          {!isEmpty && isLow && (
-                            <span className="text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full font-medium">
-                              Stock bajo
-                            </span>
-                          )}
-                        </div>
+                        {(() => {
+                          const stockEnCompra = ins.factorConversion > 0 ? ins.stock / ins.factorConversion : ins.stock;
+                          const isLow = ins.stockMinimo > 0 && stockEnCompra <= ins.stockMinimo;
+                          const isEmpty = ins.stock <= 0;
+                          return (
+                            <div>
+                              <span className={clsx('font-semibold', isEmpty ? 'text-red-600' : isLow ? 'text-amber-600' : 'text-emerald-700')}>
+                                {stockEnCompra % 1 === 0 ? stockEnCompra : stockEnCompra.toFixed(2)} {ins.unidadCompra}
+                              </span>
+                              <p className="text-xs text-coffee-400">{ins.stock} {ins.unidadMinima}</p>
+                              {ins.stockMinimo > 0 && (
+                                <p className="text-xs text-coffee-400">Mín: {ins.stockMinimo} {ins.unidadCompra}</p>
+                              )}
+                              {isEmpty && (
+                                <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-medium">Sin stock</span>
+                              )}
+                              {!isEmpty && isLow && (
+                                <span className="text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full font-medium">Stock bajo</span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-center">
                         {usageCount[ins.id] ? (

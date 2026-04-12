@@ -133,6 +133,9 @@ export interface ElaboradoAjusteNode {
     cantidadProducible: number;
     detalles: RecetaDetalleAjusteNode[];
   } | null;
+  // Mockup — se conectará al backend cuando esté disponible
+  tipoPreparacion?: 'al_momento' | 'en_lote';
+  stock_actual?: number;
 }
 
 export interface ElaboradosAjusteResponse {

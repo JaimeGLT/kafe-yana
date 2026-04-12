@@ -9,6 +9,8 @@ interface ProductCardProps {
   product: Product;
   receta?: Receta;
   portionsAvailable: number;
+  tipoPreparacion?: 'al_momento' | 'en_lote';
+  stockActual?: number;
   onEditProduct: (p: Product) => void;
   onManageReceta: (p: Product) => void;
   onDeleteProduct: (p: Product) => void;
@@ -18,6 +20,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   product,
   receta,
   portionsAvailable,
+  tipoPreparacion = 'al_momento',
+  stockActual = 0,
   onEditProduct,
   onManageReceta,
   onDeleteProduct,
@@ -59,28 +63,43 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 <span className="text-coffee-500">Margen</span>
                 <span className={clsx('font-semibold inline-flex items-center gap-1', semaforo.text)}>
                   <span className={clsx('w-2 h-2 rounded-full', semaforo.dot)} />
-                  {margenPct.toFixed(1)}% — {semaforo.label}
+                  {margenPct.toFixed(1)}%
                 </span>
               </div>
             )}
             {/* Availability */}
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-coffee-500 flex items-center gap-1">
-                Porciones disponibles
-              </span>
-              <span
-                className={clsx(
+            {tipoPreparacion === 'en_lote' ? (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-coffee-500">En stock</span>
+                  <span className={clsx(
+                    'font-semibold',
+                    stockActual === 0 ? 'text-red-600' : stockActual <= 5 ? 'text-amber-600' : 'text-emerald-600'
+                  )}>
+                    {stockActual === 0 ? '⚠ Sin stock' : `${stockActual} ${product.unit ?? 'unidades'}`}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-coffee-400">Producibles</span>
+                  <span className={clsx(
+                    'text-coffee-500',
+                    portionsAvailable === 0 ? 'text-red-400' : portionsAvailable <= 5 ? 'text-amber-500' : ''
+                  )}>
+                    {portionsAvailable === 0 ? 'Sin insumos' : `${portionsAvailable} ${product.unit ?? 'unidades'}`}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-coffee-500">Producibles hoy</span>
+                <span className={clsx(
                   'font-semibold',
-                  portionsAvailable === 0
-                    ? 'text-red-600'
-                    : portionsAvailable <= 5
-                    ? 'text-amber-600'
-                    : 'text-emerald-600'
-                )}
-              >
-                {portionsAvailable === 0 ? '⚠ Sin stock' : `${portionsAvailable} porciones`}
-              </span>
-            </div>
+                  portionsAvailable === 0 ? 'text-red-600' : portionsAvailable <= 5 ? 'text-amber-600' : 'text-emerald-600'
+                )}>
+                  {portionsAvailable === 0 ? '⚠ Sin insumos' : `${portionsAvailable} ${product.unit ?? 'unidades'}`}
+                </span>
+              </div>
+            )}
             {/* Recipe badge */}
             <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 rounded px-2 py-1 w-fit">
               <CheckCircle2 className="h-3.5 w-3.5" />

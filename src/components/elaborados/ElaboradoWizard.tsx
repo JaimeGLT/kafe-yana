@@ -33,6 +33,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
   const [categoryId, setCategoryId] = useState('');
   const [salePrice, setSalePrice] = useState<number | ''>('');
   const [unit, setUnit] = useState('unidad');
+  const [preparationType, setPreparationType] = useState<'al_momento' | 'en_lote'>('al_momento');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [localCategories, setLocalCategories] = useState(categories);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -51,6 +52,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
     setCategoryId('');
     setSalePrice('');
     setUnit('unidad');
+    setPreparationType('al_momento');
     setErrors({});
   };
 
@@ -172,6 +174,58 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
                   autoFocus
                 />
                 {errors.name && <p className="text-xs text-red-600 mt-1">{errors.name}</p>}
+              </div>
+
+              {/* Preparation type */}
+              <div>
+                <label className="flex items-center text-sm font-medium text-coffee-700 mb-2">
+                  ¿Cómo se prepara este producto?
+                  <HelpTooltip text="Define si el producto se elabora al momento del pedido o en lotes para tener stock listo." />
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPreparationType('al_momento')}
+                    className={clsx(
+                      'flex items-start gap-3 rounded-lg border-2 px-4 py-3 text-left transition-colors',
+                      preparationType === 'al_momento'
+                        ? 'border-amber-500 bg-amber-50'
+                        : 'border-coffee-200 bg-white hover:border-coffee-300'
+                    )}
+                  >
+                    <span className={clsx('mt-0.5 flex h-4 w-4 shrink-0 rounded-full border-2 items-center justify-center', preparationType === 'al_momento' ? 'border-amber-500' : 'border-coffee-300')}>
+                      {preparationType === 'al_momento' && <span className="h-2 w-2 rounded-full bg-amber-500" />}
+                    </span>
+                    <div>
+                      <p className={clsx('text-sm font-semibold', preparationType === 'al_momento' ? 'text-amber-700' : 'text-coffee-800')}>Al momento</p>
+                      <p className="text-xs text-coffee-500 mt-0.5">Se prepara cuando llega el pedido</p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreparationType('en_lote')}
+                    className={clsx(
+                      'flex items-start gap-3 rounded-lg border-2 px-4 py-3 text-left transition-colors',
+                      preparationType === 'en_lote'
+                        ? 'border-amber-500 bg-amber-50'
+                        : 'border-coffee-200 bg-white hover:border-coffee-300'
+                    )}
+                  >
+                    <span className={clsx('mt-0.5 flex h-4 w-4 shrink-0 rounded-full border-2 items-center justify-center', preparationType === 'en_lote' ? 'border-amber-500' : 'border-coffee-300')}>
+                      {preparationType === 'en_lote' && <span className="h-2 w-2 rounded-full bg-amber-500" />}
+                    </span>
+                    <div>
+                      <p className={clsx('text-sm font-semibold', preparationType === 'en_lote' ? 'text-amber-700' : 'text-coffee-800')}>En lote</p>
+                      <p className="text-xs text-coffee-500 mt-0.5">Se prepara en cantidad y se tiene listo para vender</p>
+                    </div>
+                  </button>
+                </div>
+                {preparationType === 'en_lote' && (
+                  <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 flex items-start gap-2">
+                    <span className="shrink-0 mt-0.5 text-amber-500">ⓘ</span>
+                    <p>Deberás registrar cada producción en <strong>Ajustes</strong> para mantener el stock actualizado.</p>
+                  </div>
+                )}
               </div>
 
               {/* Description */}

@@ -94,11 +94,72 @@ const AdjustmentsPage: React.FC = () => {
         gql<InsumosResponse>(GET_INSUMOS_AJUSTES),
         gql<ElaboradosAjusteResponse>(GET_ELABORADOS_AJUSTES),
       ]);
+      const insumosLoaded = insumosData.insumos?.nodes ?? [];
       setComprados(compradosData.comprados?.nodes ?? []);
-      setInsumos(insumosData.insumos?.nodes ?? []);
-      setElaborados(
-        (elaboradosData.elaborados?.nodes ?? []).filter((e) => e.receta !== null)
-      );
+      setInsumos(insumosLoaded);
+
+      // Elaborados reales del backend (al_momento por defecto hasta que el backend exponga el campo)
+      const elaboradosReales = (elaboradosData.elaborados?.nodes ?? [])
+        .filter((e) => e.receta !== null)
+        .map((e) => ({ ...e, tipoPreparacion: 'al_momento' as const }));
+
+      // Mock elaborados en_lote — se eliminan cuando el backend exponga tipoPreparacion
+      // Usan los primeros insumos reales del backend para que la explosión de receta muestre nombres reales
+      const [ins1, ins2, ins3] = insumosLoaded;
+      const mockEnLote: ElaboradoAjusteNode[] = ins1
+        ? [
+            {
+              id_Producto: -1,
+              unidad_medida: 'unidad',
+              tipoPreparacion: 'en_lote',
+              stock_actual: 6,
+              producto: { id: -1, nombre: 'Torta de chocolate' },
+              receta: {
+                id: -1,
+                porciones: 1,
+                cantidadProducible: 6,
+                detalles: [
+                  { id_insumo: ins1.id, cantidad: 200, merma: 5 },
+                  ...(ins2 ? [{ id_insumo: ins2.id, cantidad: 150, merma: 3 }] : []),
+                ],
+              },
+            },
+            {
+              id_Producto: -2,
+              unidad_medida: 'porcion',
+              tipoPreparacion: 'en_lote',
+              stock_actual: 12,
+              producto: { id: -2, nombre: 'Cheesecake de maracuyá' },
+              receta: {
+                id: -2,
+                porciones: 1,
+                cantidadProducible: 12,
+                detalles: [
+                  { id_insumo: ins1.id, cantidad: 100, merma: 2 },
+                  ...(ins3 ? [{ id_insumo: ins3.id, cantidad: 80, merma: 0 }] : []),
+                ],
+              },
+            },
+            {
+              id_Producto: -3,
+              unidad_medida: 'unidad',
+              tipoPreparacion: 'en_lote',
+              stock_actual: 0,
+              producto: { id: -3, nombre: 'Brownie de café (sin stock)' },
+              receta: {
+                id: -3,
+                porciones: 1,
+                cantidadProducible: 0,
+                detalles: [
+                  ...(ins2 ? [{ id_insumo: ins2.id, cantidad: 120, merma: 5 }] : []),
+                  ...(ins3 ? [{ id_insumo: ins3.id, cantidad: 60, merma: 0 }] : []),
+                ],
+              },
+            },
+          ]
+        : [];
+
+      setElaborados([...mockEnLote, ...elaboradosReales]);
     } catch (error) {
       console.error('Error loading adjustment data:', error);
     } finally {

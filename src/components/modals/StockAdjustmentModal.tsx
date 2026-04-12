@@ -57,9 +57,11 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   const [isLoading, setIsLoading] = React.useState(false);
   const [productType, setProductType] = React.useState<ProductType>('comprado');
   const [direction, setDirection] = React.useState<Direction>('salida');
+  const [elaboradoDirection, setElaboradoDirection] = React.useState<Direction>('salida');
   const [selectedId, setSelectedId] = React.useState('');
   const [quantityStr, setQuantityStr] = React.useState('');
   const [stockFisicoStr, setStockFisicoStr] = React.useState('');
+  const [fechaProduccion, setFechaProduccion] = React.useState('');
   const [reason, setReason] = React.useState('');
   const [notes, setNotes] = React.useState('');
   const [errors, setErrors] = React.useState<Record<string, string>>({});
@@ -68,9 +70,11 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
     if (isOpen) {
       setProductType('comprado');
       setDirection('salida');
+      setElaboradoDirection('salida');
       setSelectedId('');
       setQuantityStr('');
       setStockFisicoStr('');
+      setFechaProduccion('');
       setReason('');
       setNotes('');
       setErrors({});
@@ -82,6 +86,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
     setSelectedId('');
     setQuantityStr('');
     setStockFisicoStr('');
+    setFechaProduccion('');
     setReason('');
     setErrors({});
   };
@@ -90,6 +95,14 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
     setDirection(dir);
     setQuantityStr('');
     setStockFisicoStr('');
+    setReason('');
+    setErrors({});
+  };
+
+  const handleElaboradoDirectionChange = (dir: Direction) => {
+    setElaboradoDirection(dir);
+    setQuantityStr('');
+    setFechaProduccion('');
     setReason('');
     setErrors({});
   };
@@ -143,8 +156,8 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   const insumoAjuste = useMemo(() => {
     if (productType !== 'insumo' || !selectedInsumo) return null;
     const fc = selectedInsumo.factor_conversion > 0 ? selectedInsumo.factor_conversion : 1;
-    // El stock siempre se muestra y opera en unidad de uso (ml, g, etc.)
-    const stockEnUso = selectedInsumo.stock_actual * fc;
+    // stock_actual ya viene en unidad mínima (g, ml…) desde el backend
+    const stockEnUso = selectedInsumo.stock_actual;
     const costoUnitario = selectedInsumo.costo / fc;
     if (direction === 'entrada') {
       const q = parseFloat(quantityStr);
@@ -177,9 +190,8 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
         insumo && insumo.factor_conversion > 0
           ? insumo.costo / insumo.factor_conversion
           : 0;
-      // Stock en unidad de uso (ml, g…) = stock_actual × factor_conversion
-      const fc = insumo && insumo.factor_conversion > 0 ? insumo.factor_conversion : 1;
-      const stockActual = (insumo?.stock_actual ?? 0) * fc;
+      // stock_actual ya viene en unidad mínima (g, ml…) desde el backend
+      const stockActual = insumo?.stock_actual ?? 0;
       return {
         id_insumo: detalle.id_insumo,
         nombre: insumo?.nombre ?? `Insumo #${detalle.id_insumo}`,
@@ -199,45 +211,72 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   }, [productType, compradoAjuste, insumoAjuste, elaboradoExplosion]);
 
   // — Derived UI helpers —
-  const isEfectivelySalida = productType === 'elaborado' || direction === 'salida';
+  const tipoElaborado: 'al_momento' | 'en_lote' = selectedElaborado?.tipoPreparacion ?? 'al_momento';
+
+  const isEfectivelySalida =
+    productType !== 'elaborado'
+      ? direction === 'salida'
+      : tipoElaborado === 'al_momento' || elaboradoDirection === 'salida';
 
   const motivoOptions = useMemo(() => {
+    if (productType === 'elaborado' && tipoElaborado === 'en_lote' && elaboradoDirection === 'entrada') {
+      return []; // ENTRADA en lote no necesita motivo
+    }
     const list =
       productType === 'elaborado' || direction === 'salida'
         ? MOTIVOS_SALIDA[productType]
         : MOTIVOS_ENTRADA;
     return list.map((m) => ({ value: m, label: m }));
-  }, [productType, direction]);
+  }, [productType, direction, tipoElaborado, elaboradoDirection]);
 
   const currentStockLabel =
     productType === 'comprado'
       ? `Stock actual: ${selectedComprado?.stock_actual ?? '—'} ${selectedComprado?.unidad_medida ?? ''}`
       : productType === 'insumo'
-      ? `Stock actual: ${
-          selectedInsumo
-            ? (selectedInsumo.stock_actual * (selectedInsumo.factor_conversion > 0 ? selectedInsumo.factor_conversion : 1)).toFixed(2)
-            : '—'
-        } ${selectedInsumo?.unidad_min_uso ?? ''}`
-      : selectedElaborado?.receta
-      ? `Producible hoy: ${selectedElaborado.receta.cantidadProducible} ${selectedElaborado.unidad_medida ?? 'unidad'}`
+      ? `Stock actual: ${selectedInsumo ? selectedInsumo.stock_actual.toFixed(2) : '—'} ${selectedInsumo?.unidad_min_uso ?? ''}`
+      : selectedElaborado
+      ? tipoElaborado === 'en_lote'
+        ? `Stock actual: ${selectedElaborado.stock_actual ?? 0} ${selectedElaborado.unidad_medida ?? 'unidad'}`
+        : selectedElaborado.receta
+        ? `Producible hoy: ${selectedElaborado.receta.cantidadProducible} ${selectedElaborado.unidad_medida ?? 'unidad'}`
+        : ''
       : '';
 
   // — Validation —
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
     if (!selectedId) errs.product = 'Selecciona un producto';
-    if (!reason) errs.reason = 'Selecciona un motivo';
 
     if (productType === 'elaborado') {
-      const u = parseFloat(quantityStr);
-      if (isNaN(u) || u <= 0) errs.quantity = 'Ingresa una cantidad válida';
-      if (!selectedElaborado?.receta) errs.product = 'Este elaborado no tiene receta registrada';
+      if (tipoElaborado === 'al_momento') {
+        // Salida merma — igual que antes
+        const u = parseFloat(quantityStr);
+        if (isNaN(u) || u <= 0) errs.quantity = 'Ingresa una cantidad válida';
+        if (!selectedElaborado?.receta) errs.product = 'Este elaborado no tiene receta registrada';
+        if (!reason) errs.reason = 'Selecciona un motivo';
+      } else if (elaboradoDirection === 'entrada') {
+        // Producción en lote — no requiere motivo
+        const u = parseFloat(quantityStr);
+        if (isNaN(u) || u <= 0) errs.quantity = 'Ingresa una cantidad válida';
+        if (!selectedElaborado?.receta) errs.product = 'Este elaborado no tiene receta registrada';
+      } else {
+        // Salida merma en lote — valida contra stock_actual
+        const u = parseFloat(quantityStr);
+        if (isNaN(u) || u <= 0) errs.quantity = 'Ingresa una cantidad válida';
+        if (!reason) errs.reason = 'Selecciona un motivo';
+        const stockDisponible = selectedElaborado?.stock_actual ?? 0;
+        if (!isNaN(u) && u > 0 && u > stockDisponible) {
+          errs.quantity = `Stock insuficiente. Solo hay ${stockDisponible} ${selectedElaborado?.unidad_medida ?? 'unidades'} en stock.`;
+        }
+      }
     } else if (direction === 'entrada') {
       const q = parseFloat(quantityStr);
       if (isNaN(q) || q <= 0) errs.quantity = 'Ingresa una cantidad válida';
+      if (!reason) errs.reason = 'Selecciona un motivo';
     } else {
       const f = parseFloat(stockFisicoStr);
       if (isNaN(f) || f < 0) errs.stockFisico = 'Ingresa el stock físico actual (puede ser 0)';
+      if (!reason) errs.reason = 'Selecciona un motivo';
     }
 
     setErrors(errs);
@@ -257,10 +296,13 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
           : productType === 'insumo'
           ? selectedInsumo?.nombre
           : selectedElaborado?.producto.nombre;
-      toast.success(
-        'Ajuste de stock registrado',
-        `${isEfectivelySalida ? 'Salida' : 'Entrada'} aplicada a ${productLabel}.`
-      );
+      const accionLabel =
+        productType === 'elaborado' && tipoElaborado === 'en_lote' && elaboradoDirection === 'entrada'
+          ? 'Producción registrada'
+          : isEfectivelySalida
+          ? 'Salida aplicada'
+          : 'Entrada aplicada';
+      toast.success('Ajuste de stock registrado', `${accionLabel} a ${productLabel}.`);
       onSuccess();
       onClose();
     } catch {
@@ -295,7 +337,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
           </div>
         </div>
 
-        {/* Dirección — oculta para elaborado (siempre salida) */}
+        {/* Dirección — solo para comprado/insumo */}
         {productType !== 'elaborado' && (
           <div className="space-y-1">
             <span className="block text-sm font-medium text-coffee-700">Tipo de ajuste</span>
@@ -328,12 +370,52 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
           </div>
         )}
 
-        {productType === 'elaborado' && (
+        {/* Elaborado al_momento: siempre salida merma */}
+        {productType === 'elaborado' && (!selectedId || tipoElaborado === 'al_momento') && (
           <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
             <AlertTriangle className="h-4 w-4 shrink-0" />
-            Los ajustes de elaborados son siempre{' '}
-            <strong className="ml-1">salida por merma</strong>. El sistema descuenta
-            automáticamente todos los insumos de la receta.
+            {selectedId && tipoElaborado === 'al_momento'
+              ? <>Producto preparado <strong className="mx-1">al momento</strong>. Solo se puede registrar salida por merma — descuenta insumos automáticamente.</>
+              : <>Los ajustes de elaborados dependen del tipo de preparación del producto.</>}
+          </div>
+        )}
+
+        {/* Elaborado en_lote: selector ENTRADA / SALIDA */}
+        {productType === 'elaborado' && selectedId && tipoElaborado === 'en_lote' && (
+          <div className="space-y-1">
+            <span className="block text-sm font-medium text-coffee-700">Tipo de ajuste</span>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => handleElaboradoDirectionChange('entrada')}
+                className={`flex flex-col items-start gap-0.5 px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                  elaboradoDirection === 'entrada'
+                    ? 'border-green-500 bg-green-50 text-green-700'
+                    : 'border-coffee-200 bg-white text-coffee-500 hover:border-coffee-300'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  ENTRADA
+                </span>
+                <span className="text-xs font-normal text-current opacity-75 pl-6">Registro de producción</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleElaboradoDirectionChange('salida')}
+                className={`flex flex-col items-start gap-0.5 px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                  elaboradoDirection === 'salida'
+                    ? 'border-red-500 bg-red-50 text-red-700'
+                    : 'border-coffee-200 bg-white text-coffee-500 hover:border-coffee-300'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <TrendingDown className="h-4 w-4" />
+                  SALIDA
+                </span>
+                <span className="text-xs font-normal text-current opacity-75 pl-6">Merma / pérdida</span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -381,11 +463,14 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
           )}
         </FormField>
 
-        {/* Preview de receta (elaborado seleccionado, aún sin cantidad) */}
-        {productType === 'elaborado' && selectedElaborado && recetaPreview.length > 0 && (
+        {/* Preview de receta (elaborado seleccionado, aún sin cantidad) — no mostrar en en_lote salida */}
+        {productType === 'elaborado' && selectedElaborado && recetaPreview.length > 0 &&
+          !(tipoElaborado === 'en_lote' && elaboradoDirection === 'salida') && (
           <div className="rounded-xl border border-coffee-100 bg-coffee-50 px-4 py-3 space-y-2">
             <p className="text-xs font-semibold text-coffee-600 uppercase tracking-wide">
-              Por cada unidad perdida se descontará:
+              {tipoElaborado === 'en_lote' && elaboradoDirection === 'entrada'
+                ? 'Por cada unidad producida se consumirá:'
+                : 'Por cada unidad perdida se descontará:'}
             </p>
             <div className="flex flex-wrap gap-2">
               {recetaPreview.map((ing) => (
@@ -417,34 +502,23 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
         {/* Inputs de cantidad */}
         {selectedId && (
           <>
-            {/* Entrada (comprado/insumo) o elaborado: cantidad directa */}
-            {(direction === 'entrada' || productType === 'elaborado') && (
-              <FormField
-                label={
-                  productType === 'elaborado'
-                    ? 'Unidades perdidas / dadas de baja'
-                    : 'Cantidad a agregar'
-                }
-                required
-                error={errors.quantity}
-              >
+            {/* Comprado/insumo entrada: cantidad directa */}
+            {productType !== 'elaborado' && direction === 'entrada' && (
+              <FormField label="Cantidad a agregar" required error={errors.quantity}>
                 <Input
                   type="number"
                   min="0.001"
                   step="0.001"
                   value={quantityStr}
-                  onChange={(e) => {
-                    setQuantityStr(e.target.value);
-                    setErrors((p) => ({ ...p, quantity: '' }));
-                  }}
+                  onChange={(e) => { setQuantityStr(e.target.value); setErrors((p) => ({ ...p, quantity: '' })); }}
                   placeholder="0"
                   error={errors.quantity}
                 />
               </FormField>
             )}
 
-            {/* Salida comprado/insumo: conciliación por stock físico */}
-            {direction === 'salida' && productType !== 'elaborado' && (
+            {/* Comprado/insumo salida: conciliación por stock físico */}
+            {productType !== 'elaborado' && direction === 'salida' && (
               <FormField
                 label={`¿Cuánto hay físicamente ahora? (${
                   productType === 'comprado'
@@ -459,16 +533,80 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                   min="0"
                   step="0.001"
                   value={stockFisicoStr}
-                  onChange={(e) => {
-                    setStockFisicoStr(e.target.value);
-                    setErrors((p) => ({ ...p, stockFisico: '' }));
-                  }}
+                  onChange={(e) => { setStockFisicoStr(e.target.value); setErrors((p) => ({ ...p, stockFisico: '' })); }}
                   placeholder="0"
                   error={errors.stockFisico}
                 />
-                <p className="text-xs text-coffee-500 mt-1">
-                  El sistema calcula la diferencia automáticamente.
-                </p>
+                <p className="text-xs text-coffee-500 mt-1">El sistema calcula la diferencia automáticamente.</p>
+              </FormField>
+            )}
+
+            {/* Elaborado al_momento: siempre cantidad de merma */}
+            {productType === 'elaborado' && tipoElaborado === 'al_momento' && (
+              <FormField label="Unidades perdidas / dadas de baja" required error={errors.quantity}>
+                <Input
+                  type="number"
+                  min="0.001"
+                  step="0.001"
+                  value={quantityStr}
+                  onChange={(e) => { setQuantityStr(e.target.value); setErrors((p) => ({ ...p, quantity: '' })); }}
+                  placeholder="0"
+                  error={errors.quantity}
+                />
+              </FormField>
+            )}
+
+            {/* Elaborado en_lote ENTRADA: cantidad producida + fecha */}
+            {productType === 'elaborado' && tipoElaborado === 'en_lote' && elaboradoDirection === 'entrada' && (
+              <>
+                <FormField label={`Cantidad producida (${selectedElaborado?.unidad_medida ?? 'unidades'})`} required error={errors.quantity}>
+                  <Input
+                    type="number"
+                    min="0.001"
+                    step="0.001"
+                    value={quantityStr}
+                    onChange={(e) => { setQuantityStr(e.target.value); setErrors((p) => ({ ...p, quantity: '' })); }}
+                    placeholder="0"
+                    error={errors.quantity}
+                  />
+                </FormField>
+                <FormField label="Fecha de producción">
+                  <Input
+                    type="date"
+                    value={fechaProduccion}
+                    onChange={(e) => setFechaProduccion(e.target.value)}
+                  />
+                </FormField>
+              </>
+            )}
+
+            {/* Elaborado en_lote SALIDA: cantidad a dar de baja */}
+            {productType === 'elaborado' && tipoElaborado === 'en_lote' && elaboradoDirection === 'salida' && (
+              <FormField label={`Cantidad a dar de baja (${selectedElaborado?.unidad_medida ?? 'unidades'})`} required error={errors.quantity}>
+                <Input
+                  type="number"
+                  min="0.001"
+                  step="0.001"
+                  value={quantityStr}
+                  onChange={(e) => { setQuantityStr(e.target.value); setErrors((p) => ({ ...p, quantity: '' })); }}
+                  placeholder="0"
+                  error={errors.quantity}
+                />
+                {/* Preview de stock en lote salida */}
+                {(() => {
+                  const q = parseFloat(quantityStr);
+                  const stock = selectedElaborado?.stock_actual ?? 0;
+                  if (isNaN(q) || q <= 0) return null;
+                  const nuevoStock = stock - q;
+                  return (
+                    <div className={`mt-2 rounded-lg px-3 py-2 text-xs flex items-center gap-2 ${nuevoStock < 0 ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-coffee-50 border border-coffee-200 text-coffee-700'}`}>
+                      {nuevoStock < 0
+                        ? <><AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Stock insuficiente: solo hay <strong className="mx-1">{stock}</strong> {selectedElaborado?.unidad_medida ?? 'unidades'} disponibles.</>
+                        : <>Stock actual <strong className="mx-1">{stock}</strong> → Stock nuevo <strong className="mx-1">{nuevoStock}</strong> {selectedElaborado?.unidad_medida ?? 'unidades'}</>
+                      }
+                    </div>
+                  );
+                })()}
               </FormField>
             )}
           </>
@@ -520,12 +658,15 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
           </div>
         )}
 
-        {/* Explosión de receta — elaborado */}
-        {productType === 'elaborado' && elaboradoExplosion.length > 0 && (
+        {/* Explosión de receta — elaborado (no para en_lote salida) */}
+        {productType === 'elaborado' && elaboradoExplosion.length > 0 &&
+          !(tipoElaborado === 'en_lote' && elaboradoDirection === 'salida') && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-semibold text-coffee-800">
-                Insumos que se descontarán
+                {tipoElaborado === 'en_lote' && elaboradoDirection === 'entrada'
+                  ? 'Insumos que se consumirán'
+                  : 'Insumos que se descontarán'}
               </h4>
               <span className="text-xs text-coffee-500">
                 {elaboradoExplosion.length} ingrediente(s)
@@ -584,25 +725,33 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
               </table>
             </div>
             <div className="flex items-center justify-between px-1 text-sm">
-              <span className="text-coffee-600">Pérdida total estimada:</span>
-              <span className="font-semibold text-red-600">{formatCurrency(totalPerdida)}</span>
+              <span className="text-coffee-600">
+                {tipoElaborado === 'en_lote' && elaboradoDirection === 'entrada'
+                  ? 'Costo total de producción:'
+                  : 'Pérdida total estimada:'}
+              </span>
+              <span className={`font-semibold ${tipoElaborado === 'en_lote' && elaboradoDirection === 'entrada' ? 'text-coffee-800' : 'text-red-600'}`}>
+                {formatCurrency(totalPerdida)}
+              </span>
             </div>
           </div>
         )}
 
-        {/* Motivo — Select con opciones según tipo y dirección */}
-        <FormField label="Motivo" required error={errors.reason}>
-          <Select
-            value={reason}
-            onChange={(v) => {
-              setReason(v);
-              setErrors((p) => ({ ...p, reason: '' }));
-            }}
-            options={motivoOptions}
-            placeholder="Seleccionar motivo..."
-            error={errors.reason}
-          />
-        </FormField>
+        {/* Motivo — oculto para en_lote ENTRADA */}
+        {!(productType === 'elaborado' && tipoElaborado === 'en_lote' && elaboradoDirection === 'entrada') && (
+          <FormField label="Motivo" required error={errors.reason}>
+            <Select
+              value={reason}
+              onChange={(v) => {
+                setReason(v);
+                setErrors((p) => ({ ...p, reason: '' }));
+              }}
+              options={motivoOptions}
+              placeholder="Seleccionar motivo..."
+              error={errors.reason}
+            />
+          </FormField>
+        )}
 
         <FormField label="Notas adicionales">
           <Textarea
@@ -622,12 +771,18 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
             variant="primary"
             isLoading={isLoading}
             className={
-              isEfectivelySalida
+              productType === 'elaborado' && tipoElaborado === 'en_lote' && elaboradoDirection === 'entrada'
+                ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
+                : isEfectivelySalida
                 ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
                 : 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
             }
           >
-            {isEfectivelySalida ? 'Registrar Salida / Merma' : 'Aplicar Entrada'}
+            {productType === 'elaborado' && tipoElaborado === 'en_lote' && elaboradoDirection === 'entrada'
+              ? 'Registrar Producción'
+              : isEfectivelySalida
+              ? 'Registrar Salida / Merma'
+              : 'Aplicar Entrada'}
           </Button>
         </FormActions>
       </Form>

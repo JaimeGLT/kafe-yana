@@ -65,7 +65,8 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onSucces
         unidadCompra: insumo.unidadCompra,
         factorConversion: insumo.factorConversion,
         costoCompra: Number(insumo.costoCompra.toFixed(2)),
-        stock: insumo.stock,
+        // El backend guarda stock en unidad mínima → convertir a unidad de compra para mostrar
+        stock: insumo.factorConversion > 0 ? insumo.stock / insumo.factorConversion : insumo.stock,
         stockMinimo: insumo.stockMinimo,
         proveedorId: insumo.proveedorId,
         isActive: insumo.isActive,
@@ -111,7 +112,7 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onSucces
           unidad_compra: form.unidadCompra,
           factor_conversion: form.factorConversion,
           costo: Number(form.costoCompra).toFixed(2),
-          stock_actual: form.stock,
+          stock_actual: form.stock * form.factorConversion,
           stock_min: form.stockMinimo,
         });
         toast.success(
@@ -126,7 +127,7 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onSucces
           unidad_compra: form.unidadCompra,
           factor_conversion: form.factorConversion,
           costo: Number(form.costoCompra).toFixed(2),
-          stock_actual: form.stock,
+          stock_actual: form.stock * form.factorConversion,
           stock_min: form.stockMinimo,
         });
         toast.success(
@@ -261,6 +262,11 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onSucces
               onChange={(e) => set('stock', parseFloat(e.target.value) || 0)}
               placeholder="0"
             />
+            {form.stock > 0 && form.factorConversion > 0 && (
+              <p className="text-xs text-coffee-400 mt-1">
+                = {form.stock * form.factorConversion} {form.unidadMinima} en total
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-coffee-700 mb-1">
