@@ -102,6 +102,7 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
         await onAddReceta(
           {
             productId,
+            nombre: recetaBase.nombre ?? recetaBase.productName,
             porcionesBase: recetaBase.porcionesBase,
             ingredientes: recetaBase.ingredientes.map((i) => ({
               insumoId: i.insumoId,
