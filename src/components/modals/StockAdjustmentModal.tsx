@@ -8,6 +8,7 @@ import { FormField, Form, FormActions } from '../forms/FormField';
 import { toast } from '../ui/Toast';
 import type { CompradoNode, InsumoNode, ElaboradoAjusteNode } from '../../types/graphql';
 import { formatCurrency } from '../../utils';
+import { api } from '../../lib/api';
 
 type ProductType = 'comprado' | 'insumo' | 'elaborado';
 type Direction = 'entrada' | 'salida';
@@ -288,8 +289,42 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
     if (!validate()) return;
     setIsLoading(true);
     try {
-      // TODO: llamar mutación GraphQL o endpoint REST cuando esté disponible
-      await new Promise((r) => setTimeout(r, 400));
+      const id = parseInt(selectedId);
+
+      if (productType === 'comprado') {
+        const isEntrada = direction === 'entrada';
+        const cantidad = isEntrada ? parseFloat(quantityStr) : (compradoAjuste?.diff ?? 0);
+        await api.post('/AjusteStock/Comprado', {
+          id,
+          cantidad,
+          motivo: reason,
+          nota: notes,
+          ...(!isEntrada && { entrada: false }),
+        });
+      } else if (productType === 'insumo') {
+        const isEntrada = direction === 'entrada';
+        const cantidad = isEntrada ? parseFloat(quantityStr) : (insumoAjuste?.diff ?? 0);
+        await api.post('/AjusteStock/Insumo', {
+          id,
+          cantidad,
+          motivo: reason,
+          nota: notes,
+          ...(!isEntrada && { entrada: false }),
+        });
+      } else {
+        // elaborado
+        const isEntrada = tipoElaborado === 'en_lote' && elaboradoDirection === 'entrada';
+        const fecha = fechaProduccion || new Date().toISOString().split('T')[0];
+        await api.post('/AjusteStock/Elaborado', {
+          id_elaborado: id,
+          cantidad: parseFloat(quantityStr),
+          fecha,
+          motivo: isEntrada ? '' : reason,
+          nota: notes,
+          ...(!isEntrada && { entrada: false }),
+        });
+      }
+
       const productLabel =
         productType === 'comprado'
           ? selectedComprado?.producto.nombre
@@ -305,8 +340,9 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
       toast.success('Ajuste de stock registrado', `${accionLabel} a ${productLabel}.`);
       onSuccess();
       onClose();
-    } catch {
-      toast.error('Error', 'No se pudo registrar el ajuste. Intente nuevamente.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'No se pudo registrar el ajuste.';
+      toast.error('Error', msg);
     } finally {
       setIsLoading(false);
     }

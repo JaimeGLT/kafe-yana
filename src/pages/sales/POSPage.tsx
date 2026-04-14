@@ -22,6 +22,9 @@ import type { BillingData } from '../../components/modals/BillingModal';
 import type { LoyaltyProfile, PointsCalculation, MilestoneReward, Reward } from '../../types/loyalty';
 import { VariacionPickerModal } from '../../components/modals/VariacionPickerModal';
 import { BillingModal } from '../../components/modals/BillingModal';
+import { Modal } from '../../components/ui/Modal';
+import { Button } from '../../components/ui/Button';
+import { Tooltip } from '../../components/ui/Tooltip';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TYPES
@@ -45,6 +48,7 @@ interface Mesa {
   openedAt?: number;      // timestamp ms
   order: CartItem[];
   customerId?: string;
+  tipo?: 'mesa' | 'para_llevar';
 }
 
 type ModalView =
@@ -56,13 +60,14 @@ type ModalView =
   | 'pago'          // payment
   | 'billing'       // billing data after payment
   | 'success'       // done
-  | 'canje_rapido'; // standalone reward redemption
+  | 'para_llevar';  // takeaway / counter sale
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CONSTANTS
 ═══════════════════════════════════════════════════════════════════════════*/
 const TAX_RATE = 0.18;
 const TOTAL_MESAS_INIT = 12;
+const PARA_LLEVAR_ID = 'para-llevar';
 
 const PAYMENT_METHODS: { type: PaymentMethodType; label: string; icon: React.ReactNode }[] = [
   { type: 'cash',     label: 'Efectivo',  icon: <Banknote   className="h-5 w-5" /> },
@@ -100,14 +105,24 @@ const getProductEmoji = (product: Product): string => {
   return '☕';
 };
 
-const initMesas = (): Mesa[] =>
-  Array.from({ length: TOTAL_MESAS_INIT }, (_, i) => ({
+const initMesas = (): Mesa[] => [
+  ...Array.from({ length: TOTAL_MESAS_INIT }, (_, i) => ({
     id: `mesa-${i + 1}`,
     number: i + 1,
     name: `Mesa ${i + 1}`,
-    status: 'libre',
+    status: 'libre' as MesaStatus,
     order: [],
-  }));
+    tipo: 'mesa' as const,
+  })),
+  {
+    id: PARA_LLEVAR_ID,
+    number: 0,
+    name: 'Para llevar',
+    status: 'libre' as MesaStatus,
+    order: [],
+    tipo: 'para_llevar' as const,
+  },
+];
 
 const mesaOrderTotal = (order: CartItem[]) =>
   order.reduce((s, i) => s + i.precioFinal * i.quantity, 0);
@@ -179,9 +194,9 @@ interface ProdCardProps {
   onInfo?: () => void;
   rewardInfo?: { icon: string; pointsCost: number } | null;
   onRedeem?: () => void;
-  alreadyRedeemed?: boolean;
+  pointsShortfall?: number | null;
 }
-const ProdCard: React.FC<ProdCardProps> = ({ product, qty, unavailable, onAdd, onInc, onDec, onInfo, rewardInfo, onRedeem, alreadyRedeemed }) => (
+const ProdCard: React.FC<ProdCardProps> = ({ product, qty, unavailable, onAdd, onInc, onDec, onInfo, rewardInfo, onRedeem, pointsShortfall }) => (
   <div className={clsx(
     'flex-shrink-0 w-36 sm:w-40 bg-white rounded-2xl overflow-hidden shadow-sm flex flex-col select-none',
     unavailable && 'opacity-50',
@@ -259,19 +274,19 @@ const ProdCard: React.FC<ProdCardProps> = ({ product, qty, unavailable, onAdd, o
           </button>
         </div>
       )}
-      {rewardInfo && onRedeem && (
+      {rewardInfo && (
         <button
-          disabled={alreadyRedeemed}
-          onClick={e => { e.stopPropagation(); onRedeem(); }}
+          disabled={pointsShortfall != null}
+          onClick={e => { if (pointsShortfall == null) { e.stopPropagation(); onRedeem?.(); } }}
           className={clsx(
             'mt-1.5 w-full flex items-center justify-center gap-1 py-1.5 rounded-xl text-[11px] font-bold transition-all border',
-            alreadyRedeemed
+            pointsShortfall != null
               ? 'bg-amber-50 border-amber-200 text-amber-300 cursor-not-allowed'
               : 'bg-amber-400 border-amber-400 text-white hover:bg-amber-300 active:scale-95',
           )}
         >
           <Gift className="h-3 w-3" />
-          {alreadyRedeemed ? 'Canjeado' : `Canjear · ${rewardInfo.pointsCost} pts`}
+          {pointsShortfall != null ? `Te faltan ${pointsShortfall} pts` : `Canjear · ${rewardInfo.pointsCost} pts`}
         </button>
       )}
     </div>
@@ -280,6 +295,89 @@ const ProdCard: React.FC<ProdCardProps> = ({ product, qty, unavailable, onAdd, o
 
 // tiny helper used inside ProdCard — will be set in parent
 let getAttrCount = (_p: Product) => 0;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   REDEEM QTY MODAL — cantidad de canjes para productos sin variaciones
+═══════════════════════════════════════════════════════════════════════════*/
+interface RedeemQtyModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  product: Product;
+  reward: Reward;
+  availablePoints: number;
+  onConfirm: (qty: number) => void;
+}
+const RedeemQtyModal: React.FC<RedeemQtyModalProps> = ({ isOpen, onClose, product, reward, availablePoints, onConfirm }) => {
+  const [qty, setQty] = React.useState(1);
+  const maxQty = Math.max(1, Math.floor(availablePoints / reward.pointsCost));
+
+  React.useEffect(() => { if (isOpen) setQty(1); }, [isOpen]);
+
+  const totalPts  = qty * reward.pointsCost;
+  const remaining = availablePoints - totalPts;
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Canjear recompensa" size="sm">
+      <div className="space-y-4">
+        {/* Product info */}
+        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <span className="text-2xl">{getProductEmoji(product)}</span>
+          <div>
+            <p className="font-semibold text-coffee-900">{product.name}</p>
+            <p className="text-xs text-amber-700">{reward.pointsCost} pts por unidad · gratis</p>
+          </div>
+        </div>
+
+        {/* Qty selector */}
+        <div className="flex items-center justify-between bg-coffee-50 rounded-xl px-4 py-3">
+          <span className="text-sm font-medium text-coffee-700">Cantidad</span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setQty(q => Math.max(1, q - 1))}
+              disabled={qty <= 1}
+              className="w-8 h-8 rounded-full bg-white border border-coffee-200 flex items-center justify-center disabled:opacity-40 hover:bg-coffee-50 transition-colors"
+            >
+              <Minus className="h-3 w-3" />
+            </button>
+            <span className="text-lg font-bold text-coffee-900 w-6 text-center">{qty}</span>
+            <button
+              onClick={() => setQty(q => Math.min(maxQty, q + 1))}
+              disabled={qty >= maxQty}
+              className="w-8 h-8 rounded-full bg-white border border-coffee-200 flex items-center justify-center disabled:opacity-40 hover:bg-coffee-50 transition-colors"
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+
+        {/* Points summary */}
+        <div className="space-y-1.5 border-t border-coffee-100 pt-3">
+          <div className="flex justify-between text-sm">
+            <span className="text-coffee-600">Puntos a usar</span>
+            <span className="font-semibold text-amber-700">−{totalPts} pts</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-coffee-600">Saldo restante</span>
+            <span className="font-semibold text-coffee-900">{remaining} pts</span>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          <Button variant="ghost" size="sm" className="flex-1" onClick={onClose}>Cancelar</Button>
+          <Button
+            size="sm"
+            className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
+            leftIcon={<Gift className="h-3.5 w-3.5" />}
+            onClick={() => { onConfirm(qty); onClose(); }}
+          >
+            Canjear{qty > 1 ? ` ${qty}×` : ''} · Gratis
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
 
 /* ═══════════════════════════════════════════════════════════════════════════
    MAIN PAGE
@@ -391,6 +489,10 @@ export const POSPage: React.FC = () => {
   const [nuevaMesaName, setNuevaMesaName] = useState('');
   const [editMesaId,    setEditMesaId]    = useState<string | null>(null);
   const [iniciarClienteId, setIniciarClienteId] = useState('');
+  const [showNewCustomerForm,       setShowNewCustomerForm]       = useState(false);
+  const [showDetalleNewCustomerForm, setShowDetalleNewCustomerForm] = useState(false);
+  const [newCustomerName,  setNewCustomerName]  = useState('');
+  const [newCustomerPhone, setNewCustomerPhone] = useState('');
 
   /* ── Detalle view ── */
   const [detalleView, setDetalleView] = useState<'none' | 'pedido' | 'historial'>('none');
@@ -400,6 +502,8 @@ export const POSPage: React.FC = () => {
   const [tempCart,      setTempCart]      = useState<CartItem[]>([]);
   const [varPickerProduct, setVarPickerProduct] = useState<Product | null>(null);
   const [varPickerDirect, setVarPickerDirect] = useState(false);
+  const [varPickerRewardId, setVarPickerRewardId] = useState<string | null>(null);
+  const [redeemQtyState, setRedeemQtyState] = useState<{ product: Product; reward: Reward } | null>(null);
   const [comboDetailProduct, setComboDetailProduct] = useState<Product | null>(null);
   const [productSearch, setProductSearch] = useState('');
 
@@ -407,7 +511,6 @@ export const POSPage: React.FC = () => {
   const [paymentMethod,    setPaymentMethod]    = useState<PaymentMethodType>('cash');
   const [cashReceived,     setCashReceived]     = useState('');
   const [isProcessing,     setIsProcessing]     = useState(false);
-  const [canjeClienteId,   setCanjeClienteId]   = useState('');
   const [lastSaleResult,   setLastSaleResult]   = useState<{ code: string; points: PointsCalculation | null; newBalance: number } | null>(null);
   const [pendingBillingSaleId, setPendingBillingSaleId] = useState<string | null>(null);
 
@@ -443,6 +546,17 @@ export const POSPage: React.FC = () => {
   /* ── Mesa order totals ── */
   const mesaSubtotal   = activeMesa ? mesaOrderTotal(activeMesa.order) : 0;
   const loyaltyProfile = activeMesa?.customerId ? getOrCreateProfile(activeMesa.customerId) : null;
+
+  const pointsSpentInOrder = useMemo(() => {
+    if (!activeMesa) return 0;
+    const countItems = (items: CartItem[]) =>
+      items.filter(i => i.redeemRewardId).reduce((sum, i) => {
+        const r = rewards.find(r => r.id === i.redeemRewardId);
+        return sum + (r?.pointsCost ?? 0);
+      }, 0);
+    return countItems(activeMesa.order) + countItems(tempCart);
+  }, [activeMesa, rewards, tempCart]);
+  const availablePoints = loyaltyProfile ? loyaltyProfile.points - pointsSpentInOrder : 0;
   const mesaTax        = mesaSubtotal * TAX_RATE;
   const mesaTotal      = mesaSubtotal + mesaTax;
   const cashNum        = parseFloat(cashReceived) || 0;
@@ -465,6 +579,37 @@ export const POSPage: React.FC = () => {
     setCashReceived('');
     setDetalleView('none');
     setIniciarClienteId('');
+    setShowNewCustomerForm(false);
+    setShowDetalleNewCustomerForm(false);
+    setNewCustomerName('');
+    setNewCustomerPhone('');
+  };
+
+  const handleCreateCustomer = (onCreated: (id: string) => void) => {
+    const name  = newCustomerName.trim();
+    const phone = newCustomerPhone.trim();
+    if (!name || !phone) return;
+    const id  = `cust_${Date.now()}`;
+    const now = new Date();
+    const newCustomer: Customer = {
+      id, code: `CLI-${Date.now()}`, name, phone,
+      totalPurchases: 0, isActive: true,
+      createdAt: now, updatedAt: now,
+    };
+    const newProfile: LoyaltyProfile = {
+      id: `prof_${Date.now()}`, customerId: id,
+      points: 0, lifetimePoints: 0, purchaseCount: 0,
+      level: 'bronce', referralCode: id.slice(-6).toUpperCase(),
+      referralCount: 0, consecutiveDays: 0,
+      uniqueProductsBought: [], completedMissions: [],
+      createdAt: now, updatedAt: now,
+    };
+    setCustomers(prev => [...prev, newCustomer]);
+    setLoyaltyProfiles(prev => [...prev, newProfile]);
+    onCreated(id);
+    setNewCustomerName('');
+    setNewCustomerPhone('');
+    toast.success('Cliente registrado', `${name} añadido correctamente.`);
   };
 
   /* ── Mesa operations ── */
@@ -479,6 +624,14 @@ export const POSPage: React.FC = () => {
   const handleCerrarMesa = (mesaId: string) => {
     updateMesa(mesaId, { status: 'libre', openedAt: undefined, order: [], customerId: undefined });
     closeAll();
+  };
+
+  const openParaLlevar = () => {
+    const pl = mesas.find(m => m.id === PARA_LLEVAR_ID)!;
+    if (pl.status === 'libre') {
+      updateMesa(PARA_LLEVAR_ID, { status: 'ocupada', openedAt: Date.now(), order: [], customerId: undefined });
+    }
+    openModal(PARA_LLEVAR_ID, 'detalle');
   };
 
   const openNuevaMesa = () => {
@@ -569,15 +722,18 @@ export const POSPage: React.FC = () => {
     toast.success('Productos agregados', `${tempCart.reduce((s, i) => s + i.quantity, 0)} item(s) añadidos a la mesa`);
   };
 
-  /* ── Canjear recompensa directo al order de la mesa ── */
-  const addRedeemToMesa = (product: Product, rewardId: string) => {
-    if (!activeMesaId) return;
-    const canjeKey = `${product.id}__canje`;
-    setMesas(prev => prev.map(m => {
-      if (m.id !== activeMesaId) return m;
-      if (m.order.some(i => i.redeemRewardId === rewardId)) return m; // ya canjeado
-      return { ...m, order: [...m.order, { product, quantity: 1, precioFinal: 0, cartKey: canjeKey, redeemRewardId: rewardId }] };
+  /* ── Canjear recompensa → va al tempCart (igual que productos normales) ── */
+  const addRedeemToTempCart = (product: Product, rewardId: string, opciones?: OpcionSeleccionada[], qty = 1) => {
+    const newItems = Array.from({ length: qty }, (_, i) => ({
+      product,
+      quantity: 1,
+      precioFinal: 0,
+      cartKey: `${product.id}__canje__${Date.now()}_${i}`,
+      redeemRewardId: rewardId,
+      ...(opciones ? { opciones } : {}),
     }));
+    setTempCart(prev => [...prev, ...newItems]);
+    setDetalleView('pedido');
   };
 
   /* ── Add directly to mesa order (inline product browser) ── */
@@ -709,24 +865,24 @@ export const POSPage: React.FC = () => {
             <h1 className="font-display font-bold text-white text-xl sm:text-2xl leading-tight">Punto de Venta</h1>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
               <span className="text-xs sm:text-sm text-coffee-300">
-                <span className="text-red-400 font-semibold">{mesas.filter(m => m.status === 'ocupada').length}</span>
+                <span className="text-red-400 font-semibold">{mesas.filter(m => m.tipo !== 'para_llevar' && m.status === 'ocupada').length}</span>
                 <span className="hidden sm:inline"> ocupadas</span>
                 <span className="sm:hidden"> ocup.</span>
               </span>
               <span className="text-coffee-500 text-xs">·</span>
               <span className="text-xs sm:text-sm text-coffee-300">
-                <span className="text-amber-400 font-semibold">{mesas.filter(m => m.status === 'esperando_pago').length}</span>
+                <span className="text-amber-400 font-semibold">{mesas.filter(m => m.tipo !== 'para_llevar' && m.status === 'esperando_pago').length}</span>
                 <span className="hidden sm:inline"> esperando</span>
                 <span className="sm:hidden"> esp.</span>
               </span>
               <span className="text-coffee-500 text-xs">·</span>
               <span className="text-xs sm:text-sm text-coffee-300">
-                <span className="text-emerald-400 font-semibold">{mesas.filter(m => m.status === 'libre').length}</span>
+                <span className="text-emerald-400 font-semibold">{mesas.filter(m => m.tipo !== 'para_llevar' && m.status === 'libre').length}</span>
                 <span className="hidden sm:inline"> libres</span>
                 <span className="sm:hidden"> lib.</span>
               </span>
               <span className="text-coffee-500 text-xs">·</span>
-              <span className="text-xs sm:text-sm text-coffee-400">{mesas.length} total</span>
+              <span className="text-xs sm:text-sm text-coffee-400">{mesas.filter(m => m.tipo !== 'para_llevar').length} total</span>
             </div>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
@@ -740,11 +896,19 @@ export const POSPage: React.FC = () => {
               ))}
             </div>
             <button
-              onClick={() => { setCanjeClienteId(''); setModalView('canje_rapido'); }}
-              className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-sm px-3 sm:px-4 py-2.5 rounded-xl transition-colors shadow-sm"
+              onClick={openParaLlevar}
+              className={clsx(
+                'flex items-center gap-2 text-white font-semibold text-sm px-3 sm:px-4 py-2.5 rounded-xl transition-colors shadow-sm',
+                mesas.find(m => m.id === PARA_LLEVAR_ID)?.status !== 'libre'
+                  ? 'bg-amber-600 hover:bg-amber-500 ring-2 ring-amber-400/50'
+                  : 'bg-coffee-600 hover:bg-coffee-500',
+              )}
             >
-              <Gift className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Canjear</span>
+              <ShoppingBag className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Para llevar</span>
+              {mesas.find(m => m.id === PARA_LLEVAR_ID)?.status !== 'libre' && (
+                <span className="h-2 w-2 rounded-full bg-amber-300 animate-pulse flex-shrink-0" />
+              )}
             </button>
             <button
               onClick={openNuevaMesa}
@@ -758,7 +922,7 @@ export const POSPage: React.FC = () => {
 
         {/* ── Mesa grid ──────────────────────────────────────────────── */}
         <div className="px-6 pb-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-          {mesas.map(mesa => {
+          {mesas.filter(m => m.tipo !== 'para_llevar').map(mesa => {
             const cfg = STATUS_CFG[mesa.status];
             const total = mesaOrderTotal(mesa.order);
             const itemCount = mesa.order.reduce((s, i) => s + i.quantity, 0);
@@ -907,24 +1071,62 @@ export const POSPage: React.FC = () => {
 
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="text-xs font-bold text-coffee-400 uppercase tracking-wider">
-                    Cliente <span className="font-normal text-coffee-300">(opcional)</span>
-                  </label>
-                  <select
-                    value={iniciarClienteId}
-                    onChange={e => setIniciarClienteId(e.target.value)}
-                    className="mt-1.5 w-full px-3.5 py-3 rounded-xl border-2 border-coffee-200 focus:border-coffee-500 focus:outline-none text-coffee-900 text-sm font-medium bg-white"
-                  >
-                    <option value="">— Sin cliente —</option>
-                    {_customers.map(c => {
-                      const prof = getOrCreateProfile(c.id);
-                      return (
-                        <option key={c.id} value={c.id}>
-                          {c.name}{prof ? ` · ${prof.points} pts` : ''}
-                        </option>
-                      );
-                    })}
-                  </select>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-coffee-400 uppercase tracking-wider">
+                      Cliente <span className="font-normal text-coffee-300">(opcional)</span>
+                    </label>
+                    <button
+                      onClick={() => { setShowNewCustomerForm(v => !v); setNewCustomerName(''); setNewCustomerPhone(''); }}
+                      className="text-xs font-semibold text-amber-600 hover:text-amber-500 transition-colors"
+                    >
+                      {showNewCustomerForm ? 'Cancelar' : '+ Registrar nuevo'}
+                    </button>
+                  </div>
+
+                  {showNewCustomerForm ? (
+                    <div className="space-y-2.5 bg-amber-50 border border-amber-200 rounded-xl p-3.5">
+                      <p className="text-xs font-semibold text-amber-800">Nuevo cliente</p>
+                      <input
+                        autoFocus
+                        type="text"
+                        placeholder="Nombre completo"
+                        value={newCustomerName}
+                        onChange={e => setNewCustomerName(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-lg border border-amber-200 focus:border-amber-400 focus:outline-none text-sm text-coffee-900 bg-white placeholder:text-coffee-300"
+                      />
+                      <input
+                        type="tel"
+                        placeholder="Número de teléfono"
+                        value={newCustomerPhone}
+                        onChange={e => setNewCustomerPhone(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleCreateCustomer()}
+                        className="w-full px-3 py-2.5 rounded-lg border border-amber-200 focus:border-amber-400 focus:outline-none text-sm text-coffee-900 bg-white placeholder:text-coffee-300"
+                      />
+                      <button
+                        onClick={() => handleCreateCustomer(id => { setIniciarClienteId(id); setShowNewCustomerForm(false); })}
+                        disabled={!newCustomerName.trim() || !newCustomerPhone.trim()}
+                        className="w-full py-2.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white text-sm font-bold transition-colors"
+                      >
+                        Guardar cliente
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      value={iniciarClienteId}
+                      onChange={e => setIniciarClienteId(e.target.value)}
+                      className="w-full px-3.5 py-3 rounded-xl border-2 border-coffee-200 focus:border-coffee-500 focus:outline-none text-coffee-900 text-sm font-medium bg-white"
+                    >
+                      <option value="">— Sin cliente —</option>
+                      {_customers.map(c => {
+                        const prof = getOrCreateProfile(c.id);
+                        return (
+                          <option key={c.id} value={c.id}>
+                            {c.name}{prof ? ` · ${prof.points} pts` : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  )}
                 </div>
                 <button
                   onClick={() => { handleIniciarMesa(activeMesa, iniciarClienteId || undefined); setIniciarClienteId(''); }}
@@ -961,11 +1163,14 @@ export const POSPage: React.FC = () => {
                   /* Vista normal: icon + mesa */
                   <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-xl bg-white/10 flex items-center justify-center">
-                      <UtensilsCrossed className="h-5 w-5 text-cream" />
+                      {activeMesa.tipo === 'para_llevar'
+                        ? <ShoppingBag className="h-5 w-5 text-cream" />
+                        : <UtensilsCrossed className="h-5 w-5 text-cream" />
+                      }
                     </div>
                     <div>
                       <p className="text-[10px] text-coffee-400 uppercase tracking-widest">
-                        {STATUS_CFG[activeMesa.status].label}
+                        {activeMesa.tipo === 'para_llevar' ? 'Mostrador' : STATUS_CFG[activeMesa.status].label}
                       </p>
                       <h3 className="font-display font-bold text-cream text-lg">{activeMesa.name}</h3>
                       {(() => {
@@ -1042,9 +1247,10 @@ export const POSPage: React.FC = () => {
                       const stock = getEffectiveStock(product);
                       const qty   = getTempQty(product.id);
                       const reward = loyaltyProfile
-                        ? rewards.find(r => r.isActive && r.productId === product.id && loyaltyProfile.points >= r.pointsCost) ?? null
+                        ? rewards.find(r => r.isActive && r.productId === product.id) ?? null
                         : null;
-                      const alreadyRedeemed = !!activeMesa.order.find(i => i.redeemRewardId && rewards.find(r => r.id === i.redeemRewardId)?.productId === product.id);
+                      const canAfford = reward != null && availablePoints >= reward.pointsCost;
+                      const pointsShortfall = reward != null && !canAfford ? reward.pointsCost - availablePoints : null;
                       return (
                         <ProdCard
                           key={product.id}
@@ -1056,11 +1262,16 @@ export const POSPage: React.FC = () => {
                           onDec={() => decTempQty(buildCartKey(product.id))}
                           onInfo={product.tipo === 'combo' ? () => setComboDetailProduct(product) : undefined}
                           rewardInfo={reward ? { icon: reward.icon, pointsCost: reward.pointsCost } : null}
-                          onRedeem={reward ? () => {
-                            addRedeemToMesa(product, reward.id);
-                            toast.success('¡Canje agregado!', `${reward.name} añadido al pedido.`);
+                          onRedeem={canAfford ? () => {
+                            const attrs = getAtributosByProductId(product.id);
+                            if (attrs.length > 0) {
+                              setVarPickerProduct(product);
+                              setVarPickerRewardId(reward!.id);
+                            } else {
+                              setRedeemQtyState({ product, reward: reward! });
+                            }
                           } : undefined}
-                          alreadyRedeemed={alreadyRedeemed}
+                          pointsShortfall={pointsShortfall}
                         />
                       );
                     })}
@@ -1083,27 +1294,41 @@ export const POSPage: React.FC = () => {
                           <div key={item.cartKey} className="flex items-center gap-3 px-5 py-3">
                             <span className="text-xs font-bold text-coffee-300 w-4 flex-shrink-0">{idx + 1}</span>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-coffee-900 line-clamp-2 leading-snug">{item.product.name}</p>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-sm font-semibold text-coffee-900 line-clamp-2 leading-snug">{item.product.name}</p>
+                                {item.redeemRewardId && (
+                                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 flex-shrink-0">
+                                    <Gift className="h-2.5 w-2.5" />Canje
+                                  </span>
+                                )}
+                              </div>
                               {item.opciones?.length ? (
                                 <p className="text-xs text-coffee-400 line-clamp-1 mt-0.5">{item.opciones.map(o => o.opcionNombre).join(' · ')}</p>
                               ) : null}
                             </div>
                             <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                               <div className="flex items-center gap-1.5">
-                                <p className="text-sm font-bold text-coffee-900">{formatCurrency(item.precioFinal * item.quantity)}</p>
+                                {item.redeemRewardId
+                                  ? <p className="text-sm font-bold text-amber-500">Gratis</p>
+                                  : <p className="text-sm font-bold text-coffee-900">{formatCurrency(item.precioFinal * item.quantity)}</p>
+                                }
                                 <button onClick={() => removeTempItem(item.cartKey)} className="text-coffee-200 hover:text-red-400 transition-colors">
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
                               </div>
-                              <div className="flex items-center gap-1">
-                                <button onClick={() => decTempQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-100 hover:bg-coffee-200 flex items-center justify-center text-coffee-600">
-                                  <Minus className="h-3 w-3" />
-                                </button>
-                                <span className="w-5 text-center text-sm font-bold text-coffee-900">{item.quantity}</span>
-                                <button onClick={() => incTempQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-800 hover:bg-coffee-700 flex items-center justify-center text-cream">
-                                  <Plus className="h-3 w-3" />
-                                </button>
-                              </div>
+                              {item.redeemRewardId ? (
+                                <span className="text-[11px] text-coffee-400">1 unidad</span>
+                              ) : (
+                                <div className="flex items-center gap-1">
+                                  <button onClick={() => decTempQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-100 hover:bg-coffee-200 flex items-center justify-center text-coffee-600">
+                                    <Minus className="h-3 w-3" />
+                                  </button>
+                                  <span className="w-5 text-center text-sm font-bold text-coffee-900">{item.quantity}</span>
+                                  <button onClick={() => incTempQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-800 hover:bg-coffee-700 flex items-center justify-center text-cream">
+                                    <Plus className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -1134,14 +1359,24 @@ export const POSPage: React.FC = () => {
                           <div key={item.cartKey} className="flex items-center gap-3 px-5 py-3">
                             <span className="text-xs font-bold text-coffee-300 w-4 flex-shrink-0">{idx + 1}</span>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-coffee-900 line-clamp-2 leading-snug">{item.product.name}</p>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-sm font-semibold text-coffee-900 line-clamp-2 leading-snug">{item.product.name}</p>
+                                {item.redeemRewardId && (
+                                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 flex-shrink-0">
+                                    <Gift className="h-2.5 w-2.5" />Canje
+                                  </span>
+                                )}
+                              </div>
                               {item.opciones?.length ? (
                                 <p className="text-xs text-coffee-400 line-clamp-1 mt-0.5">{item.opciones.map(o => o.opcionNombre).join(' · ')}</p>
                               ) : null}
                             </div>
                             <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                               <div className="flex items-center gap-1.5">
-                                <p className="text-sm font-bold text-coffee-900">{formatCurrency(item.precioFinal * item.quantity)}</p>
+                                {item.redeemRewardId
+                                  ? <p className="text-sm font-bold text-amber-500">Gratis</p>
+                                  : <p className="text-sm font-bold text-coffee-900">{formatCurrency(item.precioFinal * item.quantity)}</p>
+                                }
                                 <button onClick={() => removeMesaItem(item.cartKey)} className="text-coffee-200 hover:text-red-400 transition-colors">
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
@@ -1182,12 +1417,55 @@ export const POSPage: React.FC = () => {
                           · {getOrCreateProfile(activeMesa.customerId)?.points ?? 0} pts
                         </span>
                       </div>
-                      <button
-                        onClick={() => updateMesa(activeMesa.id, { customerId: undefined })}
-                        className="text-[11px] text-coffee-400 hover:text-red-400 transition-colors"
-                      >
-                        Quitar
-                      </button>
+                      {activeMesa.order.some(i => i.redeemRewardId) ? (
+                        <Tooltip text="No se puede quitar, hay productos canjeados en la orden" position="top">
+                          <span className="text-[11px] text-coffee-200 cursor-not-allowed">Quitar</span>
+                        </Tooltip>
+                      ) : (
+                        <button
+                          onClick={() => updateMesa(activeMesa.id, { customerId: undefined })}
+                          className="text-[11px] text-coffee-400 hover:text-red-400 transition-colors"
+                        >
+                          Quitar
+                        </button>
+                      )}
+                    </div>
+                  ) : showDetalleNewCustomerForm ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-amber-700">Nuevo cliente</span>
+                        <button
+                          onClick={() => { setShowDetalleNewCustomerForm(false); setNewCustomerName(''); setNewCustomerPhone(''); }}
+                          className="text-[11px] text-coffee-400 hover:text-coffee-600 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          autoFocus
+                          type="text"
+                          placeholder="Nombre"
+                          value={newCustomerName}
+                          onChange={e => setNewCustomerName(e.target.value)}
+                          className="flex-1 min-w-0 text-xs px-2.5 py-1.5 rounded-lg border border-coffee-200 focus:border-amber-400 focus:outline-none text-coffee-900 bg-white placeholder:text-coffee-300"
+                        />
+                        <input
+                          type="tel"
+                          placeholder="Teléfono"
+                          value={newCustomerPhone}
+                          onChange={e => setNewCustomerPhone(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && handleCreateCustomer(id => { updateMesa(activeMesa.id, { customerId: id }); setShowDetalleNewCustomerForm(false); })}
+                          className="w-28 text-xs px-2.5 py-1.5 rounded-lg border border-coffee-200 focus:border-amber-400 focus:outline-none text-coffee-900 bg-white placeholder:text-coffee-300"
+                        />
+                        <button
+                          onClick={() => handleCreateCustomer(id => { updateMesa(activeMesa.id, { customerId: id }); setShowDetalleNewCustomerForm(false); })}
+                          disabled={!newCustomerName.trim() || !newCustomerPhone.trim()}
+                          className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white text-xs font-bold transition-colors flex-shrink-0"
+                        >
+                          Guardar
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">
@@ -1207,6 +1485,12 @@ export const POSPage: React.FC = () => {
                           );
                         })}
                       </select>
+                      <button
+                        onClick={() => { setShowDetalleNewCustomerForm(true); setNewCustomerName(''); setNewCustomerPhone(''); }}
+                        className="text-xs font-semibold text-amber-600 hover:text-amber-500 transition-colors flex-shrink-0"
+                      >
+                        + Nuevo
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1300,12 +1584,22 @@ export const POSPage: React.FC = () => {
                   <div key={item.cartKey} className="flex items-center gap-3 px-5 py-3">
                     <div className="h-9 w-9 rounded-xl bg-coffee-50 flex items-center justify-center text-xl flex-shrink-0">{getProductEmoji(item.product)}</div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-coffee-900 line-clamp-1">{item.product.name}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-sm font-semibold text-coffee-900 line-clamp-1">{item.product.name}</p>
+                        {item.redeemRewardId && (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 flex-shrink-0">
+                            <Gift className="h-2.5 w-2.5" />Canje
+                          </span>
+                        )}
+                      </div>
                       {item.opciones?.length ? <p className="text-xs text-coffee-400 line-clamp-1">{item.opciones.map(o => o.opcionNombre).join(' · ')}</p> : null}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="text-xs text-coffee-400 bg-coffee-100 rounded-lg px-2 py-0.5 font-semibold">×{item.quantity}</span>
-                      <span className="text-sm font-bold text-coffee-900">{formatCurrency(item.precioFinal * item.quantity)}</span>
+                      {item.redeemRewardId
+                        ? <span className="text-sm font-bold text-amber-500">Gratis</span>
+                        : <span className="text-sm font-bold text-coffee-900">{formatCurrency(item.precioFinal * item.quantity)}</span>
+                      }
                     </div>
                   </div>
                 ))}
@@ -1579,123 +1873,42 @@ export const POSPage: React.FC = () => {
         {/* ══════════════════════════════════════════════════════════════
             MODAL: CANJE RÁPIDO (sin mesa)
         ═════════════════════════════════════════════════════════════════*/}
-        {modalView === 'canje_rapido' && (() => {
-          const canjeProfile = canjeClienteId ? getOrCreateProfile(canjeClienteId) : null;
-          const canjeRewards = canjeProfile
-            ? rewards.filter(r => r.isActive && canjeProfile.points >= r.pointsCost)
-            : [];
-          return (
-            <Overlay onClose={() => setModalView('none')}>
-              <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
-                <div className="bg-amber-600 px-5 py-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-xl bg-white/20 flex items-center justify-center">
-                      <Gift className="h-5 w-5 text-white" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-amber-200 uppercase tracking-widest">Fidelización</p>
-                      <p className="text-white font-semibold text-sm">Canje de recompensa</p>
-                    </div>
-                  </div>
-                  <button onClick={() => setModalView('none')} className="h-8 w-8 rounded-xl bg-white/20 flex items-center justify-center text-white hover:bg-white/30">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-
-                <div className="p-5 space-y-4">
-                  {/* Selector de cliente */}
-                  <div>
-                    <p className="text-xs font-bold text-coffee-400 uppercase tracking-wider mb-2">Cliente</p>
-                    <select
-                      value={canjeClienteId}
-                      onChange={e => setCanjeClienteId(e.target.value)}
-                      className="w-full px-3.5 py-3 rounded-xl border-2 border-coffee-200 focus:border-amber-400 focus:outline-none text-coffee-900 text-sm font-medium bg-white"
-                    >
-                      <option value="">— Seleccionar cliente —</option>
-                      {_customers.map(c => {
-                        const prof = getOrCreateProfile(c.id);
-                        return (
-                          <option key={c.id} value={c.id}>
-                            {c.name}{prof ? ` · ${prof.points} pts` : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-
-                  {/* Recompensas disponibles */}
-                  {canjeProfile && (
-                    <div>
-                      <p className="text-xs font-bold text-coffee-400 uppercase tracking-wider mb-2">
-                        Recompensas disponibles
-                        <span className="ml-1.5 font-normal text-amber-600">{canjeProfile.points} pts</span>
-                      </p>
-                      {canjeRewards.length === 0 ? (
-                        <p className="text-sm text-coffee-400 italic text-center py-4">
-                          No hay recompensas disponibles con los puntos actuales.
-                        </p>
-                      ) : (
-                        <div className="space-y-2">
-                          {canjeRewards.map(r => (
-                            <div key={r.id} className="flex items-center gap-3 px-3 py-3 rounded-xl border border-coffee-200 bg-white">
-                              <span className="text-2xl leading-none">{r.icon}</span>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-coffee-900 leading-tight">{r.name}</p>
-                                <p className="text-xs text-coffee-400 leading-tight">{r.description}</p>
-                              </div>
-                              <div className="flex flex-col items-end gap-1.5">
-                                <div className="flex items-center gap-1">
-                                  <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                                  <span className="text-xs font-bold text-amber-700">{r.pointsCost} pts</span>
-                                </div>
-                                <button
-                                  onClick={() => {
-                                    const ok = redeemReward(canjeClienteId, r.id);
-                                    if (ok) {
-                                      toast.success('¡Canje exitoso!', `${r.name} canjeado correctamente.`);
-                                      setModalView('none');
-                                    } else {
-                                      toast.error('Error', 'No se pudo completar el canje.');
-                                    }
-                                  }}
-                                  className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-white transition-colors"
-                                >
-                                  Canjear
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {!canjeProfile && canjeClienteId && (
-                    <p className="text-sm text-coffee-400 italic text-center py-4">
-                      Este cliente no tiene perfil de puntos aún.
-                    </p>
-                  )}
-                </div>
-              </div>
-            </Overlay>
-          );
-        })()}
 
         {/* Variacion picker */}
         {varPickerProduct && (
           <VariacionPickerModal
             isOpen
-            onClose={() => { setVarPickerProduct(null); setVarPickerDirect(false); }}
+            onClose={() => { setVarPickerProduct(null); setVarPickerDirect(false); setVarPickerRewardId(null); }}
             product={varPickerProduct}
             atributos={getAtributosByProductId(varPickerProduct.id)}
+            isRedeem={varPickerRewardId != null}
             onConfirm={(opciones, precioFinal) => {
-              if (varPickerDirect) {
+              if (varPickerRewardId) {
+                addRedeemToTempCart(varPickerProduct, varPickerRewardId, opciones);
+                toast.success('¡Canje agregado!', `${varPickerProduct.name} añadido al pedido.`);
+                setVarPickerRewardId(null);
+              } else if (varPickerDirect) {
                 addDirectToMesa(varPickerProduct, opciones, precioFinal);
                 setVarPickerDirect(false);
               } else {
                 addTempDirect(varPickerProduct, opciones, precioFinal);
               }
               setVarPickerProduct(null);
+            }}
+          />
+        )}
+
+        {/* Redeem qty modal — productos sin variaciones */}
+        {redeemQtyState && (
+          <RedeemQtyModal
+            isOpen
+            onClose={() => setRedeemQtyState(null)}
+            product={redeemQtyState.product}
+            reward={redeemQtyState.reward}
+            availablePoints={availablePoints}
+            onConfirm={(qty) => {
+              addRedeemToTempCart(redeemQtyState.product, redeemQtyState.reward.id, undefined, qty);
+              toast.success('¡Canje agregado!', `${qty > 1 ? `${qty}× ` : ''}${redeemQtyState.reward.name} añadido al pedido.`);
             }}
           />
         )}

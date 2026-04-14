@@ -40,6 +40,7 @@ export const GET_ELABORADOS_AJUSTES = `
       nodes {
         id_Producto
         unidad_medida
+        stock_actual
         producto {
           id
           nombre
