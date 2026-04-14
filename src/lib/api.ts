@@ -73,6 +73,8 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
     if (refreshed) {
       return request<T>(path, options, true);
     }
+    // Refresh también falló → forzar logout global
+    window.dispatchEvent(new CustomEvent('auth:unauthorized'));
   }
 
   // 204 No Content — respuesta válida sin body

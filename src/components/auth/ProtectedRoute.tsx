@@ -7,10 +7,8 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
   const location = useLocation();
   
 
-  // Mientras verifica → renderiza los hijos directamente
-  // El skeleton de cada página se encarga del loading state
   if (isCheckingSession) {
-    return <>{children}</>;
+    return null;
   }
 
   if (!isAuthenticated) {

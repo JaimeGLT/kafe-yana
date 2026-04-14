@@ -53,6 +53,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkSession();
   }, [checkSession]);
 
+  // Cuando api.ts o graphql.ts no pueden renovar el token, despachan este evento
+  // para que el contexto fuerce el logout sin importar en qué página esté el usuario.
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setState({ user: null, isAuthenticated: false, isCheckingSession: false });
+    };
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+  }, []);
+
   return (
     <AuthContext.Provider value={{ ...state, login, logout, checkSession }}>
       {children}

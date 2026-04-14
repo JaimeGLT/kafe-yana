@@ -43,6 +43,8 @@ export async function gql<T>(query: string, variables?: Record<string, unknown>,
     if (refreshed) {
       return gql<T>(query, variables, true);
     }
+    // Refresh también falló → forzar logout global
+    window.dispatchEvent(new CustomEvent('auth:unauthorized'));
   }
 
   if (!response.ok) {
@@ -66,6 +68,8 @@ export async function gql<T>(query: string, variables?: Record<string, unknown>,
     }
 
     if (isUnauthorized) {
+      // Refresh también falló → forzar logout global
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
       throw new ApiError(firstError.message, 401);
     }
 
