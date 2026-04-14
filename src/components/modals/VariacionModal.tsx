@@ -18,6 +18,7 @@ interface Props {
   insumos: Insumo[];
   recetaInsumos: Insumo[];
   atributos: VariacionAtributo[];
+  isLoading?: boolean;
   onAddAtributo: (productId: string, data: { nombre: string; esRequerido: boolean }) => Promise<VariacionAtributo>;
   onUpdateAtributo: (atributoId: string, data: { nombre: string; esRequerido: boolean }) => Promise<void>;
   onDeleteAtributo: (atributoId: string) => Promise<void>;
@@ -492,6 +493,7 @@ export const VariacionModal: React.FC<Props> = ({
   insumos,
   recetaInsumos,
   atributos,
+  isLoading,
   onAddAtributo,
   onUpdateAtributo,
   onDeleteAtributo,
@@ -609,7 +611,40 @@ export const VariacionModal: React.FC<Props> = ({
       <Modal isOpen={isOpen} onClose={onClose} title={`Variaciones: ${productName}`} size="xl">
         <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
 
-          {/* Concept explainer — always visible */}
+          {/* Skeleton overlay while refreshing */}
+          {isLoading && (
+            <div className="space-y-3 animate-pulse">
+              {/* Explainer placeholder */}
+              <div className="rounded-lg bg-coffee-50 border border-coffee-100 px-4 py-3 space-y-2">
+                <div className="h-4 w-48 bg-coffee-200 rounded" />
+                <div className="h-3 w-full bg-coffee-100 rounded" />
+                <div className="h-3 w-4/5 bg-coffee-100 rounded" />
+              </div>
+              {/* Atributo card placeholders */}
+              {[1, 2].map((i) => (
+                <div key={i} className="border border-coffee-100 rounded-xl overflow-hidden">
+                  <div className="flex items-center gap-3 px-4 py-3 bg-coffee-50">
+                    <div className="h-4 w-4 rounded bg-coffee-200" />
+                    <div className="h-4 w-32 bg-coffee-200 rounded flex-1" />
+                    <div className="h-6 w-20 bg-coffee-200 rounded-full" />
+                    <div className="h-7 w-7 bg-coffee-200 rounded-lg" />
+                    <div className="h-7 w-7 bg-coffee-200 rounded-lg" />
+                  </div>
+                  <div className="px-4 py-3 space-y-2 border-t border-coffee-100">
+                    {[1, 2, 3].map((j) => (
+                      <div key={j} className="flex items-center gap-2 py-1.5">
+                        <div className="h-4 w-24 bg-coffee-100 rounded" />
+                        <div className="h-4 w-12 bg-coffee-100 rounded-full" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Concept explainer — always visible when not loading */}
+          {!isLoading && (
           <div className="rounded-lg bg-coffee-50 border border-coffee-200 px-4 py-3 text-sm text-coffee-700 space-y-1">
             <p className="font-semibold text-coffee-800">¿Cómo funcionan las variaciones?</p>
             <p>
@@ -620,9 +655,10 @@ export const VariacionModal: React.FC<Props> = ({
               Cada opción puede ajustar el precio y, si el producto tiene receta, puede <strong>sustituir un ingrediente</strong> por otro (Ej: leche normal → leche de avena).
             </p>
           </div>
+          )}
 
           {/* Empty state */}
-          {atributos.length === 0 && !showAddAtributo && (
+          {!isLoading && atributos.length === 0 && !showAddAtributo && (
             <div className="text-center py-6 text-coffee-400">
               <p className="text-sm">Este producto no tiene grupos de variación aún.</p>
               <p className="text-xs mt-1">Empieza añadiendo un grupo como "Tamaño" o "Tipo de leche".</p>
@@ -630,7 +666,7 @@ export const VariacionModal: React.FC<Props> = ({
           )}
 
           {/* Atributo list */}
-          {atributos.map((atributo) => (
+          {!isLoading && atributos.map((atributo) => (
             <div key={atributo.id} className="border border-coffee-200 rounded-xl overflow-hidden">
               {/* Atributo header */}
               <div className="flex items-center gap-2 px-4 py-3 bg-coffee-50">
@@ -734,7 +770,7 @@ export const VariacionModal: React.FC<Props> = ({
           ))}
 
           {/* Add atributo form */}
-          {showAddAtributo ? (
+          {!isLoading && (showAddAtributo ? (
             <div className="border border-amber-200 rounded-xl p-4 bg-amber-50 space-y-3">
               <div>
                 <p className="text-sm font-semibold text-coffee-800">Nuevo grupo de variación</p>
@@ -785,7 +821,7 @@ export const VariacionModal: React.FC<Props> = ({
             >
               Añadir grupo de variación
             </Button>
-          )}
+          ))}
         </div>
 
         <div className="flex justify-end pt-4 border-t border-coffee-100 mt-4">

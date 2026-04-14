@@ -74,6 +74,7 @@ interface ProductRowProps {
   atributos: VariacionAtributo[];
   insumos: Insumo[];
   recetaInsumos: Insumo[];
+  isLoading?: boolean;
   onAddAtributo: (productId: string, data: { nombre: string; esRequerido: boolean }) => Promise<VariacionAtributo>;
   onUpdateAtributo: (atributoId: string, data: { nombre: string; esRequerido: boolean }) => Promise<void>;
   onDeleteAtributo: (atributoId: string) => Promise<void>;
@@ -87,6 +88,7 @@ const ProductRow: React.FC<ProductRowProps> = ({
   atributos,
   insumos,
   recetaInsumos,
+  isLoading,
   onAddAtributo,
   onUpdateAtributo,
   onDeleteAtributo,
@@ -202,6 +204,7 @@ const ProductRow: React.FC<ProductRowProps> = ({
         insumos={insumos}
         recetaInsumos={recetaInsumos}
         atributos={productAtributos}
+        isLoading={isLoading}
         onAddAtributo={onAddAtributo}
         onUpdateAtributo={onUpdateAtributo}
         onDeleteAtributo={onDeleteAtributo}
@@ -222,8 +225,9 @@ const VariacionesPage: React.FC = () => {
   // Map productId → insumo IDs that belong to its recipe
   const [recetaInsumoIdsByProduct, setRecetaInsumoIdsByProduct] = useState<Map<string, Set<string>>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [search, setSearch] = useState('');
-  
+
   const fetchData = useCallback(async () => {
     try {
       const [elaboradosData, insumosData] = await Promise.all([
@@ -392,6 +396,7 @@ const VariacionesPage: React.FC = () => {
     }
 
     try {
+      setIsRefreshing(true);
       await api.post('/Variacion/Opcion', {
         nombre: data.nombre,
         ajustePrecio: data.precioAjuste,
@@ -402,6 +407,8 @@ const VariacionesPage: React.FC = () => {
     } catch {
       toast.error('Error', 'No se pudo crear la opción.');
       throw new Error('Failed to create opcion');
+    } finally {
+      setIsRefreshing(false);
     }
   }, [fetchData]);
 
@@ -426,6 +433,7 @@ const VariacionesPage: React.FC = () => {
     }
 
     try {
+      setIsRefreshing(true);
       await api.put(`/Variacion/Opcion/${opcionId}`, {
         nombre: data.nombre,
         ajustePrecio: data.precioAjuste,
@@ -436,16 +444,21 @@ const VariacionesPage: React.FC = () => {
     } catch {
       toast.error('Error', 'No se pudo actualizar la opción.');
       throw new Error('Failed to update opcion');
+    } finally {
+      setIsRefreshing(false);
     }
   }, [fetchData]);
 
   const handleDeleteOpcion = useCallback(async (_atributoId: string, opcionId: string): Promise<void> => {
     try {
+      setIsRefreshing(true);
       await api.delete(`/Variacion/Opcion/${opcionId}`);
       await fetchData();
     } catch {
       toast.error('Error', 'No se pudo eliminar la opción.');
       throw new Error('Failed to delete opcion');
+    } finally {
+      setIsRefreshing(false);
     }
   }, [fetchData]);
 
@@ -616,6 +629,7 @@ const VariacionesPage: React.FC = () => {
                     atributos={atributos}
                     insumos={insumos}
                     recetaInsumos={recetaInsumos}
+                    isLoading={isRefreshing}
                     onAddAtributo={handleAddAtributo}
                     onUpdateAtributo={handleUpdateAtributo}
                     onDeleteAtributo={handleDeleteAtributo}
