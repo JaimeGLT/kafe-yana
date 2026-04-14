@@ -16,6 +16,8 @@ interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>
   placeholder?: string;
   value?: string;
   onChange?: (value: string) => void;
+  /** Set false when a parent FormField already renders the error message */
+  showMessage?: boolean;
 }
 
 export const Select: React.FC<SelectProps> = ({
@@ -26,6 +28,7 @@ export const Select: React.FC<SelectProps> = ({
   placeholder = 'Seleccionar...',
   value,
   onChange,
+  showMessage = true,
   className,
   id,
   ...props
@@ -76,7 +79,7 @@ export const Select: React.FC<SelectProps> = ({
           <ChevronDown className="h-4 w-4" />
         </div>
       </div>
-      {error && (
+      {showMessage && error && (
         <p className="mt-1 text-sm text-red-600">{error}</p>
       )}
       {helpText && !error && (

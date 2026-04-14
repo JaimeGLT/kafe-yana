@@ -21,7 +21,7 @@ interface RecetaStepTwoProps {
   onSkip: () => void;
   insumos: Insumo[];
   recetas: Receta[];
-  onAddReceta: (receta: { productId: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string }, productName: string) => void;
+  onAddReceta: (receta: { productId: string; nombre: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string }, productName: string) => Promise<void>;
 }
 
 export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, productName, productSalePrice, onDone, onSkip, insumos: insumosProp, recetas, onAddReceta }) => {
@@ -31,10 +31,12 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
   const [selectedRecetaId, setSelectedRecetaId] = useState('');
   const [localInsumos, setLocalInsumos] = useState<Insumo[]>(insumosProp);
 
+  const [nombre, setNombre] = useState('');
   const [porcionesBase, setPorcionesBase] = useState(1);
   const [ingredientes, setIngredientes] = useState([{ insumoId: '', quantity: 0, merma: 0 }]);
   const [notas, setNotas] = useState('');
   const [errors, setErrors] = useState<string[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
   const [insumoModalOpen, setInsumoModalOpen] = useState(false);
 
   const recetaOptions = useMemo(
@@ -76,6 +78,7 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
 
   const validate = () => {
     const errs: string[] = [];
+    if (!nombre.trim()) errs.push('El nombre de la receta es obligatorio.');
     if (porcionesBase <= 0) errs.push('Las porciones deben ser ≥ 1.');
     if (ingredientes.length === 0) errs.push('Agrega al menos un ingrediente.');
     ingredientes.forEach((ing, i) => {
@@ -86,7 +89,7 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
     return errs.length === 0;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const productName = product?.name ?? '';
     if (mode === 'existente') {
       const recetaBase = recetas.find((r) => r.id === selectedRecetaId);
@@ -94,27 +97,41 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
         setErrors(['Selecciona una receta existente.']);
         return;
       }
-      onAddReceta(
-        {
-          productId,
-          porcionesBase: recetaBase.porcionesBase,
-          ingredientes: recetaBase.ingredientes.map((i) => ({
-            insumoId: i.insumoId,
-            quantity: i.quantity,
-            merma: i.merma,
-          })),
-          notas: recetaBase.notas,
-        },
-        productName
-      );
-      toast.success('Receta asignada', `Se usó la receta de "${recetaBase.productName}" para "${productName}".`);
-      onDone();
+      setIsSaving(true);
+      try {
+        await onAddReceta(
+          {
+            productId,
+            porcionesBase: recetaBase.porcionesBase,
+            ingredientes: recetaBase.ingredientes.map((i) => ({
+              insumoId: i.insumoId,
+              quantity: i.quantity,
+              merma: i.merma,
+            })),
+            notas: recetaBase.notas,
+          },
+          productName
+        );
+        toast.success('Receta asignada', `Se usó la receta de "${recetaBase.productName}" para "${productName}".`);
+        onDone();
+      } catch {
+        toast.error('Error', 'No se pudo guardar la receta. Intenta nuevamente.');
+      } finally {
+        setIsSaving(false);
+      }
       return;
     }
     if (!validate()) return;
-    onAddReceta({ productId, porcionesBase, ingredientes, notas }, productName);
-    toast.success('Receta guardada', `"${productName}" — costo/porción: ${formatCurrency(costoPorPorcion)}`);
-    onDone();
+    setIsSaving(true);
+    try {
+      await onAddReceta({ productId, nombre: nombre.trim(), porcionesBase, ingredientes, notas }, productName);
+      toast.success('Receta guardada', `"${productName}" — costo/porción: ${formatCurrency(costoPorPorcion)}`);
+      onDone();
+    } catch {
+      toast.error('Error', 'No se pudo guardar la receta. Intenta nuevamente.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -180,7 +197,7 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
             <Button variant="ghost" type="button" onClick={onSkip} className="text-coffee-400 w-full sm:w-auto">
               Omitir — añadir receta después
             </Button>
-            <Button variant="primary" type="button" onClick={handleSave} leftIcon={<CheckCircle2 className="h-4 w-4" />} className="w-full sm:w-auto">
+            <Button variant="primary" type="button" onClick={handleSave} isLoading={isSaving} leftIcon={<CheckCircle2 className="h-4 w-4" />} className="w-full sm:w-auto">
               Asignar receta y finalizar
             </Button>
           </div>
@@ -189,6 +206,20 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
 
       {/* Nueva receta form */}
       {mode === 'nueva' && <>
+      {/* Nombre de la receta */}
+      <div>
+        <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
+          Nombre de la receta
+          <span className="text-red-500 ml-1">*</span>
+        </label>
+        <Input
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          placeholder="Ej: Receta cappuccino estándar…"
+          autoFocus
+        />
+      </div>
+
       {/* Porciones */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
@@ -369,7 +400,7 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
         <Button variant="ghost" type="button" onClick={onSkip} className="text-coffee-400 w-full sm:w-auto">
           Omitir — añadir receta después
         </Button>
-        <Button variant="primary" type="button" onClick={handleSave} leftIcon={<CheckCircle2 className="h-4 w-4" />} className="w-full sm:w-auto">
+        <Button variant="primary" type="button" onClick={handleSave} isLoading={isSaving} leftIcon={<CheckCircle2 className="h-4 w-4" />} className="w-full sm:w-auto">
           Guardar receta y finalizar
         </Button>
       </div>

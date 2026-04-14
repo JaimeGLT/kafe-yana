@@ -145,6 +145,7 @@ export interface RecetaDetalleAjusteNode {
 export interface ElaboradoAjusteNode {
   id_Producto: number;
   unidad_medida: string;
+  producible: boolean;
   producto: {
     id: number;
     nombre: string;
@@ -155,7 +156,6 @@ export interface ElaboradoAjusteNode {
     cantidadProducible: number;
     detalles: RecetaDetalleAjusteNode[];
   } | null;
-  // Mockup — se conectará al backend cuando esté disponible
   tipoPreparacion?: 'al_momento' | 'en_lote';
   stock_actual?: number;
 }
@@ -204,6 +204,26 @@ export interface InsumosResponse {
 
 export interface CombosResponse {
   combos: { nodes: ComboNode[] };
+}
+
+// — Historial de ajustes —
+
+export interface AjusteNode {
+  id: number;
+  fecha: string;
+  nombre: string;
+  tipo: string;
+  ajuste: number;
+  stockAnterior: number;
+  stockNuevo: number;
+  perdida: number;
+  motivo: string;
+  nota: string;
+  usuario: string;
+}
+
+export interface AjustesResponse {
+  ajustes: { nodes: AjusteNode[] };
 }
 
 interface SimpleProductNode {

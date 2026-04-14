@@ -1,3 +1,23 @@
+export const GET_AJUSTES = `
+  query GetAjustes {
+    ajustes {
+      nodes {
+        fecha
+        id
+        nombre
+        tipo
+        ajuste
+        stockAnterior
+        stockNuevo
+        perdida
+        motivo
+        nota
+        usuario
+      }
+    }
+  }
+`;
+
 export const GET_COMPRADOS_AJUSTES = `
   query GetCompradosAjustes {
     comprados {
@@ -40,6 +60,7 @@ export const GET_ELABORADOS_AJUSTES = `
       nodes {
         id_Producto
         unidad_medida
+        producible
         stock_actual
         producto {
           id

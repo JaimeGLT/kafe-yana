@@ -7,6 +7,8 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   helpText?: string;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
+  /** Set false when a parent FormField already renders the error message */
+  showMessage?: boolean;
 }
 
 export const Input: React.FC<InputProps> = ({
@@ -15,6 +17,7 @@ export const Input: React.FC<InputProps> = ({
   helpText,
   leftIcon,
   rightIcon,
+  showMessage = true,
   className,
   id,
   ...props
@@ -59,7 +62,7 @@ export const Input: React.FC<InputProps> = ({
           </div>
         )}
       </div>
-      {error && (
+      {showMessage && error && (
         <p className="mt-1 text-sm text-red-600">{error}</p>
       )}
       {helpText && !error && (

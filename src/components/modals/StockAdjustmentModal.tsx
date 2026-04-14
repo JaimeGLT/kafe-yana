@@ -144,11 +144,11 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   const compradoAjuste = useMemo(() => {
     if (productType !== 'comprado' || !selectedComprado) return null;
     if (direction === 'entrada') {
-      const q = parseFloat(quantityStr);
+      const q = parseInt(quantityStr, 10);
       if (isNaN(q) || q <= 0) return null;
       return { diff: q, newStock: selectedComprado.stock_actual + q, perdida: 0 };
     }
-    const fisico = parseFloat(stockFisicoStr);
+    const fisico = parseInt(stockFisicoStr, 10);
     if (isNaN(fisico) || fisico < 0) return null;
     const diff = selectedComprado.stock_actual - fisico;
     return { diff, newStock: fisico, perdida: diff * selectedComprado.costo_compra };
@@ -179,7 +179,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
 
   const elaboradoExplosion = useMemo((): IngredienteExplosion[] => {
     if (productType !== 'elaborado' || !selectedElaborado?.receta) return [];
-    const units = parseFloat(quantityStr);
+    const units = parseInt(quantityStr, 10);
     if (isNaN(units) || units <= 0) return [];
     const { porciones, detalles } = selectedElaborado.receta;
     return detalles.map((detalle) => {
@@ -250,20 +250,23 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
 
     if (productType === 'elaborado') {
       if (tipoElaborado === 'al_momento') {
-        // Salida merma — igual que antes
-        const u = parseFloat(quantityStr);
-        if (isNaN(u) || u <= 0) errs.quantity = 'Ingresa una cantidad válida';
+        const u = parseInt(quantityStr, 10);
+        if (isNaN(u) || u <= 0) errs.quantity = 'Ingresa una cantidad entera válida';
         if (!selectedElaborado?.receta) errs.product = 'Este elaborado no tiene receta registrada';
         if (!reason) errs.reason = 'Selecciona un motivo';
+        if (!errs.quantity && !errs.product && elaboradoExplosion.length > 0) {
+          const insuficientes = elaboradoExplosion.filter((i) => i.stockNuevo < 0);
+          if (insuficientes.length > 0) {
+            errs.quantity = `Insumos insuficientes: ${insuficientes.map((i) => `${i.nombre} (hay ${i.stockActual.toFixed(0)} ${i.unidad}, se necesitan ${i.cantidadADescontar.toFixed(0)})`).join('; ')}.`;
+          }
+        }
       } else if (elaboradoDirection === 'entrada') {
-        // Producción en lote — no requiere motivo
-        const u = parseFloat(quantityStr);
-        if (isNaN(u) || u <= 0) errs.quantity = 'Ingresa una cantidad válida';
+        const u = parseInt(quantityStr, 10);
+        if (isNaN(u) || u <= 0) errs.quantity = 'Ingresa una cantidad entera válida';
         if (!selectedElaborado?.receta) errs.product = 'Este elaborado no tiene receta registrada';
       } else {
-        // Salida merma en lote — valida contra stock_actual
-        const u = parseFloat(quantityStr);
-        if (isNaN(u) || u <= 0) errs.quantity = 'Ingresa una cantidad válida';
+        const u = parseInt(quantityStr, 10);
+        if (isNaN(u) || u <= 0) errs.quantity = 'Ingresa una cantidad entera válida';
         if (!reason) errs.reason = 'Selecciona un motivo';
         const stockDisponible = selectedElaborado?.stock_actual ?? 0;
         if (!isNaN(u) && u > 0 && u > stockDisponible) {
@@ -271,12 +274,15 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
         }
       }
     } else if (direction === 'entrada') {
-      const q = parseFloat(quantityStr);
-      if (isNaN(q) || q <= 0) errs.quantity = 'Ingresa una cantidad válida';
+      const q = productType === 'insumo' ? parseFloat(quantityStr) : parseInt(quantityStr, 10);
+      if (isNaN(q) || q <= 0) errs.quantity = productType === 'insumo' ? 'Ingresa una cantidad válida' : 'Ingresa una cantidad entera válida';
       if (!reason) errs.reason = 'Selecciona un motivo';
     } else {
-      const f = parseFloat(stockFisicoStr);
+      const f = productType === 'insumo' ? parseFloat(stockFisicoStr) : parseInt(stockFisicoStr, 10);
       if (isNaN(f) || f < 0) errs.stockFisico = 'Ingresa el stock físico actual (puede ser 0)';
+      if (productType === 'comprado' && !isNaN(f) && f > (selectedComprado?.stock_actual ?? 0)) {
+        errs.stockFisico = `No puede superar el stock actual (${selectedComprado?.stock_actual ?? 0} ${selectedComprado?.unidad_medida ?? 'unidades'}).`;
+      }
       if (!reason) errs.reason = 'Selecciona un motivo';
     }
 
@@ -293,35 +299,34 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
 
       if (productType === 'comprado') {
         const isEntrada = direction === 'entrada';
-        const cantidad = isEntrada ? parseFloat(quantityStr) : (compradoAjuste?.diff ?? 0);
-        await api.post('/AjusteStock/Comprado', {
+        const cantidad = isEntrada ? parseInt(quantityStr, 10) : (compradoAjuste?.diff ?? 0);
+        await api.post(`/AjusteStock/Comprado?entrada=${isEntrada}`, {
           id,
           cantidad,
           motivo: reason,
           nota: notes,
-          ...(!isEntrada && { entrada: false }),
         });
       } else if (productType === 'insumo') {
         const isEntrada = direction === 'entrada';
         const cantidad = isEntrada ? parseFloat(quantityStr) : (insumoAjuste?.diff ?? 0);
-        await api.post('/AjusteStock/Insumo', {
+        await api.post(`/AjusteStock/Insumo?entrada=${isEntrada}`, {
           id,
           cantidad,
           motivo: reason,
           nota: notes,
-          ...(!isEntrada && { entrada: false }),
         });
       } else {
         // elaborado
         const isEntrada = tipoElaborado === 'en_lote' && elaboradoDirection === 'entrada';
-        const fecha = fechaProduccion || new Date().toISOString().split('T')[0];
-        await api.post('/AjusteStock/Elaborado', {
+        const fecha = fechaProduccion
+          ? new Date(fechaProduccion).toISOString()
+          : new Date().toISOString();
+        await api.post(`/AjusteStock/Elaborado?entrada=${isEntrada}`, {
           id_elaborado: id,
-          cantidad: parseFloat(quantityStr),
+          cantidad: parseInt(quantityStr, 10),
           fecha,
           motivo: isEntrada ? '' : reason,
           nota: notes,
-          ...(!isEntrada && { entrada: false }),
         });
       }
 
@@ -484,7 +489,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                 : productType === 'insumo'
                 ? insumos.map((i) => ({
                     value: String(i.id),
-                    label: `${i.nombre} — Stock: ${(i.stock_actual * (i.factor_conversion > 0 ? i.factor_conversion : 1)).toFixed(2)} ${i.unidad_min_uso}`,
+                    label: `${i.nombre} — Stock: ${i.stock_actual.toFixed(2)} ${i.unidad_min_uso}`,
                   }))
                 : elaborados.map((e) => ({
                     value: String(e.id_Producto),
@@ -493,6 +498,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
             }
             placeholder="Seleccionar..."
             error={errors.product}
+            showMessage={false}
           />
           {selectedId && currentStockLabel && (
             <p className="text-xs text-coffee-500 mt-1">{currentStockLabel}</p>
@@ -543,12 +549,13 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
               <FormField label="Cantidad a agregar" required error={errors.quantity}>
                 <Input
                   type="number"
-                  min="0.001"
-                  step="0.001"
+                  min={productType === 'insumo' ? '0.001' : '1'}
+                  step={productType === 'insumo' ? '0.001' : '1'}
                   value={quantityStr}
                   onChange={(e) => { setQuantityStr(e.target.value); setErrors((p) => ({ ...p, quantity: '' })); }}
                   placeholder="0"
                   error={errors.quantity}
+                  showMessage={false}
                 />
               </FormField>
             )}
@@ -567,11 +574,12 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                 <Input
                   type="number"
                   min="0"
-                  step="0.001"
+                  step={productType === 'insumo' ? '0.001' : '1'}
                   value={stockFisicoStr}
                   onChange={(e) => { setStockFisicoStr(e.target.value); setErrors((p) => ({ ...p, stockFisico: '' })); }}
                   placeholder="0"
                   error={errors.stockFisico}
+                  showMessage={false}
                 />
                 <p className="text-xs text-coffee-500 mt-1">El sistema calcula la diferencia automáticamente.</p>
               </FormField>
@@ -582,12 +590,13 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
               <FormField label="Unidades perdidas / dadas de baja" required error={errors.quantity}>
                 <Input
                   type="number"
-                  min="0.001"
-                  step="0.001"
+                  min="1"
+                  step="1"
                   value={quantityStr}
                   onChange={(e) => { setQuantityStr(e.target.value); setErrors((p) => ({ ...p, quantity: '' })); }}
                   placeholder="0"
                   error={errors.quantity}
+                  showMessage={false}
                 />
               </FormField>
             )}
@@ -598,12 +607,13 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                 <FormField label={`Cantidad producida (${selectedElaborado?.unidad_medida ?? 'unidades'})`} required error={errors.quantity}>
                   <Input
                     type="number"
-                    min="0.001"
-                    step="0.001"
+                    min="1"
+                    step="1"
                     value={quantityStr}
                     onChange={(e) => { setQuantityStr(e.target.value); setErrors((p) => ({ ...p, quantity: '' })); }}
                     placeholder="0"
                     error={errors.quantity}
+                    showMessage={false}
                   />
                 </FormField>
                 <FormField label="Fecha de producción">
@@ -621,16 +631,17 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
               <FormField label={`Cantidad a dar de baja (${selectedElaborado?.unidad_medida ?? 'unidades'})`} required error={errors.quantity}>
                 <Input
                   type="number"
-                  min="0.001"
-                  step="0.001"
+                  min="1"
+                  step="1"
                   value={quantityStr}
                   onChange={(e) => { setQuantityStr(e.target.value); setErrors((p) => ({ ...p, quantity: '' })); }}
                   placeholder="0"
                   error={errors.quantity}
+                  showMessage={false}
                 />
                 {/* Preview de stock en lote salida */}
                 {(() => {
-                  const q = parseFloat(quantityStr);
+                  const q = parseInt(quantityStr, 10);
                   const stock = selectedElaborado?.stock_actual ?? 0;
                   if (isNaN(q) || q <= 0) return null;
                   const nuevoStock = stock - q;
@@ -785,6 +796,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
               options={motivoOptions}
               placeholder="Seleccionar motivo..."
               error={errors.reason}
+              showMessage={false}
             />
           </FormField>
         )}

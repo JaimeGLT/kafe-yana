@@ -34,6 +34,7 @@ const ElaboradosPage: React.FC = () => {
   const [recetas, setRecetas] = useState<Receta[]>([]);
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [elaborados, setElaborados] = useState<Product[]>([]);
+  const [elaboradosMeta, setElaboradosMeta] = useState<Record<string, { stockActual: number; producible: boolean }>>({});
   const [rawCategories, setRawCategories] = useState<{ id: string; nombre: string; estado: boolean }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -45,10 +46,10 @@ const ElaboradosPage: React.FC = () => {
     return elaborados.find((p) => p.id === productId)?.stock ?? 0;
   }, [elaborados]);
 
-  const addReceta = useCallback(async (recetaData: { productId: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string }, _productName: string) => {
+  const addReceta = useCallback(async (recetaData: { productId: string; nombre: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string }, _productName: string) => {
     try {
       await api.post('/Receta', {
-        nombre: '',
+        nombre: recetaData.nombre,
         nota: recetaData.notas ?? '',
         porciones: recetaData.porcionesBase,
         id_Elaborado: Number(recetaData.productId),
@@ -87,11 +88,13 @@ const ElaboradosPage: React.FC = () => {
 
   const loadElaborados = useCallback(async () => {
     const data = await gql<ElaboradosResponse>(GET_ALL_ELABORADOS);
-    setElaborados(data.elaborados.nodes.map(mapElaborado));
-    setRecetas(
-      data.elaborados.nodes
-        .map(mapRecetaFromElaborado)
-        .filter((r): r is Receta => r !== null),
+    const nodes = data.elaborados.nodes;
+    setElaborados(nodes.map(mapElaborado));
+    setRecetas(nodes.map(mapRecetaFromElaborado).filter((r): r is Receta => r !== null));
+    setElaboradosMeta(
+      Object.fromEntries(
+        nodes.map((n) => [String(n.id_Producto), { stockActual: n.stock_actual, producible: n.producible }]),
+      ),
     );
   }, []);
 
@@ -299,13 +302,16 @@ const ElaboradosPage: React.FC = () => {
             {filtered.map((product) => {
               const receta = getRecetaByProductId(product.id);
               const portions = getElaboradoAvailability(product.id);
+              const meta = elaboradosMeta[product.id];
+              const tipoPreparacion = meta?.producible ? 'en_lote' : 'al_momento';
+              const portionsToShow = meta?.producible ? (meta.stockActual ?? 0) : portions;
               return (
                 <ProductCard
                   key={product.id}
                   product={product}
                   receta={receta}
-                  portionsAvailable={portions}
-                  tipoPreparacion="al_momento"
+                  portionsAvailable={portionsToShow}
+                  tipoPreparacion={tipoPreparacion}
                   onEditProduct={(p) => setEditingProduct(p)}
                   onManageReceta={(p) => {
                     const r = getRecetaByProductId(p.id);
