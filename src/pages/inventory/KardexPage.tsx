@@ -4,8 +4,8 @@ import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
 import { Select, Badge } from '../../components/ui';
-import { gql } from '../../lib/graphql';
-import { GET_KARDEX_PRODUCTS_QUERY, GET_KARDEX_MOVEMENTS_QUERY } from '../../lib/queries/products.queries';
+// TODO: import { gql } from '../../lib/graphql';
+// TODO: import { GET_KARDEX_PRODUCTS_QUERY, GET_KARDEX_MOVEMENTS_QUERY } from '../../lib/queries/products.queries';
 import { formatCurrency, formatDateTime } from '../../utils';
 import type { KardexMovement } from '../../types';
 
@@ -36,32 +36,8 @@ interface RawMovement {
   notas?: string;
 }
 
-interface KardexProductsResponse {
-  productos: {
-    nodes: {
-      id: number;
-      nombre: string;
-      tipo: string;
-      categoriaNombre: string;
-      precioVenta: number;
-      costo: number;
-      stock: number;
-    }[];
-  };
-  elaborados: {
-    id: number;
-    nombre: string;
-    precio: number;
-    cantidadProducible: number;
-    unidad_medida: string;
-  }[];
-  combos: {
-    id: number;
-    nombre: string;
-    precio: number;
-    cantidadProducible: number;
-  }[];
-}
+// TODO: usar cuando el backend implemente GET_KARDEX_PRODUCTS_QUERY
+// interface KardexProductsResponse { ... }
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 

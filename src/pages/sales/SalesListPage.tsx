@@ -26,7 +26,7 @@ const STATUS_LABEL: Record<Sale['status'], string> = {
 export const SalesListPage: React.FC = () => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [stats, setStats] = useState<SaleStats>({ totalSalesToday: 0, totalSalesMonth: 0, averageTicket: 0 });
-  const [isLoading, setIsLoading] = useState(false);
+  const [_isLoading, setIsLoading] = useState(false);
 
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');

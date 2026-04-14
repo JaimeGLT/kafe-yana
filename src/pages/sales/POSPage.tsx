@@ -66,7 +66,7 @@ type ModalView =
 /* ═══════════════════════════════════════════════════════════════════════════
    CONSTANTS
 ═══════════════════════════════════════════════════════════════════════════*/
-const TAX_RATE = 0.18;
+// const TAX_RATE = 0.18; // reservado para cuando el backend maneje impuestos
 const TOTAL_MESAS_INIT = 12;
 const PARA_LLEVAR_ID = 'para-llevar';
 
@@ -555,7 +555,6 @@ export const POSPage: React.FC = () => {
     return countItems(activeMesa.order) + countItems(tempCart);
   }, [activeMesa, rewards, tempCart]);
   const availablePoints = loyaltyProfile ? loyaltyProfile.points - pointsSpentInOrder : 0;
-  const mesaTax        = mesaSubtotal * TAX_RATE; // solo para el SaleInput al backend
   const mesaTotal      = mesaSubtotal;
   const cashNum        = parseFloat(cashReceived) || 0;
   const change         = Math.max(0, cashNum - mesaTotal);
