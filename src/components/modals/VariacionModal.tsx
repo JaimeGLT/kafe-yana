@@ -83,6 +83,9 @@ const SustitucionFields: React.FC<SustitucionFieldsProps> = ({ form, setForm, re
     ? 'text-xs font-medium text-coffee-600'
     : 'text-sm font-medium text-coffee-700';
 
+  // Si el producto no tiene receta (o no hay ingredientes mapeados) usamos todos los insumos
+  const removeOptions = recetaInsumoOptions.length > 0 ? recetaInsumoOptions : allInsumoOptions;
+
   return (
     <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-3">
       {/* Toggle header */}
@@ -123,7 +126,7 @@ const SustitucionFields: React.FC<SustitucionFieldsProps> = ({ form, setForm, re
               <HelpTooltip text="El ingrediente que normalmente usa la receta base y que NO se va a usar cuando el cliente elija esta opción. Ej: 'leche entera'." />
             </div>
             <Select
-              options={[{ value: '', label: '— Seleccionar ingrediente a quitar… —' }, ...recetaInsumoOptions]}
+              options={[{ value: '', label: '— Seleccionar ingrediente a quitar… —' }, ...removeOptions]}
               value={form.insumoReemplazadoId}
               onChange={(v) => setForm({ ...form, insumoReemplazadoId: v })}
             />

@@ -49,9 +49,10 @@ interface Props {
   onClose: () => void;
   insumo?: Insumo;
   onSuccess: () => void;
+  onCreated?: (nombre: string) => void;
 }
 
-export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onSuccess }) => {
+export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onSuccess, onCreated }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [form, setForm] = useState<InsumoInput>(empty);
   const [errors, setErrors] = useState<Partial<Record<keyof InsumoInput, string>>>({});
@@ -134,6 +135,7 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onSucces
           'Insumo creado',
           `"${form.name}" — ${formatCurrency(costoUnitario)} por ${form.unidadMinima}.`
         );
+        onCreated?.(form.name);
       }
       onSuccess();
       onClose();

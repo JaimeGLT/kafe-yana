@@ -100,6 +100,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
         precio: Number(salePrice),
         categoria_Id: Number(categoryId) || 0,
         unidad_medida: unit,
+        producible: preparationType === 'en_lote',
       });
       const data = await gql<{ elaborados: { nodes: { id_Producto: number; producto: { nombre: string } }[] } }>(GET_ALL_ELABORADOS);
       const created = data.elaborados.nodes.find((e) => e.producto.nombre === name.trim());

@@ -4,30 +4,58 @@ export const GET_ALL_ELABORADOS = `
       nodes {
         id_Producto
         unidad_medida
+        producible
+        stock_actual
         producto {
           id
           nombre
           descripcion
           precio
           tipo
+          categoria { id nombre descripcion estado color }
           detalles { cantidad opcional }
         }
         receta {
           id
           nombre
           nota
+          cantidadProducible
+          porciones
           detalles {
+            id_receta
             id_insumo
             cantidad
             merma
-            insumo { id nombre costo stock_actual unidad_min_uso }
+            subTotal
+            insumo {
+              id
+              nombre
+              categoria
+              unidad_min_uso
+              unidad_compra
+              factor_conversion
+              costo
+              stock_actual
+              stock_min
+            }
           }
         }
         variaciones {
           id
           nombre
           requerido
-          opciones { id nombre ajustePrecio }
+          opciones {
+            id
+            nombre
+            ajustePrecio
+            id_variacion
+            ajustes {
+              tipoAjuste
+              cantidad
+              insumoBase { id nombre }
+              insumoNuevo { id nombre }
+            }
+          }
         }
       }
     }
@@ -59,7 +87,18 @@ export const GET_ELABORADOS_VARIACIONES = `
           id
           nombre
           requerido
-          opciones { id nombre ajustePrecio }
+          opciones {
+            id
+            nombre
+            ajustePrecio
+            id_variacion
+            ajustes {
+              tipoAjuste
+              cantidad
+              id_Insumo
+              id_InsumoNuevo
+            }
+          }
         }
       }
     }
@@ -67,35 +106,63 @@ export const GET_ELABORADOS_VARIACIONES = `
 `
 
 export const GET_ELABORADO_BY_ID = `
-  query GetElaboradoById($idProducto: bigint!) {
-    elaborados(where: { id_Producto: { _eq: $idProducto } }) {
+  query GetElaboradoById($id: Int!) {
+    elaborados(where: { id_Producto: { eq: $id } }) {
       nodes {
         id_Producto
         unidad_medida
+        producible
+        stock_actual
         producto {
           id
           nombre
           descripcion
           precio
           tipo
+          categoria { id nombre descripcion estado color }
           detalles { cantidad opcional }
         }
         receta {
           id
           nombre
           nota
+          cantidadProducible
+          porciones
           detalles {
+            id_receta
             id_insumo
             cantidad
             merma
-            insumo { id nombre costo stock_actual unidad_min_uso }
+            subTotal
+            insumo {
+              id
+              nombre
+              categoria
+              unidad_min_uso
+              unidad_compra
+              factor_conversion
+              costo
+              stock_actual
+              stock_min
+            }
           }
         }
         variaciones {
           id
           nombre
           requerido
-          opciones { id nombre ajustePrecio }
+          opciones {
+            id
+            nombre
+            ajustePrecio
+            id_variacion
+            ajustes {
+              tipoAjuste
+              cantidad
+              insumoBase { id nombre }
+              insumoNuevo { id nombre }
+            }
+          }
         }
       }
     }

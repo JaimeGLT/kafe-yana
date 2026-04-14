@@ -32,10 +32,12 @@ export interface EditElaboradoModalProps {
   product: Product;
   categoryOptions: { value: string; label: string }[];
   onSaved: (updated: Product) => void;
+  onRecetaSaved?: () => void;
 }
 
 export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
   isOpen,
+  onRecetaSaved,
   onClose,
   product,
   categoryOptions,
@@ -43,6 +45,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
 }) => {
   const [tab, setTab] = useState<'datos' | 'receta'>('datos');
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -65,19 +68,22 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
       setSalePrice(product.salePrice);
       setCategoryId(product.categoryId || '');
       setUnit(product.unit || 'unidad');
-      setPreparationType('al_momento');
       setErrors({});
       setLocalCategoryOptions(categoryOptions);
+      setIsLoadingData(true);
       Promise.all([
         gql<InsumosResponse>(GET_ALL_INSUMOS),
         gql<ElaboradosResponse>(GET_ALL_ELABORADOS),
-        gql<ElaboradosResponse>(GET_ELABORADO_BY_ID, { idProducto: Number(product.id) }),
+        gql<ElaboradosResponse>(GET_ELABORADO_BY_ID, { id: Number(product.id) }),
       ]).then(([ins, prods, byId]) => {
         setInsumos(ins.insumos.nodes.map(mapInsumo));
         setProducts(prods.elaborados.nodes.map(mapElaborado));
         const node = byId.elaborados.nodes[0];
-        setReceta(node ? mapRecetaFromElaborado(node) ?? undefined : undefined);
-      }).catch(() => {});
+        if (node) {
+          setPreparationType(node.producible ? 'en_lote' : 'al_momento');
+          setReceta(mapRecetaFromElaborado(node) ?? undefined);
+        }
+      }).catch(() => {}).finally(() => setIsLoadingData(false));
     }
   }, [isOpen, product]);
 
@@ -109,8 +115,14 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
 
     setIsSaving(true);
     try {
-      const rawBody = `{"nombre":${JSON.stringify(name.trim())},"descripcion":${JSON.stringify(description.trim())},"precio":${Number(salePrice).toFixed(2)},"categoria_Id":${Number(categoryId) || 0},"unidad_medida":${JSON.stringify(unit)}}`;
-      await api.put(`/Elaborado/${product.id}`, undefined, { body: rawBody });
+      await api.put(`/Elaborado/${product.id}`, {
+        nombre: name.trim(),
+        descripcion: description.trim() || '',
+        precio: Number(salePrice),
+        categoria_Id: Number(categoryId) || 0,
+        unidad_medida: unit,
+        producible: preparationType === 'en_lote',
+      });
       const catName = categoryOptions.find((o) => o.value === categoryId)?.label ?? '';
       const updated = { ...product, name: name.trim(), description: description.trim(), salePrice: Number(salePrice), categoryId, categoryName: catName, unit };
       onSaved(updated);
@@ -177,7 +189,16 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto">
-          {tab === 'datos' && (
+          {isLoadingData ? (
+            <div className="px-6 py-4 space-y-5 animate-pulse">
+              {[120, 80, 100, 60, 80].map((w, i) => (
+                <div key={i} className="space-y-2">
+                  <div className="h-3 w-24 bg-coffee-200 rounded" />
+                  <div className={`h-10 bg-coffee-100 rounded-lg`} style={{ width: `${w}%` }} />
+                </div>
+              ))}
+            </div>
+          ) : tab === 'datos' && (
             <form onSubmit={handleSaveDatos} className="px-6 py-4 space-y-5">
               <div>
                 <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
@@ -323,7 +344,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
             </form>
           )}
 
-          {tab === 'receta' && (
+          {!isLoadingData && tab === 'receta' && (
             <div className="px-6 py-4">
               <RecetaFormContent
                 onClose={() => setTab('datos')}
@@ -332,7 +353,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
                 productOverride={productForReceta}
                 insumos={insumos}
                 products={products}
-                onSuccess={() => {}}
+                onSuccess={() => onRecetaSaved?.()}
               />
             </div>
           )}

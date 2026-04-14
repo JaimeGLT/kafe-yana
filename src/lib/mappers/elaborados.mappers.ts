@@ -2,24 +2,19 @@ import type { ElaboradoNode } from '../../types/graphql';
 import type { Product, Receta } from '../../types';
 
 export function mapElaborado(n: ElaboradoNode): Product {
-  const stock = n.receta && n.receta.detalles.length > 0
-    ? Math.min(...n.receta.detalles.map((d) =>
-        Math.floor(d.insumo.stock_actual / (d.cantidad * (1 + d.merma / 100)))
-      ))
-    : 0;
-
+  const cat = n.producto.categoria;
   return {
     id: String(n.id_Producto),
     code: String(n.id_Producto),
     name: n.producto.nombre,
     description: n.producto.descripcion ?? '',
     tipo: 'elaborado',
-    categoryId: '',
-    categoryName: '',
+    categoryId: cat ? String(cat.id) : '',
+    categoryName: cat ? cat.nombre : '',
     unit: n.unidad_medida ?? 'unidad',
     costPrice: 0,
     salePrice: n.producto.precio,
-    stock,
+    stock: n.receta?.cantidadProducible ?? 0,
     minStock: 0,
     maxStock: 0,
     barcode: '',
@@ -42,20 +37,21 @@ export function mapRecetaFromElaborado(n: ElaboradoNode): Receta | null {
     quantity: d.cantidad,
     merma: d.merma,
     unitCost: d.insumo.costo,
-    subtotal: d.cantidad * d.insumo.costo,
+    subtotal: d.subTotal,
   }));
 
   const costoTotal = ingredientes.reduce((sum, i) => sum + i.subtotal, 0);
+  const porciones = n.receta.porciones > 0 ? n.receta.porciones : 1;
 
   return {
     id: String(n.receta.id),
     productId: String(n.id_Producto),
     productName: n.producto.nombre,
     nombre: n.receta.nombre,
-    porcionesBase: 1,
+    porcionesBase: porciones,
     ingredientes,
     costoTotal,
-    costoPorPorcion: costoTotal,
+    costoPorPorcion: costoTotal / porciones,
     notas: n.receta.nota ?? undefined,
     isActive: true,
     createdAt: new Date(),

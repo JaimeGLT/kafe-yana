@@ -18,7 +18,13 @@ interface ElaboradoVariacionNode {
   unidad_medida: string;
   producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string };
   receta: { id: number; detalles: { id_insumo: number }[] } | null;
-  variaciones: { id: number; nombre: string; requerido: boolean; opciones: { id: number; nombre: string; ajustePrecio: number }[] }[];
+  variaciones: {
+    id: number; nombre: string; requerido: boolean;
+    opciones: {
+      id: number; nombre: string; ajustePrecio: number;
+      ajustes: { tipoAjuste: string; cantidad: number; id_Insumo: number; id_InsumoNuevo: number | null }[];
+    }[];
+  }[];
 }
 
 interface ElaboradosVariacionesResponse {
@@ -255,13 +261,23 @@ const VariacionesPage: React.FC = () => {
           productId: String(node.id_Producto),
           nombre: v.nombre,
           esRequerido: v.requerido,
-          opciones: v.opciones.map((o) => ({
-            id: String(o.id),
-            atributoId: String(v.id),
-            nombre: o.nombre,
-            precioAjuste: o.ajustePrecio,
-            isActive: true,
-          })),
+          opciones: v.opciones.map((o) => {
+            const reemplazo = o.ajustes.find((a) => a.tipoAjuste === 'Reemplazo');
+            const modificaciones = o.ajustes.filter((a) => a.tipoAjuste === 'Modificacion');
+            return {
+              id: String(o.id),
+              atributoId: String(v.id),
+              nombre: o.nombre,
+              precioAjuste: o.ajustePrecio,
+              isActive: true,
+              insumoReemplazadoId: reemplazo ? String(reemplazo.id_Insumo) : undefined,
+              insumoExtraId: reemplazo?.id_InsumoNuevo ? String(reemplazo.id_InsumoNuevo) : undefined,
+              cantidadExtra: reemplazo?.cantidad,
+              ajustesCantidad: modificaciones.length > 0
+                ? modificaciones.map((a) => ({ insumoId: String(a.id_Insumo), cantidad: a.cantidad }))
+                : undefined,
+            };
+          }),
           isActive: true,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -416,18 +432,12 @@ const VariacionesPage: React.FC = () => {
         id_variacion: Number(atributoId),
         ajustes,
       });
-      setAtributos((prev) =>
-        prev.map((a) =>
-          a.id === atributoId
-            ? { ...a, opciones: a.opciones.map((o) => o.id === opcionId ? { ...o, ...data } : o) }
-            : a
-        )
-      );
+      await fetchData();
     } catch {
       toast.error('Error', 'No se pudo actualizar la opción.');
       throw new Error('Failed to update opcion');
     }
-  }, []);
+  }, [fetchData]);
 
   const handleDeleteOpcion = useCallback(async (_atributoId: string, opcionId: string): Promise<void> => {
     try {
