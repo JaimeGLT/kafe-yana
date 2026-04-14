@@ -1099,7 +1099,7 @@ export const POSPage: React.FC = () => {
                         placeholder="Número de teléfono"
                         value={newCustomerPhone}
                         onChange={e => setNewCustomerPhone(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleCreateCustomer()}
+                        onKeyDown={e => e.key === 'Enter' && handleCreateCustomer(id => { setIniciarClienteId(id); setShowNewCustomerForm(false); })}
                         className="w-full px-3 py-2.5 rounded-lg border border-amber-200 focus:border-amber-400 focus:outline-none text-sm text-coffee-900 bg-white placeholder:text-coffee-300"
                       />
                       <button
