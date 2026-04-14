@@ -65,20 +65,26 @@ interface CategoriasResponse {
 }
 
 interface CompradoDetailResponse {
-  comprado: {
-    id: number;
-    nombre: string;
-    descripcion: string;
-    codigo_barra: string;
-    categoria_Id: number;
-    unidad_medida: string;
-    marca: string;
-    ubicacion: string;
-    costo_compra: number;
-    precio: number;
-    stock_actual: number;
-    stock_minimo: number;
-    disponible: boolean;
+  comprados: {
+    nodes: {
+      codigo_barra: string;
+      unidad_medida: string;
+      marca: string;
+      ubicacion: string;
+      costo_compra: number;
+      stock_actual: number;
+      stock_minimo: number;
+      disponible: boolean;
+      producto: {
+        id: number;
+        nombre: string;
+        descripcion: string;
+        precio: number;
+        tipo: string;
+        categoria: { id: number; nombre: string; descripcion: string; estado: boolean; color: string } | null;
+        detalles: { cantidad: number; opcional: boolean }[];
+      };
+    }[];
   };
 }
 
@@ -211,20 +217,23 @@ const ProductsPage: React.FC = () => {
     setIsProductModalOpen(true);
     try {
       const res = await gql<CompradoDetailResponse>(GET_COMPRADO_DETAIL, { id: Number(p.id) });
-      const d = res.comprado;
-      setEditingProduct({
-        ...p,
-        categoryId: catId,
-        name: d.nombre,
-        description: d.descripcion,
-        barcode: d.codigo_barra,
-        unit: d.unidad_medida,
-        costPrice: d.costo_compra,
-        salePrice: d.precio,
-        stock: d.stock_actual,
-        minStock: d.stock_minimo,
-        isActive: d.disponible,
-      });
+      const d = res.comprados.nodes[0];
+      if (d) {
+        const detailCatId = d.producto.categoria ? String(d.producto.categoria.id) : catId;
+        setEditingProduct({
+          ...p,
+          categoryId: detailCatId,
+          name: d.producto.nombre,
+          description: d.producto.descripcion,
+          barcode: d.codigo_barra,
+          unit: d.unidad_medida,
+          costPrice: d.costo_compra,
+          salePrice: d.producto.precio,
+          stock: d.stock_actual,
+          minStock: d.stock_minimo,
+          isActive: d.disponible,
+        });
+      }
     } catch {
       // mantiene los datos básicos ya seteados
     } finally {

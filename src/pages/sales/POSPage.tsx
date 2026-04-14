@@ -929,14 +929,22 @@ export const POSPage: React.FC = () => {
             const isLibre = mesa.status === 'libre';
 
             return (
-              <button
+              <div
                 key={mesa.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => {
                   if (isLibre) openModal(mesa.id, 'iniciar');
                   else openModal(mesa.id, 'detalle');
                 }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    if (isLibre) openModal(mesa.id, 'iniciar');
+                    else openModal(mesa.id, 'detalle');
+                  }
+                }}
                 className={clsx(
-                  'group relative flex flex-col items-center',
+                  'group relative flex flex-col items-center cursor-pointer',
                   'border-2 rounded-2xl p-4 transition-all duration-200',
                   'active:scale-95',
                   cfg.card,
@@ -994,7 +1002,7 @@ export const POSPage: React.FC = () => {
                     )}
                   </div>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>

@@ -48,10 +48,26 @@ export const GET_ALL_CATEGORIES_QUERY = `
 
 export const GET_COMPRADO_DETAIL = `
   query GetCompradoDetail($id: Int!) {
-    comprado(id: $id) {
-      id nombre descripcion codigo_barra categoria_Id
-      unidad_medida marca ubicacion costo_compra precio
-      stock_actual stock_minimo disponible
+    comprados(where: { id_Producto: { eq: $id } }) {
+      nodes {
+        codigo_barra
+        unidad_medida
+        marca
+        ubicacion
+        costo_compra
+        stock_actual
+        stock_minimo
+        disponible
+        producto {
+          id
+          nombre
+          descripcion
+          precio
+          tipo
+          categoria { id nombre descripcion estado color }
+          detalles { cantidad opcional }
+        }
+      }
     }
   }
 `;
