@@ -3,7 +3,7 @@ import { clsx } from 'clsx';
 import {
   Plus, Minus, Trash2, Coffee, CheckCircle, Printer,
   CreditCard, Banknote, Smartphone, AlertTriangle,
-  FlaskConical, Layers, X, Star, Gift,
+  FlaskConical, Layers, X, Star, Gift, Search,
   UtensilsCrossed, ChevronLeft, ChevronRight, PenLine, History, ShoppingBag,
 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
@@ -36,6 +36,7 @@ interface CartItem {
   precioFinal: number;
   cartKey: string;
   redeemRewardId?: string;  // si está seteado, el ítem fue canjeado (precio 0)
+  notes?: string;
 }
 
 type MesaStatus = 'libre' | 'ocupada' | 'esperando_pago';
@@ -524,17 +525,14 @@ export const POSPage: React.FC = () => {
   const activeCategories = useMemo(() => categories.filter(c => c.isActive), [categories]);
 
   // products for the selected category in "agregar" modal
+  // when searching, ignores category filter and searches all products
   const pickerProducts = useMemo(() => {
+    if (productSearch) {
+      const q = productSearch.toLowerCase();
+      return products.filter(p => p.isActive && p.name.toLowerCase().includes(q));
+    }
     const catId = selectedCatId || (activeCategories[0]?.id ?? '');
-    return products.filter(p => {
-      if (!p.isActive) return false;
-      if (p.categoryId !== catId) return false;
-      if (productSearch) {
-        const q = productSearch.toLowerCase();
-        if (!p.name.toLowerCase().includes(q)) return false;
-      }
-      return true;
-    });
+    return products.filter(p => p.isActive && p.categoryId === catId);
   }, [products, selectedCatId, activeCategories, productSearch]);
 
   const getEffectiveStock = useCallback((p: Product): { label: string; ok: boolean } => {
@@ -557,8 +555,8 @@ export const POSPage: React.FC = () => {
     return countItems(activeMesa.order) + countItems(tempCart);
   }, [activeMesa, rewards, tempCart]);
   const availablePoints = loyaltyProfile ? loyaltyProfile.points - pointsSpentInOrder : 0;
-  const mesaTax        = mesaSubtotal * TAX_RATE;
-  const mesaTotal      = mesaSubtotal + mesaTax;
+  const mesaTax        = mesaSubtotal * TAX_RATE; // solo para el SaleInput al backend
+  const mesaTotal      = mesaSubtotal;
   const cashNum        = parseFloat(cashReceived) || 0;
   const change         = Math.max(0, cashNum - mesaTotal);
   const hasCombo       = !!activeMesa?.order.some(i => i.product.tipo === 'combo' || i.product.name.toLowerCase().includes('combo'));
@@ -765,6 +763,13 @@ export const POSPage: React.FC = () => {
   const removeMesaItem = (cartKey: string) =>
     setMesas(prev => prev.map(m =>
       m.id !== activeMesaId ? m : { ...m, order: m.order.filter(i => i.cartKey !== cartKey) }));
+
+  const updateTempItemNote = (cartKey: string, notes: string) =>
+    setTempCart(prev => prev.map(i => i.cartKey === cartKey ? { ...i, notes } : i));
+
+  const updateMesaItemNote = (cartKey: string, notes: string) =>
+    setMesas(prev => prev.map(m =>
+      m.id !== activeMesaId ? m : { ...m, order: m.order.map(i => i.cartKey === cartKey ? { ...i, notes } : i) }));
 
   /* ── Checkout ── */
   const handleRequestPayment = () => {
@@ -1212,6 +1217,28 @@ export const POSPage: React.FC = () => {
               {/* ── Picker (categorías + productos) — solo visible en estado normal ── */}
               {detalleView === 'none' && (
                 <>
+                  {/* Buscador */}
+                  <div className="px-4 pt-3 pb-1 flex-shrink-0">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-coffee-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Buscar producto..."
+                        value={productSearch}
+                        onChange={e => setProductSearch(e.target.value)}
+                        className="w-full pl-8 pr-8 py-2 rounded-xl bg-coffee-50 border border-coffee-100 text-xs text-coffee-900 placeholder:text-coffee-400 focus:outline-none focus:border-coffee-300"
+                      />
+                      {productSearch && (
+                        <button
+                          onClick={() => setProductSearch('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-coffee-400 hover:text-coffee-600"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   <div
                     ref={dragScrollDetalleCat.ref}
                     onMouseDown={dragScrollDetalleCat.onMouseDown}
@@ -1299,7 +1326,8 @@ export const POSPage: React.FC = () => {
                     <>
                       <div className="divide-y divide-coffee-50">
                         {tempCart.map((item, idx) => (
-                          <div key={item.cartKey} className="flex items-center gap-3 px-5 py-3">
+                          <div key={item.cartKey} className="px-5 py-3 space-y-1.5">
+                            <div className="flex items-center gap-3">
                             <span className="text-xs font-bold text-coffee-300 w-4 flex-shrink-0">{idx + 1}</span>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
@@ -1338,6 +1366,18 @@ export const POSPage: React.FC = () => {
                                 </div>
                               )}
                             </div>
+                            </div>{/* cierra flex items-center gap-3 */}
+                            {/* Nota del ítem */}
+                            <div className="flex items-center gap-2 pl-7">
+                              <PenLine className="h-3 w-3 text-coffee-300 flex-shrink-0" />
+                              <input
+                                type="text"
+                                placeholder="Nota (ej: sin azúcar, extra caliente...)"
+                                value={item.notes ?? ''}
+                                onChange={e => updateTempItemNote(item.cartKey, e.target.value)}
+                                className="flex-1 text-[11px] text-coffee-700 placeholder:text-coffee-300 bg-transparent border-b border-coffee-100 focus:border-coffee-400 focus:outline-none py-0.5"
+                              />
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1364,40 +1404,53 @@ export const POSPage: React.FC = () => {
                     <>
                       <div className="divide-y divide-coffee-50">
                         {activeMesa.order.map((item, idx) => (
-                          <div key={item.cartKey} className="flex items-center gap-3 px-5 py-3">
-                            <span className="text-xs font-bold text-coffee-300 w-4 flex-shrink-0">{idx + 1}</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <p className="text-sm font-semibold text-coffee-900 line-clamp-2 leading-snug">{item.product.name}</p>
-                                {item.redeemRewardId && (
-                                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 flex-shrink-0">
-                                    <Gift className="h-2.5 w-2.5" />Canje
-                                  </span>
-                                )}
+                          <div key={item.cartKey} className="px-5 py-3 space-y-1.5">
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs font-bold text-coffee-300 w-4 flex-shrink-0">{idx + 1}</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <p className="text-sm font-semibold text-coffee-900 line-clamp-2 leading-snug">{item.product.name}</p>
+                                  {item.redeemRewardId && (
+                                    <span className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 flex-shrink-0">
+                                      <Gift className="h-2.5 w-2.5" />Canje
+                                    </span>
+                                  )}
+                                </div>
+                                {item.opciones?.length ? (
+                                  <p className="text-xs text-coffee-400 line-clamp-1 mt-0.5">{item.opciones.map(o => o.opcionNombre).join(' · ')}</p>
+                                ) : null}
                               </div>
-                              {item.opciones?.length ? (
-                                <p className="text-xs text-coffee-400 line-clamp-1 mt-0.5">{item.opciones.map(o => o.opcionNombre).join(' · ')}</p>
-                              ) : null}
+                              <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                                <div className="flex items-center gap-1.5">
+                                  {item.redeemRewardId
+                                    ? <p className="text-sm font-bold text-amber-500">Gratis</p>
+                                    : <p className="text-sm font-bold text-coffee-900">{formatCurrency(item.precioFinal * item.quantity)}</p>
+                                  }
+                                  <button onClick={() => removeMesaItem(item.cartKey)} className="text-coffee-200 hover:text-red-400 transition-colors">
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button onClick={() => decMesaQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-100 hover:bg-coffee-200 flex items-center justify-center text-coffee-600">
+                                    <Minus className="h-3 w-3" />
+                                  </button>
+                                  <span className="w-5 text-center text-sm font-bold text-coffee-900">{item.quantity}</span>
+                                  <button onClick={() => incMesaQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-800 hover:bg-coffee-700 flex items-center justify-center text-cream">
+                                    <Plus className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </div>
                             </div>
-                            <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                              <div className="flex items-center gap-1.5">
-                                {item.redeemRewardId
-                                  ? <p className="text-sm font-bold text-amber-500">Gratis</p>
-                                  : <p className="text-sm font-bold text-coffee-900">{formatCurrency(item.precioFinal * item.quantity)}</p>
-                                }
-                                <button onClick={() => removeMesaItem(item.cartKey)} className="text-coffee-200 hover:text-red-400 transition-colors">
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <button onClick={() => decMesaQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-100 hover:bg-coffee-200 flex items-center justify-center text-coffee-600">
-                                  <Minus className="h-3 w-3" />
-                                </button>
-                                <span className="w-5 text-center text-sm font-bold text-coffee-900">{item.quantity}</span>
-                                <button onClick={() => incMesaQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-800 hover:bg-coffee-700 flex items-center justify-center text-cream">
-                                  <Plus className="h-3 w-3" />
-                                </button>
-                              </div>
+                            {/* Nota editable del ítem ya enviado */}
+                            <div className="flex items-center gap-2 pl-7">
+                              <PenLine className="h-3 w-3 text-coffee-300 flex-shrink-0" />
+                              <input
+                                type="text"
+                                placeholder="Nota (ej: sin cebolla, bien caliente...)"
+                                value={item.notes ?? ''}
+                                onChange={e => updateMesaItemNote(item.cartKey, e.target.value)}
+                                className="flex-1 text-[11px] text-coffee-700 placeholder:text-coffee-300 bg-transparent border-b border-coffee-100 focus:border-coffee-400 focus:outline-none py-0.5"
+                              />
                             </div>
                           </div>
                         ))}
@@ -1601,6 +1654,7 @@ export const POSPage: React.FC = () => {
                         )}
                       </div>
                       {item.opciones?.length ? <p className="text-xs text-coffee-400 line-clamp-1">{item.opciones.map(o => o.opcionNombre).join(' · ')}</p> : null}
+                      {item.notes && <p className="text-xs text-coffee-500 italic mt-0.5">"{item.notes}"</p>}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="text-xs text-coffee-400 bg-coffee-100 rounded-lg px-2 py-0.5 font-semibold">×{item.quantity}</span>
@@ -1614,11 +1668,9 @@ export const POSPage: React.FC = () => {
               </div>
 
               <div className="flex-shrink-0 border-t border-coffee-100">
-                <div className="px-5 py-3 space-y-1 bg-coffee-50">
-                  <div className="flex justify-between text-sm text-coffee-600"><span>Subtotal</span><span>{formatCurrency(mesaSubtotal)}</span></div>
-                  <div className="flex justify-between text-sm text-coffee-600"><span>IGV 18%</span><span>{formatCurrency(mesaTax)}</span></div>
-                  <div className="flex justify-between font-bold text-coffee-900 text-lg border-t border-coffee-200 pt-2">
-                    <span>Total a Enviar</span>
+                <div className="px-5 py-3 bg-coffee-50">
+                  <div className="flex justify-between font-bold text-coffee-900 text-lg">
+                    <span>Total</span>
                     <span className="font-display">{formatCurrency(mesaTotal)}</span>
                   </div>
                 </div>

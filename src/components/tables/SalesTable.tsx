@@ -97,7 +97,13 @@ export const SalesTable: React.FC<SalesTableProps> = ({
       render: (value: unknown) => {
         return (
           <StatusBadge
-            status={value === 'completed' ? 'completed' : value === 'pending' ? 'pending' : value === 'cancelled' ? 'cancelled' : 'active'}
+            status={
+              value === 'completed'  ? 'completed'  :
+              value === 'pending'    ? 'pending'    :
+              value === 'cancelled'  ? 'cancelled'  :
+              value === 'refunded'   ? 'refunded'   :
+              'active'
+            }
           />
         );
       },

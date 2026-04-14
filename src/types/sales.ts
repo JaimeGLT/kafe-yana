@@ -57,6 +57,7 @@ export interface SaleItem {
   tax: number;
   total: number;
   notes?: string;
+  isRedeemed?: boolean; // producto pagado con puntos de fidelidad
 }
 
 export interface SaleItemInput {
@@ -87,6 +88,8 @@ export interface Sale extends BaseEntity {
   cashierName?: string;
   branchId: UUID;
   branchName?: string;
+  pointsEarned?: number;    // puntos acreditados al cliente al completar
+  pointsRedeemed?: number;  // puntos usados por el cliente en esta venta
 }
 
 export interface SaleInput {

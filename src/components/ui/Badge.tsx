@@ -86,7 +86,7 @@ export const Badge: React.FC<BadgeProps> = ({
 
 // Status Badge for common states
 interface StatusBadgeProps {
-  status: 'active' | 'inactive' | 'pending' | 'completed' | 'cancelled' | 'open' | 'closed';
+  status: 'active' | 'inactive' | 'pending' | 'completed' | 'cancelled' | 'refunded' | 'open' | 'closed';
   size?: BadgeSize;
   className?: string;
 }
@@ -102,6 +102,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     pending: { variant: 'warning', label: 'Pendiente' },
     completed: { variant: 'success', label: 'Completado' },
     cancelled: { variant: 'danger', label: 'Cancelado' },
+    refunded:  { variant: 'info',    label: 'Reembolsado' },
     open: { variant: 'info', label: 'Abierto' },
     closed: { variant: 'default', label: 'Cerrado' },
   };
