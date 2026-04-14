@@ -86,6 +86,23 @@ export const GET_KARDEX_PRODUCTS_QUERY = `
   }
 `;
 
+// TODO: implementar en el backend — query para el historial de movimientos de un producto
+export const GET_KARDEX_MOVEMENTS_QUERY = `
+  query GetKardexMovements($productoId: Int!) {
+    kardexMovimientos(productoId: $productoId) {
+      id
+      fecha
+      tipo
+      referencia
+      cantidad
+      costoUnitario
+      costoTotal
+      stockResultante
+      notas
+    }
+  }
+`;
+
 export const GET_COMBO_DETAIL = `
   query GetComboDetail($id: Int!) {
     combo(id: $id) {

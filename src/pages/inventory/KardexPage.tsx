@@ -5,8 +5,7 @@ import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
 import { Select, Badge } from '../../components/ui';
 import { gql } from '../../lib/graphql';
-import { api } from '../../lib/api';
-import { GET_KARDEX_PRODUCTS_QUERY } from '../../lib/queries/products.queries';
+import { GET_KARDEX_PRODUCTS_QUERY, GET_KARDEX_MOVEMENTS_QUERY } from '../../lib/queries/products.queries';
 import { formatCurrency, formatDateTime } from '../../utils';
 import type { KardexMovement } from '../../types';
 
@@ -131,70 +130,100 @@ const KardexPage: React.FC = () => {
 
   // ── Carga inicial de productos ─────────────────────────────────────────────
 
+  // TODO: reemplazar el mock por la llamada real cuando el backend responda bien:
+  //
+  //   gql<KardexProductsResponse>(GET_KARDEX_PRODUCTS_QUERY).then((data) => {
+  //     const comprados = (data.productos?.nodes ?? []).filter(...).map(...)
+  //     const elaborados = data.elaborados.map(...)
+  //     const combos = data.combos.map(...)
+  //     setAllProducts([...comprados, ...elaborados, ...combos])
+  //   })
+  //
   useEffect(() => {
-    gql<KardexProductsResponse>(GET_KARDEX_PRODUCTS_QUERY)
-      .then((data) => {
-        const comprados: KardexProduct[] = (data.productos?.nodes ?? [])
-          .filter((n) => n.tipo === 'Comprado')
-          .map((n) => ({
-            id: String(n.id),
-            name: n.nombre,
-            tipo: 'comprado',
-            categoryName: n.categoriaNombre ?? '',
-            salePrice: n.precioVenta,
-            costPrice: n.costo,
-            stock: n.stock,
-            unit: 'unidad',
-          }));
+    const MOCK_PRODUCTS: KardexProduct[] = [
+      { id: '1', name: 'Café en grano 1kg',    tipo: 'comprado',  categoryName: 'Café',    salePrice: 85,  costPrice: 55,  stock: 40,  unit: 'kg'     },
+      { id: '2', name: 'Leche entera 1L',       tipo: 'comprado',  categoryName: 'Lácteos', salePrice: 12,  costPrice: 8,   stock: 120, unit: 'litro'  },
+      { id: '3', name: 'Azúcar 1kg',            tipo: 'comprado',  categoryName: 'Insumos', salePrice: 10,  costPrice: 6,   stock: 80,  unit: 'kg'     },
+      { id: '4', name: 'Cappuccino 12oz',        tipo: 'elaborado', categoryName: '',        salePrice: 45,  costPrice: 0,   stock: 35,  unit: 'taza'   },
+      { id: '5', name: 'Latte con vainilla',     tipo: 'elaborado', categoryName: '',        salePrice: 52,  costPrice: 0,   stock: 28,  unit: 'taza'   },
+      { id: '6', name: 'Combo desayuno clásico', tipo: 'combo',     categoryName: '',        salePrice: 95,  costPrice: 0,   stock: 15,  unit: 'combo'  },
+    ];
 
-        const elaborados: KardexProduct[] = data.elaborados.map((n) => ({
-          id: String(n.id),
-          name: n.nombre,
-          tipo: 'elaborado',
-          categoryName: '',
-          salePrice: n.precio,
-          costPrice: 0,
-          stock: n.cantidadProducible,
-          unit: n.unidad_medida ?? 'unidad',
-        }));
-
-        const combos: KardexProduct[] = data.combos.map((n) => ({
-          id: String(n.id),
-          name: n.nombre,
-          tipo: 'combo',
-          categoryName: '',
-          salePrice: n.precio,
-          costPrice: 0,
-          stock: n.cantidadProducible,
-          unit: 'combo',
-        }));
-
-        setAllProducts([...comprados, ...elaborados, ...combos]);
-      })
-      .catch((err) => console.error('Error loading kardex products:', err))
-      .finally(() => setIsLoadingProducts(false));
+    setTimeout(() => {
+      setAllProducts(MOCK_PRODUCTS);
+      setIsLoadingProducts(false);
+    }, 300);
   }, []);
 
   // ── Carga de movimientos al seleccionar producto ───────────────────────────
-
+  //
+  // TODO: reemplazar el mock por la llamada real cuando el backend lo implemente:
+  //
+  //   gql<{ kardexMovimientos: RawMovement[] }>(
+  //     GET_KARDEX_MOVEMENTS_QUERY,
+  //     { productoId: Number(selectedProductId) }
+  //   ).then(({ kardexMovimientos }) => { ... })
+  //
   useEffect(() => {
     if (!selectedProductId) {
       setMovements([]);
       return;
     }
     setIsLoadingMovements(true);
-    api.get<RawMovement[]>(`/Kardex/${selectedProductId}`)
-      .then((data) => {
-        const sorted = data
-          .map(mapMovement)
-          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        setMovements(sorted);
-      })
-      .catch((err) => {
-        console.error('Error loading kardex movements:', err);
-        setMovements([]);
-      })
-      .finally(() => setIsLoadingMovements(false));
+
+    // — MOCK — simula la respuesta que devolverá el backend —
+    const MOCK_MOVEMENTS: RawMovement[] = [
+      {
+        id: 1,
+        fecha: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+        tipo: 'Compra',
+        referencia: 'OC-2024-001',
+        cantidad: 50,
+        costoUnitario: 12.5,
+        costoTotal: 625,
+        stockResultante: 50,
+        notas: 'Compra inicial de stock',
+      },
+      {
+        id: 2,
+        fecha: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+        tipo: 'Venta',
+        referencia: 'VTA-00123',
+        cantidad: -3,
+        costoUnitario: 12.5,
+        costoTotal: -37.5,
+        stockResultante: 47,
+      },
+      {
+        id: 3,
+        fecha: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        tipo: 'Venta',
+        referencia: 'VTA-00124',
+        cantidad: -5,
+        costoUnitario: 12.5,
+        costoTotal: -62.5,
+        stockResultante: 42,
+      },
+      {
+        id: 4,
+        fecha: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+        tipo: 'Ajuste',
+        referencia: 'AJU-00045',
+        cantidad: -2,
+        costoUnitario: 12.5,
+        costoTotal: -25,
+        stockResultante: 40,
+        notas: 'Producto dañado',
+      },
+    ];
+
+    setTimeout(() => {
+      const sorted = MOCK_MOVEMENTS
+        .map(mapMovement)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setMovements(sorted);
+      setIsLoadingMovements(false);
+    }, 400); // simula latencia de red
   }, [selectedProductId]);
 
   // ── Derivados ─────────────────────────────────────────────────────────────
