@@ -4,18 +4,97 @@ import {
   Star, Gift, Coffee, Zap, Trophy, Users, Calendar, Clock,
   Sparkles, Heart, Target, CheckCircle,
   Search, TrendingUp, RotateCcw, Plus, Minus, ArrowUpCircle,
-  ArrowDownCircle, Crown, Flame, Cake,
+  ArrowDownCircle, Crown, Flame, Cake, Settings, ShoppingBag,
 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 // UI primitives not needed - page uses custom inline components
 import { toast } from '../../components/ui/Toast';
-import { api } from '../../lib/api';
 import { formatDateTime } from '../../utils/formatters';
-import type { LoyaltyProfile, LoyaltyLevel, MilestoneReward, LoyaltyTransaction, Reward, Mission } from '../../types/loyalty';
+import type { LoyaltyProfile, LoyaltyLevel, MilestoneReward, MilestoneVoucher, LoyaltyTransaction, Reward, Mission, Promotion } from '../../types/loyalty';
 import type { Customer } from '../../types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type TabId = 'recompensas' | 'promos' | 'misiones' | 'historial';
+type TabId = 'recompensas' | 'promos' | 'misiones' | 'historial' | 'config';
+
+// ─── Mock Data ────────────────────────────────────────────────────────────────
+const MOCK_CUSTOMERS: Customer[] = [
+  { id: 'c1', name: 'Ana Quispe', phone: '70011122', email: 'ana@email.com', isActive: true, createdAt: new Date('2024-01-10'), updatedAt: new Date() },
+  { id: 'c2', name: 'Carlos Mamani', phone: '70033344', email: '', isActive: true, createdAt: new Date('2024-02-15'), updatedAt: new Date() },
+  { id: 'c3', name: 'Lucía Flores', phone: '70055566', email: 'lucia@email.com', isActive: true, createdAt: new Date('2024-03-01'), updatedAt: new Date() },
+  { id: 'c4', name: 'Diego Vargas', phone: '70077788', email: '', isActive: true, createdAt: new Date('2024-04-20'), updatedAt: new Date() },
+];
+
+const MOCK_PROFILES: LoyaltyProfile[] = [
+  { id: 'p1', customerId: 'c1', points: 340, lifetimePoints: 520, purchaseCount: 18, level: 'plata', birthday: '1995-04-14', referralCode: 'ANA520', referralCount: 2, consecutiveDays: 3, lastPurchaseDate: '2026-04-13', uniqueProductsBought: ['prod1','prod2','prod3'], completedMissions: ['m2'], createdAt: new Date('2024-01-10'), updatedAt: new Date() },
+  { id: 'p2', customerId: 'c2', points: 80, lifetimePoints: 150, purchaseCount: 6, level: 'bronce', referralCode: 'CAR150', referralCount: 0, consecutiveDays: 1, uniqueProductsBought: ['prod1'], completedMissions: [], createdAt: new Date('2024-02-15'), updatedAt: new Date() },
+  { id: 'p3', customerId: 'c3', points: 610, lifetimePoints: 1120, purchaseCount: 42, level: 'oro', birthday: '1990-07-22', referralCode: 'LUC1120', referralCount: 5, consecutiveDays: 7, lastPurchaseDate: '2026-04-12', uniqueProductsBought: ['prod1','prod2','prod3','prod4','prod5'], completedMissions: ['m1','m2','m3'], createdAt: new Date('2024-03-01'), updatedAt: new Date() },
+  { id: 'p4', customerId: 'c4', points: 20, lifetimePoints: 30, purchaseCount: 2, level: 'bronce', referralCode: 'DIE030', referralCount: 0, consecutiveDays: 0, uniqueProductsBought: ['prod1'], completedMissions: [], createdAt: new Date('2024-04-20'), updatedAt: new Date() },
+];
+
+const MOCK_TRANSACTIONS: LoyaltyTransaction[] = [
+  { id: 't1', customerId: 'c1', points: 15, type: 'earned', description: 'Compra Bs.150 — puntos dobles (>Bs.100)', date: '2026-04-13T10:30:00Z', createdAt: new Date(), updatedAt: new Date() },
+  { id: 't2', customerId: 'c1', points: 3, type: 'combo_bonus', description: 'Bonus combo pedido', date: '2026-04-13T10:30:00Z', createdAt: new Date(), updatedAt: new Date() },
+  { id: 't3', customerId: 'c1', points: 8, type: 'earned', description: 'Compra Bs.80', date: '2026-04-10T09:15:00Z', createdAt: new Date(), updatedAt: new Date() },
+  { id: 't4', customerId: 'c1', points: -20, type: 'redeemed', description: 'Canje: Brownie Casero', date: '2026-04-08T11:00:00Z', createdAt: new Date(), updatedAt: new Date() },
+  { id: 't5', customerId: 'c1', points: 30, type: 'birthday_bonus', description: '🎂 Cumpleaños — puntos x3', date: '2026-04-14T08:00:00Z', createdAt: new Date(), updatedAt: new Date() },
+  { id: 't6', customerId: 'c1', points: 10, type: 'referral', description: 'Referiste a Diego Vargas', date: '2026-04-05T14:20:00Z', createdAt: new Date(), updatedAt: new Date() },
+  { id: 't7', customerId: 'c3', points: 12, type: 'earned', description: 'Compra Bs.120 — puntos dobles (>Bs.100)', date: '2026-04-12T10:00:00Z', createdAt: new Date(), updatedAt: new Date() },
+  { id: 't8', customerId: 'c3', points: 3, type: 'combo_bonus', description: 'Bonus combo pedido', date: '2026-04-12T10:00:00Z', createdAt: new Date(), updatedAt: new Date() },
+];
+
+const MOCK_REWARDS: Reward[] = [
+  // Diarios
+  { id: 'r1', name: 'Café Americano Gratis', description: 'Un americano de 12oz para el cliente', pointsCost: 20, category: 'diario', icon: '☕', isActive: true },
+  { id: 'r2', name: 'Té de Hierbas Gratis', description: 'Té caliente a elección', pointsCost: 15, category: 'diario', icon: '🍵', isActive: true },
+  { id: 'r3', name: 'Brownie Casero Gratis', description: 'Brownie de chocolate recién horneado', pointsCost: 25, category: 'diario', icon: '🍫', isActive: true },
+  { id: 'r4', name: 'Cookie de Choco Gratis', description: 'Cookie artesanal de chocolate', pointsCost: 20, category: 'diario', icon: '🍪', isActive: true },
+  { id: 'r5', name: 'Empanada de Queso Gratis', description: 'Empanada horneada de queso', pointsCost: 30, category: 'diario', icon: '🥐', isActive: true },
+  // Premio mayor
+  { id: 'r6', name: 'Almuerzo Completo Gratis', description: 'Almuerzo del día con bebida incluida', pointsCost: 200, category: 'premio_mayor', icon: '🍽️', isActive: true, highlight: true },
+];
+
+const MOCK_MISSIONS: Mission[] = [
+  { id: 'm1', name: 'Semana Perfecta', description: 'Visita 7 días seguidos', bonusPoints: 50, icon: '🔥', requirement: 7, type: 'consecutive_days', isActive: true },
+  { id: 'm2', name: 'Explorador del Menú', description: 'Prueba 5 productos distintos', bonusPoints: 30, icon: '🗺️', requirement: 5, type: 'unique_products', isActive: true },
+  { id: 'm3', name: 'Embajador Yana', description: 'Refiere a 1 amigo al programa', bonusPoints: 20, icon: '🤝', requirement: 1, type: 'referral', isActive: true },
+  { id: 'm4', name: 'Combo Lover', description: 'Pide un combo en tu próxima visita', bonusPoints: 10, icon: '🎯', requirement: 1, type: 'combo', isActive: true },
+];
+
+const MOCK_MILESTONES: MilestoneReward[] = [
+  { purchaseNumber: 10,  reward: 'Café Americano',    icon: '☕', description: 'Café gratis en tu 10ma visita' },
+  { purchaseNumber: 20,  reward: 'Desayuno Completo', icon: '🥐', description: 'Desayuno gratis en tu 20va visita' },
+  { purchaseNumber: 30,  reward: 'Postre Especial',   icon: '🍰', description: 'Postre gratis en tu 30va visita' },
+  { purchaseNumber: 40,  reward: 'Brunch para Dos',   icon: '🥳', description: 'Brunch gratis para dos en tu 40va visita' },
+  { purchaseNumber: 60,  reward: 'Almuerzo Completo', icon: '🍽️', description: 'Almuerzo gratis en tu 60va visita' },
+  { purchaseNumber: 100, reward: 'Experiencia Yana',  icon: '💎', description: 'Experiencia premium en tu 100va visita' },
+];
+
+const MOCK_VOUCHERS: MilestoneVoucher[] = [
+  // Ana (18 compras) — alcanzó hito 10, pendiente de canje
+  { id: 'v1', customerId: 'c1', milestoneNumber: 10, reward: 'Café Americano', icon: '☕', isRedeemed: false, generatedAt: '2026-03-20T10:00:00Z' },
+  // Lucía (42 compras) — alcanzó 10, 20 (ya canjeados), 40 pendiente
+  { id: 'v2', customerId: 'c3', milestoneNumber: 10, reward: 'Café Americano', icon: '☕', isRedeemed: true,  generatedAt: '2025-08-15T09:00:00Z', redeemedAt: '2025-08-15T09:30:00Z' },
+  { id: 'v3', customerId: 'c3', milestoneNumber: 20, reward: 'Desayuno Completo', icon: '🥐', isRedeemed: true, generatedAt: '2025-11-10T10:00:00Z', redeemedAt: '2025-11-10T11:00:00Z' },
+  { id: 'v4', customerId: 'c3', milestoneNumber: 30, reward: 'Postre Especial', icon: '🍰', isRedeemed: true, generatedAt: '2026-02-05T10:00:00Z', redeemedAt: '2026-02-05T10:15:00Z' },
+  { id: 'v5', customerId: 'c3', milestoneNumber: 40, reward: 'Brunch para Dos', icon: '🥳', isRedeemed: false, generatedAt: '2026-04-10T10:00:00Z' },
+];
+
+const MOCK_PROMOTIONS: Promotion[] = [
+  // Abril
+  { id: 'promo1', name: 'Café Frío Especial', description: 'Cold brew de temporada para el verano tardío.', icon: '🧊', type: 'canje_puntos', pointsCost: 35, month: 4, startDate: '2026-04-01', endDate: '2026-04-30', isActive: true },
+  { id: 'promo2', name: 'Limonada Refrescante', description: 'Limonada fresca con jengibre y menta.', icon: '🍋', type: 'canje_puntos', pointsCost: 25, month: 4, startDate: '2026-04-10', endDate: '2026-04-30', isActive: true },
+  { id: 'promo3', name: 'x2 en Bebidas Frías', description: 'Todas las bebidas frías acumulan puntos dobles.', icon: '✨', type: 'puntos_dobles_categoria', category: 'Bebidas Frías', multiplier: 2, month: 4, startDate: '2026-04-15', endDate: '2026-04-30', isActive: false },
+  // Mayo
+  { id: 'promo4', name: 'Tarta Día de la Madre', description: 'Tarta especial de fresas en honor al Día de la Madre.', icon: '🍓', type: 'canje_puntos', pointsCost: 40, month: 5, startDate: '2026-05-01', endDate: '2026-05-31', isActive: false },
+  { id: 'promo5', name: 'Chocolate Caliente Gratis', description: 'Chocolate artesanal con canela para entrar al invierno.', icon: '☕', type: 'canje_puntos', pointsCost: 30, month: 5, startDate: '2026-05-15', endDate: '2026-05-31', isActive: false },
+  { id: 'promo6', name: 'x2 en Postres', description: 'Todos los postres y tortas acumulan puntos dobles en mayo.', icon: '✨', type: 'puntos_dobles_categoria', category: 'Postres', multiplier: 2, month: 5, startDate: '2026-05-01', endDate: '2026-05-31', isActive: false },
+  // Junio
+  { id: 'promo7', name: 'Café de Invierno', description: 'Café caliente especial de la temporada de frío.', icon: '🔥', type: 'canje_puntos', pointsCost: 30, month: 6, startDate: '2026-06-01', endDate: '2026-06-30', isActive: false },
+  { id: 'promo8', name: 'x2 en Bebidas Calientes', description: 'Cafés, tés y chocolates acumulan el doble en junio.', icon: '✨', type: 'puntos_dobles_categoria', category: 'Bebidas Calientes', multiplier: 2, month: 6, startDate: '2026-06-01', endDate: '2026-06-30', isActive: false },
+  // Julio
+  { id: 'promo9', name: 'Combo de Invierno', description: 'Combo bebida caliente + postre con descuento especial.', icon: '🥐', type: 'canje_puntos', pointsCost: 45, month: 7, startDate: '2026-07-01', endDate: '2026-07-31', isActive: false },
+  { id: 'promo10', name: 'x3 en Almuerzos', description: 'Los almuerzos completos acumulan puntos triplicados en julio.', icon: '✨', type: 'puntos_dobles_categoria', category: 'Almuerzos', multiplier: 3, month: 7, startDate: '2026-07-01', endDate: '2026-07-31', isActive: false },
+];
 
 // ─── Level config ─────────────────────────────────────────────────────────────
 const LEVEL_CONFIG = {
@@ -386,6 +465,9 @@ export const FidelizacionPage: React.FC = () => {
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [milestones, setMilestones] = useState<MilestoneReward[]>([]);
+  const [vouchers, setVouchers] = useState<MilestoneVoucher[]>([]);
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [activePromoMonth, setActivePromoMonth] = useState<number>(new Date().getMonth() + 1);
   const [_loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState('');
@@ -393,32 +475,17 @@ export const FidelizacionPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabId>('recompensas');
   const [showAdjustModal, setShowAdjustModal] = useState(false);
 
-  // Load data from API
+  // Load mock data
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [customersData, profilesData, transactionsData, rewardsData, missionsData, milestonesData] = await Promise.all([
-          api.get<Customer[]>('/customers'),
-          api.get<LoyaltyProfile[]>('/loyalty/profiles'),
-          api.get<LoyaltyTransaction[]>('/loyalty/transactions'),
-          api.get<Reward[]>('/loyalty/rewards'),
-          api.get<Mission[]>('/loyalty/missions'),
-          api.get<MilestoneReward[]>('/loyalty/milestones'),
-        ]);
-        setCustomers(customersData);
-        setProfiles(profilesData);
-        setTransactions(transactionsData);
-        setRewards(rewardsData);
-        setMissions(missionsData);
-        setMilestones(milestonesData);
-      } catch (error) {
-        console.error('Error fetching loyalty data:', error);
-        toast.error('Error', 'No se pudieron cargar los datos de fidelización.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+    setCustomers(MOCK_CUSTOMERS);
+    setProfiles(MOCK_PROFILES);
+    setTransactions(MOCK_TRANSACTIONS);
+    setRewards(MOCK_REWARDS);
+    setMissions(MOCK_MISSIONS);
+    setMilestones(MOCK_MILESTONES);
+    setVouchers(MOCK_VOUCHERS);
+    setPromotions(MOCK_PROMOTIONS);
+    setLoading(false);
   }, []);
 
   const getProfile = useCallback((customerId: string): LoyaltyProfile | undefined => {
@@ -477,46 +544,35 @@ export const FidelizacionPage: React.FC = () => {
     return { level: currentLevel, nextLevel, pointsToNext, progress };
   }, []);
 
-  const redeemPoints = useCallback(async (customerId: string, rewardId: string): Promise<boolean> => {
-    try {
-      const profile = getProfile(customerId);
-      const reward = rewards.find((r: Reward) => r.id === rewardId);
-      if (!profile || !reward || profile.points < reward.pointsCost) return false;
-
-      await api.post('/loyalty/redeem', { customerId, rewardId });
-
-      // Update local state
-      setProfiles(prev => prev.map((p: LoyaltyProfile) =>
-        p.customerId === customerId ? { ...p, points: p.points - reward.pointsCost } : p
-      ));
-      return true;
-    } catch (error) {
-      console.error('Error redeeming points:', error);
-      return false;
-    }
+  const redeemPoints = useCallback((_customerId: string, rewardId: string): boolean => {
+    const profile = getProfile(_customerId);
+    const reward = rewards.find((r: Reward) => r.id === rewardId);
+    if (!profile || !reward || profile.points < reward.pointsCost) return false;
+    setProfiles(prev => prev.map((p: LoyaltyProfile) =>
+      p.customerId === _customerId ? { ...p, points: p.points - reward.pointsCost } : p
+    ));
+    const tx: LoyaltyTransaction = {
+      id: `tx-${Date.now()}`, customerId: _customerId, points: -reward.pointsCost,
+      type: 'redeemed', description: `Canje: ${reward.name}`, date: new Date().toISOString(),
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+    setTransactions(prev => [tx, ...prev]);
+    return true;
   }, [getProfile, rewards]);
 
-  const addTransaction = useCallback(async (customerId: string, saleId: string | undefined, points: number, type: LoyaltyTransaction['type'], description: string) => {
-    try {
-      const newTx = await api.post<LoyaltyTransaction>('/loyalty/transactions', {
-        customerId,
-        saleId,
-        points,
-        type,
-        description,
-      });
-      setTransactions(prev => [newTx, ...prev]);
-
-      // Update profile points
-      if (points !== 0) {
-        setProfiles(prev => prev.map((p: LoyaltyProfile) =>
-          p.customerId === customerId
-            ? { ...p, points: p.points + points, lifetimePoints: points > 0 ? p.lifetimePoints + points : p.lifetimePoints }
-            : p
-        ));
-      }
-    } catch (error) {
-      console.error('Error adding transaction:', error);
+  const addTransaction = useCallback((_customerId: string, _saleId: string | undefined, points: number, type: LoyaltyTransaction['type'], description: string) => {
+    const tx: LoyaltyTransaction = {
+      id: `tx-${Date.now()}`, customerId: _customerId, saleId: _saleId,
+      points, type, description, date: new Date().toISOString(),
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+    setTransactions(prev => [tx, ...prev]);
+    if (points !== 0) {
+      setProfiles(prev => prev.map((p: LoyaltyProfile) =>
+        p.customerId === _customerId
+          ? { ...p, points: p.points + points, lifetimePoints: points > 0 ? p.lifetimePoints + points : p.lifetimePoints }
+          : p
+      ));
     }
   }, []);
 
@@ -574,27 +630,6 @@ export const FidelizacionPage: React.FC = () => {
   // ── Current month ────────────────────────────────────────────────────────────
   const currentMonth = new Date().getMonth() + 1;
 
-  // ── Temporal rewards grouped by month ────────────────────────────────────────
-  const temporalByMonth = useMemo(() => {
-    const map: Record<number, typeof rewards> = {};
-    rewards
-      .filter(r => r.category === 'temporal' && r.month != null)
-      .forEach(r => {
-        const m = r.month!;
-        if (!map[m]) map[m] = [];
-        map[m].push(r);
-      });
-    return map;
-  }, [rewards]);
-
-  const monthsOrdered = useMemo(() => {
-    const keys = Object.keys(temporalByMonth).map(Number).sort((a, b) => a - b);
-    // Reorder so current month is first
-    const idx = keys.indexOf(currentMonth);
-    if (idx === -1) return keys;
-    return [...keys.slice(idx), ...keys.slice(0, idx)];
-  }, [temporalByMonth, currentMonth]);
-
   const dailyRewards = useMemo(() => rewards.filter(r => r.category === 'diario'), [rewards]);
   const grandPrize = useMemo(() => rewards.filter(r => r.category === 'premio_mayor'), [rewards]);
 
@@ -606,6 +641,19 @@ export const FidelizacionPage: React.FC = () => {
     ? selectedProfile.purchaseCount % 5
     : 0;
 
+  // ── Vouchers del cliente seleccionado ────────────────────────────────────────
+  const customerVouchers = useMemo(
+    () => selectedCustomerId
+      ? vouchers.filter(v => v.customerId === selectedCustomerId)
+      : [],
+    [selectedCustomerId, vouchers],
+  );
+
+  const pendingVouchers = useMemo(
+    () => customerVouchers.filter(v => !v.isRedeemed),
+    [customerVouchers],
+  );
+
   // ── Handlers ─────────────────────────────────────────────────────────────────
   const handleSelectCustomer = (id: string) => {
     setSelectedCustomerId(id);
@@ -613,11 +661,11 @@ export const FidelizacionPage: React.FC = () => {
     setSearch('');
   };
 
-  const handleRedeem = async (rewardId: string) => {
+  const handleRedeem = (rewardId: string) => {
     if (!selectedCustomerId || !selectedProfile) return;
     const reward = rewards.find(r => r.id === rewardId);
     if (!reward) return;
-    const ok = await redeemPoints(selectedCustomerId, rewardId);
+    const ok = redeemPoints(selectedCustomerId, rewardId);
     if (ok) {
       toast.success('¡Recompensa canjeada!', `${reward.name} canjeado exitosamente.`);
     } else {
@@ -625,9 +673,38 @@ export const FidelizacionPage: React.FC = () => {
     }
   };
 
-  const handleAdjust = async (delta: number, reason: string) => {
+  const handleTogglePromo = (promoId: string) => {
+    setPromotions(prev => prev.map(p =>
+      p.id === promoId ? { ...p, isActive: !p.isActive } : p
+    ));
+  };
+
+  const promoMonths = useMemo(() => {
+    const months = [...new Set(promotions.map(p => p.month))].sort((a, b) => a - b);
+    // Reorder starting from current month
+    const idx = months.indexOf(currentMonth);
+    if (idx === -1) return months;
+    return [...months.slice(idx), ...months.slice(0, idx)];
+  }, [promotions, currentMonth]);
+
+  const visiblePromos = useMemo(
+    () => promotions.filter(p => p.month === activePromoMonth),
+    [promotions, activePromoMonth],
+  );
+
+  const handleRedeemVoucher = (voucherId: string) => {
+    setVouchers(prev => prev.map(v =>
+      v.id === voucherId
+        ? { ...v, isRedeemed: true, redeemedAt: new Date().toISOString() }
+        : v
+    ));
+    const v = vouchers.find(x => x.id === voucherId);
+    if (v) toast.success('¡Beneficio canjeado!', `${v.reward} registrado. Entregar al cliente.`);
+  };
+
+  const handleAdjust = (delta: number, reason: string) => {
     if (!selectedCustomerId) return;
-    await addTransaction(selectedCustomerId, undefined, delta, 'manual', reason);
+    addTransaction(selectedCustomerId, undefined, delta, 'manual', reason);
     toast.success(
       delta > 0 ? `+${delta} puntos agregados` : `${delta} puntos removidos`,
       reason,
@@ -641,6 +718,7 @@ export const FidelizacionPage: React.FC = () => {
     { id: 'promos', label: 'Promos del Mes', icon: <Calendar className="w-4 h-4" /> },
     { id: 'misiones', label: 'Misiones Yana', icon: <Target className="w-4 h-4" /> },
     { id: 'historial', label: 'Historial', icon: <Clock className="w-4 h-4" /> },
+    { id: 'config', label: 'Configuración', icon: <Settings className="w-4 h-4" /> },
   ];
 
   // ── Transaction type labels/icons ─────────────────────────────────────────────
@@ -797,6 +875,41 @@ export const FidelizacionPage: React.FC = () => {
                 onViewHistory={() => setActiveTab('historial')}
                 onAdjustPoints={() => setShowAdjustModal(true)}
               />
+
+              {/* Beneficios por hito disponibles */}
+              {pendingVouchers.length > 0 && (
+                <div className="bg-white rounded-2xl border border-amber-200 shadow-coffee overflow-hidden">
+                  <div className="px-4 py-3 bg-gradient-to-r from-amber-400 to-orange-400 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Trophy className="w-4 h-4 text-white" />
+                      <span className="font-display font-bold text-white text-sm">Beneficios por Hito</span>
+                    </div>
+                    <span className="bg-white/30 text-white text-xs font-body font-bold px-2 py-0.5 rounded-full">
+                      {pendingVouchers.length} pendiente{pendingVouchers.length > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="p-3 space-y-2">
+                    {pendingVouchers.map(v => (
+                      <div key={v.id} className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 border border-amber-100">
+                        <span className="text-2xl">{v.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-display font-bold text-coffee-900 text-sm">{v.reward}</div>
+                          <div className="text-xs font-body text-coffee-500">Hito #{v.milestoneNumber} — Gratis</div>
+                        </div>
+                        <button
+                          onClick={() => handleRedeemVoucher(v.id)}
+                          className="shrink-0 px-3 py-1.5 rounded-xl bg-amber-500 text-white text-xs font-body font-bold hover:bg-amber-600 transition-colors shadow-sm"
+                        >
+                          Canjear
+                        </button>
+                      </div>
+                    ))}
+                    <p className="text-xs font-body text-coffee-400 text-center pt-1">
+                      Independiente de puntos · Solo cuenta visitas
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Milestone tracker */}
               <MilestoneTracker
@@ -964,89 +1077,159 @@ export const FidelizacionPage: React.FC = () => {
           {/* ── TAB: Promos del Mes ──────────────────────────────────────────── */}
           {activeTab === 'promos' && (
             <div className="space-y-4">
-              {monthsOrdered.map((month: number) => {
-                const isCurrentMonth = month === currentMonth;
-                const monthRewards = temporalByMonth[month] ?? [];
-                return (
-                  <div
-                    key={month}
-                    className={clsx(
-                      'rounded-2xl border overflow-hidden',
-                      isCurrentMonth
-                        ? 'border-coffee-300 shadow-coffee-lg'
-                        : 'border-coffee-100',
-                    )}
-                  >
-                    {/* Month header */}
-                    <div className={clsx(
-                      'flex items-center justify-between px-5 py-3',
-                      isCurrentMonth
-                        ? 'bg-gradient-to-r from-coffee-600 to-coffee-500 text-white'
-                        : 'bg-coffee-50 text-coffee-700',
-                    )}>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">{MONTH_ICONS[month] ?? '📅'}</span>
-                        <span className="font-display font-bold text-base">
-                          {MONTH_NAMES[month] ?? `Mes ${month}`}
-                        </span>
-                      </div>
-                      {isCurrentMonth && (
-                        <span className="bg-white/20 border border-white/30 text-white text-xs font-body font-bold px-2.5 py-0.5 rounded-full">
-                          Este mes
-                        </span>
-                      )}
-                    </div>
 
-                    {/* Rewards */}
-                    <div className="bg-white p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {monthRewards.map((r: Reward) => {
-                        const canRedeem = selectedProfile && r.pointsCost > 0 && selectedProfile.points >= r.pointsCost;
-                        return (
-                          <div
-                            key={r.id}
-                            className={clsx(
-                              'flex items-center gap-3 p-3 rounded-xl border transition-all',
-                              r.highlight ? 'border-yellow-200 bg-yellow-50' : 'border-coffee-100 bg-coffee-50/50',
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-display font-bold text-coffee-900 text-base">Administrar Promociones</h3>
+                  <p className="text-xs font-body text-coffee-400 mt-0.5">Activa o desactiva promos por mes. Los cambios aplican inmediatamente en el POS.</p>
+                </div>
+                <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-coffee-500 text-white text-sm font-body font-semibold hover:bg-coffee-600 transition-colors shadow-coffee">
+                  <Plus className="w-4 h-4" />
+                  Nueva Promo
+                </button>
+              </div>
+
+              {/* Month tabs */}
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+                {promoMonths.map(month => {
+                  const isSelected = month === activePromoMonth;
+                  const isCurrent = month === currentMonth;
+                  const activeCount = promotions.filter(p => p.month === month && p.isActive).length;
+                  const total = promotions.filter(p => p.month === month).length;
+                  return (
+                    <button
+                      key={month}
+                      onClick={() => setActivePromoMonth(month)}
+                      className={clsx(
+                        'flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-body font-medium transition-all border',
+                        isSelected
+                          ? 'bg-coffee-500 text-white border-coffee-500 shadow-md'
+                          : 'bg-white text-coffee-600 border-coffee-100 hover:border-coffee-300 hover:bg-coffee-50',
+                      )}
+                    >
+                      <span>{MONTH_ICONS[month] ?? '📅'}</span>
+                      <span>{MONTH_NAMES[month]}</span>
+                      {isCurrent && !isSelected && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                      )}
+                      <span className={clsx(
+                        'text-xs font-bold px-1.5 py-0.5 rounded-full',
+                        isSelected
+                          ? 'bg-white/20 text-white'
+                          : activeCount > 0 ? 'bg-green-100 text-green-700' : 'bg-coffee-100 text-coffee-400',
+                      )}>
+                        {activeCount}/{total}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Promo cards for selected month */}
+              <div className="space-y-3">
+                {visiblePromos.map(promo => {
+                  const isCanjeType = promo.type === 'canje_puntos';
+                  const canCustomerRedeem = selectedProfile && isCanjeType && promo.pointsCost != null && selectedProfile.points >= promo.pointsCost;
+
+                  return (
+                    <div
+                      key={promo.id}
+                      className={clsx(
+                        'bg-white rounded-2xl border transition-all duration-200',
+                        promo.isActive ? 'border-coffee-200 shadow-coffee' : 'border-coffee-100 opacity-70',
+                      )}
+                    >
+                      <div className="p-4 flex items-start gap-4">
+                        {/* Icon */}
+                        <div className={clsx(
+                          'w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0',
+                          promo.isActive ? 'bg-coffee-100' : 'bg-gray-100',
+                        )}>
+                          {promo.icon}
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start gap-2 flex-wrap mb-1">
+                            <span className="font-display font-bold text-coffee-900">{promo.name}</span>
+                            {/* Type badge */}
+                            {isCanjeType ? (
+                              <span className="flex items-center gap-1 text-xs font-body font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                                <Star className="w-3 h-3" />
+                                Canje · {promo.pointsCost} pts
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-xs font-body font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                                <Zap className="w-3 h-3" />
+                                x{promo.multiplier} en {promo.category}
+                              </span>
                             )}
-                          >
-                            <span className="text-2xl">{r.icon}</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-body font-semibold text-coffee-900 text-sm">{r.name}</span>
-                                {r.highlight && <Sparkles className="w-3 h-3 text-yellow-500" />}
-                              </div>
-                              <p className="text-xs text-coffee-500 font-body mt-0.5">{r.description}</p>
-                            </div>
-                            <div className="text-right shrink-0">
-                              {r.pointsCost > 0 ? (
-                                <>
-                                  <div className="text-sm font-display font-bold text-coffee-700">{r.pointsCost} pts</div>
-                                  <button
-                                    onClick={() => handleRedeem(r.id)}
-                                    disabled={!selectedProfile || !canRedeem}
-                                    className={clsx(
-                                      'mt-1 px-2.5 py-1 rounded-lg text-xs font-body font-semibold transition-all',
-                                      canRedeem
-                                        ? 'bg-coffee-500 text-white hover:bg-coffee-600'
-                                        : 'bg-coffee-100 text-coffee-300 cursor-not-allowed',
-                                    )}
-                                  >
-                                    Canjear
-                                  </button>
-                                </>
-                              ) : (
-                                <span className="bg-green-100 text-green-700 text-xs font-body font-bold px-2 py-0.5 rounded-full">
-                                  Auto
-                                </span>
-                              )}
-                            </div>
                           </div>
-                        );
-                      })}
+                          <p className="text-xs font-body text-coffee-500 mb-2">{promo.description}</p>
+
+                          {/* Date range */}
+                          <div className="flex items-center gap-1.5 text-xs font-body text-coffee-400">
+                            <Calendar className="w-3.5 h-3.5" />
+                            <span>
+                              {new Date(promo.startDate).toLocaleDateString('es-BO', { day: 'numeric', month: 'short' })}
+                              {' — '}
+                              {new Date(promo.endDate).toLocaleDateString('es-BO', { day: 'numeric', month: 'short' })}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Right: toggle + canjear */}
+                        <div className="flex flex-col items-end gap-3 flex-shrink-0">
+                          {/* Toggle */}
+                          <button
+                            onClick={() => handleTogglePromo(promo.id)}
+                            className={clsx(
+                              'relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none',
+                              promo.isActive ? 'bg-green-400' : 'bg-gray-200',
+                            )}
+                            title={promo.isActive ? 'Desactivar' : 'Activar'}
+                          >
+                            <span className={clsx(
+                              'inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200',
+                              promo.isActive ? 'translate-x-6' : 'translate-x-1',
+                            )} />
+                          </button>
+                          <span className={clsx(
+                            'text-xs font-body font-bold',
+                            promo.isActive ? 'text-green-600' : 'text-gray-400',
+                          )}>
+                            {promo.isActive ? 'Activa' : 'Inactiva'}
+                          </span>
+
+                          {/* Canjear button (only for canje_puntos when customer selected) */}
+                          {isCanjeType && selectedCustomer && (
+                            <button
+                              onClick={() => handleRedeem(promo.id)}
+                              disabled={!promo.isActive || !canCustomerRedeem}
+                              className={clsx(
+                                'px-3 py-1.5 rounded-xl text-xs font-body font-semibold transition-all',
+                                promo.isActive && canCustomerRedeem
+                                  ? 'bg-coffee-500 text-white hover:bg-coffee-600'
+                                  : 'bg-coffee-100 text-coffee-300 cursor-not-allowed',
+                              )}
+                            >
+                              Canjear
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
+                  );
+                })}
+
+                {visiblePromos.length === 0 && (
+                  <div className="text-center py-10 bg-coffee-50 rounded-2xl border border-dashed border-coffee-200">
+                    <Calendar className="w-8 h-8 text-coffee-200 mx-auto mb-2" />
+                    <p className="text-sm font-body text-coffee-400">Sin promociones para {MONTH_NAMES[activePromoMonth]}</p>
                   </div>
-                );
-              })}
+                )}
+              </div>
             </div>
           )}
 
@@ -1139,12 +1322,12 @@ export const FidelizacionPage: React.FC = () => {
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {[
+                    { icon: <TrendingUp className="w-4 h-4 text-coffee-400" />, title: 'Base', desc: 'Bs.10 = 1 punto en cada compra', color: 'from-coffee-50 to-cream-light border-coffee-100' },
+                    { icon: <Cake className="w-4 h-4 text-pink-400" />, title: 'Cumpleaños', desc: 'El día de tu cumpleaños · ¡Puntos x3!', color: 'from-pink-50 to-rose-50 border-pink-100' },
+                    { icon: <ShoppingBag className="w-4 h-4 text-green-400" />, title: 'Compra Grande', desc: 'Compra > Bs.100 · ¡Puntos dobles!', color: 'from-green-50 to-emerald-50 border-green-100' },
+                    { icon: <Gift className="w-4 h-4 text-purple-400" />, title: 'Combo Bonus', desc: 'Al pedir combo · +3 pts extra', color: 'from-purple-50 to-violet-50 border-purple-100' },
                     { icon: <Clock className="w-4 h-4 text-orange-400" />, title: 'Happy Hour', desc: '9am – 3pm · +2 pts bonus en cada compra', color: 'from-orange-50 to-amber-50 border-orange-100' },
                     { icon: <Calendar className="w-4 h-4 text-blue-400" />, title: 'Días Doble', desc: 'Lunes y Martes · ¡Puntos dobles todo el día!', color: 'from-blue-50 to-indigo-50 border-blue-100' },
-                    { icon: <Cake className="w-4 h-4 text-pink-400" />, title: 'Cumpleaños', desc: 'El día de tu cumpleaños · ¡Puntos triplicados!', color: 'from-pink-50 to-rose-50 border-pink-100' },
-                    { icon: <Gift className="w-4 h-4 text-purple-400" />, title: 'Combo Bonus', desc: 'Al pedir combo · +3 pts extra', color: 'from-purple-50 to-violet-50 border-purple-100' },
-                    { icon: <Users className="w-4 h-4 text-green-400" />, title: 'Compra Grupal', desc: 'Compra > Bs.70 · +10 pts extra', color: 'from-green-50 to-emerald-50 border-green-100' },
-                    { icon: <TrendingUp className="w-4 h-4 text-coffee-400" />, title: 'Base', desc: '1 punto por cada Bs.10 gastados', color: 'from-coffee-50 to-cream-light border-coffee-100' },
                   ].map(item => (
                     <div key={item.title} className={clsx('rounded-xl border p-3 bg-gradient-to-br', item.color)}>
                       <div className="flex items-center gap-2 mb-1">
@@ -1154,6 +1337,165 @@ export const FidelizacionPage: React.FC = () => {
                       <p className="text-xs font-body text-coffee-500 leading-snug">{item.desc}</p>
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB: Configuración (Fase 1) ─────────────────────────────────── */}
+          {activeTab === 'config' && (
+            <div className="space-y-5">
+              {/* Fase badge */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 bg-coffee-500 text-white px-4 py-1.5 rounded-full text-sm font-body font-bold shadow-coffee">
+                  <CheckCircle className="w-4 h-4" />
+                  Fase 1 — La Base
+                </div>
+                <span className="text-xs font-body text-coffee-400">Reglas activas del programa</span>
+              </div>
+
+              {/* Regla de acumulación */}
+              <div className="bg-white rounded-2xl border border-coffee-100 shadow-coffee overflow-hidden">
+                <div className="px-5 py-3 border-b border-coffee-50 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-coffee-500" />
+                    <h3 className="font-display font-semibold text-coffee-900">Regla de Acumulación</h3>
+                  </div>
+                  <span className="text-xs font-body bg-green-100 text-green-700 font-bold px-2.5 py-0.5 rounded-full">Activa</span>
+                </div>
+                <div className="p-5">
+                  <div className="flex items-center gap-4 p-4 bg-coffee-50 rounded-xl border border-coffee-100">
+                    <div className="w-14 h-14 rounded-2xl bg-coffee-500 flex items-center justify-center text-white text-2xl font-display font-black shadow-coffee">
+                      10
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-display font-bold text-coffee-900 text-lg">Bs. 10 = 1 punto</div>
+                      <div className="text-sm font-body text-coffee-500 mt-0.5">
+                        Por cada 10 bolivianos gastados, el cliente acumula 1 punto en su tarjeta Yana.
+                      </div>
+                    </div>
+                    <div className="text-right text-xs font-body text-coffee-400">
+                      <div>Ej: Bs.50 → <strong className="text-coffee-700">5 pts</strong></div>
+                      <div>Ej: Bs.120 → <strong className="text-coffee-700">12 pts</strong></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Aceleradores */}
+              <div className="bg-white rounded-2xl border border-coffee-100 shadow-coffee overflow-hidden">
+                <div className="px-5 py-3 border-b border-coffee-50 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-yellow-500" />
+                    <h3 className="font-display font-semibold text-coffee-900">Aceleradores de Puntos</h3>
+                  </div>
+                  <span className="text-xs font-body text-coffee-400">Se aplican automáticamente</span>
+                </div>
+                <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Cumpleaños */}
+                  <div className="relative rounded-2xl border border-pink-200 bg-gradient-to-br from-pink-50 to-rose-50 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-2xl">🎂</span>
+                      <div>
+                        <div className="font-display font-bold text-coffee-900 text-sm">Cumpleaños</div>
+                        <span className="text-xs font-body bg-pink-100 text-pink-700 font-bold px-2 py-0.5 rounded-full">x3 puntos</span>
+                      </div>
+                    </div>
+                    <p className="text-xs font-body text-coffee-500 leading-snug">
+                      El día del cumpleaños del cliente, todos los puntos ganados se <strong>triplican</strong>.
+                    </p>
+                    <div className="mt-3 text-xs font-body text-pink-600">
+                      Ej: compra Bs.100 → <strong>30 pts</strong> (en vez de 10)
+                    </div>
+                  </div>
+
+                  {/* Compra grande */}
+                  <div className="relative rounded-2xl border border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-2xl">🛍️</span>
+                      <div>
+                        <div className="font-display font-bold text-coffee-900 text-sm">Compra {'>'}Bs.100</div>
+                        <span className="text-xs font-body bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full">x2 puntos</span>
+                      </div>
+                    </div>
+                    <p className="text-xs font-body text-coffee-500 leading-snug">
+                      Cuando el total de la compra supera los <strong>Bs.100</strong>, los puntos se <strong>duplican</strong>.
+                    </p>
+                    <div className="mt-3 text-xs font-body text-green-600">
+                      Ej: compra Bs.120 → <strong>24 pts</strong> (en vez de 12)
+                    </div>
+                  </div>
+
+                  {/* Combo */}
+                  <div className="relative rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50 to-violet-50 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-2xl">🎯</span>
+                      <div>
+                        <div className="font-display font-bold text-coffee-900 text-sm">Pedir Combo</div>
+                        <span className="text-xs font-body bg-purple-100 text-purple-700 font-bold px-2 py-0.5 rounded-full">+3 pts extra</span>
+                      </div>
+                    </div>
+                    <p className="text-xs font-body text-coffee-500 leading-snug">
+                      Cuando el pedido incluye un <strong>combo</strong>, se suman 3 puntos extra al total.
+                    </p>
+                    <div className="mt-3 text-xs font-body text-purple-600">
+                      Se acumula con otros aceleradores
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Regalos diarios del POS */}
+              <div className="bg-white rounded-2xl border border-coffee-100 shadow-coffee overflow-hidden">
+                <div className="px-5 py-3 border-b border-coffee-50 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Coffee className="w-4 h-4 text-coffee-500" />
+                    <h3 className="font-display font-semibold text-coffee-900">Regalos Diarios del POS</h3>
+                  </div>
+                  <span className="text-xs font-body text-coffee-400">Canjeables en caja con puntos</span>
+                </div>
+                <div className="p-5">
+                  <p className="text-sm font-body text-coffee-500 mb-4">
+                    Los clientes pueden canjear sus puntos por estos productos directamente en caja. El cajero valida el canje en el POS.
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {MOCK_REWARDS.filter(r => r.category === 'diario').map(r => (
+                      <div key={r.id} className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-coffee-50 border border-coffee-100 text-center">
+                        <span className="text-3xl">{r.icon}</span>
+                        <span className="text-xs font-body font-semibold text-coffee-800 leading-tight">{r.name.replace(' Gratis', '')}</span>
+                        <span className="text-xs font-display font-bold text-coffee-500">{r.pointsCost} pts</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Resumen visual de la lógica */}
+              <div className="bg-gradient-to-br from-coffee-800 to-coffee-600 rounded-2xl p-5 text-white">
+                <div className="flex items-center gap-2 mb-4">
+                  <Sparkles className="w-4 h-4 text-yellow-300" />
+                  <span className="font-display font-bold">¿Cómo se calculan los puntos?</span>
+                </div>
+                <div className="space-y-2 text-sm font-body">
+                  <div className="flex items-start gap-2">
+                    <span className="text-yellow-300 font-bold mt-0.5">1.</span>
+                    <span className="text-white/80">Se calcula la <strong className="text-white">base</strong>: total ÷ 10 = puntos base</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-yellow-300 font-bold mt-0.5">2.</span>
+                    <span className="text-white/80">Si es <strong className="text-white">cumpleaños</strong>: puntos base × 3</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-yellow-300 font-bold mt-0.5">3.</span>
+                    <span className="text-white/80">Si compra <strong className="text-white">&gt; Bs.100</strong>: puntos × 2</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-yellow-300 font-bold mt-0.5">4.</span>
+                    <span className="text-white/80">Si incluye <strong className="text-white">combo</strong>: +3 puntos extra al final</span>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-white/20 text-white/60 text-xs">
+                    Ejemplo: cumpleaños + Bs.120 + combo = (12 × 3 × 2) + 3 = <strong className="text-yellow-300">75 puntos</strong>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1244,15 +1586,28 @@ export const FidelizacionPage: React.FC = () => {
           MILESTONES SECTION (Full width)
       ═══════════════════════════════════════════ */}
       <div className="mt-6 bg-white rounded-3xl border border-coffee-100 shadow-coffee overflow-hidden">
-        <div className="px-6 py-4 border-b border-coffee-50 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-yellow-500" />
-            <h2 className="font-display font-bold text-coffee-900 text-lg">Hitos de Compras</h2>
+        <div className="px-6 py-4 border-b border-coffee-50 flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <div className="flex items-center gap-2 mb-0.5">
+              <Trophy className="w-5 h-5 text-yellow-500" />
+              <h2 className="font-display font-bold text-coffee-900 text-lg">Hitos por N° de Compra</h2>
+              <span className="text-xs font-body bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full">Independiente de puntos</span>
+            </div>
+            <p className="text-xs font-body text-coffee-400 ml-7">
+              Al completar la compra N, el beneficio se genera automáticamente y queda disponible para canjear en caja.
+            </p>
           </div>
           {selectedProfile && (
-            <span className="text-sm font-body text-coffee-500">
-              {selectedCustomer?.name} · <strong className="text-coffee-700">{selectedProfile.purchaseCount}</strong> visitas
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-body text-coffee-500">
+                {selectedCustomer?.name} · <strong className="text-coffee-700">{selectedProfile.purchaseCount}</strong> visitas
+              </span>
+              {pendingVouchers.length > 0 && (
+                <span className="text-xs font-body bg-amber-500 text-white font-bold px-2.5 py-1 rounded-full">
+                  {pendingVouchers.length} beneficio{pendingVouchers.length > 1 ? 's' : ''} sin canjear
+                </span>
+              )}
+            </div>
           )}
         </div>
 

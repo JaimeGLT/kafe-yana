@@ -59,6 +59,37 @@ export interface MilestoneReward {
   description: string;
 }
 
+export interface MilestoneVoucher {
+  id: string;
+  customerId: string;
+  milestoneNumber: number;
+  reward: string;
+  icon: string;
+  isRedeemed: boolean;
+  generatedAt: string;   // ISO date
+  redeemedAt?: string;
+}
+
+export type PromotionType = 'canje_puntos' | 'puntos_dobles_categoria';
+
+export interface Promotion {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  type: PromotionType;
+  // canje_puntos
+  pointsCost?: number;
+  // puntos_dobles_categoria
+  category?: string;
+  multiplier?: number;
+  // Scheduling
+  month: number;          // 1-12
+  startDate: string;      // YYYY-MM-DD
+  endDate: string;        // YYYY-MM-DD
+  isActive: boolean;
+}
+
 export interface PointsCalculation {
   basePoints: number;
   bonusPoints: number;

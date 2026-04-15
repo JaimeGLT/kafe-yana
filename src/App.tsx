@@ -11,6 +11,10 @@ import { POSPage } from './pages/sales/POSPage';
 import { CustomersPage } from './pages/sales/CustomersPage';
 import { InvoicesPage } from './pages/sales/InvoicesPage';
 import { FidelizacionPage } from './pages/sales/FidelizacionPage';
+import { ConfiguracionPuntosPage } from './pages/sales/ConfiguracionPuntosPage';
+import { ProductosCanjeablesPage } from './pages/sales/ProductosCanjeablesPage';
+import { NotificacionesPage } from './pages/sales/NotificacionesPage';
+import { FidelizacionProximamentePage } from './pages/sales/FidelizacionProximamentePage';
 import { PurchaseOrdersPage } from './pages/purchases/PurchaseOrdersPage';
 import { SuppliersPage } from './pages/purchases/SuppliersPage';
 import { CashRegisterPage } from './pages/cash/CashRegisterPage';
@@ -62,6 +66,14 @@ function App() {
                 <Route path="/sales/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
                 <Route path="/sales/invoices" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
                 <Route path="/sales/fidelizacion" element={<ProtectedRoute><FidelizacionPage /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/config" element={<ProtectedRoute><ConfiguracionPuntosPage /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/productos" element={<ProtectedRoute><ProductosCanjeablesPage /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/notificaciones" element={<ProtectedRoute><NotificacionesPage /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/promociones-permanentes" element={<ProtectedRoute><FidelizacionProximamentePage title="Promociones permanentes" subtitle="Reglas de puntos activas todo el año" /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/promociones-temporada" element={<ProtectedRoute><FidelizacionProximamentePage title="Promociones de temporada" subtitle="Campañas especiales por fechas o meses" /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/hitos" element={<ProtectedRoute><FidelizacionProximamentePage title="Hitos por compra" subtitle="Recompensas automáticas al alcanzar cierto número de compras" /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/sorteos" element={<ProtectedRoute><FidelizacionProximamentePage title="Sorteos" subtitle="Crea sorteos entre clientes con puntos acumulados" /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/referidos" element={<ProtectedRoute><FidelizacionProximamentePage title="Referidos" subtitle="Premia a clientes que traen nuevos clientes al programa" /></ProtectedRoute>} />
 
                 {/* Purchases */}
                 <Route path="/purchases/orders" element={<ProtectedRoute><PurchaseOrdersPage /></ProtectedRoute>} />
