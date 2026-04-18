@@ -25,6 +25,7 @@ export const COMBOS_QUERY = `
           cantidad
           opcional
         }
+        cantidadProducible
       }
     }
   }

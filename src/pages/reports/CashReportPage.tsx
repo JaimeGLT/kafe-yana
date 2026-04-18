@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { startOfMonth, endOfDay, format, eachDayOfInterval, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -8,8 +8,8 @@ import { TrendingUp, TrendingDown, Scale, BookOpen, Calendar, FileText } from 'l
 import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Button, Input, Badge, StatusBadge } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
-import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../utils';
+import { MOCK_CASH_MOVEMENTS, MOCK_CASH_REGISTERS } from '../../data/reportsMocks';
 import type { CashMovement, CashRegister } from '../../types';
 
 const CHART_COLORS = {
@@ -30,27 +30,8 @@ const tooltipStyle = {
 };
 
 const CashReportPage: React.FC = () => {
-  const [movements, setMovements] = useState<CashMovement[]>([]);
-  const [cashRegisters, setCashRegisters] = useState<CashRegister[]>([]);
-  const [_loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [movementsData, registersData] = await Promise.all([
-          api.get<CashMovement[]>('/cash/movements'),
-          api.get<CashRegister[]>('/cash/registers'),
-        ]);
-        setMovements(movementsData);
-        setCashRegisters(registersData);
-      } catch (error) {
-        console.error('Error loading cash data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+  const [movements] = useState<CashMovement[]>(MOCK_CASH_MOVEMENTS);
+  const [cashRegisters] = useState<CashRegister[]>(MOCK_CASH_REGISTERS);
 
   const today = new Date();
   const [dateFrom, setDateFrom] = useState<string>(format(startOfMonth(today), 'yyyy-MM-dd'));

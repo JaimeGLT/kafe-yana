@@ -34,7 +34,8 @@
       "Bash(curl:*)",
       "Bash(for i:*)",
       "Bash(do)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(claude plugin *)"
     ]
   }
 }

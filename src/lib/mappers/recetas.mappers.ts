@@ -14,8 +14,8 @@ export function mapReceta(n: RecetaNode): Receta | null {
       unidadMinima: d.insumo!.unidad_min_uso,
       quantity: d.cantidad,
       merma: d.merma,
-      unitCost: d.insumo!.costo,
-      subtotal: d.cantidad * d.insumo!.costo,
+      unitCost: d.insumo!.costo / (d.insumo!.factor_conversion || 1),
+      subtotal: d.cantidad * (d.insumo!.costo / (d.insumo!.factor_conversion || 1)) * (1 + d.merma / 100),
     }));
 
   const costoTotal = ingredientes.reduce((sum, i) => sum + i.subtotal, 0);

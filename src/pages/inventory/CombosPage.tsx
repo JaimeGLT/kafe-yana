@@ -198,7 +198,6 @@ const ComboCard: React.FC<ComboCardProps> = ({
 const CombosPage: React.FC = () => {
   // ── Datos desde el hook ──
   const { combos, products: allProducts, recetas, isLoading, loadData } = useCombosData();
-
   // ── Estado de UI ──
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');

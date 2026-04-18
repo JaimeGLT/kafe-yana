@@ -16,6 +16,7 @@ export interface ComboDetalleNode {
 export interface ComboNode {
   producto: ComboProductoNode;
   detalles: ComboDetalleNode[];
+  cantidadProducible: number;
 }
 
 export interface ProductNode {
@@ -176,6 +177,7 @@ export interface RecetaDetalleNode {
     id: number;
     nombre: string;
     costo: number;
+    factor_conversion: number;
     unidad_min_uso: string;
     stock_actual: number;
   } | null;

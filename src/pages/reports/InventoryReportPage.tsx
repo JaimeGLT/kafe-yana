@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   PieChart, Pie, Cell, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -7,8 +7,8 @@ import { Package, CheckCircle, AlertTriangle, DollarSign, FileText } from 'lucid
 import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Button, Badge } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
-import { api } from '../../lib/api';
 import { formatCurrency } from '../../utils';
+import { MOCK_PRODUCTS, MOCK_INVENTORY_STATS } from '../../data/reportsMocks';
 import type { Product } from '../../types';
 import type { InventoryStats } from '../../types';
 
@@ -35,27 +35,8 @@ const tooltipStyle = {
 };
 
 const InventoryReportPage: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [stats, setStats] = useState<InventoryStats | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [productsData, statsData] = await Promise.all([
-          api.get<Product[]>('/products'),
-          api.get<InventoryStats>('/inventory/stats'),
-        ]);
-        setProducts(productsData);
-        setStats(statsData);
-      } catch (error) {
-        console.error('Error loading inventory data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+  const [products] = useState<Product[]>(MOCK_PRODUCTS);
+  const [stats] = useState<InventoryStats>(MOCK_INVENTORY_STATS);
 
   // Category pie data
   const categoryData = useMemo(() => {
@@ -101,16 +82,8 @@ const InventoryReportPage: React.FC = () => {
     return <Badge variant="success">Normal</Badge>;
   };
 
-  if (loading || !stats) {
-    return (
-      <MainLayout>
-        <PageContainer>
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-coffee-600" />
-          </div>
-        </PageContainer>
-      </MainLayout>
-    );
+  if (!stats) {
+    return null;
   }
 
   return (

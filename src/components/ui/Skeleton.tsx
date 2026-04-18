@@ -41,3 +41,39 @@ export const SkeletonRow: React.FC = () => (
     <td className="px-4 py-3"><Skeleton className="h-6 w-12 ml-auto" /></td>
   </tr>
 );
+
+export const SkeletonStatCard: React.FC = () => (
+  <div className="bg-white rounded-xl border border-coffee-100 shadow-sm px-5 py-4">
+    <Skeleton className="h-3 w-20 mb-3" />
+    <Skeleton className="h-7 w-16 mb-2" />
+    <Skeleton className="h-3 w-12" />
+  </div>
+);
+
+export const SkeletonAjusteRow: React.FC = () => (
+  <tr className="border-b border-coffee-50">
+    <td className="pl-5 pr-4 py-4">
+      <Skeleton className="h-4 w-20 mb-1.5" />
+      <Skeleton className="h-3 w-12" />
+    </td>
+    <td className="px-4 py-4">
+      <Skeleton className="h-4 w-36 mb-1.5" />
+      <Skeleton className="h-5 w-20 rounded-full" />
+    </td>
+    <td className="px-4 py-4 text-center">
+      <Skeleton className="h-6 w-16 rounded-full mx-auto" />
+    </td>
+    <td className="px-4 py-4 text-center">
+      <Skeleton className="h-4 w-20 mx-auto" />
+    </td>
+    <td className="px-4 py-4 text-right">
+      <Skeleton className="h-4 w-16 ml-auto" />
+    </td>
+    <td className="px-4 py-4">
+      <Skeleton className="h-5 w-24 rounded-full" />
+    </td>
+    <td className="pr-5 pl-4 py-4">
+      <Skeleton className="h-3 w-20" />
+    </td>
+  </tr>
+);

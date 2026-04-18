@@ -20,27 +20,6 @@ import type { RecetasResponse, InsumosResponse, ElaboradosResponse } from '../..
 import type { Receta, Insumo, Product } from '../../types';
 import { formatCurrency } from '../../utils';
 
-const semaforo = (pct: number) => {
-  if (pct >= 60) return {
-    bar: 'bg-emerald-400',
-    badge: 'bg-emerald-100 text-emerald-700',
-    summary: 'bg-emerald-50 text-emerald-800',
-    text: 'text-emerald-700',
-  };
-  if (pct >= 30) return {
-    bar: 'bg-amber-400',
-    badge: 'bg-amber-100 text-amber-700',
-    summary: 'bg-amber-50 text-amber-800',
-    text: 'text-amber-600',
-  };
-  return {
-    bar: 'bg-red-400',
-    badge: 'bg-red-100 text-red-600',
-    summary: 'bg-red-50 text-red-700',
-    text: 'text-red-600',
-  };
-};
-
 const RecetasPage: React.FC = () => {
   const [recetas, setRecetas] = useState<Receta[]>([]);
   const [insumos, setInsumos] = useState<Insumo[]>([]);
@@ -85,6 +64,11 @@ const RecetasPage: React.FC = () => {
     return recetas.filter((r: Receta) => r.productName.toLowerCase().includes(q));
   }, [recetas, search]);
 
+  const avgCosto = useMemo(() => {
+    if (recetas.length === 0) return null;
+    return recetas.reduce((s, r) => s + r.costoPorPorcion, 0) / recetas.length;
+  }, [recetas]);
+
   const openCreate = (productId?: string) => {
     setEditing(undefined);
     setPreselectedProductId(productId);
@@ -113,19 +97,6 @@ const RecetasPage: React.FC = () => {
     }
   };
 
-  // KPIs
-  const avgMargin = useMemo(() => {
-    const list = recetas
-      .map((r: Receta) => {
-        const p = products.find((pr: Product) => pr.id === r.productId);
-        return p && p.salePrice > 0
-          ? ((p.salePrice - r.costoPorPorcion) / p.salePrice) * 100
-          : null;
-      })
-      .filter((v): v is number => v !== null);
-    return list.length > 0 ? list.reduce((s: number, v: number) => s + v, 0) / list.length : null;
-  }, [recetas, products]);
-
   return (
     <MainLayout>
       <PageContainer>
@@ -141,26 +112,15 @@ const RecetasPage: React.FC = () => {
 
         {/* KPIs */}
         {recetas.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {[
-              { label: 'Recetas', value: `${recetas.length}`, color: 'text-coffee-900', bg: 'bg-white' },
-              { label: 'Sin receta', value: `${productsWithoutReceta.length} elaborados`, color: 'text-amber-700', bg: 'bg-amber-50' },
-              {
-                label: 'Costo promedio',
-                value: formatCurrency(recetas.reduce((s, r) => s + r.costoPorPorcion, 0) / recetas.length),
-                color: 'text-coffee-900',
-                bg: 'bg-white',
-              },
-              {
-                label: 'Margen promedio',
-                value: avgMargin !== null ? `${avgMargin.toFixed(1)}%` : '—',
-                color: avgMargin !== null ? semaforo(avgMargin).text : 'text-coffee-500',
-                bg: 'bg-white',
-              },
-            ].map(({ label, value, color, bg }) => (
-              <div key={label} className={`${bg} rounded-xl border border-coffee-100 shadow-sm px-4 py-3`}>
+              { label: 'Recetas', value: `${recetas.length}` },
+              { label: 'Sin receta', value: `${productsWithoutReceta.length} elaborados` },
+              { label: 'Costo promedio / porción', value: avgCosto !== null ? formatCurrency(avgCosto) : '—' },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-white rounded-xl border border-coffee-100 shadow-sm px-4 py-3">
                 <p className="text-xs text-coffee-500 mb-1">{label}</p>
-                <p className={`text-lg font-display font-bold ${color}`}>{value}</p>
+                <p className="text-lg font-display font-bold text-coffee-900">{value}</p>
               </div>
             ))}
           </div>
@@ -197,18 +157,10 @@ const RecetasPage: React.FC = () => {
         ) : !loading && (
           <div className="space-y-3">
             {filtered.map((receta: Receta) => {
-              const product = products.find((p: Product) => p.id === receta.productId);
-              const salePrice = product?.salePrice ?? 0;
-              const margen = salePrice - receta.costoPorPorcion;
-              const margenPct = salePrice > 0 ? (margen / salePrice) * 100 : 0;
-              const sem = semaforo(margenPct);
               const isExpanded = expandedId === receta.id;
 
               return (
                 <div key={receta.id} className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
-
-                  {/* Barra de color superior según margen */}
-                  {salePrice > 0 && <div className={`h-1 ${sem.bar}`} />}
 
                   {/* Fila colapsada */}
                   <div
@@ -222,49 +174,19 @@ const RecetasPage: React.FC = () => {
                         <span className="inline-flex items-center text-xs bg-coffee-100 text-coffee-600 px-2 py-0.5 rounded-full font-medium">
                           {receta.ingredientes.length} ingrediente{receta.ingredientes.length !== 1 ? 's' : ''}
                         </span>
-                        {receta.porcionesBase > 1 && (
-                          <span className="inline-flex items-center text-xs bg-coffee-100 text-coffee-600 px-2 py-0.5 rounded-full font-medium">
-                            {receta.porcionesBase} porciones
-                          </span>
-                        )}
                         {receta.notas && (
                           <span className="text-xs text-coffee-400 italic truncate max-w-[180px]">{receta.notas}</span>
                         )}
                       </div>
                     </div>
 
-                    {/* Datos financieros (desktop) */}
-                    <div className="hidden sm:flex items-center gap-5">
-                      <div className="text-right">
-                        <p className="text-xs text-coffee-400 mb-0.5">Costo / porción</p>
-                        <p className="font-semibold text-coffee-900 text-sm tabular-nums">
-                          {formatCurrency(receta.costoPorPorcion)}
-                        </p>
-                      </div>
-
-                      {salePrice > 0 && (
-                        <div className="text-right">
-                          <p className="text-xs text-coffee-400 mb-0.5">Precio venta</p>
-                          <p className="font-semibold text-coffee-600 text-sm tabular-nums">
-                            {formatCurrency(salePrice)}
-                          </p>
-                        </div>
-                      )}
-
-                      {salePrice > 0 && (
-                        <div className={`px-3 py-2 rounded-xl ${sem.badge} text-center min-w-[72px]`}>
-                          <p className="text-xs font-medium opacity-70 mb-0.5">Margen</p>
-                          <p className="font-bold text-sm tabular-nums">{margenPct.toFixed(1)}%</p>
-                        </div>
-                      )}
+                    {/* Costo por porción */}
+                    <div className="hidden sm:block text-right">
+                      <p className="text-xs text-coffee-400 mb-0.5">Costo / porción</p>
+                      <p className="font-semibold text-coffee-900 text-sm tabular-nums">
+                        {formatCurrency(receta.costoPorPorcion)}
+                      </p>
                     </div>
-
-                    {/* Margen badge (solo mobile) */}
-                    {salePrice > 0 && (
-                      <span className={`sm:hidden text-xs font-bold px-2.5 py-1 rounded-full ${sem.badge}`}>
-                        {margenPct.toFixed(1)}%
-                      </span>
-                    )}
 
                     {/* Acciones */}
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -333,39 +255,13 @@ const RecetasPage: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Resumen de costos */}
+                      {/* Resumen de costo */}
                       <div className="px-5 pb-5 pt-2 border-t border-coffee-50">
-                        <div className={`grid gap-3 ${salePrice > 0 ? 'grid-cols-3' : 'grid-cols-1 max-w-[160px]'}`}>
-                          <div className="bg-coffee-50 rounded-xl px-4 py-3">
-                            <p className="text-xs text-coffee-400 mb-0.5">Costo por porción</p>
-                            <p className="font-bold text-coffee-900 tabular-nums">
-                              {formatCurrency(receta.costoPorPorcion)}
-                            </p>
-                            {receta.porcionesBase > 1 && (
-                              <p className="text-xs text-coffee-400 mt-0.5">
-                                Total {formatCurrency(receta.costoTotal)} · {receta.porcionesBase} porciones
-                              </p>
-                            )}
-                          </div>
-
-                          {salePrice > 0 && (
-                            <div className="bg-coffee-50 rounded-xl px-4 py-3">
-                              <p className="text-xs text-coffee-400 mb-0.5">Precio de venta</p>
-                              <p className="font-bold text-coffee-700 tabular-nums">
-                                {formatCurrency(salePrice)}
-                              </p>
-                            </div>
-                          )}
-
-                          {salePrice > 0 && (
-                            <div className={`rounded-xl px-4 py-3 ${sem.summary}`}>
-                              <p className="text-xs opacity-70 mb-0.5">Margen</p>
-                              <p className="font-bold tabular-nums">{margenPct.toFixed(1)}%</p>
-                              <p className="text-xs opacity-70 mt-0.5 tabular-nums">
-                                {formatCurrency(margen)} por porción
-                              </p>
-                            </div>
-                          )}
+                        <div className="bg-coffee-50 rounded-xl px-4 py-3 inline-block">
+                          <p className="text-xs text-coffee-400 mb-0.5">Costo por porción</p>
+                          <p className="font-bold text-coffee-900 tabular-nums">
+                            {formatCurrency(receta.costoPorPorcion)}
+                          </p>
                         </div>
                       </div>
                     </div>

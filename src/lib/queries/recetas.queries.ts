@@ -10,7 +10,7 @@ export const GET_ALL_RECETAS = `
           id_insumo
           cantidad
           merma
-          insumo { id nombre costo unidad_min_uso stock_actual }
+          insumo { id nombre costo factor_conversion unidad_min_uso stock_actual }
         }
       }
     }
@@ -29,7 +29,7 @@ export const GET_RECETA_BY_ID = `
           id_insumo
           cantidad
           merma
-          insumo { id nombre costo unidad_min_uso stock_actual }
+          insumo { id nombre costo factor_conversion unidad_min_uso stock_actual }
         }
       }
     }

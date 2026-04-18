@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { startOfMonth, endOfDay, format, eachDayOfInterval, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -12,8 +12,8 @@ import {
 import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Button, Input } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
-import { api } from '../../lib/api';
 import { formatCurrency, getPaymentMethodLabel } from '../../utils';
+import { MOCK_SALES } from '../../data/reportsMocks';
 import type { Sale } from '../../types';
 
 const CHART_COLORS = {
@@ -34,22 +34,7 @@ const tooltipStyle = {
 };
 
 const SalesReportPage: React.FC = () => {
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [_loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchSales = async () => {
-      try {
-        const data = await api.get<Sale[]>('/sales');
-        setSales(data);
-      } catch (error) {
-        console.error('Error loading sales:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchSales();
-  }, []);
+  const [sales] = useState<Sale[]>(MOCK_SALES);
 
   const today = new Date();
   const [dateFrom, setDateFrom] = useState<string>(

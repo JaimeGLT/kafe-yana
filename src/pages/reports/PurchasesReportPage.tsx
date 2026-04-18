@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { startOfMonth, endOfDay, format, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -8,8 +8,8 @@ import { ShoppingBag, Clock, Users, Calendar, FileText } from 'lucide-react';
 import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Button, Input, Badge } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
-import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../utils';
+import { MOCK_PURCHASE_ORDERS, MOCK_SUPPLIERS } from '../../data/reportsMocks';
 import type { PurchaseOrder, Supplier } from '../../types';
 
 const CHART_COLORS = {
@@ -48,27 +48,8 @@ const STATUS_VARIANTS: Record<string, 'default' | 'warning' | 'success' | 'dange
 };
 
 const PurchasesReportPage: React.FC = () => {
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [_loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [ordersData, suppliersData] = await Promise.all([
-          api.get<PurchaseOrder[]>('/purchases/orders'),
-          api.get<Supplier[]>('/purchases/suppliers'),
-        ]);
-        setPurchaseOrders(ordersData);
-        setSuppliers(suppliersData);
-      } catch (error) {
-        console.error('Error loading purchases data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+  const [purchaseOrders] = useState<PurchaseOrder[]>(MOCK_PURCHASE_ORDERS);
+  const [suppliers] = useState<Supplier[]>(MOCK_SUPPLIERS);
 
   const today = new Date();
   const [dateFrom, setDateFrom] = useState<string>(format(startOfMonth(today), 'yyyy-MM-dd'));

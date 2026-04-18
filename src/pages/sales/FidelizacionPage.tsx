@@ -18,10 +18,10 @@ type TabId = 'recompensas' | 'promos' | 'misiones' | 'historial' | 'config';
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 const MOCK_CUSTOMERS: Customer[] = [
-  { id: 'c1', name: 'Ana Quispe', phone: '70011122', email: 'ana@email.com', isActive: true, createdAt: new Date('2024-01-10'), updatedAt: new Date() },
-  { id: 'c2', name: 'Carlos Mamani', phone: '70033344', email: '', isActive: true, createdAt: new Date('2024-02-15'), updatedAt: new Date() },
-  { id: 'c3', name: 'Lucía Flores', phone: '70055566', email: 'lucia@email.com', isActive: true, createdAt: new Date('2024-03-01'), updatedAt: new Date() },
-  { id: 'c4', name: 'Diego Vargas', phone: '70077788', email: '', isActive: true, createdAt: new Date('2024-04-20'), updatedAt: new Date() },
+  { id: 'c1', code: 'CLI-001', name: 'Ana Quispe',    phone: '70011122', email: 'ana@email.com', isActive: true, totalPurchases: 520, createdAt: new Date('2024-01-10'), updatedAt: new Date() },
+  { id: 'c2', code: 'CLI-002', name: 'Carlos Mamani', phone: '70033344', email: '',               isActive: true, totalPurchases: 150, createdAt: new Date('2024-02-15'), updatedAt: new Date() },
+  { id: 'c3', code: 'CLI-003', name: 'Lucía Flores',  phone: '70055566', email: 'lucia@email.com',isActive: true, totalPurchases: 1120, createdAt: new Date('2024-03-01'), updatedAt: new Date() },
+  { id: 'c4', code: 'CLI-004', name: 'Diego Vargas',  phone: '70077788', email: '',               isActive: true, totalPurchases: 30,  createdAt: new Date('2024-04-20'), updatedAt: new Date() },
 ];
 
 const MOCK_PROFILES: LoyaltyProfile[] = [
