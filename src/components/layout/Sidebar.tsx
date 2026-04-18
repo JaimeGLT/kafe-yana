@@ -56,7 +56,6 @@ const navItems: NavItem[] = [
     children: [
       { id: 'pos', label: 'Punto de Venta', icon: null, path: '/sales/pos' },
       { id: 'sales-list', label: 'Ventas', icon: null, path: '/sales' },
-      { id: 'invoices', label: 'Facturas', icon: null, path: '/sales/invoices' },
       { id: 'customers', label: 'Clientes', icon: null, path: '/sales/customers' },
       { id: 'fidelizacion-config',        label: 'Configuración de puntos',   icon: <Star className="h-3.5 w-3.5 text-amber-400" />, path: '/sales/fidelizacion/config',                  groupLabel: 'Fidelización' },
       { id: 'fidelizacion-productos',      label: 'Productos canjeables',       icon: null, path: '/sales/fidelizacion/productos' },

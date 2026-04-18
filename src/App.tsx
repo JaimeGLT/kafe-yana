@@ -9,7 +9,6 @@ import KardexPage from './pages/inventory/KardexPage';
 import { SalesListPage } from './pages/sales/SalesListPage';
 import { POSPage } from './pages/sales/POSPage';
 import { CustomersPage } from './pages/sales/CustomersPage';
-import { InvoicesPage } from './pages/sales/InvoicesPage';
 import { FidelizacionPage } from './pages/sales/FidelizacionPage';
 import { ConfiguracionPuntosPage } from './pages/sales/ConfiguracionPuntosPage';
 import { ProductosCanjeablesPage } from './pages/sales/ProductosCanjeablesPage';
@@ -64,7 +63,6 @@ function App() {
                 <Route path="/sales/pos" element={<ProtectedRoute><POSPage /></ProtectedRoute>} />
                 <Route path="/sales" element={<ProtectedRoute><SalesListPage /></ProtectedRoute>} />
                 <Route path="/sales/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
-                <Route path="/sales/invoices" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
                 <Route path="/sales/fidelizacion" element={<ProtectedRoute><FidelizacionPage /></ProtectedRoute>} />
                 <Route path="/sales/fidelizacion/config" element={<ProtectedRoute><ConfiguracionPuntosPage /></ProtectedRoute>} />
                 <Route path="/sales/fidelizacion/productos" element={<ProtectedRoute><ProductosCanjeablesPage /></ProtectedRoute>} />

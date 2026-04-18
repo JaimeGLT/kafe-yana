@@ -103,6 +103,50 @@ export const GET_KARDEX_MOVEMENTS_QUERY = `
   }
 `;
 
+export const GET_POS_DATA = `
+  query GetPOSData {
+    elaborados {
+      nodes {
+        id_Producto
+        unidad_medida
+        producto {
+          id nombre descripcion precio tipo
+          categoria { id nombre descripcion estado color }
+        }
+        variaciones {
+          id nombre requerido
+          opciones {
+            id nombre ajustePrecio id_variacion
+            ajustes { tipoAjuste cantidad insumoBase { id nombre } insumoNuevo { id nombre } }
+          }
+        }
+      }
+    }
+    comprados {
+      nodes {
+        costo_compra stock_actual disponible
+        producto {
+          id nombre descripcion precio tipo
+          categoria { id nombre descripcion estado color }
+        }
+      }
+    }
+    combos {
+      nodes {
+        cantidadProducible
+        producto { id nombre descripcion precio tipo }
+        detalles {
+          producto { id nombre descripcion precio tipo }
+          cantidad opcional
+        }
+      }
+    }
+    categorias {
+      nodes { id nombre descripcion color estado }
+    }
+  }
+`;
+
 export const GET_COMBO_DETAIL = `
   query GetComboDetail($id: Int!) {
     combo(id: $id) {

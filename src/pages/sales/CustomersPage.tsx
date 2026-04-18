@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Plus, Search, Edit2, Trash2, User, Phone, Mail, CreditCard } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, User, Phone, Mail, CreditCard, Calendar } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Button, Badge, Modal, ConfirmModal } from '../../components/ui';
@@ -123,7 +123,7 @@ export const CustomersPage: React.FC = () => {
             <table className="min-w-full divide-y divide-coffee-200">
               <thead className="bg-coffee-50">
                 <tr>
-                  {['Código', 'Nombre', 'Teléfono', 'Email', 'Total Compras', 'Estado', ''].map((h) => (
+                  {['Código', 'Nombre', 'Teléfono', 'Email', 'F. Nacimiento', 'Total Compras', 'Estado', ''].map((h) => (
                     <th
                       key={h}
                       className="px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider"
@@ -136,7 +136,7 @@ export const CustomersPage: React.FC = () => {
               <tbody className="bg-white divide-y divide-coffee-100">
                 {filteredCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-10 text-center text-coffee-400">
+                    <td colSpan={8} className="px-6 py-10 text-center text-coffee-400">
                       No hay clientes registrados
                     </td>
                   </tr>
@@ -169,6 +169,16 @@ export const CustomersPage: React.FC = () => {
                           <div className="flex items-center gap-1">
                             <Mail className="h-3.5 w-3.5 text-coffee-400" />
                             {customer.email}
+                          </div>
+                        ) : (
+                          <span className="text-coffee-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-600">
+                        {customer.birthDate ? (
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-3.5 w-3.5 text-coffee-400" />
+                            {formatDate(customer.birthDate)}
                           </div>
                         ) : (
                           <span className="text-coffee-300">—</span>
@@ -282,6 +292,15 @@ export const CustomersPage: React.FC = () => {
                   <div>
                     <p className="text-coffee-500 mb-0.5">RUC / DNI</p>
                     <p className="font-medium text-coffee-900">{viewingCustomer.ruc}</p>
+                  </div>
+                )}
+                {viewingCustomer.birthDate && (
+                  <div>
+                    <p className="text-coffee-500 mb-0.5">Fecha de nacimiento</p>
+                    <p className="font-medium text-coffee-900 flex items-center gap-1">
+                      <Calendar className="h-3.5 w-3.5 text-coffee-400" />
+                      {formatDate(viewingCustomer.birthDate)}
+                    </p>
                   </div>
                 )}
                 {viewingCustomer.address && (

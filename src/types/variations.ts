@@ -16,6 +16,11 @@ export interface VariacionOpcion {
   insumoReemplazadoId?: UUID;
   // Ingredient quantity overrides (modifica cantidad)
   ajustesCantidad?: AjusteCantidad[];
+  // Display info: what ingredient is being swapped/added
+  insumoBaseNombre?: string;
+  insumoNuevoNombre?: string;
+  tipoAjuste?: string;
+  ajusteCantidad?: number;
   isActive: boolean;
 }
 
@@ -57,4 +62,8 @@ export interface OpcionSeleccionada {
   cantidadExtra?: number;
   insumoReemplazadoId?: UUID;
   ajustesCantidad?: AjusteCantidad[];
+  insumoBaseNombre?: string;
+  insumoNuevoNombre?: string;
+  tipoAjuste?: string;
+  ajusteCantidad?: number;
 }

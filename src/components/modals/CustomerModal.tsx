@@ -20,6 +20,7 @@ interface CustomerFormData {
   email: string;
   address: string;
   ruc: string;
+  birthDate: string;
   isActive: boolean;
 }
 
@@ -39,6 +40,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
     email: customer?.email || '',
     address: customer?.address || '',
     ruc: customer?.ruc || '',
+    birthDate: customer?.birthDate || '',
     isActive: customer?.isActive ?? true,
   });
 
@@ -50,6 +52,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
         email: customer?.email || '',
         address: customer?.address || '',
         ruc: customer?.ruc || '',
+        birthDate: customer?.birthDate || '',
         isActive: customer?.isActive ?? true,
       });
       setErrors({});
@@ -94,6 +97,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
         email: formData.email.trim() || undefined,
         address: formData.address.trim() || undefined,
         ruc: formData.ruc.trim() || undefined,
+        birthDate: formData.birthDate || undefined,
         isActive: formData.isActive,
       };
 
@@ -155,6 +159,14 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
             value={formData.ruc}
             onChange={(e) => handleChange('ruc', e.target.value)}
             placeholder="Carnet de identidad o NIT"
+          />
+        </FormField>
+
+        <FormField label="Fecha de nacimiento">
+          <Input
+            type="date"
+            value={formData.birthDate}
+            onChange={(e) => handleChange('birthDate', e.target.value)}
           />
         </FormField>
 

@@ -105,6 +105,21 @@ export const GET_ELABORADOS_VARIACIONES = `
   }
 `
 
+export const GET_ELABORADO_INGREDIENTES = `
+  query GetElaboradoIngredientes($id: Int!) {
+    elaborados(where: { id_Producto: { eq: $id } }) {
+      nodes {
+        receta {
+          detalles {
+            cantidad
+            insumo { nombre unidad_min_uso }
+          }
+        }
+      }
+    }
+  }
+`;
+
 export const GET_ELABORADO_BY_ID = `
   query GetElaboradoById($id: Int!) {
     elaborados(where: { id_Producto: { eq: $id } }) {

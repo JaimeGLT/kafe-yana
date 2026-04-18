@@ -8,20 +8,21 @@ import {
 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { toast } from '../../components/ui/Toast';
-// import { api } from '../../lib/api'; // TODO: reconectar cuando el backend esté listo
+import { api } from '../../lib/api';
+import { gql } from '../../lib/graphql';
+import { GET_POS_DATA } from '../../lib/queries/products.queries';
+import { GET_ELABORADO_INGREDIENTES } from '../../lib/queries/elaborados.queries';
 import {
-  MOCK_CATEGORIES, MOCK_PRODUCTS, MOCK_ATRIBUTOS,
   MOCK_CUSTOMERS, MOCK_LOYALTY_PROFILES, MOCK_MILESTONES, MOCK_REWARDS,
-  MOCK_COMBO_DETAILS,
-  mockAddSale, mockGenerateInvoice,
 } from './posMocks';
+import type { ComboDetailItem } from './posMocks';
 import { formatCurrency } from '../../utils';
 import qrPago from '../../assets/qr-pago.svg';
-import type { Product, Category, Customer, SaleInput, PaymentMethodType, OpcionSeleccionada, VariacionAtributo } from '../../types';
-import type { BillingData } from '../../components/modals/BillingModal';
+import type { Product, Category, Customer, Sale, SaleInput, PaymentMethodType, OpcionSeleccionada, VariacionAtributo } from '../../types';
 import type { LoyaltyProfile, PointsCalculation, MilestoneReward, Reward } from '../../types/loyalty';
 import { VariacionPickerModal } from '../../components/modals/VariacionPickerModal';
-import { BillingModal } from '../../components/modals/BillingModal';
+import { ElaboradoDetailModal } from '../../components/modals/ElaboradoDetailModal';
+import type { ElaboradoIngrediente } from '../../components/modals/ElaboradoDetailModal';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Tooltip } from '../../components/ui/Tooltip';
@@ -59,7 +60,6 @@ type ModalView =
   | 'detalle'       // table detail (order view)
   | 'review'        // order review before payment
   | 'pago'          // payment
-  | 'billing'       // billing data after payment
   | 'success'       // done
   | 'para_llevar';  // takeaway / counter sale
 
@@ -79,6 +79,16 @@ const PAYMENT_METHODS: { type: PaymentMethodType; label: string; icon: React.Rea
 /* ═══════════════════════════════════════════════════════════════════════════
    HELPERS
 ═══════════════════════════════════════════════════════════════════════════*/
+const formatOpcionLabel = (o: OpcionSeleccionada): string => {
+  if (o.insumoBaseNombre && o.insumoNuevoNombre) {
+    return `${o.insumoBaseNombre} → ${o.insumoNuevoNombre}${o.ajusteCantidad ? ` (${o.ajusteCantidad})` : ''}`;
+  }
+  if (o.insumoNuevoNombre && o.tipoAjuste === 'extra') {
+    return `+ ${o.insumoNuevoNombre}${o.ajusteCantidad ? ` (${o.ajusteCantidad})` : ''}`;
+  }
+  return o.opcionNombre;
+};
+
 const buildCartKey = (productId: string, opciones?: OpcionSeleccionada[]): string => {
   if (!opciones?.length) return productId;
   const part = [...opciones]
@@ -388,25 +398,166 @@ export const POSPage: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [_customers, setCustomers] = useState<Customer[]>([]);
   const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
+  const [comboDetails, setComboDetails] = useState<Record<string, ComboDetailItem[]>>({});
   const [loyaltyProfiles, setLoyaltyProfiles] = useState<LoyaltyProfile[]>([]);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [milestones, setMilestones] = useState<MilestoneReward[]>([]);
   const [_loading, setLoading] = useState(true);
 
-  // TODO: reemplazar mocks con llamadas reales cuando el backend esté listo
   useEffect(() => {
-    // Simula una pequeña latencia de carga
-    const t = setTimeout(() => {
-      setProducts(MOCK_PRODUCTS);
-      setCategories(MOCK_CATEGORIES);
-      setCustomers(MOCK_CUSTOMERS);
-      setAtributos(MOCK_ATRIBUTOS);
-      setLoyaltyProfiles(MOCK_LOYALTY_PROFILES);
-      setMilestones(MOCK_MILESTONES);
-      setRewards(MOCK_REWARDS);
-      setLoading(false);
-    }, 200);
-    return () => clearTimeout(t);
+    setCustomers(MOCK_CUSTOMERS);
+    setLoyaltyProfiles(MOCK_LOYALTY_PROFILES);
+    setMilestones(MOCK_MILESTONES);
+    setRewards(MOCK_REWARDS);
+
+    const loadData = async () => {
+      try {
+        const data = await gql<{
+          elaborados: { nodes: Array<{
+            id_Producto: number; unidad_medida: string;
+            producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string;
+              categoria: { id: number; nombre: string; descripcion: string; estado: boolean; color: string } | null };
+            variaciones: Array<{ id: number; nombre: string; requerido: boolean;
+              opciones: Array<{ id: number; nombre: string; ajustePrecio: number; id_variacion: number;
+                ajustes: Array<{ tipoAjuste: string; cantidad: number; insumoBase: { id: number; nombre: string } | null; insumoNuevo: { id: number; nombre: string } | null }> }> }>;
+            receta: { detalles: Array<{ cantidad: number; insumo: { nombre: string; unidad_min_uso: string } | null }> } | null;
+          }> };
+          comprados: { nodes: Array<{
+            costo_compra: number; stock_actual: number; disponible: boolean;
+            producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string;
+              categoria: { id: number; nombre: string; descripcion: string; estado: boolean; color: string } | null };
+          }> };
+          combos: { nodes: Array<{
+            cantidadProducible: number;
+            producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string };
+            detalles: Array<{ producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string }; cantidad: number; opcional: boolean }>;
+          }> };
+          categorias: { nodes: Array<{ id: number; nombre: string; descripcion: string; color: string; estado: boolean }> };
+        }>(GET_POS_DATA);
+
+        // Build category map from backend — keyed by string ID
+        const catMap = new Map<string, Category>();
+        data.categorias.nodes.forEach(n => {
+          catMap.set(String(n.id), {
+            id: String(n.id), name: n.nombre, description: n.descripcion,
+            color: n.color || '#92400e', sortOrder: 0, isActive: n.estado,
+            createdAt: new Date(), updatedAt: new Date(),
+          });
+        });
+
+        const elaboradoProducts: Product[] = [];
+        const mappedAtributos: VariacionAtributo[] = [];
+
+        for (const n of data.elaborados.nodes) {
+          const productId = String(n.id_Producto);
+          const cat = n.producto.categoria;
+          // Ensure the category is registered
+          if (cat && !catMap.has(String(cat.id))) {
+            catMap.set(String(cat.id), {
+              id: String(cat.id), name: cat.nombre, description: cat.descripcion ?? '',
+              color: cat.color || '#92400e', sortOrder: 0, isActive: true,
+              createdAt: new Date(), updatedAt: new Date(),
+            });
+          }
+          elaboradoProducts.push({
+            id: productId, code: productId,
+            name: n.producto.nombre, description: n.producto.descripcion ?? '',
+            tipo: 'elaborado', categoryId: cat ? String(cat.id) : '',
+            unit: n.unidad_medida ?? 'unidad', costPrice: 0,
+            salePrice: n.producto.precio, stock: 999,
+            minStock: 0, maxStock: 0, variations: [], isActive: true,
+            hasVariations: n.variaciones.length > 0,
+            createdAt: new Date(), updatedAt: new Date(),
+          });
+          for (const v of n.variaciones) {
+            mappedAtributos.push({
+              id: String(v.id), productId,
+              nombre: v.nombre, esRequerido: v.requerido, isActive: true,
+              createdAt: new Date(), updatedAt: new Date(),
+              opciones: v.opciones.map(o => {
+                const ajuste = o.ajustes?.[0];
+                return {
+                  id: String(o.id), atributoId: String(v.id),
+                  nombre: o.nombre, precioAjuste: o.ajustePrecio, isActive: true,
+                  tipoAjuste: ajuste?.tipoAjuste,
+                  ajusteCantidad: ajuste?.cantidad,
+                  insumoBaseNombre: ajuste?.insumoBase?.nombre,
+                  insumoNuevoNombre: ajuste?.insumoNuevo?.nombre,
+                };
+              }),
+            });
+          }
+        }
+
+        const compradoProducts: Product[] = data.comprados.nodes
+          .filter(n => n.disponible)
+          .map(n => {
+            const cat = n.producto.categoria;
+            // Ensure comprado categories are registered even if not in categorias.nodes
+            if (cat && !catMap.has(String(cat.id))) {
+              catMap.set(String(cat.id), {
+                id: String(cat.id), name: cat.nombre, description: cat.descripcion ?? '',
+                color: cat.color || '#64748b', sortOrder: 0, isActive: true,
+                createdAt: new Date(), updatedAt: new Date(),
+              });
+            }
+            return {
+              id: String(n.producto.id), code: String(n.producto.id),
+              name: n.producto.nombre, description: n.producto.descripcion ?? '',
+              tipo: 'comprado' as const,
+              categoryId: cat ? String(cat.id) : '',
+              unit: 'unidad', costPrice: n.costo_compra,
+              salePrice: n.producto.precio, stock: n.stock_actual,
+              minStock: 0, maxStock: 0, variations: [], isActive: true,
+              hasVariations: false, createdAt: new Date(), updatedAt: new Date(),
+            };
+          });
+
+        // Find existing combo category from backend, or create synthetic one
+        const existingComboCat = [...catMap.values()].find(c =>
+          c.name.toLowerCase().includes('combo')
+        );
+        const COMBO_CAT_ID = existingComboCat?.id ?? '__combos__';
+        if (!existingComboCat) {
+          catMap.set(COMBO_CAT_ID, {
+            id: COMBO_CAT_ID, name: 'Combos', color: '#15803d',
+            sortOrder: 99, isActive: true, createdAt: new Date(), updatedAt: new Date(),
+          });
+        }
+
+        const comboProducts: Product[] = [];
+        const newComboDetails: Record<string, ComboDetailItem[]> = {};
+
+        for (const n of data.combos.nodes) {
+          const id = String(n.producto.id);
+          comboProducts.push({
+            id, code: id,
+            name: n.producto.nombre, description: n.producto.descripcion ?? '',
+            tipo: 'combo', categoryId: COMBO_CAT_ID,
+            unit: 'unidad', costPrice: 0,
+            salePrice: n.producto.precio, stock: n.cantidadProducible,
+            minStock: 0, maxStock: 0, variations: [], isActive: true,
+            hasVariations: false, createdAt: new Date(), updatedAt: new Date(),
+          });
+          newComboDetails[id] = n.detalles.map(d => ({
+            name: d.producto.nombre, quantity: d.cantidad, emoji: '•',
+          }));
+        }
+
+        const cats = [...catMap.values()].filter(c => c.isActive);
+
+        setCategories(cats);
+        setProducts([...elaboradoProducts, ...compradoProducts, ...comboProducts]);
+        setAtributos(mappedAtributos);
+        setComboDetails(newComboDetails);
+      } catch {
+        toast.error('Error', 'No se pudieron cargar los productos.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
   }, []);
 
   const getAtributosByProductId = useCallback((productId: string): VariacionAtributo[] => {
@@ -416,12 +567,7 @@ export const POSPage: React.FC = () => {
   // wire helper used by ProdCard
   getAttrCount = (p: Product) => getAtributosByProductId(p.id).length;
 
-  // TODO: reconectar con api.post cuando el backend esté listo
-  const addSale = useCallback((saleInput: SaleInput) => mockAddSale(saleInput), []);
-
-  const generateInvoiceForSale = useCallback(async (saleId: string, billing: { tipoDocumento: 'boleta' | 'factura'; ruc?: string; razonSocial?: string; direccionFiscal?: string }) => {
-    return mockGenerateInvoice(saleId, billing);
-  }, []);
+  const addSale = useCallback((saleInput: SaleInput) => api.post<Sale>('/ventas', saleInput), []);
 
   const getOrCreateProfile = useCallback((customerId: string): LoyaltyProfile | undefined => {
     const profile = loyaltyProfiles.find((p: LoyaltyProfile) => p.customerId === customerId);
@@ -506,6 +652,8 @@ export const POSPage: React.FC = () => {
   const [varPickerRewardId, setVarPickerRewardId] = useState<string | null>(null);
   const [redeemQtyState, setRedeemQtyState] = useState<{ product: Product; reward: Reward } | null>(null);
   const [comboDetailProduct, setComboDetailProduct] = useState<Product | null>(null);
+  const [elaboradoDetailProduct, setElaboradoDetailProduct] = useState<Product | null>(null);
+  const [elaboradoIngredientes, setElaboradoIngredientes] = useState<Record<string, ElaboradoIngrediente[]>>({});
   const [productSearch, setProductSearch] = useState('');
 
   /* ── Payment state ── */
@@ -513,7 +661,6 @@ export const POSPage: React.FC = () => {
   const [cashReceived,     setCashReceived]     = useState('');
   const [isProcessing,     setIsProcessing]     = useState(false);
   const [lastSaleResult,   setLastSaleResult]   = useState<{ code: string; points: PointsCalculation | null; newBalance: number } | null>(null);
-  const [pendingBillingSaleId, setPendingBillingSaleId] = useState<string | null>(null);
 
   /* ── Drag scroll refs ── */
   const dragScrollDetalleCat  = useDragScroll<HTMLDivElement>();
@@ -686,9 +833,32 @@ export const POSPage: React.FC = () => {
   };
 
   const addTempProduct = (product: Product) => {
-    const attrs = getAtributosByProductId(product.id);
-    if (attrs.length > 0) setVarPickerProduct(product);
-    else addTempDirect(product);
+    if (product.tipo === 'combo') {
+      setComboDetailProduct(product);
+    } else if (product.tipo === 'elaborado') {
+      setElaboradoDetailProduct(product);
+      // Carga lazy de ingredientes si aún no están en cache
+      if (!elaboradoIngredientes[product.id]) {
+        gql<{ elaborados: { nodes: Array<{ receta: { detalles: Array<{ cantidad: number; insumo: { nombre: string; unidad_min_uso: string } | null }> } | null }> } }>(
+          GET_ELABORADO_INGREDIENTES,
+          { id: parseInt(product.id, 10) }
+        ).then(data => {
+          const node = data.elaborados.nodes[0];
+          if (node?.receta?.detalles) {
+            const ings = node.receta.detalles
+              .filter(d => d.insumo)
+              .map(d => ({ nombre: d.insumo!.nombre, cantidad: d.cantidad, unidad: d.insumo!.unidad_min_uso }));
+            setElaboradoIngredientes(prev => ({ ...prev, [product.id]: ings }));
+          } else {
+            setElaboradoIngredientes(prev => ({ ...prev, [product.id]: [] }));
+          }
+        }).catch(() => {
+          setElaboradoIngredientes(prev => ({ ...prev, [product.id]: [] }));
+        });
+      }
+    } else {
+      addTempDirect(product);
+    }
   };
 
   const incTempQty = (cartKey: string) =>
@@ -819,8 +989,7 @@ export const POSPage: React.FC = () => {
         newBalance = profile?.points ?? 0;
       }
       setLastSaleResult({ code: newSale.code, points: earnedPoints, newBalance });
-      setPendingBillingSaleId(newSale.id);
-      setModalView('billing');
+      setModalView('success');
     } catch {
       toast.error('Error', 'No se pudo registrar la venta.');
     } finally {
@@ -1294,7 +1463,6 @@ export const POSPage: React.FC = () => {
                           onAdd={() => addTempProduct(product)}
                           onInc={() => incTempQty(buildCartKey(product.id))}
                           onDec={() => decTempQty(buildCartKey(product.id))}
-                          onInfo={product.tipo === 'combo' ? () => setComboDetailProduct(product) : undefined}
                           rewardInfo={reward ? { icon: reward.icon, pointsCost: reward.pointsCost } : null}
                           onRedeem={canAfford ? () => {
                             const attrs = getAtributosByProductId(product.id);
@@ -1337,8 +1505,14 @@ export const POSPage: React.FC = () => {
                                   </span>
                                 )}
                               </div>
-                              {item.opciones?.length ? (
-                                <p className="text-xs text-coffee-400 line-clamp-1 mt-0.5">{item.opciones.map(o => o.opcionNombre).join(' · ')}</p>
+                              {item.opciones?.length && (item.product.tipo === 'elaborado' || item.product.tipo === 'combo') ? (
+                                <div className="mt-0.5 space-y-0.5">
+                                  {item.opciones.map((o, oi) => (
+                                    <p key={oi} className="text-xs text-coffee-400">
+                                      <span className="font-medium text-coffee-500">{o.atributoNombre}:</span> {formatOpcionLabel(o)}
+                                    </p>
+                                  ))}
+                                </div>
                               ) : null}
                             </div>
                             <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
@@ -1415,8 +1589,14 @@ export const POSPage: React.FC = () => {
                                     </span>
                                   )}
                                 </div>
-                                {item.opciones?.length ? (
-                                  <p className="text-xs text-coffee-400 line-clamp-1 mt-0.5">{item.opciones.map(o => o.opcionNombre).join(' · ')}</p>
+                                {item.opciones?.length && (item.product.tipo === 'elaborado' || item.product.tipo === 'combo') ? (
+                                  <div className="mt-0.5 space-y-0.5">
+                                    {item.opciones.map((o, oi) => (
+                                      <p key={oi} className="text-xs text-coffee-400">
+                                        <span className="font-medium text-coffee-500">{o.atributoNombre}:</span> {formatOpcionLabel(o)}
+                                      </p>
+                                    ))}
+                                  </div>
                                 ) : null}
                               </div>
                               <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
@@ -1652,7 +1832,15 @@ export const POSPage: React.FC = () => {
                           </span>
                         )}
                       </div>
-                      {item.opciones?.length ? <p className="text-xs text-coffee-400 line-clamp-1">{item.opciones.map(o => o.opcionNombre).join(' · ')}</p> : null}
+                      {item.opciones?.length && (item.product.tipo === 'elaborado' || item.product.tipo === 'combo') ? (
+                        <div className="mt-0.5 space-y-0.5">
+                          {item.opciones.map((o, oi) => (
+                            <p key={oi} className="text-xs text-coffee-400">
+                              <span className="font-medium text-coffee-500">{o.atributoNombre}:</span> {formatOpcionLabel(o)}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
                       {item.notes && <p className="text-xs text-coffee-500 italic mt-0.5">"{item.notes}"</p>}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -1872,24 +2060,6 @@ export const POSPage: React.FC = () => {
           </Overlay>
         )}
 
-        {/* ══════════════════════════════════════════════════════════════
-            MODAL: BILLING
-        ═════════════════════════════════════════════════════════════════*/}
-        <BillingModal
-          isOpen={modalView === 'billing'}
-          saleCode={lastSaleResult?.code}
-          customers={_customers}
-          onDone={async (billing: BillingData) => {
-            if (pendingBillingSaleId) {
-              const invoicePayload = billing.nit === '0'
-                ? { tipoDocumento: 'boleta' as const }
-                : { tipoDocumento: 'factura' as const, ruc: billing.nit, razonSocial: billing.name };
-              await generateInvoiceForSale(pendingBillingSaleId, invoicePayload);
-            }
-            setPendingBillingSaleId(null);
-            setModalView('success');
-          }}
-        />
 
         {/* Combo detail */}
         {comboDetailProduct && (
@@ -1905,7 +2075,7 @@ export const POSPage: React.FC = () => {
                 </button>
               </div>
               <div className="divide-y divide-coffee-50">
-                {(MOCK_COMBO_DETAILS[comboDetailProduct.id] ?? []).map((item, idx) => (
+                {(comboDetails[comboDetailProduct.id] ?? []).map((item, idx) => (
                   <div key={idx} className="flex items-center gap-3 px-5 py-3">
                     <span className="text-2xl">{item.emoji}</span>
                     <p className="flex-1 text-sm font-semibold text-coffee-900">{item.name}</p>
@@ -1919,7 +2089,7 @@ export const POSPage: React.FC = () => {
                   <p className="text-xl font-display font-black text-coffee-900">{formatCurrency(comboDetailProduct.salePrice)}</p>
                 </div>
                 <button
-                  onClick={() => { addTempProduct(comboDetailProduct); setComboDetailProduct(null); }}
+                  onClick={() => { addTempDirect(comboDetailProduct); setComboDetailProduct(null); }}
                   className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-coffee-800 text-cream text-sm font-bold hover:bg-coffee-700 active:scale-95 transition-all"
                 >
                   <Plus className="h-4 w-4" /> Agregar
@@ -1933,7 +2103,22 @@ export const POSPage: React.FC = () => {
             MODAL: CANJE RÁPIDO (sin mesa)
         ═════════════════════════════════════════════════════════════════*/}
 
-        {/* Variacion picker */}
+        {/* Elaborado detail modal */}
+        {elaboradoDetailProduct && (
+          <ElaboradoDetailModal
+            isOpen
+            onClose={() => setElaboradoDetailProduct(null)}
+            product={elaboradoDetailProduct}
+            atributos={getAtributosByProductId(elaboradoDetailProduct.id)}
+            ingredientes={elaboradoIngredientes[elaboradoDetailProduct.id] ?? []}
+            onConfirm={(opciones, precioFinal) => {
+              addTempDirect(elaboradoDetailProduct, opciones, precioFinal);
+              setElaboradoDetailProduct(null);
+            }}
+          />
+        )}
+
+        {/* Variacion picker (usado solo para canje de puntos) */}
         {varPickerProduct && (
           <VariacionPickerModal
             isOpen

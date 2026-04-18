@@ -11,6 +11,7 @@ export interface Customer extends BaseEntity {
   phone: string;
   address?: string;
   ruc?: string;
+  birthDate?: string;
   notes?: string;
   creditLimit?: number;
   currentCredit?: number;
@@ -25,6 +26,7 @@ export interface CustomerInput {
   phone: string;
   address?: string;
   ruc?: string;
+  birthDate?: string;
   notes?: string;
   creditLimit?: number;
   isActive?: boolean;
