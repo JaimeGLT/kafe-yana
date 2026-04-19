@@ -43,6 +43,32 @@ export interface PaymentMethod {
   reference?: string;
 }
 
+// Refund
+export interface RefundItem {
+  saleItemId: UUID;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+}
+
+export interface Refund {
+  id: UUID;
+  type: 'total' | 'partial';
+  items: RefundItem[];
+  amount: number;
+  reason?: string;
+  refundedBy: string;
+  refundedAt: Date;
+}
+
+export interface RefundInput {
+  type: 'total' | 'partial';
+  items?: { saleItemId: UUID; quantity: number }[];
+  reason?: string;
+  force?: boolean;
+}
+
 // Sale Item
 export interface SaleItem {
   id: UUID;
@@ -84,7 +110,8 @@ export interface Sale extends BaseEntity {
   taxPercentage: number;
   total: number;
   paymentMethods: PaymentMethod[];
-  status: 'pending' | 'completed' | 'cancelled' | 'refunded';
+  status: 'completed' | 'refunded' | 'partially_refunded';
+  refunds?: Refund[];
   notes?: string;
   cashierId: UUID;
   cashierName?: string;
