@@ -1,164 +1,147 @@
 import React from 'react';
 import type { PurchaseOrder } from '../../types';
-import { StatusBadge } from '../ui';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Eye, CheckCircle, XCircle } from 'lucide-react';
+import { Eye, PackageCheck, XCircle, ShoppingCart } from 'lucide-react';
 
 interface PurchasesTableProps {
   orders: PurchaseOrder[];
   onView?: (order: PurchaseOrder) => void;
-  onApprove?: (order: PurchaseOrder) => void;
+  onReceive?: (order: PurchaseOrder) => void;
   onCancel?: (order: PurchaseOrder) => void;
   isLoading?: boolean;
 }
 
+const STATUS_PILL: Record<PurchaseOrder['status'], { label: string; cls: string }> = {
+  draft:     { label: 'Pendiente', cls: 'bg-amber-100 text-amber-700' },
+  pending:   { label: 'Pendiente', cls: 'bg-amber-100 text-amber-700' },
+  approved:  { label: 'Pendiente', cls: 'bg-amber-100 text-amber-700' },
+  partial:   { label: 'Parcial',   cls: 'bg-blue-100 text-blue-700' },
+  received:  { label: 'Recibida',  cls: 'bg-emerald-100 text-emerald-700' },
+  cancelled: { label: 'Cancelada', cls: 'bg-red-100 text-red-600' },
+};
+
 export const PurchasesTable: React.FC<PurchasesTableProps> = ({
   orders,
   onView,
-  onApprove,
+  onReceive,
   onCancel,
   isLoading = false,
 }) => {
-  const formatCurrency = (amount: number) => {
-    return `S/ ${amount.toFixed(2)}`;
-  };
+  const fmtDate = (date: Date) => format(new Date(date), 'dd MMM yyyy', { locale: es });
+  const fmtCurrency = (n: number) => `S/ ${n.toFixed(2)}`;
 
-  const formatDate = (date: Date) => {
-    return format(new Date(date), 'dd MMM yyyy', { locale: es });
-  };
-
-  const columns = [
-    {
-      key: 'code',
-      header: 'Código',
-      width: '120px',
-      render: (value: unknown) => (
-        <span className="font-mono text-sm text-coffee-600">{String(value)}</span>
-      ),
-    },
-    {
-      key: 'date',
-      header: 'Fecha',
-      width: '120px',
-      render: (value: unknown) => (
-        <span className="text-sm text-coffee-700">{formatDate(value as Date)}</span>
-      ),
-    },
-    {
-      key: 'supplierName',
-      header: 'Proveedor',
-      render: (value: unknown) => (
-        <span className="text-coffee-900">{String(value || 'N/A')}</span>
-      ),
-    },
-    {
-      key: 'items',
-      header: 'Productos',
-      width: '80px',
-      render: (value: unknown) => (
-        <span className="text-sm text-coffee-600">
-          {(value as unknown[]).length} items
-        </span>
-      ),
-    },
-    {
-      key: 'total',
-      header: 'Total',
-      width: '120px',
-      render: (value: unknown) => (
-        <span className="font-semibold text-coffee-900">
-          {formatCurrency(Number(value))}
-        </span>
-      ),
-    },
-    {
-      key: 'status',
-      header: 'Estado',
-      width: '100px',
-      render: (value: unknown) => {
-        return <StatusBadge status={value as PurchaseOrder['status'] === 'received' ? 'completed' : value as PurchaseOrder['status'] === 'cancelled' ? 'cancelled' : 'pending'} />;
-      },
-    },
-    {
-      key: 'actions',
-      header: '',
-      width: '100px',
-      render: (_: unknown, row: PurchaseOrder) => (
-        <div className="flex items-center justify-end gap-1">
-          {onView && (
-            <button
-              className="p-1.5 rounded-lg hover:bg-coffee-100 text-coffee-500 hover:text-coffee-700"
-              onClick={() => onView(row)}
-              title="Ver detalles"
-            >
-              <Eye className="h-4 w-4" />
-            </button>
-          )}
-          {onApprove && row.status === 'pending' && (
-            <button
-              className="p-1.5 rounded-lg hover:bg-green-100 text-green-500 hover:text-green-700"
-              onClick={() => onApprove(row)}
-              title="Aprobar"
-            >
-              <CheckCircle className="h-4 w-4" />
-            </button>
-          )}
-          {onCancel && (row.status === 'draft' || row.status === 'pending') && (
-            <button
-              className="p-1.5 rounded-lg hover:bg-red-100 text-red-500 hover:text-red-700"
-              onClick={() => onCancel(row)}
-              title="Cancelar"
-            >
-              <XCircle className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      ),
-    },
-  ];
-
-  return (
-    <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
-      <table className="min-w-full divide-y divide-coffee-200">
-        <thead className="bg-coffee-50">
-          <tr>
-            {columns.map((column) => (
-              <th
-                key={column.key}
-                className="px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider"
-              >
-                {column.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-coffee-100">
-          {isLoading ? (
-            <tr>
-              <td colSpan={columns.length} className="px-6 py-8 text-center">
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-coffee-500" />
-                </div>
-              </td>
-            </tr>
-          ) : orders.length === 0 ? (
-            <tr>
-              <td colSpan={columns.length} className="px-6 py-8 text-center text-coffee-500">
-                No hay órdenes de compra
-              </td>
-            </tr>
-          ) : (
-            orders.map((order) => (
-              <tr key={order.id} className="hover:bg-coffee-50 transition-colors">
-                {columns.map((column) => (
-                  <td key={column.key} className="px-6 py-4 whitespace-nowrap">
-                    {column.render(order[column.key as keyof PurchaseOrder], order)}
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
+        <table className="min-w-full">
+          <tbody>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <tr key={i} className="border-b border-coffee-50">
+                {Array.from({ length: 6 }).map((__, j) => (
+                  <td key={j} className="px-6 py-4">
+                    <div className="h-4 bg-coffee-100 rounded animate-pulse" />
                   </td>
                 ))}
               </tr>
-            ))
-          )}
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (orders.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-coffee-100 shadow-sm flex flex-col items-center justify-center py-16 text-coffee-400">
+        <ShoppingCart className="h-10 w-10 mb-3 opacity-30" />
+        <p className="font-medium text-coffee-600">Sin órdenes de compra</p>
+        <p className="text-sm mt-1">Crea tu primera orden con el botón Nueva Orden.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
+      <table className="min-w-full divide-y divide-coffee-100">
+        <thead className="bg-coffee-50">
+          <tr>
+            <th className="px-5 py-3 text-left text-xs font-semibold text-coffee-500 uppercase tracking-wide">Código</th>
+            <th className="px-5 py-3 text-left text-xs font-semibold text-coffee-500 uppercase tracking-wide">Fecha</th>
+            <th className="px-5 py-3 text-left text-xs font-semibold text-coffee-500 uppercase tracking-wide">Proveedor</th>
+            <th className="px-5 py-3 text-center text-xs font-semibold text-coffee-500 uppercase tracking-wide">Ítems</th>
+            <th className="px-5 py-3 text-right text-xs font-semibold text-coffee-500 uppercase tracking-wide">Total</th>
+            <th className="px-5 py-3 text-left text-xs font-semibold text-coffee-500 uppercase tracking-wide">Estado</th>
+            <th className="px-5 py-3 text-right text-xs font-semibold text-coffee-500 uppercase tracking-wide">Acciones</th>
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-coffee-50">
+          {orders.map((order) => {
+            const sp = STATUS_PILL[order.status];
+            const canReceive = order.status === 'pending' || order.status === 'approved';
+            const canCancel = order.status === 'pending' || order.status === 'draft' || order.status === 'approved';
+            return (
+              <tr
+                key={order.id}
+                className="hover:bg-coffee-50/60 transition-colors cursor-pointer"
+                onClick={() => onView?.(order)}
+              >
+                <td className="px-5 py-3.5 whitespace-nowrap">
+                  <span className="font-mono text-sm font-semibold text-coffee-700">{order.code}</span>
+                </td>
+                <td className="px-5 py-3.5 whitespace-nowrap text-sm text-coffee-600">
+                  {fmtDate(order.date)}
+                </td>
+                <td className="px-5 py-3.5 whitespace-nowrap">
+                  <p className="text-sm font-medium text-coffee-900">{order.supplierName || '—'}</p>
+                </td>
+                <td className="px-5 py-3.5 whitespace-nowrap text-center">
+                  <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-coffee-100 text-coffee-600 text-xs font-bold">
+                    {order.items.length}
+                  </span>
+                </td>
+                <td className="px-5 py-3.5 whitespace-nowrap text-right">
+                  <span className="text-sm font-bold text-coffee-900">{fmtCurrency(order.total)}</span>
+                </td>
+                <td className="px-5 py-3.5 whitespace-nowrap">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${sp.cls}`}>
+                    {sp.label}
+                  </span>
+                </td>
+                <td className="px-5 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-end gap-1">
+                    {onView && (
+                      <button
+                        className="p-1.5 rounded-lg hover:bg-coffee-100 text-coffee-400 hover:text-coffee-700 transition-colors"
+                        onClick={() => onView(order)}
+                        title="Ver detalles"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    )}
+                    {onReceive && canReceive && (
+                      <button
+                        className="p-1.5 rounded-lg hover:bg-emerald-50 text-coffee-400 hover:text-emerald-600 transition-colors"
+                        onClick={() => onReceive(order)}
+                        title="Marcar como recibida"
+                      >
+                        <PackageCheck className="h-4 w-4" />
+                      </button>
+                    )}
+                    {onCancel && canCancel && (
+                      <button
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-coffee-400 hover:text-red-500 transition-colors"
+                        onClick={() => onCancel(order)}
+                        title="Cancelar"
+                      >
+                        <XCircle className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

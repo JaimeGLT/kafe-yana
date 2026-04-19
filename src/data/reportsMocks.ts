@@ -2,6 +2,7 @@ import { subDays, setHours, setMinutes } from 'date-fns';
 import type { Sale, Product, InventoryStats } from '../types';
 import type { CashMovement, CashRegister } from '../types';
 import type { PurchaseOrder, Supplier } from '../types';
+import type { Insumo } from '../types/recipes';
 
 const today = new Date(2026, 3, 17); // Apr 17 2026
 
@@ -392,5 +393,37 @@ export const MOCK_PURCHASE_ORDERS: PurchaseOrder[] = [
   po('005', 4,  'sup-1', 'Distribuidora Café Norte', [{ name: 'Café en grano 1kg', qty: 3, cost: 85 }], 'received'),
   po('006', 2,  'sup-2', 'Lácteos del Valle',        [{ name: 'Leche entera 1L', qty: 12, cost: 8 }], 'approved'),
   po('007', 1,  'sup-3', 'Bebidas y Más S.R.L.',     [{ name: 'Fanta 1L', qty: 12, cost: 9 }], 'pending'),
-  po('008', 0,  'sup-4', 'Insumos Pastelería Lima',  [{ name: 'Azúcar 1kg', qty: 5, cost: 6 }], 'draft'),
+  po('008', 0,  'sup-4', 'Insumos Pastelería Lima',  [{ name: 'Azúcar 1kg', qty: 5, cost: 6 }], 'pending'),
+];
+
+// ── Insumos mocks ──────────────────────────────────────────────────────────
+
+function ins(
+  id: string, name: string, cat: string,
+  unMin: string, unCom: string, factor: number,
+  costoCompra: number, stock: number, stockMin: number,
+  proveedorId?: string,
+): Insumo {
+  return {
+    id, code: id, name, categoriaInsumo: cat,
+    unidadMinima: unMin, unidadCompra: unCom,
+    factorConversion: factor,
+    costoCompra, costoUnitario: costoCompra / factor,
+    stock, stockMinimo: stockMin,
+    proveedorId, isActive: true,
+    createdAt: d(60, 0, 0), updatedAt: d(0, 0, 0),
+  };
+}
+
+export const MOCK_INSUMOS: Insumo[] = [
+  ins('ins-1',  'Café en grano',      'Cafés',      'g',     'kg',    1000, 85,   3000, 1000, 'sup-1'),
+  ins('ins-2',  'Leche entera',       'Lácteos',    'ml',    'litro', 1000, 8,    8000, 3000, 'sup-2'),
+  ins('ins-3',  'Crema de leche',     'Lácteos',    'ml',    'litro', 1000, 12,   2000, 1000, 'sup-2'),
+  ins('ins-4',  'Azúcar blanca',      'Azúcares',   'g',     'kg',    1000, 6,    5000, 2000, 'sup-4'),
+  ins('ins-5',  'Harina sin preparar','Harinas',    'g',     'kg',    1000, 7,    4000, 2000, 'sup-4'),
+  ins('ins-6',  'Chocolate cobertura','Otros',      'g',     'kg',    1000, 22,   1500, 500,  'sup-4'),
+  ins('ins-7',  'Fanta 1L',           'Bebidas',    'ml',    'unidad',1000, 9,    12000,5000, 'sup-3'),
+  ins('ins-8',  'Agua mineral 1L',    'Bebidas',    'ml',    'unidad',1000, 4,    20000,8000, 'sup-3'),
+  ins('ins-9',  'Vainilla líquida',   'Condimentos','ml',    'frasco',100,  12,   300,  100),
+  ins('ins-10', 'Canela molida',      'Condimentos','g',     'sobre', 50,   3,    200,  50),
 ];

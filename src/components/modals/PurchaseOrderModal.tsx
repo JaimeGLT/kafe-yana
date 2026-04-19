@@ -9,9 +9,14 @@ import { toast } from '../ui/Toast';
 import { SupplierModal } from './SupplierModal';
 import { api } from '../../lib/api';
 import type { Supplier, Product, PurchaseOrderInput } from '../../types';
+import type { Insumo } from '../../types/recipes';
+
+type ItemType = 'product' | 'insumo';
 
 interface OrderItem {
+  itemType: ItemType;
   productId: string;
+  insumoId: string;
   quantity: string;
   unitCost: string;
 }
@@ -21,17 +26,19 @@ interface PurchaseOrderModalProps {
   onClose: () => void;
   suppliers: Supplier[];
   products: Product[];
+  insumos: Insumo[];
   onSuccess: () => void;
   onSave?: (input: PurchaseOrderInput) => void;
 }
 
-const emptyItem = (): OrderItem => ({ productId: '', quantity: '', unitCost: '' });
+const emptyItem = (): OrderItem => ({ itemType: 'product', productId: '', insumoId: '', quantity: '', unitCost: '' });
 
 export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
   isOpen,
   onClose,
   suppliers,
   products,
+  insumos,
   onSuccess,
   onSave,
 }) => {
@@ -61,6 +68,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
 
   const activeSuppliers = localSuppliers.filter((s) => s.isActive);
   const activeProducts = products.filter((p) => p.isActive);
+  const activeInsumos = insumos.filter((i) => i.isActive);
 
   const handleSupplierCreated = async () => {
     setIsSupplierModalOpen(false);
@@ -75,7 +83,20 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
   const handleItemChange = (index: number, field: keyof OrderItem, value: string) => {
     setItems((prev) => {
       const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
+      const current = updated[index];
+
+      if (field === 'itemType') {
+        updated[index] = { ...current, itemType: value as ItemType, productId: '', insumoId: '', unitCost: '' };
+      } else if (field === 'insumoId') {
+        const insumo = activeInsumos.find((i) => i.id === value);
+        updated[index] = {
+          ...current,
+          insumoId: value,
+          unitCost: insumo ? String(insumo.costoCompra) : current.unitCost,
+        };
+      } else {
+        updated[index] = { ...current, [field]: value };
+      }
       return updated;
     });
     const key = `item_${index}_${field}`;
@@ -98,13 +119,14 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
 
     if (!supplierId) newErrors.supplierId = 'Debe seleccionar un proveedor';
 
-    const filledItems = items.filter((item) => item.productId || item.quantity || item.unitCost);
-    if (filledItems.length === 0) newErrors.items = 'Debe agregar al menos un producto';
+    const filledItems = items.filter((item) => item.productId || item.insumoId || item.quantity || item.unitCost);
+    if (filledItems.length === 0) newErrors.items = 'Debe agregar al menos un ítem';
 
     items.forEach((item, index) => {
-      const hasAnyValue = item.productId || item.quantity || item.unitCost;
+      const hasAnyValue = item.productId || item.insumoId || item.quantity || item.unitCost;
       if (!hasAnyValue) return;
-      if (!item.productId) newErrors[`item_${index}_productId`] = 'Seleccione un producto';
+      if (item.itemType === 'product' && !item.productId) newErrors[`item_${index}_productId`] = 'Seleccione un producto';
+      if (item.itemType === 'insumo' && !item.insumoId) newErrors[`item_${index}_productId`] = 'Seleccione un insumo';
       const qty = parseFloat(item.quantity);
       if (!item.quantity || isNaN(qty) || qty <= 0) newErrors[`item_${index}_quantity`] = 'Cantidad inválida';
       const cost = parseFloat(item.unitCost);
@@ -121,12 +143,14 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
 
     setIsLoading(true);
     try {
-      const validItems = items.filter((item) => item.productId && item.quantity && item.unitCost);
+      const validItems = items.filter((item) =>
+        (item.itemType === 'product' ? item.productId : item.insumoId) && item.quantity && item.unitCost
+      );
       const input: PurchaseOrderInput = {
         supplierId,
         expectedDate: expectedDate ? new Date(expectedDate) : undefined,
         items: validItems.map((item) => ({
-          productId: item.productId,
+          ...(item.itemType === 'product' ? { productId: item.productId } : { insumoId: item.insumoId }),
           quantity: parseFloat(item.quantity),
           unitCost: parseFloat(item.unitCost),
         })),
@@ -189,16 +213,17 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
           {/* Items */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-coffee-800">Productos</h4>
+              <h4 className="text-sm font-semibold text-coffee-800">Ítems</h4>
               <Button type="button" variant="outline" size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={addItem}>
-                Agregar producto
+                Agregar ítem
               </Button>
             </div>
 
             {errors.items && <p className="text-sm text-red-600">{errors.items}</p>}
 
             <div className="hidden md:grid grid-cols-12 gap-2 px-3 py-1.5 bg-coffee-50 rounded-lg">
-              <div className="col-span-5 text-xs font-medium text-coffee-600">Producto</div>
+              <div className="col-span-2 text-xs font-medium text-coffee-600">Tipo</div>
+              <div className="col-span-3 text-xs font-medium text-coffee-600">Ítem</div>
               <div className="col-span-2 text-xs font-medium text-coffee-600">Cantidad</div>
               <div className="col-span-2 text-xs font-medium text-coffee-600">Costo unit.</div>
               <div className="col-span-2 text-xs font-medium text-coffee-600 text-right">Subtotal</div>
@@ -206,59 +231,115 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
             </div>
 
             <div className="space-y-2">
-              {items.map((item, index) => (
-                <div
-                  key={index}
-                  className="grid grid-cols-12 gap-2 items-start p-2 rounded-lg border border-coffee-100 bg-white hover:border-coffee-200 transition-colors"
-                >
-                  <div className="col-span-12 md:col-span-5">
-                    <Select
-                      value={item.productId}
-                      onChange={(value) => handleItemChange(index, 'productId', value)}
-                      options={activeProducts.map((p) => ({ value: p.id, label: `${p.name} (Stock: ${p.stock})` }))}
-                      placeholder="Seleccionar producto"
-                      error={errors[`item_${index}_productId`]}
-                    />
+              {items.map((item, index) => {
+                const selectedInsumo = item.itemType === 'insumo'
+                  ? activeInsumos.find((i) => i.id === item.insumoId)
+                  : undefined;
+                return (
+                  <div
+                    key={index}
+                    className="grid grid-cols-12 gap-2 items-start p-2 rounded-lg border border-coffee-100 bg-white hover:border-coffee-200 transition-colors"
+                  >
+                    {/* Type toggle */}
+                    <div className="col-span-12 md:col-span-2 flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleItemChange(index, 'itemType', 'product')}
+                        className={`flex-1 py-1.5 text-xs rounded-md border font-medium transition-colors ${
+                          item.itemType === 'product'
+                            ? 'bg-coffee-600 border-coffee-600 text-white'
+                            : 'border-coffee-200 text-coffee-500 hover:border-coffee-400'
+                        }`}
+                      >
+                        Producto
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleItemChange(index, 'itemType', 'insumo')}
+                        className={`flex-1 py-1.5 text-xs rounded-md border font-medium transition-colors ${
+                          item.itemType === 'insumo'
+                            ? 'bg-coffee-600 border-coffee-600 text-white'
+                            : 'border-coffee-200 text-coffee-500 hover:border-coffee-400'
+                        }`}
+                      >
+                        Insumo
+                      </button>
+                    </div>
+
+                    {/* Item select */}
+                    <div className="col-span-12 md:col-span-3">
+                      {item.itemType === 'product' ? (
+                        <Select
+                          value={item.productId}
+                          onChange={(value) => handleItemChange(index, 'productId', value)}
+                          options={activeProducts.map((p) => ({ value: p.id, label: `${p.name} (Stock: ${p.stock})` }))}
+                          placeholder="Seleccionar producto"
+                          error={errors[`item_${index}_productId`]}
+                        />
+                      ) : (
+                        <Select
+                          value={item.insumoId}
+                          onChange={(value) => handleItemChange(index, 'insumoId', value)}
+                          options={activeInsumos.map((i) => ({
+                            value: i.id,
+                            label: `${i.name} (${i.stock} ${i.unidadMinima})`,
+                          }))}
+                          placeholder="Seleccionar insumo"
+                          error={errors[`item_${index}_productId`]}
+                        />
+                      )}
+                    </div>
+
+                    {/* Quantity */}
+                    <div className="col-span-5 md:col-span-2">
+                      <Input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={item.quantity}
+                        onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                        placeholder={selectedInsumo ? `0 ${selectedInsumo.unidadCompra}` : '0'}
+                        error={errors[`item_${index}_quantity`]}
+                      />
+                      {selectedInsumo && (
+                        <p className="text-xs text-coffee-400 mt-0.5">{selectedInsumo.unidadCompra}</p>
+                      )}
+                    </div>
+
+                    {/* Unit cost */}
+                    <div className="col-span-5 md:col-span-2">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.unitCost}
+                        onChange={(e) => handleItemChange(index, 'unitCost', e.target.value)}
+                        placeholder="0.00"
+                        error={errors[`item_${index}_unitCost`]}
+                      />
+                    </div>
+
+                    {/* Subtotal */}
+                    <div className="col-span-10 md:col-span-2 flex items-center justify-end">
+                      <span className="text-sm font-medium text-coffee-800">
+                        S/ {formatCurrency(getItemSubtotal(item))}
+                      </span>
+                    </div>
+
+                    {/* Delete */}
+                    <div className="col-span-2 md:col-span-1 flex items-center justify-end">
+                      <button
+                        type="button"
+                        onClick={() => removeItem(index)}
+                        disabled={items.length === 1}
+                        className="p-1.5 text-coffee-400 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors rounded"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="col-span-5 md:col-span-2">
-                    <Input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={item.quantity}
-                      onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                      placeholder="0"
-                      error={errors[`item_${index}_quantity`]}
-                    />
-                  </div>
-                  <div className="col-span-5 md:col-span-2">
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item.unitCost}
-                      onChange={(e) => handleItemChange(index, 'unitCost', e.target.value)}
-                      placeholder="0.00"
-                      error={errors[`item_${index}_unitCost`]}
-                    />
-                  </div>
-                  <div className="col-span-10 md:col-span-2 flex items-center justify-end">
-                    <span className="text-sm font-medium text-coffee-800">
-                      S/ {formatCurrency(getItemSubtotal(item))}
-                    </span>
-                  </div>
-                  <div className="col-span-2 md:col-span-1 flex items-center justify-end">
-                    <button
-                      type="button"
-                      onClick={() => removeItem(index)}
-                      disabled={items.length === 1}
-                      className="p-1.5 text-coffee-400 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors rounded"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

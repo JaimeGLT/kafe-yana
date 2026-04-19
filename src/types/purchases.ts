@@ -55,7 +55,8 @@ export interface PurchaseOrderItem {
 }
 
 export interface PurchaseOrderItemInput {
-  productId: UUID;
+  productId?: UUID;
+  insumoId?: UUID;
   quantity: number;
   unitCost: number;
   notes?: string;

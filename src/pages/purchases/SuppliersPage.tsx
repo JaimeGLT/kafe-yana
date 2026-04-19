@@ -1,16 +1,29 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Plus, Search, Edit2, Trash2, Building2, Phone, Mail } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Plus, Search, Edit2, Trash2, Building2, Phone, Mail, Users } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
-import { PageHeader, PageContainer, PageSection } from '../../components/layout';
+import { PageHeader, PageContainer } from '../../components/layout';
 import { Button, Modal, ConfirmModal } from '../../components/ui';
 import { SupplierModal } from '../../components/modals';
 import { toast } from '../../components/ui/Toast';
-import { api } from '../../lib/api';
-import type { Supplier } from '../../types';
+import { MOCK_SUPPLIERS } from '../../data/reportsMocks';
+import type { Supplier, SupplierInput } from '../../types';
+
+const AVATAR_COLORS = [
+  'bg-coffee-200 text-coffee-700',
+  'bg-amber-100 text-amber-700',
+  'bg-emerald-100 text-emerald-700',
+  'bg-blue-100 text-blue-700',
+  'bg-purple-100 text-purple-700',
+  'bg-rose-100 text-rose-700',
+];
+
+function avatarColor(id: string) {
+  const hash = id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
 
 export const SuppliersPage: React.FC = () => {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [_isLoading, setIsLoading] = useState(true);
+  const [suppliers, setSuppliers] = useState<Supplier[]>(MOCK_SUPPLIERS);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const [search, setSearch] = useState('');
@@ -20,21 +33,6 @@ export const SuppliersPage: React.FC = () => {
   const [editingSupplier, setEditingSupplier] = useState<Supplier | undefined>(undefined);
   const [deletingSupplier, setDeletingSupplier] = useState<Supplier | null>(null);
   const [viewingSupplier, setViewingSupplier] = useState<Supplier | null>(null);
-
-  const loadSuppliers = useCallback(async () => {
-    try {
-      const data = await api.get<Supplier[]>('/Supplier');
-      setSuppliers(data);
-    } catch {
-      toast.error('Error', 'No se pudieron cargar los proveedores.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadSuppliers();
-  }, [loadSuppliers]);
 
   const filteredSuppliers = useMemo(() => {
     const q = search.toLowerCase();
@@ -49,43 +47,42 @@ export const SuppliersPage: React.FC = () => {
     );
   }, [suppliers, search]);
 
-  const openCreate = () => {
-    setEditingSupplier(undefined);
-    setIsModalOpen(true);
-  };
+  const openCreate = () => { setEditingSupplier(undefined); setIsModalOpen(true); };
+  const openEdit = (s: Supplier) => { setEditingSupplier(s); setIsModalOpen(true); };
+  const openDelete = (s: Supplier) => { setDeletingSupplier(s); setIsDeleteOpen(true); };
+  const openDetail = (s: Supplier) => { setViewingSupplier(s); setIsDetailOpen(true); };
 
-  const openEdit = (supplier: Supplier) => {
-    setEditingSupplier(supplier);
-    setIsModalOpen(true);
-  };
-
-  const openDelete = (supplier: Supplier) => {
-    setDeletingSupplier(supplier);
-    setIsDeleteOpen(true);
-  };
-
-  const openDetail = (supplier: Supplier) => {
-    setViewingSupplier(supplier);
-    setIsDetailOpen(true);
-  };
-
-  const handleDelete = async () => {
-    if (!deletingSupplier) return;
-    setIsProcessing(true);
-    try {
-      await api.delete(`/Supplier/${deletingSupplier.id}`);
-      toast.success('Proveedor eliminado', `${deletingSupplier.name} fue eliminado.`);
-      setIsDeleteOpen(false);
-      setDeletingSupplier(null);
-      await loadSuppliers();
-    } catch {
-      toast.error('Error', 'No se pudo eliminar el proveedor.');
-    } finally {
-      setIsProcessing(false);
+  const handleSaveSupplier = (input: SupplierInput, isEdit: boolean, supplierId?: string) => {
+    if (isEdit && supplierId) {
+      setSuppliers((prev) =>
+        prev.map((s) => s.id === supplierId ? { ...s, ...input, updatedAt: new Date() } : s)
+      );
+    } else {
+      const newSupplier: Supplier = {
+        id: `sup-${Date.now()}`,
+        code: `SUP-${String(suppliers.length + 1).padStart(3, '0')}`,
+        ...input,
+        isActive: input.isActive ?? true,
+        currentDebt: 0,
+        totalPurchases: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      setSuppliers((prev) => [newSupplier, ...prev]);
     }
   };
 
-  const COLUMNS = ['Código', 'Razón Social', 'N° Documento', 'Teléfono', 'Dirección', 'Email', 'Celular', ''];
+  const handleDelete = () => {
+    if (!deletingSupplier) return;
+    setIsProcessing(true);
+    setSuppliers((prev) => prev.filter((s) => s.id !== deletingSupplier.id));
+    toast.success('Proveedor eliminado', `${deletingSupplier.name} fue eliminado.`);
+    setIsDeleteOpen(false);
+    setDeletingSupplier(null);
+    setIsProcessing(false);
+  };
+
+  const activeCount = suppliers.filter((s) => s.isActive).length;
 
   return (
     <MainLayout>
@@ -100,119 +97,148 @@ export const SuppliersPage: React.FC = () => {
           }
         />
 
-        {/* Search */}
-        <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4">
-          <div className="relative max-w-sm">
+        {/* Stat cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-coffee-100 flex items-center justify-center flex-shrink-0">
+              <Users className="h-5 w-5 text-coffee-600" />
+            </div>
+            <div>
+              <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide">Total</p>
+              <p className="text-2xl font-bold text-coffee-900">{suppliers.length}</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+              <Building2 className="h-5 w-5 text-emerald-500" />
+            </div>
+            <div>
+              <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide">Activos</p>
+              <p className="text-2xl font-bold text-emerald-600">{activeCount}</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 flex items-center gap-3 col-span-2 md:col-span-1">
+            <div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+              <Phone className="h-5 w-5 text-amber-500" />
+            </div>
+            <div>
+              <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide">Con email</p>
+              <p className="text-2xl font-bold text-amber-600">{suppliers.filter((s) => s.email).length}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Search + count */}
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-coffee-400" />
             <input
               type="text"
               placeholder="Buscar por nombre, RUC, email, teléfono..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border border-coffee-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-coffee-400"
+              className="w-full pl-9 pr-4 py-2 border border-coffee-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-coffee-400 bg-white"
             />
+          </div>
+          <div className="flex items-center gap-2 text-sm text-coffee-500 bg-white border border-coffee-100 rounded-lg px-3 py-2">
+            <Building2 className="h-4 w-4" />
+            {filteredSuppliers.length} proveedor{filteredSuppliers.length !== 1 ? 'es' : ''}
           </div>
         </div>
 
-        {/* Table */}
-        <PageSection>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-coffee-200">
+        {/* Table / empty */}
+        {filteredSuppliers.length === 0 ? (
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm flex flex-col items-center justify-center py-16 text-coffee-400">
+            <Building2 className="h-10 w-10 mb-3 opacity-30" />
+            <p className="font-medium text-coffee-600">
+              {search ? 'Sin resultados para la búsqueda' : 'Sin proveedores registrados'}
+            </p>
+            {!search && (
+              <p className="text-sm mt-1">Agrega tu primer proveedor para empezar.</p>
+            )}
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
+            <table className="min-w-full divide-y divide-coffee-100">
               <thead className="bg-coffee-50">
                 <tr>
-                  {COLUMNS.map((h) => (
-                    <th
-                      key={h}
-                      className="px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider"
-                    >
-                      {h}
-                    </th>
-                  ))}
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-coffee-500 uppercase tracking-wide">Proveedor</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-coffee-500 uppercase tracking-wide">N° Doc.</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-coffee-500 uppercase tracking-wide">Contacto</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-coffee-500 uppercase tracking-wide">Dirección</th>
+                  <th className="px-5 py-3" />
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-coffee-100">
-                {filteredSuppliers.length === 0 ? (
-                  <tr>
-                    <td colSpan={COLUMNS.length} className="px-6 py-10 text-center text-coffee-400">
-                      No hay proveedores registrados
-                    </td>
-                  </tr>
-                ) : (
-                  filteredSuppliers.map((supplier) => (
-                    <tr
-                      key={supplier.id}
-                      className="hover:bg-coffee-50 transition-colors cursor-pointer"
-                      onClick={() => openDetail(supplier)}
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="font-mono text-sm text-coffee-500">{supplier.code}</span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <div className="h-8 w-8 rounded-full bg-coffee-100 flex items-center justify-center flex-shrink-0">
-                            <Building2 className="h-4 w-4 text-coffee-500" />
-                          </div>
-                          <p className="font-medium text-coffee-900">{supplier.name}</p>
+              <tbody className="bg-white divide-y divide-coffee-50">
+                {filteredSuppliers.map((supplier) => (
+                  <tr
+                    key={supplier.id}
+                    className="hover:bg-coffee-50/60 transition-colors cursor-pointer"
+                    onClick={() => openDetail(supplier)}
+                  >
+                    <td className="px-5 py-3.5 whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm ${avatarColor(supplier.id)}`}>
+                          {supplier.name.charAt(0).toUpperCase()}
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-700">
-                        {supplier.ruc || <span className="text-coffee-300">—</span>}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-700">
-                        <div className="flex items-center gap-1">
+                        <div>
+                          <p className="font-semibold text-coffee-900 text-sm">{supplier.name}</p>
+                          <p className="text-xs font-mono text-coffee-400">{supplier.code}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 whitespace-nowrap text-sm text-coffee-600">
+                      {supplier.ruc || <span className="text-coffee-300">—</span>}
+                    </td>
+                    <td className="px-5 py-3.5 whitespace-nowrap">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-1.5 text-sm text-coffee-700">
                           <Phone className="h-3.5 w-3.5 text-coffee-400" />
                           {supplier.phone}
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-600 max-w-[180px] truncate">
-                        {supplier.address || <span className="text-coffee-300">—</span>}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-600">
-                        {supplier.email ? (
-                          <div className="flex items-center gap-1">
-                            <Mail className="h-3.5 w-3.5 text-coffee-400" />
+                        {supplier.email && (
+                          <div className="flex items-center gap-1.5 text-xs text-coffee-500">
+                            <Mail className="h-3 w-3 text-coffee-400" />
                             {supplier.email}
                           </div>
-                        ) : (
-                          <span className="text-coffee-300">—</span>
                         )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-700">
-                        {supplier.mobile || <span className="text-coffee-300">—</span>}
-                      </td>
-                      <td
-                        className="px-6 py-4 whitespace-nowrap"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => openEdit(supplier)}
-                            className="p-1.5 rounded-lg hover:bg-coffee-100 text-coffee-500 hover:text-coffee-700"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => openDelete(supplier)}
-                            className="p-1.5 rounded-lg hover:bg-red-100 text-coffee-400 hover:text-red-500"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-sm text-coffee-600 max-w-[200px] truncate">
+                      {supplier.address || <span className="text-coffee-300">—</span>}
+                    </td>
+                    <td className="px-5 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => openEdit(supplier)}
+                          className="p-1.5 rounded-lg hover:bg-coffee-100 text-coffee-400 hover:text-coffee-700 transition-colors"
+                          title="Editar"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => openDelete(supplier)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 text-coffee-400 hover:text-red-500 transition-colors"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-        </PageSection>
+        )}
 
-        {/* SupplierModal for create/edit */}
+        {/* SupplierModal */}
         <SupplierModal
           isOpen={isModalOpen}
           onClose={() => { setIsModalOpen(false); setEditingSupplier(undefined); }}
           supplier={editingSupplier}
-          onSuccess={() => { setIsModalOpen(false); setEditingSupplier(undefined); loadSuppliers(); }}
+          onSave={handleSaveSupplier}
+          onSuccess={() => { setIsModalOpen(false); setEditingSupplier(undefined); }}
         />
 
         {/* Delete Confirm */}
@@ -232,44 +258,51 @@ export const SuppliersPage: React.FC = () => {
           <Modal
             isOpen={isDetailOpen}
             onClose={() => setIsDetailOpen(false)}
-            title={viewingSupplier.name}
+            title=""
             size="md"
           >
             <div className="space-y-5">
-              <div className="flex items-center gap-4">
-                <div className="h-14 w-14 rounded-full bg-coffee-100 flex items-center justify-center">
-                  <Building2 className="h-7 w-7 text-coffee-500" />
+              {/* Header */}
+              <div className="flex items-center gap-4 pb-4 border-b border-coffee-100">
+                <div className={`h-14 w-14 rounded-2xl flex items-center justify-center text-xl font-bold flex-shrink-0 ${avatarColor(viewingSupplier.id)}`}>
+                  {viewingSupplier.name.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <p className="font-display font-bold text-coffee-900 text-lg">{viewingSupplier.name}</p>
-                  <p className="text-sm font-mono text-coffee-400">{viewingSupplier.code}</p>
+                  <p className="font-bold text-coffee-900 text-lg leading-tight">{viewingSupplier.name}</p>
+                  <p className="text-xs font-mono text-coffee-400 mt-0.5">{viewingSupplier.code}</p>
+                  {viewingSupplier.isActive ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 mt-1">Activo</span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600 mt-1">Inactivo</span>
+                  )}
                 </div>
               </div>
 
+              {/* Info grid */}
               <div className="grid grid-cols-2 gap-4 text-sm">
                 {viewingSupplier.ruc && (
                   <div>
-                    <p className="text-coffee-500 mb-0.5">N° Documento</p>
-                    <p className="font-medium text-coffee-900">{viewingSupplier.ruc}</p>
+                    <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide mb-1">N° Documento</p>
+                    <p className="font-semibold text-coffee-900">{viewingSupplier.ruc}</p>
                   </div>
                 )}
                 <div>
-                  <p className="text-coffee-500 mb-0.5">Teléfono</p>
-                  <p className="font-medium text-coffee-900 flex items-center gap-1">
+                  <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide mb-1">Teléfono</p>
+                  <p className="font-semibold text-coffee-900 flex items-center gap-1.5">
                     <Phone className="h-3.5 w-3.5 text-coffee-400" />
                     {viewingSupplier.phone}
                   </p>
                 </div>
                 {viewingSupplier.mobile && (
                   <div>
-                    <p className="text-coffee-500 mb-0.5">Celular</p>
-                    <p className="font-medium text-coffee-900">{viewingSupplier.mobile}</p>
+                    <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide mb-1">Celular</p>
+                    <p className="font-semibold text-coffee-900">{viewingSupplier.mobile}</p>
                   </div>
                 )}
                 {viewingSupplier.email && (
                   <div>
-                    <p className="text-coffee-500 mb-0.5">Email</p>
-                    <p className="font-medium text-coffee-900 flex items-center gap-1">
+                    <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide mb-1">Email</p>
+                    <p className="font-semibold text-coffee-900 flex items-center gap-1.5">
                       <Mail className="h-3.5 w-3.5 text-coffee-400" />
                       {viewingSupplier.email}
                     </p>
@@ -277,20 +310,17 @@ export const SuppliersPage: React.FC = () => {
                 )}
                 {viewingSupplier.address && (
                   <div className="col-span-2">
-                    <p className="text-coffee-500 mb-0.5">Dirección</p>
-                    <p className="font-medium text-coffee-900">{viewingSupplier.address}</p>
+                    <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide mb-1">Dirección</p>
+                    <p className="font-semibold text-coffee-900">{viewingSupplier.address}</p>
                   </div>
                 )}
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end pt-1">
                 <Button
                   variant="outline"
                   leftIcon={<Edit2 className="h-4 w-4" />}
-                  onClick={() => {
-                    setIsDetailOpen(false);
-                    openEdit(viewingSupplier);
-                  }}
+                  onClick={() => { setIsDetailOpen(false); openEdit(viewingSupplier); }}
                 >
                   Editar
                 </Button>
