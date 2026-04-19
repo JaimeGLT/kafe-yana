@@ -3,7 +3,7 @@ import { Plus, Trash2, Tag } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { Select } from '../ui/Select';
+import { SearchableSelect } from '../ui/Select';
 import { HelpTooltip } from '../ui/Tooltip';
 import { toast } from '../ui/Toast';
 import { api } from '../../lib/api';
@@ -230,10 +230,11 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
                 <div key={idx} className="rounded-lg border border-coffee-100 bg-white p-2.5 sm:p-0 sm:border-0 sm:rounded-none sm:grid sm:grid-cols-[1fr_70px_auto_20px] sm:gap-2 sm:items-start">
                   {/* Producto + hint (col 1 en desktop) */}
                   <div>
-                    <Select
+                    <SearchableSelect
                       value={line.productId}
                       onChange={(v) => updateLine(idx, 'productId', v)}
                       options={productOptions}
+                      placeholder="Seleccionar producto…"
                     />
                     {prod && (
                       <p className="text-xs text-coffee-400 mt-0.5 pl-1">

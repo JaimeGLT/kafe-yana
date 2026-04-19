@@ -3,7 +3,7 @@ import { clsx } from 'clsx';
 import { FlaskConical, ArrowRight, CheckCircle2, Plus, Info } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { Select } from '../ui/Select';
+import { SearchableSelect } from '../ui/Select';
 import { HelpTooltip } from '../ui/Tooltip';
 import { RecetaFormContent } from './RecetaModal';
 import { CategoryModal } from './CategoryModal';
@@ -287,7 +287,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
                   </label>
                   <div className="flex gap-2">
                     <div className="flex-1">
-                      <Select
+                      <SearchableSelect
                         value={categoryId}
                         onChange={(v) => setCategoryId(v)}
                         options={[{ value: '', label: 'Sin categoría' }, ...localCategoryOptions]}
@@ -308,7 +308,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
                     Unidad de venta
                     <HelpTooltip text="Cómo se vende al cliente. Ej: unidad (una taza), porción (un trozo)." />
                   </label>
-                  <Select
+                  <SearchableSelect
                     value={unit}
                     onChange={(v) => setUnit(v)}
                     options={UNIT_OPTIONS}

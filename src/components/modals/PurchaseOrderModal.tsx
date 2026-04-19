@@ -3,7 +3,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input, Textarea } from '../ui/Input';
-import { Select } from '../ui/Select';
+import { SearchableSelect } from '../ui/Select';
 import { FormField, Form, FormRow, FormActions } from '../forms/FormField';
 import { toast } from '../ui/Toast';
 import { SupplierModal } from './SupplierModal';
@@ -179,7 +179,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
             <FormField label="Proveedor" required error={errors.supplierId}>
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <Select
+                  <SearchableSelect
                     value={supplierId}
                     onChange={(value) => {
                       setSupplierId(value);
@@ -269,7 +269,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
                     {/* Item select */}
                     <div className="col-span-12 md:col-span-3">
                       {item.itemType === 'product' ? (
-                        <Select
+                        <SearchableSelect
                           value={item.productId}
                           onChange={(value) => handleItemChange(index, 'productId', value)}
                           options={activeProducts.map((p) => ({ value: p.id, label: `${p.name} (Stock: ${p.stock})` }))}
@@ -277,7 +277,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
                           error={errors[`item_${index}_productId`]}
                         />
                       ) : (
-                        <Select
+                        <SearchableSelect
                           value={item.insumoId}
                           onChange={(value) => handleItemChange(index, 'insumoId', value)}
                           options={activeInsumos.map((i) => ({

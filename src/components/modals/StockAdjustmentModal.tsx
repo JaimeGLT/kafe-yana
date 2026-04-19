@@ -3,7 +3,7 @@ import { TrendingUp, TrendingDown, AlertTriangle, Package, FlaskConical, ChefHat
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input, Textarea } from '../ui/Input';
-import { Select } from '../ui/Select';
+import { Select, SearchableSelect } from '../ui/Select';
 import { FormField, Form, FormActions } from '../forms/FormField';
 import { toast } from '../ui/Toast';
 import type { CompradoNode, InsumoNode, ElaboradoAjusteNode } from '../../types/graphql';
@@ -472,7 +472,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
           required
           error={errors.product}
         >
-          <Select
+          <SearchableSelect
             value={selectedId}
             onChange={(v) => {
               setSelectedId(v);

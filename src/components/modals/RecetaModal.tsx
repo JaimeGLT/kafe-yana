@@ -4,7 +4,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { Select } from '../ui/Select';
+import { Select, SearchableSelect } from '../ui/Select';
 import { toast } from '../ui/Toast';
 import { api } from '../../lib/api';
 import { gql } from '../../lib/graphql';
@@ -287,10 +287,11 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
               <div key={idx} className="rounded-lg border border-coffee-100 bg-white p-2.5 sm:p-0 sm:border-0 sm:rounded-none sm:grid sm:grid-cols-[1fr_90px_80px_56px_20px] sm:gap-2 sm:items-center">
                 <div className="flex gap-1">
                   <div className="flex-1">
-                    <Select
+                    <SearchableSelect
                       value={line.insumoId}
                       onChange={(v) => updateLine(idx, 'insumoId', v)}
                       options={insumoOptions}
+                      placeholder="Seleccionar insumo…"
                     />
                   </div>
                   <button

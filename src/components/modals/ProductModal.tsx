@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal } from '../ui/Modal';
 import { ProductForm } from '../forms/ProductForm';
 import { useToast } from '../ui/Toast';
+import { SkeletonProductForm } from '../ui/Skeleton';
 import { api } from '../../lib/api';
 import type { Product, ProductInput, Category } from '../../types';
 
@@ -82,10 +83,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       size="xl"
     >
       {isLoadingDetail ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-3">
-          <div className="w-8 h-8 border-4 border-coffee-200 border-t-coffee-500 rounded-full animate-spin" />
-          <p className="text-sm text-coffee-500">Cargando información del producto…</p>
-        </div>
+        <SkeletonProductForm />
       ) : (
         <ProductForm
           product={product}

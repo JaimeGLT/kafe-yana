@@ -4,7 +4,7 @@ import { Plus, Trash2, ChevronDown, ChevronRight, Edit2, Check, X, ArrowRight, R
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { Select } from '../ui/Select';
+import { SearchableSelect } from '../ui/Select';
 import { HelpTooltip } from '../ui/Tooltip';
 import { ConfirmModal } from '../ui/Modal';
 import { toast } from '../ui/Toast';
@@ -126,10 +126,11 @@ const SustitucionFields: React.FC<SustitucionFieldsProps> = ({ form, setForm, re
               </span>
               <HelpTooltip text="El ingrediente que normalmente usa la receta base y que NO se va a usar cuando el cliente elija esta opción. Ej: 'leche entera'." />
             </div>
-            <Select
+            <SearchableSelect
               options={[{ value: '', label: '— Seleccionar ingrediente a quitar… —' }, ...removeOptions]}
               value={form.insumoReemplazadoId}
               onChange={(v) => setForm({ ...form, insumoReemplazadoId: v })}
+              placeholder="— Seleccionar ingrediente a quitar… —"
             />
           </div>
 
@@ -141,10 +142,11 @@ const SustitucionFields: React.FC<SustitucionFieldsProps> = ({ form, setForm, re
               </span>
               <HelpTooltip text="El ingrediente alternativo que se desconta del inventario en vez del original. Ej: 'leche de avena'." />
             </div>
-            <Select
+            <SearchableSelect
               options={[{ value: '', label: '— Seleccionar ingrediente alternativo… —' }, ...allInsumoOptions]}
               value={form.insumoExtraId}
               onChange={(v) => setForm({ ...form, insumoExtraId: v })}
+              placeholder="— Seleccionar ingrediente alternativo… —"
             />
           </div>
 
@@ -236,10 +238,11 @@ const ModificaCantidadFields: React.FC<ModificaCantidadFieldsProps> = ({ form, s
                     Ingrediente a modificar
                   </span>
                 )}
-                <Select
+                <SearchableSelect
                   options={[{ value: '', label: '— Seleccionar… —' }, ...recetaInsumoOptions]}
                   value={row.insumoId}
                   onChange={(v) => updateRow(i, 'insumoId', v)}
+                  placeholder="— Seleccionar… —"
                 />
               </div>
               <div className="w-28 shrink-0">

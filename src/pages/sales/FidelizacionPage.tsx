@@ -9,6 +9,7 @@ import {
 import { MainLayout } from '../../components/layout';
 // UI primitives not needed - page uses custom inline components
 import { toast } from '../../components/ui/Toast';
+import { SearchableSelect } from '../../components/ui/Select';
 import { formatDateTime } from '../../utils/formatters';
 import type { LoyaltyProfile, LoyaltyLevel, MilestoneReward, MilestoneVoucher, LoyaltyTransaction, Reward, Mission, Promotion } from '../../types/loyalty';
 import type { Customer } from '../../types';
@@ -851,16 +852,12 @@ export const FidelizacionPage: React.FC = () => {
                 <label className="block text-xs font-body font-medium text-coffee-500 uppercase tracking-wide mb-2">
                   O selecciona directamente
                 </label>
-                <select
+                <SearchableSelect
                   value={selectedCustomerId ?? ''}
-                  onChange={e => e.target.value && handleSelectCustomer(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-coffee-200 text-sm font-body text-coffee-800 bg-white focus:outline-none focus:ring-2 focus:ring-coffee-400"
-                >
-                  <option value="">— Elegir cliente —</option>
-                  {activeCustomers.map((c: Customer) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                  onChange={v => v && handleSelectCustomer(v)}
+                  options={activeCustomers.map((c: Customer) => ({ value: c.id, label: c.name }))}
+                  placeholder="— Elegir cliente —"
+                />
               </div>
             )}
           </div>

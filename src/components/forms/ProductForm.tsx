@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Product, ProductInput, ProductTipo, Category, Brand, Location, Receta, CategoryInput } from '../../types';
 import { Form, FormField, FormRow, FormActions } from './FormField';
-import { Input, Textarea, Select } from '../ui';
+import { Input, Textarea, Select, SearchableSelect } from '../ui';
 import { Button } from '../ui';
 import { AlertTriangle, BookOpen, Layers, Plus } from 'lucide-react';
 import { formatCurrency } from '../../utils';
@@ -217,11 +217,13 @@ export const ProductForm: React.FC<ProductFormProps> = ({
           <FormField label="Categoría" required error={errors.categoryId}>
             <div className="flex gap-2">
               <div className="flex-1">
-                <Select
+                <SearchableSelect
                   value={formData.categoryId}
                   onChange={(value) => handleChange('categoryId', value)}
                   options={localCategories.filter(c => c.isActive).map(c => ({ value: c.id, label: c.name }))}
                   placeholder="Seleccionar categoría"
+                  error={errors.categoryId}
+                  showMessage={false}
                 />
               </div>
               <button
@@ -235,7 +237,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
             </div>
           </FormField>
           <FormField label="Unidad de venta">
-            <Select
+            <SearchableSelect
               value={formData.unit}
               onChange={(value) => handleChange('unit', value)}
               options={UNIT_OPTIONS}

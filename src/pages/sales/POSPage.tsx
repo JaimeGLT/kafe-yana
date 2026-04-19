@@ -24,6 +24,7 @@ import { VariacionPickerModal } from '../../components/modals/VariacionPickerMod
 import { ElaboradoDetailModal } from '../../components/modals/ElaboradoDetailModal';
 import type { ElaboradoIngrediente } from '../../components/modals/ElaboradoDetailModal';
 import { Modal } from '../../components/ui/Modal';
+import { SearchableSelect } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { Tooltip } from '../../components/ui/Tooltip';
 
@@ -1292,21 +1293,18 @@ export const POSPage: React.FC = () => {
                       </button>
                     </div>
                   ) : (
-                    <select
+                    <SearchableSelect
                       value={iniciarClienteId}
-                      onChange={e => setIniciarClienteId(e.target.value)}
-                      className="w-full px-3.5 py-3 rounded-xl border-2 border-coffee-200 focus:border-coffee-500 focus:outline-none text-coffee-900 text-sm font-medium bg-white"
-                    >
-                      <option value="">— Sin cliente —</option>
-                      {_customers.map(c => {
-                        const prof = getOrCreateProfile(c.id);
-                        return (
-                          <option key={c.id} value={c.id}>
-                            {c.name}{prof ? ` · ${prof.points} pts` : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
+                      onChange={v => setIniciarClienteId(v)}
+                      options={[
+                        { value: '', label: '— Sin cliente —' },
+                        ..._customers.map(c => {
+                          const prof = getOrCreateProfile(c.id);
+                          return { value: c.id, label: `${c.name}${prof ? ` · ${prof.points} pts` : ''}` };
+                        }),
+                      ]}
+                      placeholder="— Sin cliente —"
+                    />
                   )}
                 </div>
                 <button
@@ -1710,21 +1708,19 @@ export const POSPage: React.FC = () => {
                   ) : (
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-coffee-400 flex-shrink-0">Cliente:</span>
-                      <select
+                      <SearchableSelect
                         value=""
-                        onChange={e => { if (e.target.value) updateMesa(activeMesa.id, { customerId: e.target.value }); }}
-                        className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-coffee-200 focus:border-coffee-500 focus:outline-none text-coffee-900 bg-white"
-                      >
-                        <option value="">— Vincular cliente —</option>
-                        {_customers.map(c => {
-                          const prof = getOrCreateProfile(c.id);
-                          return (
-                            <option key={c.id} value={c.id}>
-                              {c.name}{prof ? ` · ${prof.points} pts` : ''}
-                            </option>
-                          );
-                        })}
-                      </select>
+                        onChange={v => { if (v) updateMesa(activeMesa.id, { customerId: v }); }}
+                        options={[
+                          { value: '', label: '— Vincular cliente —' },
+                          ..._customers.map(c => {
+                            const prof = getOrCreateProfile(c.id);
+                            return { value: c.id, label: `${c.name}${prof ? ` · ${prof.points} pts` : ''}` };
+                          }),
+                        ]}
+                        placeholder="— Vincular cliente —"
+                        className="flex-1 text-xs"
+                      />
                       <button
                         onClick={() => { setShowDetalleNewCustomerForm(true); setNewCustomerName(''); setNewCustomerPhone(''); }}
                         className="text-xs font-semibold text-amber-600 hover:text-amber-500 transition-colors flex-shrink-0"

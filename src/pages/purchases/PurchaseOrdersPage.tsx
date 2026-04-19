@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Plus, Search, PackageCheck, XCircle, ShoppingCart, Clock, CheckCircle2, TrendingUp } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
-import { Button, Modal, ConfirmModal, Select } from '../../components/ui';
+import { Button, Modal, ConfirmModal, Select, SkeletonKpiCard } from '../../components/ui';
 import { PurchasesTable } from '../../components/tables/PurchasesTable';
 import { PurchaseOrderModal } from '../../components/modals';
 import { toast } from '../../components/ui/Toast';
@@ -29,6 +29,7 @@ const STATUS_PILL: Record<PurchaseOrder['status'], { label: string; cls: string 
 
 export const PurchaseOrdersPage: React.FC = () => {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(MOCK_PURCHASE_ORDERS);
+  const [isLoading, _setIsLoading] = useState(false);
   const suppliers: Supplier[] = MOCK_SUPPLIERS;
   const products: Product[] = MOCK_PRODUCTS;
   const insumos: Insumo[] = MOCK_INSUMOS;
@@ -147,42 +148,48 @@ export const PurchaseOrdersPage: React.FC = () => {
 
         {/* Stat cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-coffee-100 flex items-center justify-center flex-shrink-0">
-              <ShoppingCart className="h-5 w-5 text-coffee-600" />
-            </div>
-            <div>
-              <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide">Total</p>
-              <p className="text-2xl font-bold text-coffee-900">{stats.total}</p>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
-              <Clock className="h-5 w-5 text-amber-500" />
-            </div>
-            <div>
-              <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide">Pendientes</p>
-              <p className="text-2xl font-bold text-amber-600">{stats.pending}</p>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-            </div>
-            <div>
-              <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide">Recibidas</p>
-              <p className="text-2xl font-bold text-emerald-600">{stats.received}</p>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-              <TrendingUp className="h-5 w-5 text-blue-500" />
-            </div>
-            <div>
-              <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide">Valor total</p>
-              <p className="text-lg font-bold text-blue-700">{formatCurrency(stats.totalValue)}</p>
-            </div>
-          </div>
+          {isLoading ? (
+            Array.from({ length: 4 }).map((_, i) => <SkeletonKpiCard key={i} />)
+          ) : (
+            <>
+              <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-coffee-100 flex items-center justify-center flex-shrink-0">
+                  <ShoppingCart className="h-5 w-5 text-coffee-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide">Total</p>
+                  <p className="text-2xl font-bold text-coffee-900">{stats.total}</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                  <Clock className="h-5 w-5 text-amber-500" />
+                </div>
+                <div>
+                  <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide">Pendientes</p>
+                  <p className="text-2xl font-bold text-amber-600">{stats.pending}</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                </div>
+                <div>
+                  <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide">Recibidas</p>
+                  <p className="text-2xl font-bold text-emerald-600">{stats.received}</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                  <TrendingUp className="h-5 w-5 text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide">Valor total</p>
+                  <p className="text-lg font-bold text-blue-700">{formatCurrency(stats.totalValue)}</p>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Filters */}

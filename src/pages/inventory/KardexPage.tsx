@@ -3,7 +3,7 @@ import { BookOpen, Package, FlaskConical, Layers } from 'lucide-react';
 import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
-import { Select, Badge } from '../../components/ui';
+import { SearchableSelect, Badge } from '../../components/ui';
 // TODO: import { gql } from '../../lib/graphql';
 // TODO: import { GET_KARDEX_PRODUCTS_QUERY, GET_KARDEX_MOVEMENTS_QUERY } from '../../lib/queries/products.queries';
 import { formatCurrency, formatDateTime } from '../../utils';
@@ -243,7 +243,7 @@ const KardexPage: React.FC = () => {
             {isLoadingProducts ? (
               <div className="h-10 bg-coffee-100 rounded-lg animate-pulse" />
             ) : (
-              <Select
+              <SearchableSelect
                 options={productOptions}
                 value={selectedProductId}
                 onChange={setSelectedProductId}
