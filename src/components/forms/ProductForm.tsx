@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Product, ProductInput, ProductTipo, Category, Brand, Location, Receta, CategoryInput } from '../../types';
+import type { Product, ProductInput, ProductTipo, ProductDestino, Category, Brand, Location, Receta, CategoryInput } from '../../types';
 import { Form, FormField, FormRow, FormActions } from './FormField';
 import { Input, Textarea, Select, SearchableSelect } from '../ui';
 import { Button } from '../ui';
@@ -34,6 +34,12 @@ const UNIT_OPTIONS = [
   { value: 'g', label: 'Gramo' },
   { value: 'l', label: 'Litro' },
   { value: 'ml', label: 'Mililitro' },
+];
+
+const DESTINO_OPTIONS = [
+  { value: 'sin_destino', label: 'Sin destino' },
+  { value: 'barra', label: 'Barra' },
+  { value: 'cocina', label: 'Cocina' },
 ];
 
 const TIPO_OPTIONS = [
@@ -74,6 +80,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     barcode: product?.barcode || '',
     isActive: product?.isActive ?? true,
     variations: [],
+    destino: product?.destino ?? 'sin_destino',
   });
 
   const [errors, setErrors] = React.useState<Record<string, string>>({});
@@ -328,6 +335,15 @@ export const ProductForm: React.FC<ProductFormProps> = ({
             </FormField>
           </FormRow>
         )}
+
+        {/* Destino */}
+        <FormField label="Destino">
+          <Select
+            value={formData.destino ?? 'sin_destino'}
+            onChange={(v) => handleChange('destino', v as ProductDestino)}
+            options={DESTINO_OPTIONS}
+          />
+        </FormField>
 
         {/* Active toggle */}
         <div className="flex items-center gap-4">

@@ -83,6 +83,9 @@ export interface ProductVariationInput {
 // Product type enum
 export type ProductTipo = 'comprado' | 'elaborado' | 'combo';
 
+// Product destination
+export type ProductDestino = 'barra' | 'cocina' | 'sin_destino';
+
 // Product
 export interface Product extends BaseEntity {
   id: UUID;
@@ -108,6 +111,7 @@ export interface Product extends BaseEntity {
   image?: string;
   isActive: boolean;
   hasVariations: boolean;
+  destino?: ProductDestino;
 }
 
 export interface ProductInput {
@@ -128,6 +132,7 @@ export interface ProductInput {
   barcode?: string;
   isActive?: boolean;
   variations?: unknown[];
+  destino?: ProductDestino;
 }
 
 // Combo

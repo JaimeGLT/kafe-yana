@@ -3,7 +3,7 @@ import { clsx } from 'clsx';
 import { FlaskConical, ArrowRight, CheckCircle2, Plus, Info } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { SearchableSelect } from '../ui/Select';
+import { SearchableSelect, Select } from '../ui/Select';
 import { HelpTooltip } from '../ui/Tooltip';
 import { RecetaFormContent } from './RecetaModal';
 import { CategoryModal } from './CategoryModal';
@@ -15,7 +15,13 @@ import { GET_ALL_ELABORADOS, GET_ELABORADO_BY_ID } from '../../lib/queries/elabo
 import { mapInsumo } from '../../lib/mappers/insumos.mappers';
 import { mapElaborado, mapRecetaFromElaborado } from '../../lib/mappers/elaborados.mappers';
 import type { InsumosResponse, ElaboradosResponse } from '../../types/graphql';
-import type { Product, Receta, Insumo, CategoryInput } from '../../types';
+import type { Product, Receta, Insumo, CategoryInput, ProductDestino } from '../../types';
+
+const DESTINO_OPTIONS = [
+  { value: 'sin_destino', label: 'Sin destino' },
+  { value: 'barra', label: 'Barra' },
+  { value: 'cocina', label: 'Cocina' },
+];
 
 const UNIT_OPTIONS = [
   { value: 'unidad', label: 'Unidad' },
@@ -59,6 +65,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
   const [categoryId, setCategoryId] = useState(product.categoryId || '');
   const [unit, setUnit] = useState(product.unit || 'unidad');
   const [preparationType, setPreparationType] = useState<'al_momento' | 'en_lote'>('al_momento');
+  const [destino, setDestino] = useState<ProductDestino>(product.destino ?? 'sin_destino');
 
   useEffect(() => {
     if (isOpen) {
@@ -68,6 +75,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
       setSalePrice(product.salePrice);
       setCategoryId(product.categoryId || '');
       setUnit(product.unit || 'unidad');
+      setDestino(product.destino ?? 'sin_destino');
       setErrors({});
       setLocalCategoryOptions(categoryOptions);
       setIsLoadingData(true);
@@ -191,12 +199,45 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
         <div className="flex-1 overflow-y-auto">
           {isLoadingData ? (
             <div className="px-6 py-4 space-y-5 animate-pulse">
-              {[120, 80, 100, 60, 80].map((w, i) => (
-                <div key={i} className="space-y-2">
-                  <div className="h-3 w-24 bg-coffee-200 rounded" />
-                  <div className={`h-10 bg-coffee-100 rounded-lg`} style={{ width: `${w}%` }} />
+              {/* Nombre */}
+              <div className="space-y-1.5">
+                <div className="h-3 w-32 bg-coffee-200 rounded" />
+                <div className="h-10 w-full bg-coffee-100 rounded-lg" />
+              </div>
+              {/* Tipo preparación */}
+              <div className="space-y-2">
+                <div className="h-3 w-48 bg-coffee-200 rounded" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="h-16 bg-coffee-100 rounded-lg" />
+                  <div className="h-16 bg-coffee-100 rounded-lg" />
                 </div>
-              ))}
+              </div>
+              {/* Descripción */}
+              <div className="space-y-1.5">
+                <div className="h-3 w-24 bg-coffee-200 rounded" />
+                <div className="h-10 w-full bg-coffee-100 rounded-lg" />
+              </div>
+              {/* Categoría + Unidad */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <div className="h-3 w-20 bg-coffee-200 rounded" />
+                  <div className="h-10 w-full bg-coffee-100 rounded-lg" />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="h-3 w-24 bg-coffee-200 rounded" />
+                  <div className="h-10 w-full bg-coffee-100 rounded-lg" />
+                </div>
+              </div>
+              {/* Precio */}
+              <div className="space-y-1.5">
+                <div className="h-3 w-36 bg-coffee-200 rounded" />
+                <div className="h-10 w-full bg-coffee-100 rounded-lg" />
+              </div>
+              {/* Destino */}
+              <div className="space-y-1.5">
+                <div className="h-3 w-16 bg-coffee-200 rounded" />
+                <div className="h-10 w-full bg-coffee-100 rounded-lg" />
+              </div>
             </div>
           ) : tab === 'datos' && (
             <form onSubmit={handleSaveDatos} className="px-6 py-4 space-y-5">
@@ -331,6 +372,18 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
                   placeholder="0.00"
                 />
                 {errors.salePrice && <p className="text-xs text-red-600 mt-1">{errors.salePrice}</p>}
+              </div>
+
+              <div>
+                <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
+                  Destino
+                  <HelpTooltip text="Área de preparación: barra (bebidas) o cocina (comidas)." />
+                </label>
+                <Select
+                  value={destino}
+                  onChange={(v) => setDestino(v as ProductDestino)}
+                  options={DESTINO_OPTIONS}
+                />
               </div>
 
               <div className="flex justify-end gap-3 pt-2">

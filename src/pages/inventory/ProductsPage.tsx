@@ -15,6 +15,19 @@ import { api } from '../../lib/api';
 import { GET_COMPRADOS_QUERY, GET_ALL_CATEGORIES_QUERY, GET_COMPRADO_DETAIL } from '../../lib/queries/products.queries';
 import type { Product, Category } from '../../types';
 import { formatCurrency } from '../../utils';
+import type { ProductDestino } from '../../types';
+
+const DESTINO_OPTIONS = [
+  { value: 'sin_destino', label: 'Sin destino' },
+  { value: 'barra', label: 'Barra' },
+  { value: 'cocina', label: 'Cocina' },
+];
+
+const destinoBadge = (d: ProductDestino | undefined) => {
+  if (d === 'barra') return { label: 'Barra', cls: 'bg-blue-100 text-blue-700' };
+  if (d === 'cocina') return { label: 'Cocina', cls: 'bg-amber-100 text-amber-700' };
+  return { label: 'Sin destino', cls: 'bg-coffee-100 text-coffee-500' };
+};
 
 // ── Constantes ─────────────────────────────────────────────────────────────────
 
@@ -130,6 +143,7 @@ const ProductsPage: React.FC = () => {
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  const [detailDestino, setDetailDestino] = useState<ProductDestino>('sin_destino');
 
   const toast = useToast();
 
@@ -368,7 +382,7 @@ const ProductsPage: React.FC = () => {
             <table className="hidden sm:table min-w-full divide-y divide-coffee-100 text-sm">
               <thead className="bg-coffee-50">
                 <tr>
-                  {['Producto', 'Categoría', 'Precio venta', 'Costo', 'Margen', 'Stock', ''].map((h) => (
+                  {['Producto', 'Categoría', 'Destino', 'Precio venta', 'Costo', 'Margen', 'Stock', ''].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -383,6 +397,7 @@ const ProductsPage: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-4 py-3"><div className="h-5 w-20 bg-coffee-100 rounded-full" /></td>
+                    <td className="px-4 py-3"><div className="h-5 w-16 bg-coffee-100 rounded-full" /></td>
                     <td className="px-4 py-3"><div className="h-3 w-14 bg-coffee-100 rounded ml-auto" /></td>
                     <td className="px-4 py-3"><div className="h-3 w-14 bg-coffee-100 rounded ml-auto" /></td>
                     <td className="px-4 py-3"><div className="h-3 w-10 bg-coffee-100 rounded ml-auto" /></td>
@@ -414,7 +429,7 @@ const ProductsPage: React.FC = () => {
               {filtered.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => setDetailProduct(p)}
+                  onClick={() => { setDetailProduct(p); setDetailDestino(p.destino ?? 'sin_destino'); }}
                   className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-coffee-50/60 active:bg-coffee-100 transition-colors"
                 >
                   <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
@@ -444,6 +459,7 @@ const ProductsPage: React.FC = () => {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Producto</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Categoría</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Destino</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Precio venta</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Costo</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Margen</th>
@@ -466,6 +482,9 @@ const ProductsPage: React.FC = () => {
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant="default" size="sm">{p.categoryName || '—'}</Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        {(() => { const d = destinoBadge(p.destino); return <span className={clsx('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', d.cls)}>{d.label}</span>; })()}
                       </td>
                       <td className="px-4 py-3 text-right font-medium text-coffee-900">
                         {formatCurrency(p.salePrice)}
@@ -607,6 +626,16 @@ const ProductsPage: React.FC = () => {
                       Ganancia por unidad: <span className="font-semibold text-coffee-700">{formatCurrency(ganancia)}</span>
                     </p>
                   )}
+                </div>
+
+                {/* Destino */}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-coffee-400 mb-2">Destino</p>
+                  <Select
+                    options={DESTINO_OPTIONS}
+                    value={detailDestino}
+                    onChange={(v) => setDetailDestino(v as ProductDestino)}
+                  />
                 </div>
 
                 {/* Stock */}

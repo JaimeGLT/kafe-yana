@@ -2,7 +2,13 @@ import React from 'react';
 import { BookOpen, Edit2, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { getMarginInfo } from '../../lib/elaborados.utils';
-import type { Product, Receta } from '../../types';
+import type { Product, Receta, ProductDestino } from '../../types';
+
+const destinoBadge = (d: ProductDestino | undefined) => {
+  if (d === 'barra') return { label: 'Barra', cls: 'bg-blue-100 text-blue-700' };
+  if (d === 'cocina') return { label: 'Cocina', cls: 'bg-amber-100 text-amber-700' };
+  return { label: 'Sin destino', cls: 'bg-coffee-100 text-coffee-500' };
+};
 import { formatCurrency } from '../../utils';
 
 interface ProductCardProps {
@@ -43,9 +49,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <p className="text-xs text-coffee-400 truncate">{product.categoryName}</p>
             )}
           </div>
-          <span className="text-base font-bold text-coffee-800 shrink-0">
-            {formatCurrency(product.salePrice)}
-          </span>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <span className="text-base font-bold text-coffee-800">{formatCurrency(product.salePrice)}</span>
+            {(() => { const d = destinoBadge(product.destino); return <span className={clsx('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', d.cls)}>{d.label}</span>; })()}
+          </div>
         </div>
 
         {/* Receta status */}
