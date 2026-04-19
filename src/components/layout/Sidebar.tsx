@@ -15,6 +15,7 @@ import {
   Star,
 } from 'lucide-react';
 import { useUI } from '../../contexts/UIContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 interface NavItem {
@@ -24,7 +25,12 @@ interface NavItem {
   path: string;
   children?: NavItem[];
   groupLabel?: string;
+  allowedRoles?: string[];
 }
+
+const ADMIN = 'admin';
+const CAJERO = 'cajero';
+const MESERO = 'mesero';
 
 const navItems: NavItem[] = [
   {
@@ -32,12 +38,14 @@ const navItems: NavItem[] = [
     label: 'Dashboard',
     icon: <Home className="h-5 w-5" />,
     path: '/',
+    allowedRoles: [ADMIN],
   },
   {
     id: 'inventory',
     label: 'Inventario',
     icon: <Package className="h-5 w-5" />,
     path: '/inventory',
+    allowedRoles: [ADMIN],
     children: [
       { id: 'products', label: 'Comprados', icon: null, path: '/inventory/products', groupLabel: 'Productos' },
       { id: 'elaborados', label: 'Elaborados', icon: null, path: '/inventory/elaborados' },
@@ -53,18 +61,19 @@ const navItems: NavItem[] = [
     label: 'Ventas',
     icon: <ShoppingCart className="h-5 w-5" />,
     path: '/sales',
+    allowedRoles: [ADMIN, MESERO, CAJERO],
     children: [
-      { id: 'pos', label: 'Punto de Venta', icon: null, path: '/sales/pos' },
-      { id: 'sales-list', label: 'Ventas', icon: null, path: '/sales' },
-      { id: 'customers', label: 'Clientes', icon: null, path: '/sales/customers' },
-      { id: 'fidelizacion-config',        label: 'Configuración de puntos',   icon: <Star className="h-3.5 w-3.5 text-amber-400" />, path: '/sales/fidelizacion/config',                  groupLabel: 'Fidelización' },
-      { id: 'fidelizacion-productos',      label: 'Productos canjeables',       icon: null, path: '/sales/fidelizacion/productos' },
-      { id: 'fidelizacion-promos-perm',    label: 'Promociones permanentes',    icon: null, path: '/sales/fidelizacion/promociones-permanentes' },
-      { id: 'fidelizacion-promos-temp',    label: 'Promociones de temporada',   icon: null, path: '/sales/fidelizacion/promociones-temporada' },
-      { id: 'fidelizacion-hitos',          label: 'Hitos por compra',           icon: null, path: '/sales/fidelizacion/hitos' },
-      { id: 'fidelizacion-sorteos',        label: 'Sorteos',                    icon: null, path: '/sales/fidelizacion/sorteos' },
-      { id: 'fidelizacion-referidos',      label: 'Referidos',                  icon: null, path: '/sales/fidelizacion/referidos' },
-      { id: 'fidelizacion-notifs',         label: 'Notificaciones',             icon: null, path: '/sales/fidelizacion/notificaciones' },
+      { id: 'pos', label: 'Punto de Venta', icon: null, path: '/sales/pos', allowedRoles: [ADMIN, MESERO, CAJERO] },
+      { id: 'sales-list', label: 'Ventas', icon: null, path: '/sales', allowedRoles: [ADMIN, CAJERO] },
+      { id: 'customers', label: 'Clientes', icon: null, path: '/sales/customers', allowedRoles: [ADMIN, CAJERO] },
+      { id: 'fidelizacion-config',        label: 'Configuración de puntos',   icon: <Star className="h-3.5 w-3.5 text-amber-400" />, path: '/sales/fidelizacion/config',                  groupLabel: 'Fidelización', allowedRoles: [ADMIN, CAJERO] },
+      { id: 'fidelizacion-productos',      label: 'Productos canjeables',       icon: null, path: '/sales/fidelizacion/productos',          allowedRoles: [ADMIN, CAJERO] },
+      { id: 'fidelizacion-promos-perm',    label: 'Promociones permanentes',    icon: null, path: '/sales/fidelizacion/promociones-permanentes', allowedRoles: [ADMIN, CAJERO] },
+      { id: 'fidelizacion-promos-temp',    label: 'Promociones de temporada',   icon: null, path: '/sales/fidelizacion/promociones-temporada',   allowedRoles: [ADMIN, CAJERO] },
+      { id: 'fidelizacion-hitos',          label: 'Hitos por compra',           icon: null, path: '/sales/fidelizacion/hitos',              allowedRoles: [ADMIN, CAJERO] },
+      { id: 'fidelizacion-sorteos',        label: 'Sorteos',                    icon: null, path: '/sales/fidelizacion/sorteos',             allowedRoles: [ADMIN, CAJERO] },
+      { id: 'fidelizacion-referidos',      label: 'Referidos',                  icon: null, path: '/sales/fidelizacion/referidos',           allowedRoles: [ADMIN, CAJERO] },
+      { id: 'fidelizacion-notifs',         label: 'Notificaciones',             icon: null, path: '/sales/fidelizacion/notificaciones',      allowedRoles: [ADMIN, CAJERO] },
     ],
   },
   {
@@ -72,6 +81,7 @@ const navItems: NavItem[] = [
     label: 'Compras',
     icon: <Truck className="h-5 w-5" />,
     path: '/purchases',
+    allowedRoles: [ADMIN],
     children: [
       { id: 'orders', label: 'Órdenes de Compra', icon: null, path: '/purchases/orders' },
       { id: 'suppliers', label: 'Proveedores', icon: null, path: '/purchases/suppliers' },
@@ -82,6 +92,7 @@ const navItems: NavItem[] = [
     label: 'Caja',
     icon: <Wallet className="h-5 w-5" />,
     path: '/cash',
+    allowedRoles: [ADMIN, CAJERO],
     children: [
       { id: 'register', label: 'Caja', icon: null, path: '/cash/register' },
     ],
@@ -91,6 +102,7 @@ const navItems: NavItem[] = [
     label: 'Reportes',
     icon: <BarChart3 className="h-5 w-5" />,
     path: '/reports',
+    allowedRoles: [ADMIN],
     children: [
       { id: 'inventory-reports', label: 'Inventario', icon: null, path: '/reports/inventory' },
       { id: 'sales-reports', label: 'Ventas', icon: null, path: '/reports/sales' },
@@ -103,6 +115,7 @@ const navItems: NavItem[] = [
     label: 'Recetas y Costos',
     icon: <FlaskConical className="h-5 w-5" />,
     path: '/recipes',
+    allowedRoles: [ADMIN],
     children: [
       { id: 'insumos', label: 'Insumos', icon: null, path: '/recipes/insumos' },
       { id: 'recetas', label: 'Recetas', icon: null, path: '/recipes/recetas' },
@@ -113,6 +126,7 @@ const navItems: NavItem[] = [
     label: 'Configuración',
     icon: <Settings className="h-5 w-5" />,
     path: '/settings',
+    allowedRoles: [ADMIN],
     children: [
       { id: 'users', label: 'Usuarios', icon: null, path: '/settings/users' },
       { id: 'roles', label: 'Roles', icon: null, path: '/settings/roles' },
@@ -121,8 +135,20 @@ const navItems: NavItem[] = [
   },
 ];
 
+function filterNavItems(items: NavItem[], userRole: string): NavItem[] {
+  return items
+    .filter((item) => !item.allowedRoles || item.allowedRoles.includes(userRole))
+    .map((item) => ({
+      ...item,
+      children: item.children
+        ? item.children.filter((child) => !child.allowedRoles || child.allowedRoles.includes(userRole))
+        : undefined,
+    }));
+}
+
 export const Sidebar: React.FC = () => {
   const { sidebarCollapsed, toggleSidebar, mobileSidebarOpen, closeMobileSidebar } = useUI();
+  const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
@@ -134,8 +160,10 @@ export const Sidebar: React.FC = () => {
     return () => window.removeEventListener('resize', handler);
   }, []);
 
-  // En mobile el sidebar siempre se muestra expandido
   const collapsed = isMobile ? false : sidebarCollapsed;
+
+  const userRole = (user?.rol ?? ADMIN).toLowerCase();
+  const visibleNavItems = filterNavItems(navItems, userRole);
 
   const isActive = (path: string) => location.pathname === path;
   const isParentActive = (item: NavItem) =>
@@ -161,9 +189,17 @@ export const Sidebar: React.FC = () => {
     }
   };
 
+  const userDisplayName = user?.nombre || 'Usuario';
+  const userInitials = userDisplayName
+    .split(' ')
+    .slice(0, 2)
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase() || 'U';
+  const userEmail = user?.email ?? '';
+
   return (
     <>
-      {/* Mobile backdrop */}
       {mobileSidebarOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/50 md:hidden"
@@ -175,10 +211,8 @@ export const Sidebar: React.FC = () => {
       className={clsx(
         'fixed left-0 top-0 h-screen bg-cafe-sidebar text-white transition-all duration-300',
         'flex flex-col z-40',
-        // Desktop
         'md:translate-x-0',
-        sidebarCollapsed ? 'md:w-20' : 'md:w-64',  // ancho desktop usa sidebarCollapsed real
-        // Mobile
+        sidebarCollapsed ? 'md:w-20' : 'md:w-64',
         'w-64',
         mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
       )}
@@ -193,7 +227,6 @@ export const Sidebar: React.FC = () => {
             <span className="font-display text-xl font-bold">Kafe-Yana</span>
           )}
         </div>
-        {/* Botón colapsar solo en desktop */}
         <button
           onClick={toggleSidebar}
           className="hidden md:block p-2 rounded-lg hover:bg-coffee-700 transition-colors"
@@ -209,7 +242,7 @@ export const Sidebar: React.FC = () => {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-3">
         <ul className="space-y-1">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <li key={item.id}>
               <button
                 onClick={() => handleNavClick(item)}
@@ -272,11 +305,11 @@ export const Sidebar: React.FC = () => {
         <div className="px-4 py-4 border-t border-coffee-700">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-cream rounded-full flex items-center justify-center">
-              <span className="text-coffee-700 font-medium">AD</span>
+              <span className="text-coffee-700 font-medium">{userInitials}</span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">Administrador</p>
-              <p className="text-xs text-coffee-400 truncate">admin@kafe-yana.com</p>
+              <p className="text-sm font-medium truncate">{userDisplayName}</p>
+              <p className="text-xs text-coffee-400 truncate">{userEmail}</p>
             </div>
           </div>
         </div>

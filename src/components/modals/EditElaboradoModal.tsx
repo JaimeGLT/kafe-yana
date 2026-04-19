@@ -4,6 +4,7 @@ import { FlaskConical, ArrowRight, CheckCircle2, Plus, Info } from 'lucide-react
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { SearchableSelect, Select } from '../ui/Select';
+import { ImageUploadField } from '../ui/ImageUpload';
 import { HelpTooltip } from '../ui/Tooltip';
 import { RecetaFormContent } from './RecetaModal';
 import { CategoryModal } from './CategoryModal';
@@ -199,6 +200,11 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
         <div className="flex-1 overflow-y-auto">
           {isLoadingData ? (
             <div className="px-6 py-4 space-y-5 animate-pulse">
+              {/* Imagen */}
+              <div className="space-y-1.5">
+                <div className="h-3 w-28 bg-coffee-200 rounded" />
+                <div className="h-28 w-full bg-coffee-100 rounded-xl" />
+              </div>
               {/* Nombre */}
               <div className="space-y-1.5">
                 <div className="h-3 w-32 bg-coffee-200 rounded" />
@@ -254,6 +260,12 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
                   autoFocus
                 />
                 {errors.name && <p className="text-xs text-red-600 mt-1">{errors.name}</p>}
+              </div>
+
+              {/* Image */}
+              <div>
+                <label className="text-sm font-medium text-coffee-700 mb-1 block">Imagen del producto</label>
+                <ImageUploadField existingUrl={product.image} />
               </div>
 
               {/* Preparation type */}

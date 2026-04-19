@@ -39,6 +39,12 @@ interface CartItem {
   cartKey: string;
   redeemRewardId?: string;  // si está seteado, el ítem fue canjeado (precio 0)
   notes?: string;
+  roundNumber?: number;
+}
+
+interface RondaRecord {
+  number: number;
+  sentAt: number;
 }
 
 type MesaStatus = 'libre' | 'ocupada' | 'esperando_pago';
@@ -52,6 +58,8 @@ interface Mesa {
   order: CartItem[];
   customerId?: string;
   tipo?: 'mesa' | 'para_llevar';
+  currentRound: number;
+  roundsSent: RondaRecord[];
 }
 
 type ModalView =
@@ -117,27 +125,48 @@ const getProductEmoji = (product: Product): string => {
   return '☕';
 };
 
+const makeMesaBase = (overrides: Partial<Mesa>): Mesa => ({
+  id: '', number: 0, name: '', status: 'libre',
+  order: [], currentRound: 1, roundsSent: [],
+  ...overrides,
+});
+
 const initMesas = (): Mesa[] => [
-  ...Array.from({ length: TOTAL_MESAS_INIT }, (_, i) => ({
-    id: `mesa-${i + 1}`,
-    number: i + 1,
-    name: `Mesa ${i + 1}`,
-    status: 'libre' as MesaStatus,
-    order: [],
-    tipo: 'mesa' as const,
-  })),
-  {
-    id: PARA_LLEVAR_ID,
-    number: 0,
-    name: 'Para llevar',
-    status: 'libre' as MesaStatus,
-    order: [],
-    tipo: 'para_llevar' as const,
-  },
+  ...Array.from({ length: TOTAL_MESAS_INIT }, (_, i) =>
+    makeMesaBase({ id: `mesa-${i + 1}`, number: i + 1, name: `Mesa ${i + 1}`, tipo: 'mesa' })
+  ),
+  makeMesaBase({ id: PARA_LLEVAR_ID, number: 0, name: 'Para llevar', tipo: 'para_llevar' }),
 ];
 
 const mesaOrderTotal = (order: CartItem[]) =>
   order.reduce((s, i) => s + i.precioFinal * i.quantity, 0);
+
+const printComanda = (mesaName: string, roundNumber: number, items: CartItem[]) => {
+  const win = window.open('', '_blank', 'width=320,height=500');
+  if (!win) return;
+  const now = new Date().toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+  const rows = items.map(i => {
+    const nota = i.notes ? `<div style="font-size:10px;color:#555;padding-left:8px">↳ ${i.notes}</div>` : '';
+    const opciones = i.opciones?.map(o => `<div style="font-size:10px;color:#555;padding-left:8px">· ${formatOpcionLabel(o)}</div>`).join('') ?? '';
+    return `<div style="margin-bottom:6px"><strong>${i.quantity}×</strong> ${i.product.name}${opciones}${nota}</div>`;
+  }).join('');
+  win.document.write(`
+    <html><body style="font-family:monospace;font-size:13px;padding:16px;max-width:300px">
+      <div style="text-align:center;border-bottom:2px dashed #000;padding-bottom:8px;margin-bottom:8px">
+        <strong style="font-size:16px">${mesaName}</strong><br/>
+        <span>Ronda #${roundNumber} · ${now}</span>
+      </div>
+      ${rows}
+      <div style="border-top:2px dashed #000;margin-top:8px;padding-top:6px;text-align:center;font-size:11px">
+        — COMANDA —
+      </div>
+    </body></html>
+  `);
+  win.document.close();
+  win.focus();
+  win.print();
+  win.close();
+};
 
 /* ═══════════════════════════════════════════════════════════════════════════
    HOOK — drag-to-scroll
@@ -762,12 +791,12 @@ export const POSPage: React.FC = () => {
     setMesas(prev => prev.map(m => m.id === id ? { ...m, ...patch } : m));
 
   const handleIniciarMesa = (mesa: Mesa, customerId?: string) => {
-    updateMesa(mesa.id, { status: 'ocupada', openedAt: Date.now(), customerId, order: [] });
+    updateMesa(mesa.id, { status: 'ocupada', openedAt: Date.now(), customerId, order: [], currentRound: 1, roundsSent: [] });
     openModal(mesa.id, 'detalle');
   };
 
   const handleCerrarMesa = (mesaId: string) => {
-    updateMesa(mesaId, { status: 'libre', openedAt: undefined, order: [], customerId: undefined });
+    updateMesa(mesaId, { status: 'libre', openedAt: undefined, order: [], customerId: undefined, currentRound: 1, roundsSent: [] });
     closeAll();
   };
 
@@ -800,13 +829,12 @@ export const POSPage: React.FC = () => {
       updateMesa(editMesaId, { name: trimmed });
     } else {
       const maxNum = mesas.reduce((m, t) => Math.max(m, t.number), 0);
-      const newMesa: Mesa = {
+      const newMesa: Mesa = makeMesaBase({
         id: `mesa-${Date.now()}`,
         number: maxNum + 1,
         name: trimmed,
-        status: 'libre',
-        order: [],
-      };
+        tipo: 'mesa',
+      });
       setMesas(prev => [...prev, newMesa]);
     }
     setModalView('none');
@@ -871,23 +899,32 @@ export const POSPage: React.FC = () => {
   const getTempQty = (productId: string) =>
     tempCart.filter(i => i.product.id === productId).reduce((s, i) => s + i.quantity, 0);
 
-  const confirmAddToMesa = () => {
+  const sendToKitchen = () => {
     if (!activeMesaId || tempCart.length === 0) return;
+    const mesa = mesas.find(m => m.id === activeMesaId);
+    if (!mesa) return;
+    const round = mesa.currentRound;
+    const itemsWithRound = tempCart.map(i => ({ ...i, roundNumber: round }));
     setMesas(prev => prev.map(m => {
       if (m.id !== activeMesaId) return m;
       const merged = [...m.order];
-      for (const newItem of tempCart) {
-        const ex = merged.find(i => i.cartKey === newItem.cartKey);
+      for (const newItem of itemsWithRound) {
+        const ex = merged.find(i => i.cartKey === newItem.cartKey && i.roundNumber === round);
         if (ex) ex.quantity += newItem.quantity;
         else merged.push({ ...newItem });
       }
-      return { ...m, order: merged };
+      return {
+        ...m,
+        order: merged,
+        currentRound: m.currentRound + 1,
+        roundsSent: [...m.roundsSent, { number: round, sentAt: Date.now() }],
+      };
     }));
+    printComanda(mesa.name, round, itemsWithRound);
     setTempCart([]);
     setProductSearch('');
-    setModalView('detalle');
     setDetalleView('historial');
-    toast.success('Productos agregados', `${tempCart.reduce((s, i) => s + i.quantity, 0)} item(s) añadidos a la mesa`);
+    toast.success('🖨️ Comanda enviada', `Ronda ${round} · ${tempCart.reduce((s, i) => s + i.quantity, 0)} producto(s)`);
   };
 
   /* ── Canjear recompensa → va al tempCart (igual que productos normales) ── */
@@ -918,33 +955,17 @@ export const POSPage: React.FC = () => {
   };
 
 
-  /* ── Mesa order controls ── */
-  const incMesaQty = (cartKey: string) =>
-    setMesas(prev => prev.map(m =>
-      m.id === activeMesaId
-        ? { ...m, order: m.order.map(i => i.cartKey === cartKey ? { ...i, quantity: i.quantity + 1 } : i) }
-        : m));
-  const decMesaQty = (cartKey: string) =>
-    setMesas(prev => prev.map(m =>
-      m.id !== activeMesaId ? m : {
-        ...m,
-        order: m.order.map(i => i.cartKey === cartKey ? { ...i, quantity: i.quantity - 1 } : i).filter(i => i.quantity > 0),
-      }));
-  const removeMesaItem = (cartKey: string) =>
-    setMesas(prev => prev.map(m =>
-      m.id !== activeMesaId ? m : { ...m, order: m.order.filter(i => i.cartKey !== cartKey) }));
-
   const updateTempItemNote = (cartKey: string, notes: string) =>
     setTempCart(prev => prev.map(i => i.cartKey === cartKey ? { ...i, notes } : i));
-
-  const updateMesaItemNote = (cartKey: string, notes: string) =>
-    setMesas(prev => prev.map(m =>
-      m.id !== activeMesaId ? m : { ...m, order: m.order.map(i => i.cartKey === cartKey ? { ...i, notes } : i) }));
 
   /* ── Checkout ── */
   const handleRequestPayment = () => {
     if (!activeMesa || activeMesa.order.length === 0) {
-      toast.warning('Sin pedidos', 'Agrega productos antes de cobrar.');
+      toast.warning('Sin pedidos', 'Envía productos a cocina antes de cobrar.');
+      return;
+    }
+    if (tempCart.length > 0) {
+      toast.warning('Pedido pendiente', 'Envía los productos a cocina/barra antes de cobrar.');
       return;
     }
     // Check stock for all items
@@ -1368,10 +1389,15 @@ export const POSPage: React.FC = () => {
                   {detalleView === 'none' && (
                     <button
                       onClick={() => setDetalleView(v => v === 'historial' ? 'none' : 'historial')}
-                      className="h-8 rounded-xl flex items-center justify-center gap-1.5 px-2 sm:px-3 transition-all text-xs font-semibold bg-white/10 text-coffee-300 hover:bg-white/20"
+                      className="relative h-8 rounded-xl flex items-center justify-center gap-1.5 px-2 sm:px-3 transition-all text-xs font-semibold bg-white/10 text-coffee-300 hover:bg-white/20"
                     >
                       <History className="h-4 w-4 flex-shrink-0" />
                       <span className="hidden sm:inline">Historial</span>
+                      {activeMesa.order.length > 0 && (
+                        <span className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-amber-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                          {activeMesa.order.reduce((s, i) => s + i.quantity, 0)}
+                        </span>
+                      )}
                     </button>
                   )}
                   <button onClick={closeAll} className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center text-coffee-300 hover:bg-white/20">
@@ -1569,75 +1595,79 @@ export const POSPage: React.FC = () => {
                   {activeMesa.order.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-32 gap-2 text-coffee-300">
                       <ShoppingBag className="h-8 w-8 opacity-30" />
-                      <p className="text-xs">Sin pedidos añadidos aún</p>
+                      <p className="text-xs">Sin pedidos enviados aún</p>
                     </div>
-                  ) : (
-                    <>
-                      <div className="divide-y divide-coffee-50">
-                        {activeMesa.order.map((item, idx) => (
-                          <div key={item.cartKey} className="px-5 py-3 space-y-1.5">
-                            <div className="flex items-center gap-3">
-                              <span className="text-xs font-bold text-coffee-300 w-4 flex-shrink-0">{idx + 1}</span>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <p className="text-sm font-semibold text-coffee-900 line-clamp-2 leading-snug">{item.product.name}</p>
-                                  {item.redeemRewardId && (
-                                    <span className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 flex-shrink-0">
-                                      <Gift className="h-2.5 w-2.5" />Canje
-                                    </span>
-                                  )}
-                                </div>
-                                {item.opciones?.length && (item.product.tipo === 'elaborado' || item.product.tipo === 'combo') ? (
-                                  <div className="mt-0.5 space-y-0.5">
-                                    {item.opciones.map((o, oi) => (
-                                      <p key={oi} className="text-xs text-coffee-400">
-                                        <span className="font-medium text-coffee-500">{o.atributoNombre}:</span> {formatOpcionLabel(o)}
-                                      </p>
-                                    ))}
+                  ) : (() => {
+                    const rounds = activeMesa.roundsSent.length > 0
+                      ? activeMesa.roundsSent
+                      : [{ number: 1, sentAt: activeMesa.openedAt ?? Date.now() }];
+                    return (
+                      <>
+                        {rounds.map(ronda => {
+                          const rondaItems = activeMesa.order.filter(i => (i.roundNumber ?? 1) === ronda.number);
+                          if (rondaItems.length === 0) return null;
+                          const rondaTime = new Date(ronda.sentAt).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+                          return (
+                            <div key={ronda.number}>
+                              <div className="flex items-center gap-2 px-5 py-2 bg-coffee-50 border-y border-coffee-100 sticky top-0 z-10">
+                                <Printer className="h-3 w-3 text-coffee-400" />
+                                <span className="text-[11px] font-bold text-coffee-600 uppercase tracking-wider">
+                                  Ronda {ronda.number}
+                                </span>
+                                <span className="text-[11px] text-coffee-400 ml-auto">{rondaTime}</span>
+                              </div>
+                              <div className="divide-y divide-coffee-50">
+                                {rondaItems.map(item => (
+                                  <div key={item.cartKey} className="px-5 py-3 space-y-1.5">
+                                    <div className="flex items-center gap-3">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <p className="text-sm font-semibold text-coffee-900 line-clamp-2 leading-snug">{item.product.name}</p>
+                                          {item.redeemRewardId && (
+                                            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 flex-shrink-0">
+                                              <Gift className="h-2.5 w-2.5" />Canje
+                                            </span>
+                                          )}
+                                        </div>
+                                        {item.opciones?.length && (item.product.tipo === 'elaborado' || item.product.tipo === 'combo') ? (
+                                          <div className="mt-0.5 space-y-0.5">
+                                            {item.opciones.map((o, oi) => (
+                                              <p key={oi} className="text-xs text-coffee-400">
+                                                <span className="font-medium text-coffee-500">{o.atributoNombre}:</span> {formatOpcionLabel(o)}
+                                              </p>
+                                            ))}
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                                        <div className="flex items-center gap-1.5">
+                                          {item.redeemRewardId
+                                            ? <p className="text-sm font-bold text-amber-500">Gratis</p>
+                                            : <p className="text-sm font-bold text-coffee-900">{formatCurrency(item.precioFinal * item.quantity)}</p>
+                                          }
+                                        </div>
+                                        <span className="text-xs text-coffee-400 font-semibold">×{item.quantity}</span>
+                                      </div>
+                                    </div>
+                                    {item.notes && (
+                                      <div className="flex items-center gap-2 pl-1">
+                                        <PenLine className="h-3 w-3 text-coffee-300 flex-shrink-0" />
+                                        <span className="text-[11px] text-coffee-500 italic">"{item.notes}"</span>
+                                      </div>
+                                    )}
                                   </div>
-                                ) : null}
-                              </div>
-                              <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                                <div className="flex items-center gap-1.5">
-                                  {item.redeemRewardId
-                                    ? <p className="text-sm font-bold text-amber-500">Gratis</p>
-                                    : <p className="text-sm font-bold text-coffee-900">{formatCurrency(item.precioFinal * item.quantity)}</p>
-                                  }
-                                  <button onClick={() => removeMesaItem(item.cartKey)} className="text-coffee-200 hover:text-red-400 transition-colors">
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </button>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <button onClick={() => decMesaQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-100 hover:bg-coffee-200 flex items-center justify-center text-coffee-600">
-                                    <Minus className="h-3 w-3" />
-                                  </button>
-                                  <span className="w-5 text-center text-sm font-bold text-coffee-900">{item.quantity}</span>
-                                  <button onClick={() => incMesaQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-800 hover:bg-coffee-700 flex items-center justify-center text-cream">
-                                    <Plus className="h-3 w-3" />
-                                  </button>
-                                </div>
+                                ))}
                               </div>
                             </div>
-                            {/* Nota editable del ítem ya enviado */}
-                            <div className="flex items-center gap-2 pl-7">
-                              <PenLine className="h-3 w-3 text-coffee-300 flex-shrink-0" />
-                              <input
-                                type="text"
-                                placeholder="Nota (ej: sin cebolla, bien caliente...)"
-                                value={item.notes ?? ''}
-                                onChange={e => updateMesaItemNote(item.cartKey, e.target.value)}
-                                className="flex-1 text-[11px] text-coffee-700 placeholder:text-coffee-300 bg-transparent border-b border-coffee-100 focus:border-coffee-400 focus:outline-none py-0.5"
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="px-5 py-3 bg-coffee-50 flex items-center justify-between">
-                        <span className="text-xs font-medium text-coffee-500">Total</span>
-                        <span className="text-lg font-display font-black text-coffee-900">{formatCurrency(mesaSubtotal)}</span>
-                      </div>
-                    </>
-                  )}
+                          );
+                        })}
+                        <div className="px-5 py-3 bg-coffee-50 flex items-center justify-between border-t border-coffee-100">
+                          <span className="text-xs font-medium text-coffee-500">Total acumulado</span>
+                          <span className="text-lg font-display font-black text-coffee-900">{formatCurrency(mesaSubtotal)}</span>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -1753,20 +1783,21 @@ export const POSPage: React.FC = () => {
                   )}
                 </button>
 
-                {/* Añadir pedido | Cobrar */}
-                <div className="flex-1 flex justify-end">
-                  {tempCart.length > 0 ? (
+                {/* Enviar a cocina/barra | Cobrar */}
+                <div className="flex-1 flex justify-end gap-2">
+                  {tempCart.length > 0 && (
                     <button
-                      onClick={confirmAddToMesa}
+                      onClick={sendToKitchen}
                       className="relative flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-coffee-800 text-cream text-xs font-bold hover:bg-coffee-700 active:scale-95 transition-all shadow-md"
                     >
-                      <Plus className="h-4 w-4" />
-                      Añadir pedido
+                      <Printer className="h-4 w-4" />
+                      Enviar a cocina/barra
                       <span className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-red-400 text-white text-[9px] font-black rounded-full flex items-center justify-center">
                         {tempCart.reduce((s, i) => s + i.quantity, 0)}
                       </span>
                     </button>
-                  ) : (
+                  )}
+                  {tempCart.length === 0 && (
                     <button
                       onClick={handleRequestPayment}
                       disabled={activeMesa.order.length === 0}

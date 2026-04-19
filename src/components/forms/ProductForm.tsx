@@ -2,7 +2,7 @@ import React from 'react';
 import type { Product, ProductInput, ProductTipo, ProductDestino, Category, Brand, Location, Receta, CategoryInput } from '../../types';
 import { Form, FormField, FormRow, FormActions } from './FormField';
 import { Input, Textarea, Select, SearchableSelect } from '../ui';
-import { Button } from '../ui';
+import { Button, ImageUploadField } from '../ui';
 import { AlertTriangle, BookOpen, Layers, Plus } from 'lucide-react';
 import { formatCurrency } from '../../utils';
 import { CategoryModal } from '../modals/CategoryModal';
@@ -189,6 +189,11 @@ export const ProductForm: React.FC<ProductFormProps> = ({
             </p>
           </div>
         )}
+
+        {/* Image */}
+        <FormField label="Imagen del producto">
+          <ImageUploadField existingUrl={product?.image} />
+        </FormField>
 
         {/* Name + Barcode (barcode only for comprado) */}
         <FormRow>

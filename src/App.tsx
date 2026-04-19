@@ -36,6 +36,12 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { AuthProvider, UIProvider, SettingsProvider } from './contexts';
 import { ToastProvider } from './components/ui';
 
+const ADMIN = 'admin';
+const CAJERO = 'cajero';
+const MESERO = 'mesero';
+const ALL = [ADMIN, CAJERO, MESERO];
+const ADMIN_CAJERO = [ADMIN, CAJERO];
+
 function App() {
   return (
     <AuthProvider>
@@ -47,52 +53,52 @@ function App() {
                 {/* Ruta pública */}
                 <Route path="/login" element={<LoginPage />} />
 
-                {/* Todas las rutas protegidas requieren sesión activa */}
-                <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+                {/* Dashboard — solo admin */}
+                <Route path="/" element={<ProtectedRoute allowedRoles={[ADMIN]}><DashboardPage /></ProtectedRoute>} />
 
-                {/* Inventory */}
-                <Route path="/inventory/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
-                <Route path="/inventory/categories" element={<ProtectedRoute><CategoriesPage /></ProtectedRoute>} />
-                <Route path="/inventory/adjustments" element={<ProtectedRoute><AdjustmentsPage /></ProtectedRoute>} />
-                <Route path="/inventory/kardex" element={<ProtectedRoute><KardexPage /></ProtectedRoute>} />
-                <Route path="/inventory/elaborados" element={<ProtectedRoute><ElaboradosPage /></ProtectedRoute>} />
-                <Route path="/inventory/combos" element={<ProtectedRoute><CombosPage /></ProtectedRoute>} />
-                <Route path="/inventory/variations" element={<ProtectedRoute><VariacionesPage /></ProtectedRoute>} />
+                {/* Inventory — solo admin */}
+                <Route path="/inventory/products"    element={<ProtectedRoute allowedRoles={[ADMIN]}><ProductsPage /></ProtectedRoute>} />
+                <Route path="/inventory/categories"  element={<ProtectedRoute allowedRoles={[ADMIN]}><CategoriesPage /></ProtectedRoute>} />
+                <Route path="/inventory/adjustments" element={<ProtectedRoute allowedRoles={[ADMIN]}><AdjustmentsPage /></ProtectedRoute>} />
+                <Route path="/inventory/kardex"      element={<ProtectedRoute allowedRoles={[ADMIN]}><KardexPage /></ProtectedRoute>} />
+                <Route path="/inventory/elaborados"  element={<ProtectedRoute allowedRoles={[ADMIN]}><ElaboradosPage /></ProtectedRoute>} />
+                <Route path="/inventory/combos"      element={<ProtectedRoute allowedRoles={[ADMIN]}><CombosPage /></ProtectedRoute>} />
+                <Route path="/inventory/variations"  element={<ProtectedRoute allowedRoles={[ADMIN]}><VariacionesPage /></ProtectedRoute>} />
 
                 {/* Sales */}
-                <Route path="/sales/pos" element={<ProtectedRoute><POSPage /></ProtectedRoute>} />
-                <Route path="/sales" element={<ProtectedRoute><SalesListPage /></ProtectedRoute>} />
-                <Route path="/sales/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion" element={<ProtectedRoute><FidelizacionPage /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/config" element={<ProtectedRoute><ConfiguracionPuntosPage /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/productos" element={<ProtectedRoute><ProductosCanjeablesPage /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/notificaciones" element={<ProtectedRoute><NotificacionesPage /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/promociones-permanentes" element={<ProtectedRoute><FidelizacionProximamentePage title="Promociones permanentes" subtitle="Reglas de puntos activas todo el año" /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/promociones-temporada" element={<ProtectedRoute><FidelizacionProximamentePage title="Promociones de temporada" subtitle="Campañas especiales por fechas o meses" /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/hitos" element={<ProtectedRoute><FidelizacionProximamentePage title="Hitos por compra" subtitle="Recompensas automáticas al alcanzar cierto número de compras" /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/sorteos" element={<ProtectedRoute><FidelizacionProximamentePage title="Sorteos" subtitle="Crea sorteos entre clientes con puntos acumulados" /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/referidos" element={<ProtectedRoute><FidelizacionProximamentePage title="Referidos" subtitle="Premia a clientes que traen nuevos clientes al programa" /></ProtectedRoute>} />
+                <Route path="/sales/pos"       element={<ProtectedRoute allowedRoles={ALL}><POSPage /></ProtectedRoute>} />
+                <Route path="/sales"           element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><SalesListPage /></ProtectedRoute>} />
+                <Route path="/sales/customers" element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><CustomersPage /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion"                          element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><FidelizacionPage /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/config"                   element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><ConfiguracionPuntosPage /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/productos"                element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><ProductosCanjeablesPage /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/notificaciones"           element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><NotificacionesPage /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/promociones-permanentes"  element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><FidelizacionProximamentePage title="Promociones permanentes" subtitle="Reglas de puntos activas todo el año" /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/promociones-temporada"    element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><FidelizacionProximamentePage title="Promociones de temporada" subtitle="Campañas especiales por fechas o meses" /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/hitos"                    element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><FidelizacionProximamentePage title="Hitos por compra" subtitle="Recompensas automáticas al alcanzar cierto número de compras" /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/sorteos"                  element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><FidelizacionProximamentePage title="Sorteos" subtitle="Crea sorteos entre clientes con puntos acumulados" /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/referidos"                element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><FidelizacionProximamentePage title="Referidos" subtitle="Premia a clientes que traen nuevos clientes al programa" /></ProtectedRoute>} />
 
-                {/* Purchases */}
-                <Route path="/purchases/orders" element={<ProtectedRoute><PurchaseOrdersPage /></ProtectedRoute>} />
-                <Route path="/purchases/suppliers" element={<ProtectedRoute><SuppliersPage /></ProtectedRoute>} />
+                {/* Purchases — solo admin */}
+                <Route path="/purchases/orders"    element={<ProtectedRoute allowedRoles={[ADMIN]}><PurchaseOrdersPage /></ProtectedRoute>} />
+                <Route path="/purchases/suppliers" element={<ProtectedRoute allowedRoles={[ADMIN]}><SuppliersPage /></ProtectedRoute>} />
 
-                {/* Cash */}
-                <Route path="/cash/register" element={<ProtectedRoute><CashRegisterPage /></ProtectedRoute>} />
+                {/* Cash — admin + cajero */}
+                <Route path="/cash/register" element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><CashRegisterPage /></ProtectedRoute>} />
 
-                {/* Reports */}
-                <Route path="/reports/sales" element={<ProtectedRoute><SalesReportPage /></ProtectedRoute>} />
-                <Route path="/reports/inventory" element={<ProtectedRoute><InventoryReportPage /></ProtectedRoute>} />
-                <Route path="/reports/purchases" element={<ProtectedRoute><PurchasesReportPage /></ProtectedRoute>} />
-                <Route path="/reports/cash" element={<ProtectedRoute><CashReportPage /></ProtectedRoute>} />
+                {/* Reports — solo admin */}
+                <Route path="/reports/sales"      element={<ProtectedRoute allowedRoles={[ADMIN]}><SalesReportPage /></ProtectedRoute>} />
+                <Route path="/reports/inventory"  element={<ProtectedRoute allowedRoles={[ADMIN]}><InventoryReportPage /></ProtectedRoute>} />
+                <Route path="/reports/purchases"  element={<ProtectedRoute allowedRoles={[ADMIN]}><PurchasesReportPage /></ProtectedRoute>} />
+                <Route path="/reports/cash"       element={<ProtectedRoute allowedRoles={[ADMIN]}><CashReportPage /></ProtectedRoute>} />
 
-                {/* Recipes */}
-                <Route path="/recipes/insumos" element={<ProtectedRoute><InsumosPage /></ProtectedRoute>} />
-                <Route path="/recipes/recetas" element={<ProtectedRoute><RecetasPage /></ProtectedRoute>} />
+                {/* Recipes — solo admin */}
+                <Route path="/recipes/insumos"  element={<ProtectedRoute allowedRoles={[ADMIN]}><InsumosPage /></ProtectedRoute>} />
+                <Route path="/recipes/recetas"  element={<ProtectedRoute allowedRoles={[ADMIN]}><RecetasPage /></ProtectedRoute>} />
 
-                {/* Settings */}
-                <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-                <Route path="/settings/*" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+                {/* Settings — solo admin */}
+                <Route path="/settings"   element={<ProtectedRoute allowedRoles={[ADMIN]}><SettingsPage /></ProtectedRoute>} />
+                <Route path="/settings/*" element={<ProtectedRoute allowedRoles={[ADMIN]}><SettingsPage /></ProtectedRoute>} />
 
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />

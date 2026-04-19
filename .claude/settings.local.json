@@ -35,7 +35,8 @@
       "Bash(for i:*)",
       "Bash(do)",
       "Bash(done)",
-      "Bash(claude plugin *)"
+      "Bash(claude plugin *)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")"
     ]
   }
 }

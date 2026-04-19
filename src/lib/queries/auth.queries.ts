@@ -7,6 +7,7 @@ export const ME_QUERY = `
       email
       celular
       estado
+      rol
     }
   }
 `;

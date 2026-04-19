@@ -72,15 +72,14 @@ export const Header: React.FC = () => {
               <button className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-coffee-50 transition-colors">
                 <div className="w-8 h-8 bg-cream rounded-full flex items-center justify-center">
                   <span className="text-coffee-700 font-medium text-sm">
-                    {displayUser?.firstName?.[0] || 'U'}
-                    {displayUser?.lastName?.[0] || ''}
+                    {displayUser?.nombre?.[0]?.toUpperCase() || 'U'}
                   </span>
                 </div>
                 <div className="hidden md:block text-left">
                   <p className="text-sm font-medium text-coffee-900">
-                    {displayUser?.firstName} {displayUser?.lastName}
+                    {displayUser?.nombre}
                   </p>
-                  <p className="text-xs text-coffee-500">{displayUser?.roleName}</p>
+                  <p className="text-xs text-coffee-500">{displayUser?.rol}</p>
                 </div>
                 <ChevronDown className="h-4 w-4 text-coffee-500" />
               </button>

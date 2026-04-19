@@ -3,7 +3,7 @@ import { FlaskConical, BookOpen, ChevronRight, CheckCircle2, ArrowRight, Plus } 
 import { clsx } from 'clsx';
 import { api } from '../../lib/api';
 import { gql } from '../../lib/graphql';
-import { Button, Input, Select } from '../ui';
+import { Button, Input, Select, ImageUploadField } from '../ui';
 import { HelpTooltip } from '../ui/Tooltip';
 import { toast } from '../ui/Toast';
 import { RecetaStepTwo } from './RecetaStepTwo';
@@ -175,6 +175,12 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
                   autoFocus
                 />
                 {errors.name && <p className="text-xs text-red-600 mt-1">{errors.name}</p>}
+              </div>
+
+              {/* Image */}
+              <div>
+                <label className="text-sm font-medium text-coffee-700 mb-1 block">Imagen del producto</label>
+                <ImageUploadField />
               </div>
 
               {/* Preparation type */}

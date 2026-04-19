@@ -15,6 +15,16 @@ async function tryRefreshToken(): Promise<boolean> {
       credentials: 'include',
       headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
     });
+    if (res.ok) {
+      try {
+        const userData = await res.clone().json() as { nombre?: string; email?: string; rol?: string };
+        if (userData.nombre && userData.rol) {
+          window.dispatchEvent(new CustomEvent('auth:user-refreshed', { detail: userData }));
+        }
+      } catch {
+        // body no parseable — ignorar, solo importa que res.ok
+      }
+    }
     return res.ok;
   } catch {
     return false;
