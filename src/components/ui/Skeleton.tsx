@@ -154,3 +154,17 @@ export const SkeletonAjusteRow: React.FC = () => (
     </td>
   </tr>
 );
+
+export const SkeletonMesaCard: React.FC = () => (
+  <div className="border-2 border-coffee-200 rounded-2xl p-4 flex flex-col items-center">
+    <div className="h-11 w-11 rounded-xl bg-coffee-100 mb-2" />
+    <Skeleton className="h-4 w-16 mb-2" />
+    <Skeleton className="h-5 w-14 rounded-full" />
+  </div>
+);
+
+export const SkeletonMesaGrid: React.FC<{ count?: number }> = ({ count = 6 }) => (
+  <div className="px-6 pb-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+    {Array.from({ length: count }).map((_, i) => <SkeletonMesaCard key={i} />)}
+  </div>
+);

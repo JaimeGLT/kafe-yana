@@ -12,10 +12,13 @@ import { api } from '../../lib/api';
 import { gql } from '../../lib/graphql';
 import { GET_POS_DATA } from '../../lib/queries/products.queries';
 import { GET_ELABORADO_INGREDIENTES } from '../../lib/queries/elaborados.queries';
-import {
-  MOCK_CUSTOMERS, MOCK_LOYALTY_PROFILES, MOCK_MILESTONES, MOCK_REWARDS,
-} from './posMocks';
-import type { ComboDetailItem } from './posMocks';
+import { useMesas } from '../../hooks/useMesas';
+
+interface ComboDetailItem {
+  name: string;
+  quantity: number;
+  emoji: string;
+}
 import { formatCurrency } from '../../utils';
 import qrPago from '../../assets/qr-pago.svg';
 import type { Product, Category, Customer, Sale, SaleInput, PaymentMethodType, OpcionSeleccionada, VariacionAtributo } from '../../types';
@@ -27,6 +30,7 @@ import { Modal } from '../../components/ui/Modal';
 import { SearchableSelect } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { Tooltip } from '../../components/ui/Tooltip';
+import { SkeletonMesaGrid } from '../../components/ui';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TYPES
@@ -45,6 +49,7 @@ interface CartItem {
 interface RondaRecord {
   number: number;
   sentAt: number;
+  subTotal: number;
 }
 
 type MesaStatus = 'libre' | 'ocupada' | 'esperando_pago';
@@ -52,14 +57,15 @@ type MesaStatus = 'libre' | 'ocupada' | 'esperando_pago';
 interface Mesa {
   id: string;
   number: number;
-  name: string;           // display name e.g. "Mesa 3", "Terraza 1", "Barra"
+  name: string;
   status: MesaStatus;
-  openedAt?: number;      // timestamp ms
+  openedAt?: number;
   order: CartItem[];
   customerId?: string;
   tipo?: 'mesa' | 'para_llevar';
   currentRound: number;
   roundsSent: RondaRecord[];
+  pedidoId?: number;
 }
 
 type ModalView =
@@ -76,7 +82,6 @@ type ModalView =
    CONSTANTS
 ═══════════════════════════════════════════════════════════════════════════*/
 // const TAX_RATE = 0.18; // reservado para cuando el backend maneje impuestos
-const TOTAL_MESAS_INIT = 12;
 const PARA_LLEVAR_ID = 'para-llevar';
 
 const PAYMENT_METHODS: { type: PaymentMethodType; label: string; icon: React.ReactNode }[] = [
@@ -131,11 +136,76 @@ const makeMesaBase = (overrides: Partial<Mesa>): Mesa => ({
   ...overrides,
 });
 
-const initMesas = (): Mesa[] => [
-  ...Array.from({ length: TOTAL_MESAS_INIT }, (_, i) =>
-    makeMesaBase({ id: `mesa-${i + 1}`, number: i + 1, name: `Mesa ${i + 1}`, tipo: 'mesa' })
-  ),
-  makeMesaBase({ id: PARA_LLEVAR_ID, number: 0, name: 'Para llevar', tipo: 'para_llevar' }),
+const PARA_LLEVAR_MESA: Mesa = {
+  id: PARA_LLEVAR_ID,
+  number: 0,
+  name: 'Para llevar',
+  status: 'libre',
+  tipo: 'para_llevar',
+  order: [],
+  currentRound: 1,
+  roundsSent: [],
+};
+
+const mapBackendMesaToLocal = (backendMesa: { id: string; nombre: string; pedido: { id_Cliente: number | null; total: number; rondas: { id: number; id_Pedido: number; ronda_Descripcion: string; subTotal: number; detalle: { id_Ronda: number; id_Producto: number; nombre_Producto: string; cantidad: number; precio: number }[] }[] } | null }): Mesa => {
+  const isOccupied = backendMesa.pedido !== null;
+  const status: MesaStatus = isOccupied ? 'ocupada' : 'libre';
+
+  let order: CartItem[] = [];
+  let roundsSent: RondaRecord[] = [];
+  let currentRound = 1;
+  let customerId: string | undefined;
+
+  if (backendMesa.pedido) {
+    customerId = backendMesa.pedido.id_Cliente ? String(backendMesa.pedido.id_Cliente) : undefined;
+
+    if (backendMesa.pedido.rondas) {
+      roundsSent = backendMesa.pedido.rondas.map((ronda, idx) => ({
+        number: idx + 1,
+        sentAt: Date.now(),
+        subTotal: ronda.subTotal,
+      }));
+
+      backendMesa.pedido.rondas.forEach((ronda, idx) => {
+        const roundNum = idx + 1;
+        ronda.detalle.forEach((detalle) => {
+          order.push({
+            product: {
+              id: String(detalle.id_Producto),
+              name: detalle.nombre_Producto,
+              salePrice: detalle.precio,
+              tipo: 'comprado',
+            } as Product,
+            quantity: detalle.cantidad,
+            precioFinal: detalle.precio,
+            cartKey: `${detalle.id_Producto}_${ronda.id}`,
+            roundNumber: roundNum,
+          });
+        });
+      });
+
+      currentRound = backendMesa.pedido.rondas.length + 1;
+    }
+  }
+
+  return {
+    id: String(backendMesa.id),
+    number: parseInt(String(backendMesa.id), 10),
+    name: backendMesa.nombre,
+    status,
+    openedAt: isOccupied ? Date.now() : undefined,
+    order,
+    customerId,
+    tipo: 'mesa',
+    currentRound,
+    roundsSent,
+    pedidoId: backendMesa.pedido?.id_Cliente ?? undefined,
+  };
+};
+
+const initMesas = (backendMesas: { id: string; nombre: string; pedido: { id_Cliente: number | null; total: number; rondas: { id: number; id_Pedido: number; ronda_Descripcion: string; subTotal: number; detalle: { id_Ronda: number; id_Producto: number; nombre_Producto: string; cantidad: number; precio: number }[] }[] } | null }[]): Mesa[] => [
+  ...backendMesas.map(mapBackendMesaToLocal),
+  PARA_LLEVAR_MESA,
 ];
 
 const mesaOrderTotal = (order: CartItem[]) =>
@@ -430,16 +500,11 @@ export const POSPage: React.FC = () => {
   const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
   const [comboDetails, setComboDetails] = useState<Record<string, ComboDetailItem[]>>({});
   const [loyaltyProfiles, setLoyaltyProfiles] = useState<LoyaltyProfile[]>([]);
-  const [rewards, setRewards] = useState<Reward[]>([]);
-  const [milestones, setMilestones] = useState<MilestoneReward[]>([]);
+  const [rewards, _setRewards] = useState<Reward[]>([]);
+  const [milestones, _setMilestones] = useState<MilestoneReward[]>([]);
   const [_loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setCustomers(MOCK_CUSTOMERS);
-    setLoyaltyProfiles(MOCK_LOYALTY_PROFILES);
-    setMilestones(MOCK_MILESTONES);
-    setRewards(MOCK_REWARDS);
-
     const loadData = async () => {
       try {
         const data = await gql<{
@@ -658,9 +723,17 @@ export const POSPage: React.FC = () => {
   }, [getOrCreateProfile, rewards]);
 
   /* ── Mesa state ── */
-  const [mesas, setMesas] = useState<Mesa[]>(initMesas);
+  const { mesas: backendMesas, loading: loadingMesas, createMesa: apiCreateMesa, updateMesa: apiUpdateMesa, deleteMesa: apiDeleteMesa, ocuparMesa: apiOcuparMesa, liberarMesa: apiLiberarMesa, crearRonda: apiCrearRonda } = useMesas();
+
+  const [mesas, setMesas] = useState<Mesa[]>([...initMesas([]), PARA_LLEVAR_MESA]);
   const [activeMesaId, setActiveMesaId] = useState<string | null>(null);
   const [modalView, setModalView] = useState<ModalView>('none');
+
+  useEffect(() => {
+    if (!loadingMesas && backendMesas.length > 0) {
+      setMesas([...initMesas(backendMesas as any), PARA_LLEVAR_MESA]);
+    }
+  }, [backendMesas, loadingMesas]);
 
   /* ── Nueva mesa form ── */
   const [nuevaMesaName, setNuevaMesaName] = useState('');
@@ -670,6 +743,8 @@ export const POSPage: React.FC = () => {
   const [showDetalleNewCustomerForm, setShowDetalleNewCustomerForm] = useState(false);
   const [newCustomerName,  setNewCustomerName]  = useState('');
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
+  const [isStartingMesa, setIsStartingMesa] = useState(false);
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
 
   /* ── Detalle view ── */
   const [detalleView, setDetalleView] = useState<'none' | 'pedido' | 'historial'>('none');
@@ -690,6 +765,10 @@ export const POSPage: React.FC = () => {
   const [paymentMethod,    setPaymentMethod]    = useState<PaymentMethodType>('cash');
   const [cashReceived,     setCashReceived]     = useState('');
   const [isProcessing,     setIsProcessing]     = useState(false);
+  const [isSendingToKitchen, setIsSendingToKitchen] = useState(false);
+  const [isClosingMesa, setIsClosingMesa] = useState(false);
+  const [isSavingMesa, setIsSavingMesa] = useState(false);
+  const [isDeletingMesa, setIsDeletingMesa] = useState<string | null>(null);
   const [lastSaleResult,   setLastSaleResult]   = useState<{ code: string; points: PointsCalculation | null; newBalance: number } | null>(null);
 
   /* ── Drag scroll refs ── */
@@ -759,10 +838,11 @@ export const POSPage: React.FC = () => {
     setNewCustomerPhone('');
   };
 
-  const handleCreateCustomer = (onCreated: (id: string) => void) => {
+  const handleCreateCustomer = (onCreated: (id: string) => void, isModal = false) => {
     const name  = newCustomerName.trim();
     const phone = newCustomerPhone.trim();
     if (!name || !phone) return;
+    if (isModal) setIsCreatingCustomer(true);
     const id  = `cust_${Date.now()}`;
     const now = new Date();
     const newCustomer: Customer = {
@@ -783,6 +863,7 @@ export const POSPage: React.FC = () => {
     onCreated(id);
     setNewCustomerName('');
     setNewCustomerPhone('');
+    setIsCreatingCustomer(false);
     toast.success('Cliente registrado', `${name} añadido correctamente.`);
   };
 
@@ -790,13 +871,22 @@ export const POSPage: React.FC = () => {
   const updateMesa = (id: string, patch: Partial<Mesa>) =>
     setMesas(prev => prev.map(m => m.id === id ? { ...m, ...patch } : m));
 
-  const handleIniciarMesa = (mesa: Mesa, customerId?: string) => {
-    updateMesa(mesa.id, { status: 'ocupada', openedAt: Date.now(), customerId, order: [], currentRound: 1, roundsSent: [] });
-    openModal(mesa.id, 'detalle');
+  const handleIniciarMesa = async (mesa: Mesa, customerId?: string) => {
+    setIsStartingMesa(true);
+    const clienteId = customerId ? parseInt(customerId, 10) : null;
+    const success = await apiOcuparMesa(mesa.id, clienteId);
+    setIsStartingMesa(false);
+    if (success) {
+      updateMesa(mesa.id, { status: 'ocupada', openedAt: Date.now(), customerId, order: [], currentRound: 1, roundsSent: [] });
+      openModal(mesa.id, 'detalle');
+    }
   };
 
-  const handleCerrarMesa = (mesaId: string) => {
+  const handleCerrarMesa = async (mesaId: string) => {
+    setIsClosingMesa(true);
+    await apiLiberarMesa(mesaId);
     updateMesa(mesaId, { status: 'libre', openedAt: undefined, order: [], customerId: undefined, currentRound: 1, roundsSent: [] });
+    setIsClosingMesa(false);
     closeAll();
   };
 
@@ -822,32 +912,45 @@ export const POSPage: React.FC = () => {
     setModalView('nueva_mesa');
   };
 
-  const handleSaveMesa = () => {
+  const handleSaveMesa = async () => {
     const trimmed = nuevaMesaName.trim();
     if (!trimmed) return;
+    setIsSavingMesa(true);
     if (editMesaId) {
-      updateMesa(editMesaId, { name: trimmed });
+      const success = await apiUpdateMesa(editMesaId, trimmed);
+      if (success) {
+        updateMesa(editMesaId, { name: trimmed });
+      }
     } else {
-      const maxNum = mesas.reduce((m, t) => Math.max(m, t.number), 0);
-      const newMesa: Mesa = makeMesaBase({
-        id: `mesa-${Date.now()}`,
-        number: maxNum + 1,
-        name: trimmed,
-        tipo: 'mesa',
-      });
-      setMesas(prev => [...prev, newMesa]);
+      const newId = await apiCreateMesa(trimmed);
+      if (newId) {
+        const maxNum = mesas.reduce((m, t) => Math.max(m, t.number), 0);
+        const newMesa: Mesa = makeMesaBase({
+          id: newId,
+          number: maxNum + 1,
+          name: trimmed,
+          tipo: 'mesa',
+        });
+        setMesas(prev => [...prev, newMesa]);
+      }
     }
+    setIsSavingMesa(false);
     setModalView('none');
     setNuevaMesaName('');
     setEditMesaId(null);
     setActiveMesaId(null);
   };
 
-  const handleDeleteMesa = (mesaId: string, e: React.MouseEvent) => {
+  const handleDeleteMesa = async (mesaId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const mesa = mesas.find(m => m.id === mesaId);
     if (!mesa || mesa.status !== 'libre') return;
-    setMesas(prev => prev.filter(m => m.id !== mesaId));
+    setIsDeletingMesa(mesaId);
+    const success = await apiDeleteMesa(mesaId);
+    setIsDeletingMesa(null);
+    if (success) {
+      setMesas(prev => prev.filter(m => m.id !== mesaId));
+    }
   };
 
   /* ── Temp cart (product picker) ── */
@@ -899,12 +1002,24 @@ export const POSPage: React.FC = () => {
   const getTempQty = (productId: string) =>
     tempCart.filter(i => i.product.id === productId).reduce((s, i) => s + i.quantity, 0);
 
-  const sendToKitchen = () => {
+  const sendToKitchen = async () => {
     if (!activeMesaId || tempCart.length === 0) return;
     const mesa = mesas.find(m => m.id === activeMesaId);
     if (!mesa) return;
     const round = mesa.currentRound;
+
+    setIsSendingToKitchen(true);
+    const detalles = tempCart.map(i => ({
+      id_Producto: parseInt(i.product.id, 10),
+      cantidad: i.quantity,
+    }));
+
+    const success = await apiCrearRonda(activeMesaId, detalles);
+    setIsSendingToKitchen(false);
+    if (!success) return;
+
     const itemsWithRound = tempCart.map(i => ({ ...i, roundNumber: round }));
+    const rondaSubTotal = itemsWithRound.reduce((s, i) => s + i.precioFinal * i.quantity, 0);
     setMesas(prev => prev.map(m => {
       if (m.id !== activeMesaId) return m;
       const merged = [...m.order];
@@ -917,7 +1032,7 @@ export const POSPage: React.FC = () => {
         ...m,
         order: merged,
         currentRound: m.currentRound + 1,
-        roundsSent: [...m.roundsSent, { number: round, sentAt: Date.now() }],
+        roundsSent: [...m.roundsSent, { number: round, sentAt: Date.now(), subTotal: rondaSubTotal }],
       };
     }));
     printComanda(mesa.name, round, itemsWithRound);
@@ -1116,91 +1231,100 @@ export const POSPage: React.FC = () => {
         </div>
 
         {/* ── Mesa grid ──────────────────────────────────────────────── */}
-        <div className="px-6 pb-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-          {mesas.filter(m => m.tipo !== 'para_llevar').map(mesa => {
-            const cfg = STATUS_CFG[mesa.status];
-            const total = mesaOrderTotal(mesa.order);
-            const itemCount = mesa.order.reduce((s, i) => s + i.quantity, 0);
-            const isLibre = mesa.status === 'libre';
+        {loadingMesas ? (
+          <SkeletonMesaGrid count={6} />
+        ) : (
+          <div className="px-6 pb-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            {mesas.filter(m => m.tipo !== 'para_llevar').map(mesa => {
+              const cfg = STATUS_CFG[mesa.status];
+              const total = mesaOrderTotal(mesa.order);
+              const itemCount = mesa.order.reduce((s, i) => s + i.quantity, 0);
+              const isLibre = mesa.status === 'libre';
 
-            return (
-              <div
-                key={mesa.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => {
-                  if (isLibre) openModal(mesa.id, 'iniciar');
-                  else openModal(mesa.id, 'detalle');
-                }}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' || e.key === ' ') {
+              return (
+                <div
+                  key={mesa.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
                     if (isLibre) openModal(mesa.id, 'iniciar');
                     else openModal(mesa.id, 'detalle');
-                  }
-                }}
-                className={clsx(
-                  'group relative flex flex-col items-center cursor-pointer',
-                  'border-2 rounded-2xl p-4 transition-all duration-200',
-                  'active:scale-95',
-                  cfg.card,
-                )}
-              >
-                {/* Status dot */}
-                <div className={clsx('absolute top-3 left-3 h-2 w-2 rounded-full', cfg.dot)} />
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      if (isLibre) openModal(mesa.id, 'iniciar');
+                      else openModal(mesa.id, 'detalle');
+                    }
+                  }}
+                  className={clsx(
+                    'group relative flex flex-col items-center cursor-pointer',
+                    'border-2 rounded-2xl p-4 transition-all duration-200',
+                    'active:scale-95',
+                    cfg.card,
+                  )}
+                >
+                  {/* Status dot */}
+                  <div className={clsx('absolute top-3 left-3 h-2 w-2 rounded-full', cfg.dot)} />
 
-                {/* Edit + delete buttons (only libre, visible on hover) */}
-                {isLibre && (
-                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={e => openEditMesa(mesa, e)}
-                      className="h-6 w-6 rounded-lg bg-coffee-700 hover:bg-coffee-600 flex items-center justify-center text-coffee-300 hover:text-white"
-                      title="Renombrar"
-                    >
-                      <PenLine className="h-3 w-3" />
-                    </button>
-                    <button
-                      onClick={e => handleDeleteMesa(mesa.id, e)}
-                      className="h-6 w-6 rounded-lg bg-coffee-700 hover:bg-red-600 flex items-center justify-center text-coffee-300 hover:text-white"
-                      title="Eliminar mesa"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
+                  {/* Edit + delete buttons (only libre, visible on hover) */}
+                  {isLibre && (
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={e => openEditMesa(mesa, e)}
+                        className="h-6 w-6 rounded-lg bg-coffee-700 hover:bg-coffee-600 flex items-center justify-center text-coffee-300 hover:text-white"
+                        title="Renombrar"
+                      >
+                        <PenLine className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={e => handleDeleteMesa(mesa.id, e)}
+                        disabled={isDeletingMesa === mesa.id}
+                        className="h-6 w-6 rounded-lg bg-coffee-700 hover:bg-red-600 flex items-center justify-center text-coffee-300 hover:text-white disabled:opacity-50"
+                        title="Eliminar mesa"
+                      >
+                        {isDeletingMesa === mesa.id ? (
+                          <div className="w-3 h-3 border-2 border-coffee-300/40 border-t-coffee-300 rounded-full animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3 w-3" />
+                        )}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Table icon */}
+                  <div className={clsx(
+                    'h-11 w-11 rounded-xl flex items-center justify-center mt-3 mb-2',
+                    cfg.iconBg,
+                  )}>
+                    <UtensilsCrossed className={clsx('h-5 w-5', cfg.icon)} />
                   </div>
-                )}
 
-                {/* Table icon */}
-                <div className={clsx(
-                  'h-11 w-11 rounded-xl flex items-center justify-center mt-3 mb-2',
-                  cfg.iconBg,
-                )}>
-                  <UtensilsCrossed className={clsx('h-5 w-5', cfg.icon)} />
+                  {/* Name */}
+                  <p className="font-semibold text-white text-sm leading-tight text-center">
+                    {mesa.name}
+                  </p>
+
+                  {/* Status badge */}
+                  <span className={clsx('mt-2 text-[10px] font-semibold px-2 py-0.5 rounded-full', cfg.badge)}>
+                    {cfg.label}
+                  </span>
+
+                  {/* Order info */}
+                  {!isLibre && (
+                    <div className="mt-2.5 w-full space-y-0.5 text-center">
+                      {itemCount > 0 && (
+                        <p className="text-xs text-coffee-300">{itemCount} item{itemCount !== 1 ? 's' : ''}</p>
+                      )}
+                      {total > 0 && (
+                        <p className="text-sm font-bold text-white">{formatCurrency(total)}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
-
-                {/* Name */}
-                <p className="font-semibold text-white text-sm leading-tight text-center">
-                  {mesa.name}
-                </p>
-
-                {/* Status badge */}
-                <span className={clsx('mt-2 text-[10px] font-semibold px-2 py-0.5 rounded-full', cfg.badge)}>
-                  {cfg.label}
-                </span>
-
-                {/* Order info */}
-                {!isLibre && (
-                  <div className="mt-2.5 w-full space-y-0.5 text-center">
-                    {itemCount > 0 && (
-                      <p className="text-xs text-coffee-300">{itemCount} item{itemCount !== 1 ? 's' : ''}</p>
-                    )}
-                    {total > 0 && (
-                      <p className="text-sm font-bold text-white">{formatCurrency(total)}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* ══════════════════════════════════════════════════════════════
             MODAL: NUEVA / EDITAR MESA
@@ -1236,15 +1360,20 @@ export const POSPage: React.FC = () => {
                 </div>
                 <button
                   onClick={handleSaveMesa}
-                  disabled={!nuevaMesaName.trim()}
+                  disabled={!nuevaMesaName.trim() || isSavingMesa}
                   className={clsx(
-                    'w-full py-3.5 rounded-2xl font-bold text-sm transition-all',
-                    nuevaMesaName.trim()
+                    'w-full py-3.5 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2',
+                    nuevaMesaName.trim() && !isSavingMesa
                       ? 'bg-coffee-600 hover:bg-coffee-500 text-white active:scale-95 shadow'
                       : 'bg-slate-100 text-slate-400 cursor-not-allowed',
                   )}
                 >
-                  {editMesaId ? 'Guardar cambios' : 'Crear mesa'}
+                  {isSavingMesa ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      {editMesaId ? 'Guardando...' : 'Creando...'}
+                    </>
+                  ) : editMesaId ? 'Guardar cambios' : 'Crear mesa'}
                 </button>
               </div>
             </div>
@@ -1302,15 +1431,20 @@ export const POSPage: React.FC = () => {
                         placeholder="Número de teléfono"
                         value={newCustomerPhone}
                         onChange={e => setNewCustomerPhone(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleCreateCustomer(id => { setIniciarClienteId(id); setShowNewCustomerForm(false); })}
+                        onKeyDown={e => e.key === 'Enter' && handleCreateCustomer(id => { setIniciarClienteId(id); setShowNewCustomerForm(false); }, true)}
                         className="w-full px-3 py-2.5 rounded-lg border border-amber-200 focus:border-amber-400 focus:outline-none text-sm text-coffee-900 bg-white placeholder:text-coffee-300"
                       />
                       <button
-                        onClick={() => handleCreateCustomer(id => { setIniciarClienteId(id); setShowNewCustomerForm(false); })}
-                        disabled={!newCustomerName.trim() || !newCustomerPhone.trim()}
-                        className="w-full py-2.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white text-sm font-bold transition-colors"
+                        onClick={() => handleCreateCustomer(id => { setIniciarClienteId(id); setShowNewCustomerForm(false); }, true)}
+                        disabled={!newCustomerName.trim() || !newCustomerPhone.trim() || isCreatingCustomer}
+                        className="w-full py-2.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white text-sm font-bold transition-colors flex items-center justify-center gap-2"
                       >
-                        Guardar cliente
+                        {isCreatingCustomer ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                            Guardando...
+                          </>
+                        ) : 'Guardar cliente'}
                       </button>
                     </div>
                   ) : (
@@ -1330,9 +1464,15 @@ export const POSPage: React.FC = () => {
                 </div>
                 <button
                   onClick={() => { handleIniciarMesa(activeMesa, iniciarClienteId || undefined); setIniciarClienteId(''); }}
-                  className="w-full py-4 rounded-2xl bg-coffee-800 text-cream font-bold text-base hover:bg-coffee-700 active:scale-95 transition-all shadow-lg"
+                  disabled={isStartingMesa}
+                  className="w-full py-4 rounded-2xl bg-coffee-800 text-cream font-bold text-base hover:bg-coffee-700 active:scale-95 transition-all shadow-lg disabled:opacity-60 flex items-center justify-center gap-2"
                 >
-                  Iniciar {activeMesa.name}
+                  {isStartingMesa ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-cream/40 border-t-cream rounded-full animate-spin" />
+                      Iniciando...
+                    </>
+                  ) : `Iniciar ${activeMesa.name}`}
                 </button>
               </div>
             </div>
@@ -1600,7 +1740,7 @@ export const POSPage: React.FC = () => {
                   ) : (() => {
                     const rounds = activeMesa.roundsSent.length > 0
                       ? activeMesa.roundsSent
-                      : [{ number: 1, sentAt: activeMesa.openedAt ?? Date.now() }];
+                      : [{ number: 1, sentAt: activeMesa.openedAt ?? Date.now(), subTotal: 0 }];
                     return (
                       <>
                         {rounds.map(ronda => {
@@ -1615,6 +1755,9 @@ export const POSPage: React.FC = () => {
                                   Ronda {ronda.number}
                                 </span>
                                 <span className="text-[11px] text-coffee-400 ml-auto">{rondaTime}</span>
+                                <span className="text-[11px] font-semibold text-coffee-700">
+                                  {formatCurrency(ronda.subTotal)}
+                                </span>
                               </div>
                               <div className="divide-y divide-coffee-50">
                                 {rondaItems.map(item => (
@@ -1788,13 +1931,20 @@ export const POSPage: React.FC = () => {
                   {tempCart.length > 0 && (
                     <button
                       onClick={sendToKitchen}
-                      className="relative flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-coffee-800 text-cream text-xs font-bold hover:bg-coffee-700 active:scale-95 transition-all shadow-md"
+                      disabled={isSendingToKitchen}
+                      className="relative flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-coffee-800 text-cream text-xs font-bold hover:bg-coffee-700 active:scale-95 transition-all shadow-md disabled:opacity-60"
                     >
-                      <Printer className="h-4 w-4" />
-                      Enviar a cocina/barra
-                      <span className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-red-400 text-white text-[9px] font-black rounded-full flex items-center justify-center">
-                        {tempCart.reduce((s, i) => s + i.quantity, 0)}
-                      </span>
+                      {isSendingToKitchen ? (
+                        <div className="w-4 h-4 border-2 border-cream/40 border-t-cream rounded-full animate-spin" />
+                      ) : (
+                        <Printer className="h-4 w-4" />
+                      )}
+                      {isSendingToKitchen ? 'Enviando...' : 'Enviar a cocina/barra'}
+                      {!isSendingToKitchen && (
+                        <span className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-red-400 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                          {tempCart.reduce((s, i) => s + i.quantity, 0)}
+                        </span>
+                      )}
                     </button>
                   )}
                   {tempCart.length === 0 && (
@@ -1819,9 +1969,10 @@ export const POSPage: React.FC = () => {
                 <div className="px-5 pb-3 flex-shrink-0">
                   <button
                     onClick={() => handleCerrarMesa(activeMesa.id)}
-                    className="w-full py-2 text-xs text-coffee-400 hover:text-red-500 transition-colors font-medium"
+                    disabled={isClosingMesa}
+                    className="w-full py-2 text-xs text-coffee-400 hover:text-red-500 transition-colors font-medium disabled:opacity-50"
                   >
-                    Cerrar mesa (sin pedidos)
+                    {isClosingMesa ? 'Cerrando...' : 'Cerrar mesa (sin pedidos)'}
                   </button>
                 </div>
               )}
