@@ -209,24 +209,20 @@ export const MOCK_ATRIBUTOS: VariacionAtributo[] = [
 ═══════════════════════════════════════════════════════════════════════════*/
 export const MOCK_CUSTOMERS: Customer[] = [
   {
-    id: 'cust-1', code: 'C-001', name: 'María García',
-    phone: '987 654 321', ruc: '12345678', totalPurchases: 15, isActive: true,
-    createdAt: now, updatedAt: now,
+    id: 'cust-1', nombre: 'María García',
+    celular: '987 654 321', dni: '12345678', puntos: 0, estado: true,
   },
   {
-    id: 'cust-2', code: 'C-002', name: 'Carlos López',
-    phone: '976 543 210', ruc: '87654321', totalPurchases: 5, isActive: true,
-    createdAt: now, updatedAt: now,
+    id: 'cust-2', nombre: 'Carlos López',
+    celular: '976 543 210', dni: '87654321', puntos: 0, estado: true,
   },
   {
-    id: 'cust-3', code: 'C-003', name: 'Ana Torres',
-    phone: '965 432 109', ruc: '11223344', totalPurchases: 32, isActive: true,
-    createdAt: now, updatedAt: now,
+    id: 'cust-3', nombre: 'Ana Torres',
+    celular: '965 432 109', dni: '11223344', puntos: 0, estado: true,
   },
   {
-    id: 'cust-4', code: 'C-004', name: 'Pedro Quispe',
-    phone: '954 321 098', ruc: '44332211', totalPurchases: 68, isActive: true,
-    createdAt: now, updatedAt: now,
+    id: 'cust-4', nombre: 'Pedro Quispe',
+    celular: '954 321 098', dni: '44332211', puntos: 0, estado: true,
   },
 ];
 

@@ -19,10 +19,10 @@ type TabId = 'recompensas' | 'promos' | 'misiones' | 'historial' | 'config';
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 const MOCK_CUSTOMERS: Customer[] = [
-  { id: 'c1', code: 'CLI-001', name: 'Ana Quispe',    phone: '70011122', email: 'ana@email.com', isActive: true, totalPurchases: 520, createdAt: new Date('2024-01-10'), updatedAt: new Date() },
-  { id: 'c2', code: 'CLI-002', name: 'Carlos Mamani', phone: '70033344', email: '',               isActive: true, totalPurchases: 150, createdAt: new Date('2024-02-15'), updatedAt: new Date() },
-  { id: 'c3', code: 'CLI-003', name: 'Lucía Flores',  phone: '70055566', email: 'lucia@email.com',isActive: true, totalPurchases: 1120, createdAt: new Date('2024-03-01'), updatedAt: new Date() },
-  { id: 'c4', code: 'CLI-004', name: 'Diego Vargas',  phone: '70077788', email: '',               isActive: true, totalPurchases: 30,  createdAt: new Date('2024-04-20'), updatedAt: new Date() },
+  { id: 'c1', nombre: 'Ana Quispe',    celular: '70011122', correo: 'ana@email.com', estado: true, puntos: 0 },
+  { id: 'c2', nombre: 'Carlos Mamani', celular: '70033344', estado: true, puntos: 0 },
+  { id: 'c3', nombre: 'Lucía Flores',  celular: '70055566', correo: 'lucia@email.com', estado: true, puntos: 0 },
+  { id: 'c4', nombre: 'Diego Vargas',  celular: '70077788', estado: true, puntos: 0 },
 ];
 
 const MOCK_PROFILES: LoyaltyProfile[] = [
@@ -579,7 +579,7 @@ export const FidelizacionPage: React.FC = () => {
 
   // ── Derived data ────────────────────────────────────────────────────────────
   const activeCustomers = useMemo(
-    () => customers.filter(c => c.isActive),
+    () => customers.filter(c => c.estado),
     [customers],
   );
 
@@ -587,9 +587,9 @@ export const FidelizacionPage: React.FC = () => {
     if (!search.trim()) return activeCustomers;
     const q = search.toLowerCase();
     return activeCustomers.filter(c =>
-      c.name.toLowerCase().includes(q) ||
-      c.phone.includes(q) ||
-      (c.email || '').toLowerCase().includes(q),
+      c.nombre.toLowerCase().includes(q) ||
+      c.celular.includes(q) ||
+      (c.correo || '').toLowerCase().includes(q),
     );
   }, [activeCustomers, search]);
 
@@ -823,8 +823,8 @@ export const FidelizacionPage: React.FC = () => {
                       className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-coffee-50 transition-colors text-left"
                     >
                       <div>
-                        <div className="text-sm font-body font-medium text-coffee-800">{c.name}</div>
-                        <div className="text-xs text-coffee-400 font-body">{c.phone}</div>
+                        <div className="text-sm font-body font-medium text-coffee-800">{c.nombre}</div>
+                        <div className="text-xs text-coffee-400 font-body">{c.celular}</div>
                       </div>
                       {cProf && (
                         <span className={clsx(
@@ -855,7 +855,7 @@ export const FidelizacionPage: React.FC = () => {
                 <SearchableSelect
                   value={selectedCustomerId ?? ''}
                   onChange={v => v && handleSelectCustomer(v)}
-                  options={activeCustomers.map((c: Customer) => ({ value: c.id, label: c.name }))}
+                  options={activeCustomers.map((c: Customer) => ({ value: c.id, label: c.nombre }))}
                   placeholder="— Elegir cliente —"
                 />
               </div>
@@ -867,7 +867,7 @@ export const FidelizacionPage: React.FC = () => {
             <>
               <LoyaltyCard
                 profile={selectedProfile}
-                customerName={selectedCustomer.name}
+                customerName={selectedCustomer.nombre}
                 levelInfo={levelInfo}
                 onViewHistory={() => setActiveTab('historial')}
                 onAdjustPoints={() => setShowAdjustModal(true)}
@@ -1509,14 +1509,14 @@ export const FidelizacionPage: React.FC = () => {
               ) : customerTransactions.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-2xl border border-coffee-100">
                   <RotateCcw className="w-10 h-10 text-coffee-200 mx-auto mb-3" />
-                  <p className="font-body text-coffee-500 font-medium">{selectedCustomer.name}</p>
+                  <p className="font-body text-coffee-500 font-medium">{selectedCustomer.nombre}</p>
                   <p className="font-body text-coffee-400 text-sm mt-1">Sin transacciones registradas todavía</p>
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl border border-coffee-100 overflow-hidden">
                   <div className="px-5 py-4 border-b border-coffee-50 flex items-center justify-between">
                     <div>
-                      <h3 className="font-display font-semibold text-coffee-900">{selectedCustomer.name}</h3>
+                      <h3 className="font-display font-semibold text-coffee-900">{selectedCustomer.nombre}</h3>
                       <p className="text-xs font-body text-coffee-400">{customerTransactions.length} transacciones</p>
                     </div>
                     <span className={clsx(
@@ -1597,7 +1597,7 @@ export const FidelizacionPage: React.FC = () => {
           {selectedProfile && (
             <div className="flex items-center gap-3">
               <span className="text-sm font-body text-coffee-500">
-                {selectedCustomer?.name} · <strong className="text-coffee-700">{selectedProfile.purchaseCount}</strong> visitas
+                {selectedCustomer?.nombre} · <strong className="text-coffee-700">{selectedProfile.purchaseCount}</strong> visitas
               </span>
               {pendingVouchers.length > 0 && (
                 <span className="text-xs font-body bg-amber-500 text-white font-bold px-2.5 py-1 rounded-full">
@@ -1684,7 +1684,7 @@ export const FidelizacionPage: React.FC = () => {
       {/* ── Adjust Points Modal ─────────────────────────────────────────────── */}
       {showAdjustModal && selectedCustomer && selectedProfile && (
         <AdjustModal
-          customerName={selectedCustomer.name}
+          customerName={selectedCustomer.nombre}
           currentPoints={selectedProfile.points}
           onConfirm={handleAdjust}
           onClose={() => setShowAdjustModal(false)}

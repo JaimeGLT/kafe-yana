@@ -12,6 +12,7 @@ import { api } from '../../lib/api';
 import { gql } from '../../lib/graphql';
 import { GET_POS_DATA } from '../../lib/queries/products.queries';
 import { GET_ELABORADO_INGREDIENTES } from '../../lib/queries/elaborados.queries';
+import { GET_CLIENTES } from '../../lib/queries/clientes.queries';
 import { useMesas } from '../../hooks/useMesas';
 
 interface ComboDetailItem {
@@ -645,6 +646,9 @@ export const POSPage: React.FC = () => {
         setProducts([...elaboradoProducts, ...compradoProducts, ...comboProducts]);
         setAtributos(mappedAtributos);
         setComboDetails(newComboDetails);
+
+        const clientesData = await gql<{ clientes: { nodes: Customer[] } }>(GET_CLIENTES);
+        setCustomers(clientesData.clientes.nodes);
       } catch {
         toast.error('Error', 'No se pudieron cargar los productos.');
       } finally {
@@ -846,9 +850,7 @@ export const POSPage: React.FC = () => {
     const id  = `cust_${Date.now()}`;
     const now = new Date();
     const newCustomer: Customer = {
-      id, code: `CLI-${Date.now()}`, name, phone,
-      totalPurchases: 0, isActive: true,
-      createdAt: now, updatedAt: now,
+      id, nombre: name, celular: phone, puntos: 0, estado: true,
     };
     const newProfile: LoyaltyProfile = {
       id: `prof_${Date.now()}`, customerId: id,
@@ -1455,7 +1457,7 @@ export const POSPage: React.FC = () => {
                         { value: '', label: '— Sin cliente —' },
                         ..._customers.map(c => {
                           const prof = getOrCreateProfile(c.id);
-                          return { value: c.id, label: `${c.name}${prof ? ` · ${prof.points} pts` : ''}` };
+                          return { value: c.id, label: `${c.nombre}${prof ? ` · ${prof.points} pts` : ''}` };
                         }),
                       ]}
                       placeholder="— Sin cliente —"
@@ -1518,7 +1520,7 @@ export const POSPage: React.FC = () => {
                         return activeMesa.customerId ? (
                           <p className="text-[11px] text-amber-300 font-medium flex items-center gap-1">
                             <Star className="h-3 w-3 fill-amber-300 text-amber-300" />
-                            {cliente?.name ?? 'Cliente vinculado'}
+                            {cliente?.nombre ?? 'Cliente vinculado'}
                           </p>
                         ) : null;
                       })()}
@@ -1822,7 +1824,7 @@ export const POSPage: React.FC = () => {
                       <div className="flex items-center gap-1.5 text-xs text-coffee-600">
                         <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
                         <span className="font-semibold">
-                          {_customers.find(c => c.id === activeMesa.customerId)?.name ?? 'Cliente'}
+                          {_customers.find(c => c.id === activeMesa.customerId)?.nombre ?? 'Cliente'}
                         </span>
                         <span className="text-coffee-400">
                           · {getOrCreateProfile(activeMesa.customerId)?.points ?? 0} pts
@@ -1888,7 +1890,7 @@ export const POSPage: React.FC = () => {
                           { value: '', label: '— Vincular cliente —' },
                           ..._customers.map(c => {
                             const prof = getOrCreateProfile(c.id);
-                            return { value: c.id, label: `${c.name}${prof ? ` · ${prof.points} pts` : ''}` };
+                          return { value: c.id, label: `${c.nombre}${prof ? ` · ${prof.points} pts` : ''}` };
                           }),
                         ]}
                         placeholder="— Vincular cliente —"

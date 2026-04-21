@@ -3,33 +3,26 @@
 import type { UUID, BaseEntity } from './common';
 
 // Customer
-export interface Customer extends BaseEntity {
-  id: UUID;
-  code: string;
-  name: string;
-  email?: string;
-  phone: string;
-  address?: string;
-  ruc?: string;
-  birthDate?: string;
-  notes?: string;
-  creditLimit?: number;
-  currentCredit?: number;
-  totalPurchases: number;
-  lastPurchaseDate?: Date;
-  isActive: boolean;
+export interface Customer {
+  id: string;
+  dni?: string;
+  nombre: string;
+  celular: string;
+  correo?: string;
+  fecha_nacimiento?: string;
+  direccion?: string;
+  puntos: number;
+  estado: boolean;
 }
 
 export interface CustomerInput {
-  name: string;
-  email?: string;
-  phone: string;
-  address?: string;
-  ruc?: string;
-  birthDate?: string;
-  notes?: string;
-  creditLimit?: number;
-  isActive?: boolean;
+  dni?: number;
+  nombre: string;
+  celular: string;
+  correo?: string;
+  fecha_nacimiento?: string;
+  direccion?: string;
+  estado?: boolean;
 }
 
 // Payment Method

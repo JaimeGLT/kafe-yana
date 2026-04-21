@@ -30,12 +30,12 @@ export const CustomerCombobox: React.FC<CustomerComboboxProps> = ({
   const filtered = React.useMemo(() => {
     const q = query.toLowerCase();
     return customers
-      .filter((c) => c.isActive)
+      .filter((c) => c.estado)
       .filter(
         (c) =>
-          c.name.toLowerCase().includes(q) ||
-          c.phone.includes(q) ||
-          (c.ruc || '').toLowerCase().includes(q)
+          c.nombre.toLowerCase().includes(q) ||
+          c.celular.includes(q) ||
+          (c.dni || '').toLowerCase().includes(q)
       )
       .slice(0, 8);
   }, [customers, query]);
@@ -89,9 +89,9 @@ export const CustomerCombobox: React.FC<CustomerComboboxProps> = ({
               </div>
               <div className="flex-1 min-w-0">
                 <span className="text-sm font-medium text-coffee-900 truncate block">
-                  {selected.name}
+                  {selected.nombre}
                 </span>
-                <span className="text-xs text-coffee-400">{selected.phone}</span>
+                <span className="text-xs text-coffee-400">{selected.celular}</span>
               </div>
               <button
                 type="button"
@@ -153,10 +153,10 @@ export const CustomerCombobox: React.FC<CustomerComboboxProps> = ({
                         <User className="h-3.5 w-3.5 text-coffee-500" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-coffee-900 truncate">{customer.name}</p>
+                        <p className="text-sm font-medium text-coffee-900 truncate">{customer.nombre}</p>
                         <p className="text-xs text-coffee-400">
-                          {customer.phone}
-                          {customer.ruc ? ` · ${customer.ruc}` : ''}
+                          {customer.celular}
+                          {customer.dni ? ` · ${customer.dni}` : ''}
                         </p>
                       </div>
                     </button>

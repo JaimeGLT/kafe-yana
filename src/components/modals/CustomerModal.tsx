@@ -15,13 +15,13 @@ interface CustomerModalProps {
 }
 
 interface CustomerFormData {
-  name: string;
-  phone: string;
-  email: string;
-  address: string;
-  ruc: string;
-  birthDate: string;
-  isActive: boolean;
+  nombre: string;
+  celular: string;
+  correo: string;
+  dni: string;
+  fecha_nacimiento: string;
+  direccion: string;
+  estado: boolean;
 }
 
 export const CustomerModal: React.FC<CustomerModalProps> = ({
@@ -35,25 +35,30 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
   const [errors, setErrors] = React.useState<Record<string, string>>({});
 
   const [formData, setFormData] = React.useState<CustomerFormData>({
-    name: customer?.name || '',
-    phone: customer?.phone || '',
-    email: customer?.email || '',
-    address: customer?.address || '',
-    ruc: customer?.ruc || '',
-    birthDate: customer?.birthDate || '',
-    isActive: customer?.isActive ?? true,
+    nombre: customer?.nombre || '',
+    celular: customer?.celular || '',
+    correo: customer?.correo || '',
+    dni: customer?.dni || '',
+    fecha_nacimiento: customer?.fecha_nacimiento || '',
+    direccion: customer?.direccion || '',
+    estado: customer?.estado ?? true,
   });
 
   React.useEffect(() => {
     if (isOpen) {
+      let fechaNasc = '';
+      if (customer?.fecha_nacimiento) {
+        const d = new Date(customer.fecha_nacimiento);
+        fechaNasc = d.toISOString().split('T')[0];
+      }
       setFormData({
-        name: customer?.name || '',
-        phone: customer?.phone || '',
-        email: customer?.email || '',
-        address: customer?.address || '',
-        ruc: customer?.ruc || '',
-        birthDate: customer?.birthDate || '',
-        isActive: customer?.isActive ?? true,
+        nombre: customer?.nombre || '',
+        celular: customer?.celular || '',
+        correo: customer?.correo || '',
+        dni: customer?.dni ? String(customer.dni) : '',
+        fecha_nacimiento: fechaNasc,
+        direccion: customer?.direccion || '',
+        estado: customer?.estado ?? true,
       });
       setErrors({});
     }
@@ -72,14 +77,14 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.name.trim()) {
-      newErrors.name = 'El nombre es requerido';
+    if (!formData.nombre.trim()) {
+      newErrors.nombre = 'El nombre es requerido';
     }
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'El teléfono es requerido';
+    if (!formData.celular.trim()) {
+      newErrors.celular = 'El teléfono es requerido';
     }
-    if (formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
-      newErrors.email = 'El correo electrónico no es válido';
+    if (formData.correo.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.correo.trim())) {
+      newErrors.correo = 'El correo electrónico no es válido';
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -91,17 +96,27 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
 
     setIsLoading(true);
     try {
+      const dniValue = formData.dni.trim();
+      let fechaNasc: string | undefined;
+      if (formData.fecha_nacimiento) {
+        fechaNasc = new Date(formData.fecha_nacimiento + 'T00:00:00Z').toISOString();
+      }
+
       const input: CustomerInput = {
-        name: formData.name.trim(),
-        phone: formData.phone.trim(),
-        email: formData.email.trim() || undefined,
-        address: formData.address.trim() || undefined,
-        ruc: formData.ruc.trim() || undefined,
-        birthDate: formData.birthDate || undefined,
-        isActive: formData.isActive,
+        nombre: formData.nombre.trim(),
+        celular: formData.celular.trim(),
+        correo: formData.correo.trim() || undefined,
+        dni: dniValue ? parseInt(dniValue, 10) : undefined,
+        fecha_nacimiento: fechaNasc,
+        direccion: formData.direccion.trim() || undefined,
+        estado: formData.estado,
       };
 
-      onSave?.(input, !!customer, customer?.id);
+      await onSave?.(input, !!customer, customer?.id);
+      toast.success(
+        customer ? 'Cliente actualizado' : 'Cliente creado',
+        `${formData.nombre} se ${customer ? 'actualizó' : 'creó'} correctamente.`
+      );
       onSuccess();
       onClose();
     } catch (error) {
@@ -119,54 +134,54 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
       size="md"
     >
       <Form onSubmit={handleSubmit}>
-        <FormField label="Nombre completo" required error={errors.name}>
+        <FormField label="Nombre completo" required error={errors.nombre}>
           <Input
-            value={formData.name}
-            onChange={(e) => handleChange('name', e.target.value)}
+            value={formData.nombre}
+            onChange={(e) => handleChange('nombre', e.target.value)}
             placeholder="Nombre del cliente"
           />
         </FormField>
 
         <FormRow>
-          <FormField label="Teléfono" required error={errors.phone}>
+          <FormField label="Teléfono" required error={errors.celular}>
             <Input
               type="tel"
-              value={formData.phone}
-              onChange={(e) => handleChange('phone', e.target.value)}
+              value={formData.celular}
+              onChange={(e) => handleChange('celular', e.target.value)}
               placeholder="Ej: 999 888 777"
             />
           </FormField>
-          <FormField label="Correo electrónico" error={errors.email}>
+          <FormField label="Correo electrónico" error={errors.correo}>
             <Input
               type="email"
-              value={formData.email}
-              onChange={(e) => handleChange('email', e.target.value)}
+              value={formData.correo}
+              onChange={(e) => handleChange('correo', e.target.value)}
               placeholder="correo@ejemplo.com"
             />
           </FormField>
         </FormRow>
 
-        <FormField label="Dirección">
+        <FormField label="DNI">
           <Input
-            value={formData.address}
-            onChange={(e) => handleChange('address', e.target.value)}
-            placeholder="Dirección del cliente"
-          />
-        </FormField>
-
-        <FormField label="CI / NIT">
-          <Input
-            value={formData.ruc}
-            onChange={(e) => handleChange('ruc', e.target.value)}
-            placeholder="Carnet de identidad o NIT"
+            value={formData.dni}
+            onChange={(e) => handleChange('dni', e.target.value)}
+            placeholder="Carnet de identidad"
           />
         </FormField>
 
         <FormField label="Fecha de nacimiento">
           <Input
             type="date"
-            value={formData.birthDate}
-            onChange={(e) => handleChange('birthDate', e.target.value)}
+            value={formData.fecha_nacimiento}
+            onChange={(e) => handleChange('fecha_nacimiento', e.target.value)}
+          />
+        </FormField>
+
+        <FormField label="Dirección">
+          <Input
+            value={formData.direccion}
+            onChange={(e) => handleChange('direccion', e.target.value)}
+            placeholder="Dirección del cliente"
           />
         </FormField>
 
@@ -174,8 +189,8 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
-              checked={formData.isActive}
-              onChange={(e) => handleChange('isActive', e.target.checked)}
+              checked={formData.estado}
+              onChange={(e) => handleChange('estado', e.target.checked)}
               className="h-4 w-4 text-coffee-500 focus:ring-coffee-500 border-coffee-300 rounded"
             />
             <span className="text-sm text-coffee-700">Cliente activo</span>

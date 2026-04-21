@@ -1,18 +1,23 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Plus, Search, Edit2, Trash2, User, Phone, Mail, CreditCard, Calendar } from 'lucide-react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { Plus, Search, Edit2, Trash2, User, Phone, Mail, Calendar, Star } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
-import { Button, Badge, Modal, ConfirmModal } from '../../components/ui';
+import { Button, Badge, Modal, ConfirmModal, SkeletonRow } from '../../components/ui';
 import { CustomerModal } from '../../components/modals';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import { formatCurrency, formatDate } from '../../utils';
+import { gql } from '../../lib/graphql';
+import { GET_CLIENTES } from '../../lib/queries/clientes.queries';
+import { formatDate } from '../../utils';
+import { useAuth } from '../../contexts/AuthContext';
 import type { Customer, CustomerInput } from '../../types';
 
 export const CustomersPage: React.FC = () => {
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [_isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth();
+  const isAdmin = user?.rol?.toLowerCase() === 'admin';
 
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -21,24 +26,24 @@ export const CustomersPage: React.FC = () => {
   const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
   const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
 
-  // Fetch customers on mount
-  useEffect(() => {
-    const fetchCustomers = async () => {
-      setIsLoading(true);
-      try {
-        const data = await api.get<Customer[]>('/clientes');
-        setCustomers(data);
-      } catch {
-        toast.error('Error', 'No se pudieron cargar los clientes.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchCustomers();
+  const fetchCustomers = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await gql<{ clientes: { nodes: Customer[] } }>(GET_CLIENTES);
+      setCustomers(data.clientes.nodes);
+    } catch {
+      toast.error('Error', 'No se pudieron cargar los clientes.');
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
+  React.useEffect(() => {
+    fetchCustomers();
+  }, [fetchCustomers]);
+
   const deleteCustomer = useCallback(async (id: string) => {
-    await api.delete(`/clientes/${id}`);
+    await api.delete(`/Cliente/${id}`);
     setCustomers(prev => prev.filter(c => c.id !== id));
   }, []);
 
@@ -46,10 +51,10 @@ export const CustomersPage: React.FC = () => {
     const q = search.toLowerCase();
     return customers.filter(
       (c) =>
-        c.name.toLowerCase().includes(q) ||
-        (c.email || '').toLowerCase().includes(q) ||
-        c.phone.includes(q) ||
-        c.code.toLowerCase().includes(q)
+        c.nombre.toLowerCase().includes(q) ||
+        (c.correo || '').toLowerCase().includes(q) ||
+        c.celular.includes(q) ||
+        (c.dni || '').toLowerCase().includes(q)
     );
   }, [customers, search]);
 
@@ -77,7 +82,7 @@ export const CustomersPage: React.FC = () => {
     if (!deletingCustomer) return;
     try {
       await deleteCustomer(deletingCustomer.id);
-      toast.success('Cliente eliminado', `${deletingCustomer.name} fue eliminado.`);
+      toast.success('Cliente eliminado', `${deletingCustomer.nombre} fue eliminado.`);
     } catch {
       toast.error('Error', 'No se pudo eliminar el cliente.');
     }
@@ -86,6 +91,7 @@ export const CustomersPage: React.FC = () => {
   };
 
   const handleModalSuccess = () => {
+    fetchCustomers();
     setIsModalOpen(false);
     setEditingCustomer(undefined);
   };
@@ -109,7 +115,7 @@ export const CustomersPage: React.FC = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-coffee-400" />
             <input
               type="text"
-              placeholder="Buscar por nombre, email, teléfono..."
+              placeholder="Buscar por nombre, email, teléfono, DNI..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 border border-coffee-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-coffee-400"
@@ -123,7 +129,7 @@ export const CustomersPage: React.FC = () => {
             <table className="min-w-full divide-y divide-coffee-200">
               <thead className="bg-coffee-50">
                 <tr>
-                  {['Código', 'Nombre', 'Teléfono', 'Email', 'F. Nacimiento', 'Total Compras', 'Estado', ''].map((h) => (
+                  {['Nombre', 'Teléfono', 'Email', 'DNI', 'F. Nacimiento', 'Puntos', 'Estado', ''].map((h) => (
                     <th
                       key={h}
                       className="px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider"
@@ -134,7 +140,9 @@ export const CustomersPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-coffee-100">
-                {filteredCustomers.length === 0 ? (
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
+                ) : filteredCustomers.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-6 py-10 text-center text-coffee-400">
                       No hay clientes registrados
@@ -148,50 +156,51 @@ export const CustomersPage: React.FC = () => {
                       onClick={() => openDetail(customer)}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="font-mono text-sm text-coffee-500">{customer.code}</span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <div className="h-8 w-8 rounded-full bg-coffee-100 flex items-center justify-center flex-shrink-0">
                             <User className="h-4 w-4 text-coffee-500" />
                           </div>
-                          <span className="font-medium text-coffee-900">{customer.name}</span>
+                          <span className="font-medium text-coffee-900">{customer.nombre}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-700">
                         <div className="flex items-center gap-1">
                           <Phone className="h-3.5 w-3.5 text-coffee-400" />
-                          {customer.phone}
+                          {customer.celular}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-600">
-                        {customer.email ? (
+                        {customer.correo ? (
                           <div className="flex items-center gap-1">
                             <Mail className="h-3.5 w-3.5 text-coffee-400" />
-                            {customer.email}
+                            {customer.correo}
                           </div>
                         ) : (
                           <span className="text-coffee-300">—</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-600">
-                        {customer.birthDate ? (
+                        {customer.dni || <span className="text-coffee-300">—</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-600">
+                        {customer.fecha_nacimiento ? (
                           <div className="flex items-center gap-1">
                             <Calendar className="h-3.5 w-3.5 text-coffee-400" />
-                            {formatDate(customer.birthDate)}
+                            {formatDate(customer.fecha_nacimiento)}
                           </div>
                         ) : (
                           <span className="text-coffee-300">—</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="font-semibold text-coffee-900">
-                          {formatCurrency(customer.totalPurchases)}
-                        </span>
+                        <div className="flex items-center gap-1">
+                          <Star className="h-3.5 w-3.5 text-amber-400" />
+                          <span className="font-semibold text-coffee-900">{customer.puntos}</span>
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant={customer.isActive ? 'success' : 'default'}>
-                          {customer.isActive ? 'Activo' : 'Inactivo'}
+                        <Badge variant={customer.estado ? 'success' : 'default'}>
+                          {customer.estado ? 'Activo' : 'Inactivo'}
                         </Badge>
                       </td>
                       <td
@@ -205,12 +214,14 @@ export const CustomersPage: React.FC = () => {
                           >
                             <Edit2 className="h-4 w-4" />
                           </button>
-                          <button
-                            onClick={() => openDelete(customer)}
-                            className="p-1.5 rounded-lg hover:bg-red-100 text-coffee-400 hover:text-red-500"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => openDelete(customer)}
+                              className="p-1.5 rounded-lg hover:bg-red-100 text-coffee-400 hover:text-red-500"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -229,11 +240,9 @@ export const CustomersPage: React.FC = () => {
           onSuccess={handleModalSuccess}
           onSave={async (input: CustomerInput, isEdit: boolean, customerId?: string) => {
             if (isEdit && customerId) {
-              const updated = await api.put<Customer>(`/clientes/${customerId}`, input);
-              setCustomers(prev => prev.map(c => c.id === customerId ? updated : c));
+              await api.put<Customer>(`/Cliente/${customerId}`, input);
             } else {
-              const created = await api.post<Customer>('/clientes', input);
-              setCustomers(prev => [...prev, created]);
+              await api.post<Customer>('/Cliente', input);
             }
           }}
         />
@@ -244,7 +253,7 @@ export const CustomersPage: React.FC = () => {
           onClose={() => setIsDeleteOpen(false)}
           onConfirm={handleDelete}
           title="Eliminar Cliente"
-          message={`¿Estás seguro de que deseas eliminar a "${deletingCustomer?.name}"? Esta acción no se puede deshacer.`}
+          message={`¿Estás seguro de que deseas eliminar a "${deletingCustomer?.nombre}"? Esta acción no se puede deshacer.`}
           confirmText="Eliminar"
           variant="danger"
         />
@@ -254,7 +263,7 @@ export const CustomersPage: React.FC = () => {
           <Modal
             isOpen={isDetailOpen}
             onClose={() => setIsDetailOpen(false)}
-            title={viewingCustomer.name}
+            title={viewingCustomer.nombre}
             size="md"
           >
             <div className="space-y-5">
@@ -263,10 +272,9 @@ export const CustomersPage: React.FC = () => {
                   <User className="h-8 w-8 text-coffee-500" />
                 </div>
                 <div>
-                  <p className="font-display font-bold text-coffee-900 text-lg">{viewingCustomer.name}</p>
-                  <p className="text-sm text-coffee-500">{viewingCustomer.code}</p>
-                  <Badge variant={viewingCustomer.isActive ? 'success' : 'default'} size="sm">
-                    {viewingCustomer.isActive ? 'Activo' : 'Inactivo'}
+                  <p className="font-display font-bold text-coffee-900 text-lg">{viewingCustomer.nombre}</p>
+                  <Badge variant={viewingCustomer.estado ? 'success' : 'default'} size="sm">
+                    {viewingCustomer.estado ? 'Activo' : 'Inactivo'}
                   </Badge>
                 </div>
               </div>
@@ -276,81 +284,50 @@ export const CustomersPage: React.FC = () => {
                   <p className="text-coffee-500 mb-0.5">Teléfono</p>
                   <p className="font-medium text-coffee-900 flex items-center gap-1">
                     <Phone className="h-3.5 w-3.5 text-coffee-400" />
-                    {viewingCustomer.phone}
+                    {viewingCustomer.celular}
                   </p>
                 </div>
-                {viewingCustomer.email && (
+                {viewingCustomer.correo && (
                   <div>
                     <p className="text-coffee-500 mb-0.5">Email</p>
                     <p className="font-medium text-coffee-900 flex items-center gap-1">
                       <Mail className="h-3.5 w-3.5 text-coffee-400" />
-                      {viewingCustomer.email}
+                      {viewingCustomer.correo}
                     </p>
                   </div>
                 )}
-                {viewingCustomer.ruc && (
+                {viewingCustomer.dni && (
                   <div>
-                    <p className="text-coffee-500 mb-0.5">RUC / DNI</p>
-                    <p className="font-medium text-coffee-900">{viewingCustomer.ruc}</p>
+                    <p className="text-coffee-500 mb-0.5">DNI</p>
+                    <p className="font-medium text-coffee-900">{viewingCustomer.dni}</p>
                   </div>
                 )}
-                {viewingCustomer.birthDate && (
+                {viewingCustomer.fecha_nacimiento && (
                   <div>
                     <p className="text-coffee-500 mb-0.5">Fecha de nacimiento</p>
                     <p className="font-medium text-coffee-900 flex items-center gap-1">
                       <Calendar className="h-3.5 w-3.5 text-coffee-400" />
-                      {formatDate(viewingCustomer.birthDate)}
+                      {formatDate(viewingCustomer.fecha_nacimiento)}
                     </p>
                   </div>
                 )}
-                {viewingCustomer.address && (
+                {viewingCustomer.direccion && (
                   <div className="col-span-2">
                     <p className="text-coffee-500 mb-0.5">Dirección</p>
-                    <p className="font-medium text-coffee-900">{viewingCustomer.address}</p>
+                    <p className="font-medium text-coffee-900">{viewingCustomer.direccion}</p>
                   </div>
                 )}
               </div>
 
               <div className="grid grid-cols-2 gap-4 bg-coffee-50 rounded-xl p-4">
                 <div>
-                  <p className="text-xs text-coffee-500 uppercase tracking-wider mb-1">Total Compras</p>
-                  <p className="text-xl font-display font-bold text-coffee-900">
-                    {formatCurrency(viewingCustomer.totalPurchases)}
+                  <p className="text-xs text-coffee-500 uppercase tracking-wider mb-1">Puntos acumulados</p>
+                  <p className="text-xl font-display font-bold text-coffee-900 flex items-center gap-1">
+                    <Star className="h-4 w-4 text-amber-400" />
+                    {viewingCustomer.puntos}
                   </p>
                 </div>
-                {viewingCustomer.creditLimit && viewingCustomer.creditLimit > 0 && (
-                  <div>
-                    <p className="text-xs text-coffee-500 uppercase tracking-wider mb-1">
-                      Crédito Disponible
-                    </p>
-                    <p className="text-xl font-display font-bold text-coffee-900">
-                      {formatCurrency(
-                        viewingCustomer.creditLimit - (viewingCustomer.currentCredit || 0)
-                      )}
-                    </p>
-                    <p className="text-xs text-coffee-400 flex items-center gap-1 mt-0.5">
-                      <CreditCard className="h-3 w-3" />
-                      Límite: {formatCurrency(viewingCustomer.creditLimit)}
-                    </p>
-                  </div>
-                )}
               </div>
-
-              {viewingCustomer.lastPurchaseDate && (
-                <p className="text-sm text-coffee-500">
-                  Última compra:{' '}
-                  <span className="font-medium text-coffee-700">
-                    {formatDate(viewingCustomer.lastPurchaseDate)}
-                  </span>
-                </p>
-              )}
-
-              {viewingCustomer.notes && (
-                <div className="bg-coffee-50 rounded-lg p-3">
-                  <p className="text-xs text-coffee-500 mb-1">Notas</p>
-                  <p className="text-sm text-coffee-700">{viewingCustomer.notes}</p>
-                </div>
-              )}
 
               <div className="flex justify-end gap-2 pt-2">
                 <Button
