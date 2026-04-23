@@ -127,11 +127,6 @@ const navItems: NavItem[] = [
     icon: <Settings className="h-5 w-5" />,
     path: '/settings',
     allowedRoles: [ADMIN],
-    children: [
-      { id: 'users', label: 'Usuarios', icon: null, path: '/settings/users' },
-      { id: 'roles', label: 'Roles', icon: null, path: '/settings/roles' },
-      { id: 'branches', label: 'Sucursales', icon: null, path: '/settings/branches' },
-    ],
   },
 ];
 

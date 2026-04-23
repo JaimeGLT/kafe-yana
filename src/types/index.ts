@@ -7,4 +7,5 @@ export * from './purchases';
 export * from './cash';
 export * from './settings';
 export * from './variations';
+export * from './reports';
 export * from './loyalty';

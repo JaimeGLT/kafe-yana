@@ -1,223 +1,43 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Settings, Users, Shield, Building2,
-  Plus, Edit2, Trash2, Eye, Check, X,
-} from 'lucide-react';
-import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
-import {
-  Button, Input, Select, Modal, ConfirmModal,
-  Badge, StatusBadge, Tabs, TabPanel,
-} from '../../components/ui';
+import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { MainLayout, PageHeader, PageContainer } from '../../components/layout';
+import { Button, Input, Select, Modal, ConfirmModal, StatusBadge } from '../../components/ui';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import type { User, Role, Branch, SystemSettings } from '../../types';
-// ─── Types ────────────────────────────────────────────────────────────────────
+import type { User } from '../../types';
 
 interface UserForm {
-  username: string;
+  nombre: string;
   email: string;
-  firstName: string;
-  lastName: string;
-  roleId: string;
-  branchId: string;
+  rol: string;
   isActive: boolean;
 }
 
-interface BranchForm {
-  code: string;
-  name: string;
-  address: string;
-  phone: string;
-  email: string;
-  isActive: boolean;
-}
+const ROLES = [
+  { value: 'admin', label: 'Administrador' },
+  { value: 'cajero', label: 'Cajero' },
+  { value: 'mesero', label: 'Mesero' },
+];
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
-
-const GeneralTab: React.FC = () => {
-  const [settings, setSettings] = useState<SystemSettings | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState<Partial<SystemSettings>>({});
-
-  useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const data = await api.get<SystemSettings>('/settings');
-        setSettings(data);
-        setForm({ ...data });
-      } catch (error) {
-        console.error('Error loading settings:', error);
-      }
-    };
-    fetchSettings();
-  }, []);
-
-  const handleSave = async () => {
-    try {
-      await api.put('/settings', form);
-      setSettings({ ...settings, ...form } as SystemSettings);
-      setEditing(false);
-      toast.success('Configuración guardada correctamente');
-    } catch (error) {
-      console.error('Error saving settings:', error);
-    }
-  };
-
-  const handleCancel = () => {
-    if (settings) {
-      setForm({ ...settings });
-    }
-    setEditing(false);
-  };
-
-  const Field: React.FC<{ label: string; value: string | number | undefined }> = ({ label, value }) => (
-    <div className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-coffee-500 uppercase tracking-wide">{label}</span>
-      <span className="text-sm text-coffee-900 font-medium">{value}</span>
-    </div>
-  );
-
-  if (!settings) {
-    return <div className="py-8 text-center text-coffee-500">Cargando...</div>;
-  }
-
-  return (
-    <div className="space-y-6">
-      <PageSection
-        title="Configuración General"
-        description="Información principal de la empresa y preferencias del sistema"
-        action={
-          !editing ? (
-            <Button size="sm" variant="outline" leftIcon={<Edit2 className="h-4 w-4" />} onClick={() => setEditing(true)}>
-              Editar
-            </Button>
-          ) : (
-            <div className="flex gap-2">
-              <Button size="sm" variant="ghost" leftIcon={<X className="h-4 w-4" />} onClick={handleCancel}>
-                Cancelar
-              </Button>
-              <Button size="sm" leftIcon={<Check className="h-4 w-4" />} onClick={handleSave}>
-                Guardar
-              </Button>
-            </div>
-          )
-        }
-      >
-        {!editing ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Field label="Nombre de la empresa" value={settings.companyName} />
-            <Field label="RUC" value={settings.companyRuc} />
-            <Field label="Dirección" value={settings.companyAddress} />
-            <Field label="Teléfono" value={settings.companyPhone} />
-            <Field label="Correo electrónico" value={settings.companyEmail} />
-            <Field label="Moneda" value={`${settings.currency} (${settings.currencySymbol})`} />
-            <Field label="Impuesto (%)" value={`${settings.taxPercentage}%`} />
-            <Field label="Prefijo de factura" value={settings.invoicePrefix} />
-            <Field label="Prefijo de cotización" value={settings.quotePrefix} />
-            <Field label="Prefijo de orden de compra" value={settings.purchaseOrderPrefix} />
-            <Field label="Días de crédito por defecto" value={`${settings.defaultPaymentTerms} días`} />
-            <Field label="Umbral de stock bajo" value={settings.lowStockThreshold} />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              label="Nombre de la empresa"
-              value={form.companyName}
-              onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))}
-            />
-            <Input
-              label="RUC"
-              value={form.companyRuc ?? ''}
-              onChange={e => setForm(f => ({ ...f, companyRuc: e.target.value }))}
-            />
-            <Input
-              label="Dirección"
-              value={form.companyAddress ?? ''}
-              onChange={e => setForm(f => ({ ...f, companyAddress: e.target.value }))}
-            />
-            <Input
-              label="Teléfono"
-              value={form.companyPhone ?? ''}
-              onChange={e => setForm(f => ({ ...f, companyPhone: e.target.value }))}
-            />
-            <Input
-              label="Correo electrónico"
-              type="email"
-              value={form.companyEmail ?? ''}
-              onChange={e => setForm(f => ({ ...f, companyEmail: e.target.value }))}
-            />
-            <Input
-              label="Impuesto (%)"
-              type="number"
-              value={form.taxPercentage}
-              onChange={e => setForm(f => ({ ...f, taxPercentage: Number(e.target.value) }))}
-            />
-            <Input
-              label="Prefijo de factura"
-              value={form.invoicePrefix}
-              onChange={e => setForm(f => ({ ...f, invoicePrefix: e.target.value }))}
-            />
-            <Input
-              label="Prefijo de cotización"
-              value={form.quotePrefix}
-              onChange={e => setForm(f => ({ ...f, quotePrefix: e.target.value }))}
-            />
-            <Input
-              label="Prefijo de orden de compra"
-              value={form.purchaseOrderPrefix}
-              onChange={e => setForm(f => ({ ...f, purchaseOrderPrefix: e.target.value }))}
-            />
-            <Input
-              label="Días de crédito por defecto"
-              type="number"
-              value={form.defaultPaymentTerms}
-              onChange={e => setForm(f => ({ ...f, defaultPaymentTerms: Number(e.target.value) }))}
-            />
-            <Input
-              label="Umbral de stock bajo"
-              type="number"
-              value={form.lowStockThreshold}
-              onChange={e => setForm(f => ({ ...f, lowStockThreshold: Number(e.target.value) }))}
-            />
-          </div>
-        )}
-      </PageSection>
-    </div>
-  );
-};
-
-// ─── Users Tab ────────────────────────────────────────────────────────────────
-
-const UsersTab: React.FC = () => {
+const SettingsPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchUsers = async () => {
       try {
-        const [usersData, rolesData, branchesData] = await Promise.all([
-          api.get<User[]>('/settings/users'),
-          api.get<Role[]>('/settings/roles'),
-          api.get<Branch[]>('/settings/branches'),
-        ]);
-        setUsers(usersData);
-        setRoles(rolesData);
-        setBranches(branchesData);
+        const data = await api.get<User[]>('/settings/users');
+        setUsers(data);
       } catch (error) {
-        console.error('Error loading users data:', error);
+        console.error('Error loading users:', error);
       } finally {
         setLoading(false);
       }
     };
-    fetchData();
+    fetchUsers();
   }, []);
 
-  const emptyForm: UserForm = {
-    username: '', email: '', firstName: '', lastName: '',
-    roleId: '', branchId: '', isActive: true,
-  };
+  const emptyForm: UserForm = { nombre: '', email: '', rol: '', isActive: true };
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -227,11 +47,9 @@ const UsersTab: React.FC = () => {
 
   const validate = (): boolean => {
     const e: Partial<UserForm> = {};
-    if (!form.username.trim()) e.username = 'Requerido';
+    if (!form.nombre.trim()) e.nombre = 'Requerido';
     if (!form.email.trim()) e.email = 'Requerido';
-    if (!form.firstName.trim()) e.firstName = 'Requerido';
-    if (!form.lastName.trim()) e.lastName = 'Requerido';
-    if (!form.roleId) e.roleId = 'Seleccione un rol';
+    if (!form.rol) e.rol = 'Seleccione un rol';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -246,13 +64,11 @@ const UsersTab: React.FC = () => {
   const openEdit = (userId: string) => {
     const user = users.find((u: User) => u.id === userId);
     if (!user) return;
+    const nombre = user.firstName || (user as any).nombre || '';
     setForm({
-      username: user.username,
+      nombre,
       email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      roleId: user.roleId,
-      branchId: user.branchId || '',
+      rol: (user as any).rol || user.roleId || '',
       isActive: user.isActive,
     });
     setEditingId(userId);
@@ -265,7 +81,7 @@ const UsersTab: React.FC = () => {
     try {
       if (editingId) {
         await api.put(`/settings/users/${editingId}`, form);
-        setUsers((prev) => prev.map((u: User) => u.id === editingId ? { ...u, ...form } as User : u));
+        setUsers((prev) => prev.map((u: User) => u.id === editingId ? { ...u, ...form, firstName: form.nombre } as User : u));
         toast.success('Usuario actualizado correctamente');
       } else {
         const newUser = await api.post<User>('/settings/users', form);
@@ -290,542 +106,149 @@ const UsersTab: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return <div className="py-8 text-center text-coffee-500">Cargando...</div>;
-  }
-
-  return (
-    <div className="space-y-6">
-      <PageSection
-        title="Usuarios del Sistema"
-        description="Gestión de cuentas de usuario y accesos"
-        action={
-          <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>
-            Nuevo Usuario
-          </Button>
-        }
-      >
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-coffee-100">
-                <th className="text-left py-3 px-4 font-semibold text-coffee-700">Usuario</th>
-                <th className="text-left py-3 px-4 font-semibold text-coffee-700">Nombre</th>
-                <th className="text-left py-3 px-4 font-semibold text-coffee-700">Email</th>
-                <th className="text-left py-3 px-4 font-semibold text-coffee-700">Rol</th>
-                <th className="text-left py-3 px-4 font-semibold text-coffee-700">Sucursal</th>
-                <th className="text-center py-3 px-4 font-semibold text-coffee-700">Estado</th>
-                <th className="text-center py-3 px-4 font-semibold text-coffee-700">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-8 text-coffee-400">No hay usuarios registrados</td>
-                </tr>
-              ) : (
-                users.map(u => (
-                  <tr key={u.id} className="border-b border-coffee-50 hover:bg-coffee-50 transition-colors">
-                    <td className="py-3 px-4 font-mono text-xs text-coffee-700">{u.username}</td>
-                    <td className="py-3 px-4 font-medium text-coffee-900">{u.firstName} {u.lastName}</td>
-                    <td className="py-3 px-4 text-coffee-600">{u.email}</td>
-                    <td className="py-3 px-4 text-coffee-600">{u.roleName || u.roleId}</td>
-                    <td className="py-3 px-4 text-coffee-600">{u.branchName || '—'}</td>
-                    <td className="py-3 px-4 text-center">
-                      <StatusBadge status={u.isActive ? 'active' : 'inactive'} />
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => openEdit(u.id)}
-                          className="p-1 text-coffee-500 hover:text-coffee-700 transition-colors"
-                          title="Editar"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => setDeleteId(u.id)}
-                          className="p-1 text-red-400 hover:text-red-600 transition-colors"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </PageSection>
-
-      {/* User Modal */}
-      <Modal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={editingId ? 'Editar Usuario' : 'Nuevo Usuario'}
-        size="lg"
-        footer={
-          <div className="flex justify-end gap-3">
-            <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSubmit}>{editingId ? 'Guardar Cambios' : 'Crear Usuario'}</Button>
-          </div>
-        }
-      >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Input
-            label="Nombre de usuario"
-            value={form.username}
-            onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-            error={errors.username}
-          />
-          <Input
-            label="Correo electrónico"
-            type="email"
-            value={form.email}
-            onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-            error={errors.email}
-          />
-          <Input
-            label="Nombres"
-            value={form.firstName}
-            onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
-            error={errors.firstName}
-          />
-          <Input
-            label="Apellidos"
-            value={form.lastName}
-            onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))}
-            error={errors.lastName}
-          />
-          <Select
-            label="Rol"
-            value={form.roleId}
-            onChange={v => setForm(f => ({ ...f, roleId: v }))}
-            options={roles.map(r => ({ value: r.id, label: r.name }))}
-            error={errors.roleId}
-          />
-          <Select
-            label="Sucursal"
-            value={form.branchId}
-            onChange={v => setForm(f => ({ ...f, branchId: v }))}
-            options={[
-              { value: '', label: 'Sin sucursal asignada' },
-              ...branches.map(b => ({ value: b.id, label: b.name })),
-            ]}
-          />
-          <div className="sm:col-span-2 flex items-center gap-3">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.isActive}
-                onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))}
-                className="h-4 w-4 text-coffee-500 focus:ring-coffee-500 border-coffee-300 rounded"
-              />
-              <span className="text-sm text-coffee-700">Usuario activo</span>
-            </label>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Delete Confirm */}
-      <ConfirmModal
-        isOpen={!!deleteId}
-        onClose={() => setDeleteId(null)}
-        onConfirm={handleDelete}
-        title="Eliminar Usuario"
-        message="¿Está seguro de que desea eliminar este usuario? Esta acción no se puede deshacer."
-        confirmText="Eliminar"
-        variant="danger"
-      />
-    </div>
-  );
-};
-
-// ─── Roles Tab ────────────────────────────────────────────────────────────────
-
-const RolesTab: React.FC = () => {
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [permissionsModal, setPermissionsModal] = useState<{ open: boolean; roleId: string | null }>({ open: false, roleId: null });
-
-  useEffect(() => {
-    const fetchRoles = async () => {
-      try {
-        const data = await api.get<Role[]>('/settings/roles');
-        setRoles(data);
-      } catch (error) {
-        console.error('Error loading roles:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchRoles();
-  }, []);
-
-  const selectedRole = roles.find((r: Role) => r.id === permissionsModal.roleId);
-
-  if (loading) {
-    return <div className="py-8 text-center text-coffee-500">Cargando...</div>;
-  }
-
-  return (
-    <div className="space-y-6">
-      <PageSection
-        title="Roles del Sistema"
-        description="Roles y permisos disponibles en el sistema"
-      >
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-coffee-100">
-                <th className="text-left py-3 px-4 font-semibold text-coffee-700">Nombre</th>
-                <th className="text-left py-3 px-4 font-semibold text-coffee-700">Descripción</th>
-                <th className="text-center py-3 px-4 font-semibold text-coffee-700">Permisos</th>
-                <th className="text-center py-3 px-4 font-semibold text-coffee-700">Sistema</th>
-                <th className="text-center py-3 px-4 font-semibold text-coffee-700">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {roles.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-8 text-coffee-400">No hay roles configurados</td>
-                </tr>
-              ) : (
-                roles.map(role => (
-                  <tr key={role.id} className="border-b border-coffee-50 hover:bg-coffee-50 transition-colors">
-                    <td className="py-3 px-4 font-medium text-coffee-900">{role.name}</td>
-                    <td className="py-3 px-4 text-coffee-600">{role.description || '—'}</td>
-                    <td className="py-3 px-4 text-center">
-                      <Badge variant="info">{role.permissions.length} permisos</Badge>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      {role.isSystem ? (
-                        <Badge variant="warning">Sistema</Badge>
-                      ) : (
-                        <Badge variant="default">Personalizado</Badge>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <button
-                        onClick={() => setPermissionsModal({ open: true, roleId: role.id })}
-                        className="p-1 text-coffee-500 hover:text-coffee-700 transition-colors"
-                        title="Ver permisos"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </PageSection>
-
-      {/* Permissions Modal */}
-      <Modal
-        isOpen={permissionsModal.open}
-        onClose={() => setPermissionsModal({ open: false, roleId: null })}
-        title={selectedRole ? `Permisos: ${selectedRole.name}` : 'Permisos'}
-        size="md"
-      >
-        {selectedRole && (
-          <div className="space-y-3">
-            <p className="text-sm text-coffee-600 mb-4">{selectedRole.description}</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto">
-              {selectedRole.permissions.map((perm, idx) => (
-                <div key={idx} className="flex items-center gap-2 py-1.5 px-3 bg-coffee-50 rounded-lg">
-                  <Check className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                  <span className="text-xs text-coffee-700 font-mono">{perm}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </Modal>
-    </div>
-  );
-};
-
-// ─── Branches Tab ─────────────────────────────────────────────────────────────
-
-const BranchesTab: React.FC = () => {
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchBranches = async () => {
-      try {
-        const data = await api.get<Branch[]>('/settings/branches');
-        setBranches(data);
-      } catch (error) {
-        console.error('Error loading branches:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchBranches();
-  }, []);
-
-  const emptyForm: BranchForm = {
-    code: '', name: '', address: '', phone: '', email: '', isActive: true,
-  };
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<BranchForm>(emptyForm);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [errors, setErrors] = useState<Partial<BranchForm>>({});
-
-  const validate = (): boolean => {
-    const e: Partial<BranchForm> = {};
-    if (!form.code.trim()) e.code = 'Requerido';
-    if (!form.name.trim()) e.name = 'Requerido';
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  const openCreate = () => {
-    setForm(emptyForm);
-    setEditingId(null);
-    setErrors({});
-    setModalOpen(true);
-  };
-
-  const openEdit = (branchId: string) => {
-    const branch = branches.find((b: Branch) => b.id === branchId);
-    if (!branch) return;
-    setForm({
-      code: branch.code,
-      name: branch.name,
-      address: branch.address || '',
-      phone: branch.phone || '',
-      email: branch.email || '',
-      isActive: branch.isActive,
-    });
-    setEditingId(branchId);
-    setErrors({});
-    setModalOpen(true);
-  };
-
-  const handleSubmit = async () => {
-    if (!validate()) return;
-    try {
-      if (editingId) {
-        await api.put(`/settings/branches/${editingId}`, form);
-        setBranches((prev) => prev.map((b: Branch) => b.id === editingId ? { ...b, ...form } as Branch : b));
-        toast.success('Sucursal actualizada correctamente');
-      } else {
-        const newBranch = await api.post<Branch>('/settings/branches', form);
-        setBranches((prev) => [...prev, newBranch]);
-        toast.success('Sucursal creada correctamente');
-      }
-      setModalOpen(false);
-    } catch (error) {
-      console.error('Error saving branch:', error);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!deleteId) return;
-    try {
-      await api.delete(`/settings/branches/${deleteId}`);
-      setBranches((prev) => prev.filter((b: Branch) => b.id !== deleteId));
-      setDeleteId(null);
-      toast.success('Sucursal eliminada');
-    } catch (error) {
-      console.error('Error deleting branch:', error);
-    }
+  const getRolLabel = (rol: string): string => {
+    const role = ROLES.find(r => r.value === rol);
+    return role ? role.label : rol;
   };
 
   if (loading) {
-    return <div className="py-8 text-center text-coffee-500">Cargando...</div>;
+    return (
+      <MainLayout>
+        <PageContainer>
+          <div className="py-8 text-center text-coffee-500">Cargando...</div>
+        </PageContainer>
+      </MainLayout>
+    );
   }
-
-  return (
-    <div className="space-y-6">
-      <PageSection
-        title="Sucursales"
-        description="Gestión de ubicaciones y puntos de venta"
-        action={
-          <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>
-            Nueva Sucursal
-          </Button>
-        }
-      >
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-coffee-100">
-                <th className="text-left py-3 px-4 font-semibold text-coffee-700">Código</th>
-                <th className="text-left py-3 px-4 font-semibold text-coffee-700">Nombre</th>
-                <th className="text-left py-3 px-4 font-semibold text-coffee-700">Dirección</th>
-                <th className="text-left py-3 px-4 font-semibold text-coffee-700">Teléfono</th>
-                <th className="text-left py-3 px-4 font-semibold text-coffee-700">Email</th>
-                <th className="text-center py-3 px-4 font-semibold text-coffee-700">Estado</th>
-                <th className="text-center py-3 px-4 font-semibold text-coffee-700">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {branches.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-8 text-coffee-400">No hay sucursales registradas</td>
-                </tr>
-              ) : (
-                branches.map(b => (
-                  <tr key={b.id} className="border-b border-coffee-50 hover:bg-coffee-50 transition-colors">
-                    <td className="py-3 px-4 font-mono text-xs text-coffee-600">{b.code}</td>
-                    <td className="py-3 px-4 font-medium text-coffee-900">{b.name}</td>
-                    <td className="py-3 px-4 text-coffee-600">{b.address || '—'}</td>
-                    <td className="py-3 px-4 text-coffee-600">{b.phone || '—'}</td>
-                    <td className="py-3 px-4 text-coffee-600">{b.email || '—'}</td>
-                    <td className="py-3 px-4 text-center">
-                      <StatusBadge status={b.isActive ? 'active' : 'inactive'} />
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => openEdit(b.id)}
-                          className="p-1 text-coffee-500 hover:text-coffee-700 transition-colors"
-                          title="Editar"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => setDeleteId(b.id)}
-                          className="p-1 text-red-400 hover:text-red-600 transition-colors"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </PageSection>
-
-      {/* Branch Modal */}
-      <Modal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={editingId ? 'Editar Sucursal' : 'Nueva Sucursal'}
-        size="lg"
-        footer={
-          <div className="flex justify-end gap-3">
-            <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSubmit}>{editingId ? 'Guardar Cambios' : 'Crear Sucursal'}</Button>
-          </div>
-        }
-      >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Input
-            label="Código"
-            value={form.code}
-            onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
-            error={errors.code}
-          />
-          <Input
-            label="Nombre"
-            value={form.name}
-            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            error={errors.name}
-          />
-          <Input
-            label="Dirección"
-            value={form.address}
-            onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
-          />
-          <Input
-            label="Teléfono"
-            value={form.phone}
-            onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-          />
-          <Input
-            label="Correo electrónico"
-            type="email"
-            value={form.email}
-            onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-          />
-          <div className="flex items-center gap-3 pt-6">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.isActive}
-                onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))}
-                className="h-4 w-4 text-coffee-500 focus:ring-coffee-500 border-coffee-300 rounded"
-              />
-              <span className="text-sm text-coffee-700">Sucursal activa</span>
-            </label>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Delete Confirm */}
-      <ConfirmModal
-        isOpen={!!deleteId}
-        onClose={() => setDeleteId(null)}
-        onConfirm={handleDelete}
-        title="Eliminar Sucursal"
-        message="¿Está seguro de que desea eliminar esta sucursal? Esta acción no se puede deshacer."
-        confirmText="Eliminar"
-        variant="danger"
-      />
-    </div>
-  );
-};
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
-
-const TABS = [
-  { id: 'general', label: 'General', icon: <Settings className="h-4 w-4" /> },
-  { id: 'usuarios', label: 'Usuarios', icon: <Users className="h-4 w-4" /> },
-  { id: 'roles', label: 'Roles', icon: <Shield className="h-4 w-4" /> },
-  { id: 'sucursales', label: 'Sucursales', icon: <Building2 className="h-4 w-4" /> },
-];
-
-const SettingsPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('general');
 
   return (
     <MainLayout>
       <PageContainer>
         <PageHeader
           title="Configuración"
-          subtitle="Administra los parámetros del sistema, usuarios, roles y sucursales"
+          subtitle="Gestión de usuarios del sistema"
           breadcrumbs={[{ label: 'Configuración' }]}
         />
 
         <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
-          <div className="border-b border-coffee-100 px-6 pt-4">
-            <Tabs
-              tabs={TABS}
-              activeTab={activeTab}
-              onChange={setActiveTab}
-              variant="default"
-            />
-          </div>
-
           <div className="p-6">
-            <TabPanel isActive={activeTab === 'general'}>
-              <GeneralTab />
-            </TabPanel>
-            <TabPanel isActive={activeTab === 'usuarios'}>
-              <UsersTab />
-            </TabPanel>
-            <TabPanel isActive={activeTab === 'roles'}>
-              <RolesTab />
-            </TabPanel>
-            <TabPanel isActive={activeTab === 'sucursales'}>
-              <BranchesTab />
-            </TabPanel>
+            <div className="flex justify-end mb-6">
+              <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>
+                Agregar Usuario
+              </Button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-coffee-100">
+                    <th className="text-left py-3 px-4 font-semibold text-coffee-700">Nombre</th>
+                    <th className="text-left py-3 px-4 font-semibold text-coffee-700">Email</th>
+                    <th className="text-left py-3 px-4 font-semibold text-coffee-700">Rol</th>
+                    <th className="text-center py-3 px-4 font-semibold text-coffee-700">Estado</th>
+                    <th className="text-center py-3 px-4 font-semibold text-coffee-700">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="text-center py-8 text-coffee-400">No hay usuarios registrados</td>
+                    </tr>
+                  ) : (
+                    users.map(u => (
+                      <tr key={u.id} className="border-b border-coffee-50 hover:bg-coffee-50 transition-colors">
+                        <td className="py-3 px-4 font-medium text-coffee-900">{u.firstName || (u as any).nombre}</td>
+                        <td className="py-3 px-4 text-coffee-600">{u.email}</td>
+                        <td className="py-3 px-4 text-coffee-600">{getRolLabel((u as any).rol || u.roleId || '')}</td>
+                        <td className="py-3 px-4 text-center">
+                          <StatusBadge status={u.isActive ? 'active' : 'inactive'} />
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => openEdit(u.id)}
+                              className="p-1.5 text-coffee-500 hover:text-coffee-700 hover:bg-coffee-100 rounded transition-colors"
+                              title="Editar"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => setDeleteId(u.id)}
+                              className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                              title="Eliminar"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
+
+        <Modal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          title={editingId ? 'Editar Usuario' : 'Agregar Usuario'}
+          size="md"
+          footer={
+            <div className="flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
+              <Button onClick={handleSubmit}>{editingId ? 'Guardar Cambios' : 'Crear Usuario'}</Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <Input
+              label="Nombre"
+              value={form.nombre}
+              onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
+              error={errors.nombre}
+            />
+            <Input
+              label="Email"
+              type="email"
+              value={form.email}
+              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              error={errors.email}
+            />
+            <Select
+              label="Rol"
+              value={form.rol}
+              onChange={v => setForm(f => ({ ...f, rol: v }))}
+              options={ROLES}
+              error={errors.rol}
+            />
+            <div className="flex items-center gap-3 pt-2">
+              <span className="text-sm text-coffee-700">Estado</span>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.isActive}
+                  onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-coffee-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-4 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cafe-500"></div>
+              </label>
+              <span className="text-sm text-coffee-600">{form.isActive ? 'Activo' : 'Inactivo (sin acceso)'}</span>
+            </div>
+            <p className="text-xs text-coffee-400">Si está inactivo, el usuario no podrá iniciar sesión.</p>
+          </div>
+        </Modal>
+
+        <ConfirmModal
+          isOpen={!!deleteId}
+          onClose={() => setDeleteId(null)}
+          onConfirm={handleDelete}
+          title="Eliminar Usuario"
+          message="¿Está seguro de que desea eliminar este usuario? Esta acción no se puede deshacer."
+          confirmText="Eliminar"
+          variant="danger"
+        />
       </PageContainer>
     </MainLayout>
   );

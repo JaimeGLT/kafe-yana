@@ -11,11 +11,11 @@ import { MainLayout } from '../../components/layout';
 import { toast } from '../../components/ui/Toast';
 import { SearchableSelect } from '../../components/ui/Select';
 import { formatDateTime } from '../../utils/formatters';
-import type { LoyaltyProfile, LoyaltyLevel, MilestoneReward, MilestoneVoucher, LoyaltyTransaction, Reward, Mission, Promotion } from '../../types/loyalty';
+import type { LoyaltyProfile, LoyaltyLevel, MilestoneReward, MilestoneVoucher, LoyaltyTransaction, Reward, Mission, Promotion, PermanentPromotion, ConditionType, RewardType } from '../../types/loyalty';
 import type { Customer } from '../../types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type TabId = 'recompensas' | 'promos' | 'misiones' | 'historial' | 'config';
+type TabId = 'recompensas' | 'promos' | 'promos_permanentes' | 'misiones' | 'historial' | 'config';
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 const MOCK_CUSTOMERS: Customer[] = [
@@ -95,6 +95,12 @@ const MOCK_PROMOTIONS: Promotion[] = [
   // Julio
   { id: 'promo9', name: 'Combo de Invierno', description: 'Combo bebida caliente + postre con descuento especial.', icon: '🥐', type: 'canje_puntos', pointsCost: 45, month: 7, startDate: '2026-07-01', endDate: '2026-07-31', isActive: false },
   { id: 'promo10', name: 'x3 en Almuerzos', description: 'Los almuerzos completos acumulan puntos triplicados en julio.', icon: '✨', type: 'puntos_dobles_categoria', category: 'Almuerzos', multiplier: 3, month: 7, startDate: '2026-07-01', endDate: '2026-07-31', isActive: false },
+];
+
+const MOCK_PERMANENT_PROMOTIONS: PermanentPromotion[] = [
+  { id: 'perm1', name: 'Café de Regalo', description: 'Compra 10 cafés y recibe 1 gratis', isActive: true, conditionType: 'n_purchases', conditionValue: 10, rewardType: 'free_product', rewardValue: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'perm2', name: 'Referido Exitoso', description: 'Refiere a un amigo y ambos reciben 50 puntos extra', isActive: true, conditionType: 'referral', conditionValue: 1, rewardType: 'extra_points', rewardValue: 50, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'perm3', name: 'Descuento Grupal', description: 'Grupos de 4+ personas reciben 10% de descuento', isActive: false, conditionType: 'min_amount', conditionValue: 4, rewardType: 'discount', rewardValue: 10, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
 ];
 
 // ─── Level config ─────────────────────────────────────────────────────────────
@@ -458,6 +464,173 @@ const AdjustModal: React.FC<AdjustModalProps> = ({ customerName, currentPoints, 
   );
 };
 
+interface PermanentPromotionModalProps {
+  promo: PermanentPromotion | null;
+  onSave: (promo: PermanentPromotion) => void;
+  onClose: () => void;
+}
+
+const PermanentPromotionModal: React.FC<PermanentPromotionModalProps> = ({ promo, onSave, onClose }) => {
+  const [name, setName] = useState(promo?.name ?? '');
+  const [description, setDescription] = useState(promo?.description ?? '');
+  const [conditionType, setConditionType] = useState<ConditionType>(promo?.conditionType ?? 'n_purchases');
+  const [conditionValue, setConditionValue] = useState(promo?.conditionValue ?? 1);
+  const [rewardType, setRewardType] = useState<RewardType>(promo?.rewardType ?? 'extra_points');
+  const [rewardValue, setRewardValue] = useState(promo?.rewardValue ?? 1);
+  const [isActive, setIsActive] = useState(promo?.isActive ?? true);
+
+  const handleSubmit = () => {
+    if (!name.trim() || !description.trim()) return;
+    onSave({
+      id: promo?.id ?? '',
+      name: name.trim(),
+      description: description.trim(),
+      conditionType,
+      conditionValue,
+      rewardType,
+      rewardValue,
+      isActive,
+      createdAt: promo?.createdAt ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  const CONDITION_OPTIONS: { value: ConditionType; label: string }[] = [
+    { value: 'n_purchases', label: 'N compras' },
+    { value: 'min_amount', label: 'Monto mínimo' },
+    { value: 'referral', label: 'Referidos' },
+    { value: 'combo_specific', label: 'Combo específico' },
+  ];
+
+  const REWARD_OPTIONS: { value: RewardType; label: string }[] = [
+    { value: 'extra_points', label: 'Puntos extra' },
+    { value: 'free_product', label: 'Producto gratis' },
+    { value: 'discount', label: 'Descuento (%)' },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+        <h3 className="font-display font-bold text-xl text-coffee-900 mb-1">
+          {promo ? 'Editar' : 'Nueva'} Promoción Permanente
+        </h3>
+        <p className="text-sm font-body text-coffee-500 mb-5">
+          Configura la condición y recompensa de la promoción
+        </p>
+
+        <div className="space-y-4 mb-5">
+          <div>
+            <label className="block text-xs font-body font-medium text-coffee-600 mb-1">Nombre</label>
+            <input
+              type="text"
+              placeholder="Ej: Café de Regalo"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl border border-coffee-200 text-coffee-900 text-sm font-body focus:outline-none focus:ring-2 focus:ring-coffee-400 placeholder-coffee-300"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-body font-medium text-coffee-600 mb-1">Descripción</label>
+            <textarea
+              placeholder="Ej: Compra 10 cafés y recibe 1 gratis"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              rows={2}
+              className="w-full px-4 py-2.5 rounded-xl border border-coffee-200 text-coffee-900 text-sm font-body focus:outline-none focus:ring-2 focus:ring-coffee-400 placeholder-coffee-300 resize-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-body font-medium text-coffee-600 mb-1">Tipo de condición</label>
+              <select
+                value={conditionType}
+                onChange={e => setConditionType(e.target.value as ConditionType)}
+                className="w-full px-4 py-2.5 rounded-xl border border-coffee-200 text-coffee-900 text-sm font-body focus:outline-none focus:ring-2 focus:ring-coffee-400"
+              >
+                {CONDITION_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-body font-medium text-coffee-600 mb-1">Valor de condición</label>
+              <input
+                type="number"
+                min={1}
+                value={conditionValue}
+                onChange={e => setConditionValue(parseInt(e.target.value) || 1)}
+                className="w-full px-4 py-2.5 rounded-xl border border-coffee-200 text-coffee-900 text-sm font-body focus:outline-none focus:ring-2 focus:ring-coffee-400"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-body font-medium text-coffee-600 mb-1">Tipo de recompensa</label>
+              <select
+                value={rewardType}
+                onChange={e => setRewardType(e.target.value as RewardType)}
+                className="w-full px-4 py-2.5 rounded-xl border border-coffee-200 text-coffee-900 text-sm font-body focus:outline-none focus:ring-2 focus:ring-coffee-400"
+              >
+                {REWARD_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-body font-medium text-coffee-600 mb-1">Valor de recompensa</label>
+              <input
+                type="number"
+                min={1}
+                value={rewardValue}
+                onChange={e => setRewardValue(parseInt(e.target.value) || 1)}
+                className="w-full px-4 py-2.5 rounded-xl border border-coffee-200 text-coffee-900 text-sm font-body focus:outline-none focus:ring-2 focus:ring-coffee-400"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-body text-coffee-700">Activo / Inactivo</span>
+            <button
+              onClick={() => setIsActive(!isActive)}
+              className={clsx(
+                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none',
+                isActive ? 'bg-green-400' : 'bg-gray-200',
+              )}
+            >
+              <span className={clsx(
+                'inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200',
+                isActive ? 'translate-x-6' : 'translate-x-1',
+              )} />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-coffee-200 text-coffee-600 text-sm font-body font-medium hover:bg-coffee-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!name.trim() || !description.trim()}
+            className="flex-1 py-2.5 rounded-xl bg-coffee-500 text-white text-sm font-body font-medium hover:bg-coffee-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            {promo ? 'Guardar Cambios' : 'Crear'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export const FidelizacionPage: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -468,6 +641,7 @@ export const FidelizacionPage: React.FC = () => {
   const [milestones, setMilestones] = useState<MilestoneReward[]>([]);
   const [vouchers, setVouchers] = useState<MilestoneVoucher[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [permanentPromotions, setPermanentPromotions] = useState<PermanentPromotion[]>([]);
   const [activePromoMonth, setActivePromoMonth] = useState<number>(new Date().getMonth() + 1);
   const [_loading, setLoading] = useState(true);
 
@@ -475,6 +649,8 @@ export const FidelizacionPage: React.FC = () => {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('recompensas');
   const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [showPromoModal, setShowPromoModal] = useState(false);
+  const [editingPromo, setEditingPromo] = useState<PermanentPromotion | null>(null);
 
   // Load mock data
   useEffect(() => {
@@ -486,6 +662,7 @@ export const FidelizacionPage: React.FC = () => {
     setMilestones(MOCK_MILESTONES);
     setVouchers(MOCK_VOUCHERS);
     setPromotions(MOCK_PROMOTIONS);
+    setPermanentPromotions(MOCK_PERMANENT_PROMOTIONS);
     setLoading(false);
   }, []);
 
@@ -680,6 +857,29 @@ export const FidelizacionPage: React.FC = () => {
     ));
   };
 
+  const handleTogglePermanentPromo = (promoId: string) => {
+    setPermanentPromotions(prev => prev.map(p =>
+      p.id === promoId ? { ...p, isActive: !p.isActive } : p
+    ));
+  };
+
+  const handleOpenPromoModal = (promo?: PermanentPromotion) => {
+    setEditingPromo(promo ?? null);
+    setShowPromoModal(true);
+  };
+
+  const handleSavePromo = (promo: PermanentPromotion) => {
+    if (editingPromo) {
+      setPermanentPromotions(prev => prev.map(p => p.id === promo.id ? promo : p));
+      toast.success('Promoción actualizada', promo.name);
+    } else {
+      setPermanentPromotions(prev => [...prev, { ...promo, id: `perm-${Date.now()}` }]);
+      toast.success('Promoción creada', promo.name);
+    }
+    setShowPromoModal(false);
+    setEditingPromo(null);
+  };
+
   const promoMonths = useMemo(() => {
     const months = [...new Set(promotions.map(p => p.month))].sort((a, b) => a - b);
     // Reorder starting from current month
@@ -717,6 +917,7 @@ export const FidelizacionPage: React.FC = () => {
   const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
     { id: 'recompensas', label: 'Recompensas Diarias', icon: <Gift className="w-4 h-4" /> },
     { id: 'promos', label: 'Promos del Mes', icon: <Calendar className="w-4 h-4" /> },
+    { id: 'promos_permanentes', label: 'Promos Permanentes', icon: <Zap className="w-4 h-4" /> },
     { id: 'misiones', label: 'Misiones Yana', icon: <Target className="w-4 h-4" /> },
     { id: 'historial', label: 'Historial', icon: <Clock className="w-4 h-4" /> },
     { id: 'config', label: 'Configuración', icon: <Settings className="w-4 h-4" /> },
@@ -1230,6 +1431,124 @@ export const FidelizacionPage: React.FC = () => {
             </div>
           )}
 
+          {/* ── TAB: Promos Permanentes ───────────────────────────────────────── */}
+          {activeTab === 'promos_permanentes' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-display font-bold text-coffee-900 text-base">Promociones Permanentes</h3>
+                  <p className="text-xs font-body text-coffee-400 mt-0.5">Aceleradores de comportamiento. Siempre activos (puedes desactivarlos).</p>
+                </div>
+                <button
+                  onClick={() => handleOpenPromoModal()}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-coffee-500 text-white text-sm font-body font-semibold hover:bg-coffee-600 transition-colors shadow-coffee"
+                >
+                  <Plus className="w-4 h-4" />
+                  Nueva Promo
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {permanentPromotions.map(promo => {
+                  const conditionLabels: Record<ConditionType, string> = {
+                    n_purchases: `Compra ${promo.conditionValue} veces`,
+                    min_amount: `Monto mínimo Bs. ${promo.conditionValue}`,
+                    referral: `${promo.conditionValue} referido(s)`,
+                    combo_specific: `Combo específico`,
+                  };
+                  const rewardLabels: Record<RewardType, string> = {
+                    free_product: `${promo.rewardValue} producto(s) gratis`,
+                    extra_points: `${promo.rewardValue} pts extra`,
+                    discount: `${promo.rewardValue}% descuento`,
+                  };
+
+                  return (
+                    <div
+                      key={promo.id}
+                      className={clsx(
+                        'bg-white rounded-2xl border transition-all duration-200',
+                        promo.isActive ? 'border-coffee-200 shadow-coffee' : 'border-coffee-100 opacity-70',
+                      )}
+                    >
+                      <div className="p-4 flex items-start gap-4">
+                        <div className={clsx(
+                          'w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0',
+                          promo.isActive ? 'bg-coffee-100' : 'bg-gray-100',
+                        )}>
+                          {promo.conditionType === 'n_purchases' ? '☕' :
+                           promo.conditionType === 'referral' ? '👥' :
+                           promo.conditionType === 'min_amount' ? '💰' : '🎯'}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start gap-2 flex-wrap mb-1">
+                            <span className="font-display font-bold text-coffee-900">{promo.name}</span>
+                            <span className={clsx(
+                              'flex items-center gap-1 text-xs font-body font-bold px-2 py-0.5 rounded-full',
+                              promo.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500',
+                            )}>
+                              {promo.isActive ? 'Activa' : 'Inactiva'}
+                            </span>
+                          </div>
+                          <p className="text-xs font-body text-coffee-500 mb-2">{promo.description}</p>
+                          <div className="flex flex-wrap gap-3 text-xs font-body">
+                            <span className="flex items-center gap-1">
+                              <Target className="w-3.5 h-3.5 text-coffee-400" />
+                              <span className="text-coffee-600 font-medium">Condición:</span>
+                              <span className="text-coffee-500">{conditionLabels[promo.conditionType]}</span>
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Gift className="w-3.5 h-3.5 text-coffee-400" />
+                              <span className="text-coffee-600 font-medium">Recompensa:</span>
+                              <span className="text-coffee-500">{rewardLabels[promo.rewardType]}</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col items-end gap-3 flex-shrink-0">
+                          <button
+                            onClick={() => handleTogglePermanentPromo(promo.id)}
+                            className={clsx(
+                              'relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none',
+                              promo.isActive ? 'bg-green-400' : 'bg-gray-200',
+                            )}
+                          >
+                            <span className={clsx(
+                              'inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200',
+                              promo.isActive ? 'translate-x-6' : 'translate-x-1',
+                            )} />
+                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleOpenPromoModal(promo)}
+                              className="p-1.5 rounded-lg bg-coffee-50 text-coffee-600 hover:bg-coffee-100 transition-colors"
+                              title="Editar"
+                            >
+                              <Settings className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {permanentPromotions.length === 0 && (
+                  <div className="text-center py-10 bg-coffee-50 rounded-2xl border border-dashed border-coffee-200">
+                    <Zap className="w-8 h-8 text-coffee-200 mx-auto mb-2" />
+                    <p className="text-sm font-body text-coffee-400">Sin promociones permanentes aún</p>
+                    <button
+                      onClick={() => handleOpenPromoModal()}
+                      className="mt-3 text-sm font-body font-semibold text-coffee-600 hover:text-coffee-700"
+                    >
+                      Crear la primera
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ── TAB: Misiones Yana ───────────────────────────────────────────── */}
           {activeTab === 'misiones' && (
             <div className="space-y-5">
@@ -1688,6 +2007,15 @@ export const FidelizacionPage: React.FC = () => {
           currentPoints={selectedProfile.points}
           onConfirm={handleAdjust}
           onClose={() => setShowAdjustModal(false)}
+        />
+      )}
+
+      {/* ── Promotion Modal ──────────────────────────────────────────────── */}
+      {showPromoModal && (
+        <PermanentPromotionModal
+          promo={editingPromo}
+          onSave={handleSavePromo}
+          onClose={() => { setShowPromoModal(false); setEditingPromo(null); }}
         />
       )}
     </MainLayout>

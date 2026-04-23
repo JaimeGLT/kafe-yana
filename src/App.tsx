@@ -10,10 +10,14 @@ import { SalesListPage } from './pages/sales/SalesListPage';
 import { POSPage } from './pages/sales/POSPage';
 import { CustomersPage } from './pages/sales/CustomersPage';
 import { FidelizacionPage } from './pages/sales/FidelizacionPage';
+import { PromocionesPermanentesPage } from './pages/sales/PromocionesPermanentesPage';
+import { PromocionesTemporadaPage } from './pages/sales/PromocionesTemporadaPage';
+import { HitosPage } from './pages/sales/HitosPage';
+import { SorteosPage } from './pages/sales/SorteosPage';
+import { ReferidosPage } from './pages/sales/ReferidosPage';
 import { ConfiguracionPuntosPage } from './pages/sales/ConfiguracionPuntosPage';
 import { ProductosCanjeablesPage } from './pages/sales/ProductosCanjeablesPage';
 import { NotificacionesPage } from './pages/sales/NotificacionesPage';
-import { FidelizacionProximamentePage } from './pages/sales/FidelizacionProximamentePage';
 import { PurchaseOrdersPage } from './pages/purchases/PurchaseOrdersPage';
 import { SuppliersPage } from './pages/purchases/SuppliersPage';
 import { CashRegisterPage } from './pages/cash/CashRegisterPage';
@@ -73,11 +77,11 @@ function App() {
                 <Route path="/sales/fidelizacion/config"                   element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><ConfiguracionPuntosPage /></ProtectedRoute>} />
                 <Route path="/sales/fidelizacion/productos"                element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><ProductosCanjeablesPage /></ProtectedRoute>} />
                 <Route path="/sales/fidelizacion/notificaciones"           element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><NotificacionesPage /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/promociones-permanentes"  element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><FidelizacionProximamentePage title="Promociones permanentes" subtitle="Reglas de puntos activas todo el año" /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/promociones-temporada"    element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><FidelizacionProximamentePage title="Promociones de temporada" subtitle="Campañas especiales por fechas o meses" /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/hitos"                    element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><FidelizacionProximamentePage title="Hitos por compra" subtitle="Recompensas automáticas al alcanzar cierto número de compras" /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/sorteos"                  element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><FidelizacionProximamentePage title="Sorteos" subtitle="Crea sorteos entre clientes con puntos acumulados" /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/referidos"                element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><FidelizacionProximamentePage title="Referidos" subtitle="Premia a clientes que traen nuevos clientes al programa" /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/promociones-permanentes"  element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><PromocionesPermanentesPage /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/promociones-temporada"    element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><PromocionesTemporadaPage /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/hitos"                    element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><HitosPage /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/sorteos"                  element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><SorteosPage /></ProtectedRoute>} />
+                <Route path="/sales/fidelizacion/referidos"                element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><ReferidosPage /></ProtectedRoute>} />
 
                 {/* Purchases — solo admin */}
                 <Route path="/purchases/orders"    element={<ProtectedRoute allowedRoles={[ADMIN]}><PurchaseOrdersPage /></ProtectedRoute>} />

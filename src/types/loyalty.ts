@@ -103,6 +103,23 @@ export interface PointsCalculation {
   isGroupPurchase: boolean;
 }
 
+export type ConditionType = 'n_purchases' | 'min_amount' | 'referral' | 'combo_specific';
+export type RewardType = 'free_product' | 'extra_points' | 'discount';
+
+export interface PermanentPromotion {
+  id: string;
+  name: string;
+  description: string;
+  isActive: boolean;
+  conditionType: ConditionType;
+  conditionValue: number;
+  rewardType: RewardType;
+  rewardValue: number;
+  productId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface LoyaltyStoreState {
   profiles: LoyaltyProfile[];
   transactions: LoyaltyTransaction[];
