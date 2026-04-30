@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Plus, Edit2, Trash2, Search, Layers, Tag,
   TrendingUp, AlertTriangle, CheckCircle2, XCircle,
@@ -10,7 +10,7 @@ import { Button, ConfirmModal, Input, Select } from '../../components/ui';
 import { ComboModal } from '../../components/modals/ComboModal';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import { useCombosData } from '../../hooks/useCombosData';
+import { useFullInventory } from '../../contexts';
 import type { Combo, Product, Receta } from '../../types';
 import { formatCurrency } from '../../utils';
 
@@ -196,8 +196,7 @@ const ComboCard: React.FC<ComboCardProps> = ({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const CombosPage: React.FC = () => {
-  // ── Datos desde el hook ──
-  const { combos, products: allProducts, recetas, isLoading, loadData } = useCombosData();
+  const { combos, products: allProducts, recetas, isLoading, refresh } = useFullInventory();
   // ── Estado de UI ──
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -205,10 +204,6 @@ const CombosPage: React.FC = () => {
   const [editing, setEditing] = useState<Combo | undefined>(undefined);
   const [deleting, setDeleting] = useState<Combo | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  useEffect(() => {
-    loadData().catch(() => toast.error('Error', 'No se pudieron cargar los combos.'));
-  }, [loadData]);
 
   // ── Derivados ──
   const activeCombos = useMemo(() => combos.filter((c) => c.isActive), [combos]);
@@ -256,7 +251,7 @@ const CombosPage: React.FC = () => {
       await api.delete(`/Producto/${deleting.id}`);
       toast.success('Combo eliminado', `"${deleting.name}" fue eliminado.`);
       setDeleting(null);
-      await loadData();
+      await refresh();
     } catch {
       toast.error('Error', 'No se pudo eliminar el combo.');
     } finally {
@@ -415,7 +410,7 @@ const CombosPage: React.FC = () => {
         onClose={handleModalClose}
         combo={editing}
         products={allProducts}
-        onSuccess={() => loadData()}
+        onSuccess={() => refresh()}
         recetas={[]}
       />
 

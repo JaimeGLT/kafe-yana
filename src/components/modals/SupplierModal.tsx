@@ -16,12 +16,12 @@ interface SupplierModalProps {
 }
 
 interface SupplierFormData {
-  name: string;
-  ruc: string;
-  phone: string;
-  mobile: string;
+  razon_Social: string;
+  dni: string;
+  telefono: string;
+  celular: string;
   email: string;
-  address: string;
+  direccion: string;
 }
 
 export const SupplierModal: React.FC<SupplierModalProps> = ({
@@ -35,23 +35,23 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
   const [errors, setErrors] = React.useState<Record<string, string>>({});
 
   const [formData, setFormData] = React.useState<SupplierFormData>({
-    name: supplier?.name || '',
-    ruc: supplier?.ruc || '',
-    phone: supplier?.phone || '',
-    mobile: supplier?.mobile || '',
+    razon_Social: supplier?.razon_Social || '',
+    dni: supplier?.dni || '',
+    telefono: supplier?.telefono || '',
+    celular: supplier?.celular || '',
     email: supplier?.email || '',
-    address: supplier?.address || '',
+    direccion: supplier?.direccion || '',
   });
 
   React.useEffect(() => {
     if (isOpen) {
       setFormData({
-        name: supplier?.name || '',
-        ruc: supplier?.ruc || '',
-        phone: supplier?.phone || '',
-        mobile: supplier?.mobile || '',
+        razon_Social: supplier?.razon_Social || '',
+        dni: supplier?.dni || '',
+        telefono: supplier?.telefono || '',
+        celular: supplier?.celular || '',
         email: supplier?.email || '',
-        address: supplier?.address || '',
+        direccion: supplier?.direccion || '',
       });
       setErrors({});
     }
@@ -64,8 +64,8 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (!formData.name.trim()) newErrors.name = 'La razón social es requerida';
-    if (!formData.phone.trim()) newErrors.phone = 'El teléfono es requerido';
+    if (!formData.razon_Social.trim()) newErrors.razon_Social = 'La razón social es requerida';
+    if (!formData.telefono.trim()) newErrors.telefono = 'El teléfono es requerido';
     if (formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim()))
       newErrors.email = 'El correo electrónico no es válido';
     setErrors(newErrors);
@@ -79,27 +79,22 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
     setIsLoading(true);
     try {
       const input: SupplierInput = {
-        name: formData.name.trim(),
-        ruc: formData.ruc.trim() || undefined,
-        phone: formData.phone.trim(),
-        mobile: formData.mobile.trim() || undefined,
+        razon_Social: formData.razon_Social.trim(),
+        telefono: formData.telefono.trim(),
+        dni: formData.dni.trim() || undefined,
+        celular: formData.celular.trim() || undefined,
         email: formData.email.trim() || undefined,
-        address: formData.address.trim() || undefined,
-        isActive: true,
+        direccion: formData.direccion.trim() || undefined,
       };
 
       if (onSave) {
         onSave(input, !!supplier, supplier?.id);
       } else if (supplier) {
-        await api.put(`/Supplier/${supplier.id}`, input);
+        await api.put(`/Proveedor/${supplier.id}`, input);
       } else {
-        await api.post('/Supplier', input);
+        await api.post('/Proveedor', input);
       }
 
-      toast.success(
-        supplier ? 'Proveedor actualizado' : 'Proveedor creado',
-        supplier ? `${input.name} fue actualizado.` : `${input.name} fue registrado.`
-      );
       onSuccess();
       onClose();
     } catch {
@@ -117,36 +112,36 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
       size="md"
     >
       <Form onSubmit={handleSubmit}>
-        <FormField label="Razón Social" required error={errors.name}>
+        <FormField label="Razón Social" required error={errors.razon_Social}>
           <Input
-            value={formData.name}
-            onChange={(e) => handleChange('name', e.target.value)}
+            value={formData.razon_Social}
+            onChange={(e) => handleChange('razon_Social', e.target.value)}
             placeholder="Nombre o razón social del proveedor"
           />
         </FormField>
 
         <FormField label="N° Documento (RUC / DNI)">
           <Input
-            value={formData.ruc}
-            onChange={(e) => handleChange('ruc', e.target.value)}
+            value={formData.dni}
+            onChange={(e) => handleChange('dni', e.target.value)}
             placeholder="Ej: 20123456789"
           />
         </FormField>
 
         <FormRow>
-          <FormField label="Teléfono" required error={errors.phone}>
+          <FormField label="Teléfono" required error={errors.telefono}>
             <Input
               type="tel"
-              value={formData.phone}
-              onChange={(e) => handleChange('phone', e.target.value)}
+              value={formData.telefono}
+              onChange={(e) => handleChange('telefono', e.target.value)}
               placeholder="Ej: 01 234 5678"
             />
           </FormField>
           <FormField label="Celular">
             <Input
               type="tel"
-              value={formData.mobile}
-              onChange={(e) => handleChange('mobile', e.target.value)}
+              value={formData.celular}
+              onChange={(e) => handleChange('celular', e.target.value)}
               placeholder="Ej: 987 654 321"
             />
           </FormField>
@@ -163,8 +158,8 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
 
         <FormField label="Dirección">
           <Input
-            value={formData.address}
-            onChange={(e) => handleChange('address', e.target.value)}
+            value={formData.direccion}
+            onChange={(e) => handleChange('direccion', e.target.value)}
             placeholder="Dirección del proveedor"
           />
         </FormField>

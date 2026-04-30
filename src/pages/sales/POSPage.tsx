@@ -94,12 +94,75 @@ const PAYMENT_METHODS: { type: PaymentMethodType; label: string; icon: React.Rea
 /* ═══════════════════════════════════════════════════════════════════════════
    HELPERS
 ═══════════════════════════════════════════════════════════════════════════*/
-const formatOpcionLabel = (o: OpcionSeleccionada): string => {
-  if (o.insumoBaseNombre && o.insumoNuevoNombre) {
-    return `${o.insumoBaseNombre} → ${o.insumoNuevoNombre}${o.ajusteCantidad ? ` (${o.ajusteCantidad})` : ''}`;
+const formatOpcionLabel = (o: OpcionSeleccionada): React.ReactNode => {
+  const tipo = o.tipoOpcion ?? 'normal';
+  const valorAnterior = o.valorAnterior;
+  const costoExtra = o.costoExtra ?? o.precioAjuste;
+
+  if (tipo === 'cambio' && valorAnterior) {
+    return <>{valorAnterior} → {o.opcionNombre}{costoExtra ? ` (+${costoExtra}Bs)` : ''}</>;
   }
-  if (o.insumoNuevoNombre && o.tipoAjuste === 'extra') {
-    return `+ ${o.insumoNuevoNombre}${o.ajusteCantidad ? ` (${o.ajusteCantidad})` : ''}`;
+  if (tipo === 'extra') {
+    return <>+ {o.opcionNombre}{costoExtra ? ` (+${costoExtra}Bs)` : ''}</>;
+  }
+
+  const ajuste = o.tipoAjuste ?? o.opcionRaw?.ajustes?.[0]?.tipoAjuste;
+  const insumoBase = o.insumoBaseNombre ?? o.opcionRaw?.ajustes?.[0]?.insumoBase?.nombre;
+  const insumoNuevo = o.insumoNuevoNombre ?? o.opcionRaw?.ajustes?.[0]?.insumoNuevo?.nombre;
+  const cantidad = o.ajusteCantidad ?? o.opcionRaw?.ajustes?.[0]?.cantidad;
+
+  if (ajuste === 'Reemplazo' && insumoBase && insumoNuevo) {
+    return (
+      <span className="text-coffee-500">
+        Quita <span className="font-medium text-coffee-700">{insumoBase}</span> → Usa <span className="font-medium text-coffee-700">{insumoNuevo}</span>{cantidad ? ` (${cantidad})` : ''}
+      </span>
+    );
+  }
+  if (ajuste === 'Modificacion' && insumoBase) {
+    return (
+      <span className="text-coffee-500">
+        Modifica <span className="font-medium text-coffee-700">{insumoBase}</span> a {cantidad}
+      </span>
+    );
+  }
+
+  if (insumoBase && insumoNuevo) {
+    return <>{insumoBase} → {insumoNuevo}{cantidad ? ` (${cantidad})` : ''}</>;
+  }
+  if (insumoNuevo && o.tipoAjuste === 'extra') {
+    return <>+ {insumoNuevo}{cantidad ? ` (${cantidad})` : ''}</>;
+  }
+  return o.opcionNombre;
+};
+
+const formatOpcionLabelString = (o: OpcionSeleccionada): string => {
+  const tipo = o.tipoOpcion ?? 'normal';
+  const valorAnterior = o.valorAnterior;
+  const costoExtra = o.costoExtra ?? o.precioAjuste;
+
+  if (tipo === 'cambio' && valorAnterior) {
+    return `${valorAnterior} → ${o.opcionNombre}${costoExtra ? ` (+${costoExtra}Bs)` : ''}`;
+  }
+  if (tipo === 'extra') {
+    return `+ ${o.opcionNombre}${costoExtra ? ` (+${costoExtra}Bs)` : ''}`;
+  }
+
+  const ajuste = o.tipoAjuste ?? o.opcionRaw?.ajustes?.[0]?.tipoAjuste;
+  const insumoBase = o.insumoBaseNombre ?? o.opcionRaw?.ajustes?.[0]?.insumoBase?.nombre;
+  const insumoNuevo = o.insumoNuevoNombre ?? o.opcionRaw?.ajustes?.[0]?.insumoNuevo?.nombre;
+  const cantidad = o.ajusteCantidad ?? o.opcionRaw?.ajustes?.[0]?.cantidad;
+
+  if (ajuste === 'Reemplazo' && insumoBase && insumoNuevo) {
+    return `Quita ${insumoBase} → Usa ${insumoNuevo}${cantidad ? ` (${cantidad})` : ''}`;
+  }
+  if (ajuste === 'Modificacion' && insumoBase) {
+    return `Modifica ${insumoBase} a ${cantidad}`;
+  }
+  if (insumoBase && insumoNuevo) {
+    return `${insumoBase} → ${insumoNuevo}${cantidad ? ` (${cantidad})` : ''}`;
+  }
+  if (insumoNuevo && o.tipoAjuste === 'extra') {
+    return `+ ${insumoNuevo}${cantidad ? ` (${cantidad})` : ''}`;
   }
   return o.opcionNombre;
 };
@@ -148,7 +211,7 @@ const PARA_LLEVAR_MESA: Mesa = {
   roundsSent: [],
 };
 
-const mapBackendMesaToLocal = (backendMesa: { id: string; nombre: string; pedido: { id_Cliente: number | null; total: number; rondas: { id: number; id_Pedido: number; ronda_Descripcion: string; subTotal: number; detalle: { id_Ronda: number; id_Producto: number; nombre_Producto: string; cantidad: number; precio: number }[] }[] } | null }): Mesa => {
+const mapBackendMesaToLocal = (backendMesa: { id: string; nombre: string; pedido: { id_Cliente: number | null; total: number; rondas: { id: number; id_Pedido: number; ronda_Descripcion: string; subTotal: number; detalle: { id: number; nombre_Producto: string; cantidad: number; precio: number; opciones: { id_Opcion: number; tipoOpcion: string; valorAnterior: string | null; costoExtra: number | null; opcion: { id: number; nombre: string; ajustePrecio: number; variacion: { id: number; nombre: string; requerido: boolean }; ajustes?: { cantidad: number; tipoAjuste: string; insumoBase?: { nombre: string } | null; insumoNuevo?: { nombre: string } | null }[] } }[] }[] }[] } | null }): Mesa => {
   const isOccupied = backendMesa.pedido !== null;
   const status: MesaStatus = isOccupied ? 'ocupada' : 'libre';
 
@@ -170,16 +233,36 @@ const mapBackendMesaToLocal = (backendMesa: { id: string; nombre: string; pedido
       backendMesa.pedido.rondas.forEach((ronda, idx) => {
         const roundNum = idx + 1;
         ronda.detalle.forEach((detalle) => {
+          const opcionesSeleccionadas = detalle.opciones?.map(opt => {
+            const ajuste = opt.opcion.ajustes?.[0];
+            return {
+              atributoId: String(opt.opcion.variacion.id),
+              atributoNombre: opt.opcion.variacion.nombre,
+              opcionId: String(opt.id_Opcion),
+              opcionNombre: opt.opcion.nombre,
+              precioAjuste: opt.opcion.ajustePrecio,
+              tipoOpcion: opt.tipoOpcion,
+              valorAnterior: opt.valorAnterior,
+              costoExtra: opt.costoExtra,
+              tipoAjuste: ajuste?.tipoAjuste,
+              insumoBaseNombre: ajuste?.insumoBase?.nombre,
+              insumoNuevoNombre: ajuste?.insumoNuevo?.nombre,
+              ajusteCantidad: ajuste?.cantidad,
+              opcionRaw: opt.opcion,
+            };
+          }) ?? [];
+
           order.push({
             product: {
-              id: String(detalle.id_Producto),
+              id: String(detalle.id),
               name: detalle.nombre_Producto,
               salePrice: detalle.precio,
               tipo: 'comprado',
             } as Product,
             quantity: detalle.cantidad,
+            opciones: opcionesSeleccionadas,
             precioFinal: detalle.precio,
-            cartKey: `${detalle.id_Producto}_${ronda.id}`,
+            cartKey: `${detalle.id}_${ronda.id}`,
             roundNumber: roundNum,
           });
         });
@@ -204,7 +287,7 @@ const mapBackendMesaToLocal = (backendMesa: { id: string; nombre: string; pedido
   };
 };
 
-const initMesas = (backendMesas: { id: string; nombre: string; pedido: { id_Cliente: number | null; total: number; rondas: { id: number; id_Pedido: number; ronda_Descripcion: string; subTotal: number; detalle: { id_Ronda: number; id_Producto: number; nombre_Producto: string; cantidad: number; precio: number }[] }[] } | null }[]): Mesa[] => [
+const initMesas = (backendMesas: { id: string; nombre: string; pedido: { id_Cliente: number | null; total: number; rondas: { id: number; id_Pedido: number; ronda_Descripcion: string; subTotal: number; detalle: { id: number; nombre_Producto: string; cantidad: number; precio: number; opciones: { id_Opcion: number; tipoOpcion: string; valorAnterior: string | null; costoExtra: number | null; opcion: { id: number; nombre: string; ajustePrecio: number; variacion: { id: number; nombre: string; requerido: boolean } } }[] }[] }[] } | null }[]): Mesa[] => [
   ...backendMesas.map(mapBackendMesaToLocal),
   PARA_LLEVAR_MESA,
 ];
@@ -218,7 +301,7 @@ const printComanda = (mesaName: string, roundNumber: number, items: CartItem[]) 
   const now = new Date().toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
   const rows = items.map(i => {
     const nota = i.notes ? `<div style="font-size:10px;color:#555;padding-left:8px">↳ ${i.notes}</div>` : '';
-    const opciones = i.opciones?.map(o => `<div style="font-size:10px;color:#555;padding-left:8px">· ${formatOpcionLabel(o)}</div>`).join('') ?? '';
+    const opciones = i.opciones?.map(o => `<div style="font-size:10px;color:#555;padding-left:8px">· ${formatOpcionLabelString(o)}</div>`).join('') ?? '';
     return `<div style="margin-bottom:6px"><strong>${i.quantity}×</strong> ${i.product.name}${opciones}${nota}</div>`;
   }).join('');
   win.document.write(`
@@ -875,12 +958,22 @@ export const POSPage: React.FC = () => {
 
   const handleIniciarMesa = async (mesa: Mesa, customerId?: string) => {
     setIsStartingMesa(true);
+    const mesaId = mesa.id;
     const clienteId = customerId ? parseInt(customerId, 10) : null;
-    const success = await apiOcuparMesa(mesa.id, clienteId);
+    const result = await apiOcuparMesa(mesaId, clienteId);
     setIsStartingMesa(false);
-    if (success) {
-      updateMesa(mesa.id, { status: 'ocupada', openedAt: Date.now(), customerId, order: [], currentRound: 1, roundsSent: [] });
-      openModal(mesa.id, 'detalle');
+    if (result) {
+      updateMesa(mesaId, {
+        status: 'ocupada',
+        openedAt: Date.now(),
+        customerId,
+        order: [],
+        currentRound: 1,
+        roundsSent: [],
+      });
+      setActiveMesaId(mesaId);
+      setModalView('detalle');
+      setDetalleView('none');
     }
   };
 
@@ -1014,6 +1107,7 @@ export const POSPage: React.FC = () => {
     const detalles = tempCart.map(i => ({
       id_Producto: parseInt(i.product.id, 10),
       cantidad: i.quantity,
+      ids_Opcion: i.opciones?.map(o => Number(o.opcionId)).filter(id => !isNaN(id)) ?? [],
     }));
 
     const success = await apiCrearRonda(activeMesaId, detalles);
@@ -1671,7 +1765,7 @@ export const POSPage: React.FC = () => {
                                   </span>
                                 )}
                               </div>
-                              {item.opciones?.length && (item.product.tipo === 'elaborado' || item.product.tipo === 'combo') ? (
+                              {item.opciones && item.opciones.length > 0 ? (
                                 <div className="mt-0.5 space-y-0.5">
                                   {item.opciones.map((o, oi) => (
                                     <p key={oi} className="text-xs text-coffee-400">
@@ -1774,7 +1868,7 @@ export const POSPage: React.FC = () => {
                                             </span>
                                           )}
                                         </div>
-                                        {item.opciones?.length && (item.product.tipo === 'elaborado' || item.product.tipo === 'combo') ? (
+                                        {item.opciones && item.opciones.length > 0 ? (
                                           <div className="mt-0.5 space-y-0.5">
                                             {item.opciones.map((o, oi) => (
                                               <p key={oi} className="text-xs text-coffee-400">
@@ -2012,7 +2106,7 @@ export const POSPage: React.FC = () => {
                           </span>
                         )}
                       </div>
-                      {item.opciones?.length && (item.product.tipo === 'elaborado' || item.product.tipo === 'combo') ? (
+                      {item.opciones && item.opciones.length > 0 ? (
                         <div className="mt-0.5 space-y-0.5">
                           {item.opciones.map((o, oi) => (
                             <p key={oi} className="text-xs text-coffee-400">

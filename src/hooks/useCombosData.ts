@@ -1,16 +1,14 @@
 import { gql } from '../lib/graphql';
-import { COMBOS_QUERY, GET_PRODUCTS_FOR_COMBO } from '../lib/queries/combos.queries';
+import { GET_COMBOS_WITH_PRODUCTS } from '../lib/queries/combos.queries';
 import { mapCombo, mapComprado, mapElaboradoProduct } from '../lib/mappers/combos.mappers';
-import type { CombosResponse, ProductsForComboResponse } from '../types/graphql';
 import type { Combo, Product, Receta } from '../types';
+import type { ComboNode, ProductsForComboResponse } from '../types/graphql';
 import { useCallback, useState } from 'react';
 
-async function fetchAllProducts(): Promise<Product[]> {
-  const data = await gql<ProductsForComboResponse>(GET_PRODUCTS_FOR_COMBO);
-  return [
-    ...data.comprados.nodes.map(mapComprado),
-    ...data.elaborados.nodes.map(mapElaboradoProduct),
-  ];
+interface CombosWithProductsResponse {
+  combos: { nodes: ComboNode[] };
+  comprados: { nodes: ProductsForComboResponse['comprados']['nodes'] };
+  elaborados: { nodes: ProductsForComboResponse['elaborados']['nodes'] };
 }
 
 export function useCombosData() {
@@ -24,12 +22,13 @@ export function useCombosData() {
     setIsLoading(true);
     setError(null);
     try {
-      const [mappedProducts, combosData] = await Promise.all([
-        fetchAllProducts(),
-        gql<CombosResponse>(COMBOS_QUERY),
-      ]);
-      
-      const mappedCombos = combosData.combos.nodes.map((n) => mapCombo(n));
+      const data = await gql<CombosWithProductsResponse>(GET_COMBOS_WITH_PRODUCTS);
+
+      const mappedProducts = [
+        ...data.comprados.nodes.map(mapComprado),
+        ...data.elaborados.nodes.map(mapElaboradoProduct),
+      ];
+      const mappedCombos = data.combos.nodes.map((n) => mapCombo(n));
 
       setProducts(mappedProducts);
       setCombos(mappedCombos);

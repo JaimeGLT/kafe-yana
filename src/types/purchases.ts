@@ -4,39 +4,24 @@ import type { UUID, BaseEntity } from './common';
 
 // Supplier
 export interface Supplier extends BaseEntity {
-  id: UUID;
+  id: string;
   code: string;
-  name: string;
-  ruc?: string;
-  phone: string;
-  mobile?: string;
+  razon_Social: string;
+  dni?: string;
+  telefono: string;
+  celular?: string;
   email?: string;
-  address?: string;
-  // legacy fields kept for backend compatibility
-  contactName?: string;
-  website?: string;
-  notes?: string;
-  paymentTerms?: string;
-  creditLimit?: number;
-  currentDebt: number;
-  totalPurchases: number;
-  lastPurchaseDate?: Date;
+  direccion?: string;
   isActive: boolean;
 }
 
 export interface SupplierInput {
-  name: string;
-  ruc?: string;
-  phone: string;
-  mobile?: string;
+  razon_Social: string;
+  telefono: string;
+  dni?: string;
+  celular?: string;
   email?: string;
-  address?: string;
-  contactName?: string;
-  website?: string;
-  notes?: string;
-  paymentTerms?: string;
-  creditLimit?: number;
-  isActive?: boolean;
+  direccion?: string;
 }
 
 // Purchase Order Item

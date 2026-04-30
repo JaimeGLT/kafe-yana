@@ -130,7 +130,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
         descripcion: description.trim() || '',
         precio: Number(price),
         productos: items.map((i) => ({
-          productoId: Number(i.productId),
+          producto_Id: Number(i.productId),
           cantidad: i.quantity,
           opcional: false,
         })),

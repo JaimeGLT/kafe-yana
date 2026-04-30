@@ -353,10 +353,10 @@ export const MOCK_INVENTORY_STATS: InventoryStats = {
 // ── Purchases mocks ────────────────────────────────────────────────────────
 
 export const MOCK_SUPPLIERS: Supplier[] = [
-  { id: 'sup-1', code: 'SUP-001', name: 'Distribuidora Café Norte', phone: '71234567', isActive: true, totalPurchases: 2400, currentDebt: 0, createdAt: d(60,0,0), updatedAt: d(5,0,0) },
-  { id: 'sup-2', code: 'SUP-002', name: 'Lácteos del Valle',        phone: '72345678', isActive: true, totalPurchases: 980,  currentDebt: 0, createdAt: d(60,0,0), updatedAt: d(3,0,0) },
-  { id: 'sup-3', code: 'SUP-003', name: 'Bebidas y Más S.R.L.',     phone: '73456789', isActive: true, totalPurchases: 760,  currentDebt: 0, createdAt: d(60,0,0), updatedAt: d(7,0,0) },
-  { id: 'sup-4', code: 'SUP-004', name: 'Insumos Pastelería Lima',  phone: '74567890', isActive: true, totalPurchases: 540,  currentDebt: 0, createdAt: d(60,0,0), updatedAt: d(10,0,0) },
+  { id: 'sup-1', code: 'SUP-001', razon_Social: 'Distribuidora Café Norte', telefono: '71234567', isActive: true, createdAt: d(60,0,0), updatedAt: d(5,0,0) },
+  { id: 'sup-2', code: 'SUP-002', razon_Social: 'Lácteos del Valle',        telefono: '72345678', isActive: true, createdAt: d(60,0,0), updatedAt: d(3,0,0) },
+  { id: 'sup-3', code: 'SUP-003', razon_Social: 'Bebidas y Más S.R.L.',     telefono: '73456789', isActive: true, createdAt: d(60,0,0), updatedAt: d(7,0,0) },
+  { id: 'sup-4', code: 'SUP-004', razon_Social: 'Insumos Pastelería Lima',  telefono: '74567890', isActive: true, createdAt: d(60,0,0), updatedAt: d(10,0,0) },
 ];
 
 function po(

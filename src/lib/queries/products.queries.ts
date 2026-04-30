@@ -14,8 +14,8 @@ export const INITIAL_LOAD_QUERY = `
   }
 `;
 
-export const GET_COMPRADOS_QUERY = `
-  query GetComprados {
+export const GET_COMPRADOS_WITH_CATEGORIES_QUERY = `
+  query GetCompradosWithCategories {
     comprados {
       nodes {
         codigo_barra
@@ -35,11 +35,6 @@ export const GET_COMPRADOS_QUERY = `
         }
       }
     }
-  }
-`;
-
-export const GET_ALL_CATEGORIES_QUERY = `
-  query GetAllCategories {
     categorias {
       nodes { id nombre descripcion color estado }
     }

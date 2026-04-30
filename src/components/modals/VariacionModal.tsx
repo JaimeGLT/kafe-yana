@@ -22,8 +22,8 @@ interface Props {
   onAddAtributo: (productId: string, data: { nombre: string; esRequerido: boolean }) => Promise<VariacionAtributo>;
   onUpdateAtributo: (atributoId: string, data: { nombre: string; esRequerido: boolean }) => Promise<void>;
   onDeleteAtributo: (atributoId: string) => Promise<void>;
-  onAddOpcion: (atributoId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: AjusteCantidad[] }) => Promise<void>;
-  onUpdateOpcion: (atributoId: string, opcionId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: AjusteCantidad[] }) => Promise<void>;
+  onAddOpcion: (atributoId: string, data: { nombre: string; precioAjuste: number; tipoOpcion: string; valorAnterior: string; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: AjusteCantidad[] }) => Promise<void>;
+  onUpdateOpcion: (atributoId: string, opcionId: string, data: { nombre: string; precioAjuste: number; tipoOpcion: string; valorAnterior: string; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: AjusteCantidad[] }) => Promise<void>;
   onDeleteOpcion: (atributoId: string, opcionId: string) => Promise<void>;
 }
 
@@ -37,6 +37,8 @@ interface AjusteCantidadRow {
 interface OpcionFormState {
   nombre: string;
   precioAjuste: string;
+  tipoOpcion: string;
+  valorAnterior: string;
   // Mode 1: ingredient substitution
   sustituye: boolean;
   insumoReemplazadoId: string;
@@ -50,6 +52,8 @@ interface OpcionFormState {
 const emptyOpcionForm = (): OpcionFormState => ({
   nombre: '',
   precioAjuste: '0',
+  tipoOpcion: 'normal',
+  valorAnterior: '',
   sustituye: false,
   insumoReemplazadoId: '',
   insumoExtraId: '',
@@ -61,6 +65,8 @@ const emptyOpcionForm = (): OpcionFormState => ({
 const opcionToForm = (opcion: VariacionOpcion): OpcionFormState => ({
   nombre: opcion.nombre,
   precioAjuste: String(opcion.precioAjuste),
+  tipoOpcion: opcion.tipoOpcion ?? 'normal',
+  valorAnterior: opcion.valorAnterior ?? '',
   sustituye: !!(opcion.insumoReemplazadoId || opcion.insumoExtraId),
   insumoReemplazadoId: opcion.insumoReemplazadoId ?? '',
   insumoExtraId: opcion.insumoExtraId ?? '',
@@ -129,7 +135,10 @@ const SustitucionFields: React.FC<SustitucionFieldsProps> = ({ form, setForm, re
             <SearchableSelect
               options={[{ value: '', label: '— Seleccionar ingrediente a quitar… —' }, ...removeOptions]}
               value={form.insumoReemplazadoId}
-              onChange={(v) => setForm({ ...form, insumoReemplazadoId: v })}
+              onChange={(v) => {
+                const selected = removeOptions.find(o => o.value === v);
+                setForm({ ...form, insumoReemplazadoId: v, valorAnterior: selected?.label ?? '' });
+              }}
               placeholder="— Seleccionar ingrediente a quitar… —"
             />
           </div>
@@ -293,7 +302,7 @@ interface OpcionRowProps {
   recetaInsumoOptions: { value: string; label: string }[];
   allInsumoOptions: { value: string; label: string }[];
   onDelete: (opcionId: string) => void;
-  onUpdateOpcion: (atributoId: string, opcionId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: AjusteCantidad[] }) => void;
+  onUpdateOpcion: (atributoId: string, opcionId: string, data: { nombre: string; precioAjuste: number; tipoOpcion: string; valorAnterior: string; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: AjusteCantidad[] }) => void;
 }
 
 const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, recetaInsumoOptions, allInsumoOptions, onDelete, onUpdateOpcion }) => {
@@ -313,6 +322,8 @@ const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, recetaInsumoO
     await onUpdateOpcion(atributoId, opcion.id, {
       nombre: form.nombre.trim(),
       precioAjuste: parseFloat(form.precioAjuste) || 0,
+      tipoOpcion: form.sustituye ? 'cambio' : 'normal',
+      valorAnterior: form.sustituye ? form.valorAnterior : '',
       insumoReemplazadoId: form.sustituye && form.insumoReemplazadoId ? form.insumoReemplazadoId : undefined,
       insumoExtraId: form.sustituye && form.insumoExtraId ? form.insumoExtraId : undefined,
       cantidadExtra: form.sustituye && form.cantidadExtra ? parseFloat(form.cantidadExtra) : undefined,
@@ -352,7 +363,18 @@ const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, recetaInsumoO
             )}
           </div>
           {/* Swap summary */}
-          {insumoQuitarNombre && insumoUsarNombre && (
+          {opcion.tipoOpcion === 'cambio' && opcion.valorAnterior && insumoUsarNombre && (
+            <div className="space-y-0.5">
+              <p className="text-xs text-red-600 flex items-center gap-1">
+                <span className="font-semibold">Quita:</span> {opcion.valorAnterior}
+              </p>
+              <p className="text-xs text-emerald-600 flex items-center gap-1">
+                <span className="font-semibold">Usa:</span> {insumoUsarNombre}
+                {opcion.cantidadExtra && <span className="text-coffee-400">({opcion.cantidadExtra})</span>}
+              </p>
+            </div>
+          )}
+          {!(opcion.tipoOpcion === 'cambio') && insumoQuitarNombre && insumoUsarNombre && (
             <p className="text-xs text-blue-600 flex items-center gap-1">
               <Repeat2 className="h-3 w-3 shrink-0" />
               Quita <strong>{insumoQuitarNombre}</strong>
@@ -600,6 +622,8 @@ export const VariacionModal: React.FC<Props> = ({
     await onAddOpcion(atributoId, {
       nombre: form.nombre.trim(),
       precioAjuste: parseFloat(form.precioAjuste) || 0,
+      tipoOpcion: form.sustituye ? 'cambio' : 'normal',
+      valorAnterior: form.sustituye ? form.valorAnterior : '',
       insumoReemplazadoId: form.sustituye && form.insumoReemplazadoId ? form.insumoReemplazadoId : undefined,
       insumoExtraId: form.sustituye && form.insumoExtraId ? form.insumoExtraId : undefined,
       cantidadExtra: form.sustituye && form.cantidadExtra ? parseFloat(form.cantidadExtra) : undefined,

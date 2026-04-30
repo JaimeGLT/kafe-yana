@@ -30,22 +30,45 @@ export interface MesaBackend {
       ronda_Descripcion: string;
       subTotal: number;
       detalle: {
-        id_Ronda: number;
-        id_Producto: number;
+        id: number;
         nombre_Producto: string;
         cantidad: number;
         precio: number;
+        opciones: RondaDetalleOpcion[];
       }[];
     }[];
   } | null;
 }
 
+export interface RondaDetalleOpcion {
+  id_Opcion: number;
+  tipoOpcion: string;
+  valorAnterior: string | null;
+  costoExtra: number | null;
+  opcion: {
+    id: number;
+    nombre: string;
+    ajustePrecio: number;
+    variacion: {
+      id: number;
+      nombre: string;
+      requerido: boolean;
+    };
+    ajustes?: {
+      cantidad: number;
+      tipoAjuste: string;
+      insumoBase?: { nombre: string } | null;
+      insumoNuevo?: { nombre: string } | null;
+    }[];
+  };
+}
+
 export interface RondaDetalle {
-  id_Ronda: number;
-  id_Producto: number;
+  id: number;
   nombre_Producto: string;
   cantidad: number;
   precio: number;
+  opciones: RondaDetalleOpcion[];
 }
 
 export interface RondaBackend {
@@ -65,7 +88,7 @@ interface UseMesasReturn {
   deleteMesa: (id: string) => Promise<boolean>;
   ocuparMesa: (id: string, clienteId: number | null) => Promise<number | null>;
   liberarMesa: (id: string) => Promise<boolean>;
-  crearRonda: (mesaId: string, detalles: { id_Producto: number; cantidad: number }[]) => Promise<boolean>;
+  crearRonda: (mesaId: string, detalles: { id_Producto: number; ids_Opcion: number[]; cantidad: number }[]) => Promise<boolean>;
   getActivePedidoId: (mesaId: string) => number | null;
   refreshMesas: () => Promise<void>;
 }
@@ -174,7 +197,7 @@ export function useMesas(): UseMesasReturn {
 
   const crearRonda = useCallback(async (
     mesaId: string,
-    detalles: { id_Producto: number; cantidad: number }[]
+    detalles: { id_Producto: number; ids_Opcion: number[]; cantidad: number }[]
   ): Promise<boolean> => {
     try {
       const id_Pedido = pedidoPorMesa[mesaId];

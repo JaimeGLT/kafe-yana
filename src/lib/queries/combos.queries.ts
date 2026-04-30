@@ -1,5 +1,16 @@
-export const GET_PRODUCTS_FOR_COMBO = `
-  query {
+export const GET_COMBOS_WITH_PRODUCTS = `
+  query GetCombosWithProducts {
+    combos {
+      nodes {
+        producto { id nombre descripcion precio tipo }
+        detalles {
+          producto { id nombre descripcion precio tipo }
+          cantidad
+          opcional
+        }
+        cantidadProducible
+      }
+    }
     comprados {
       nodes {
         costo_compra
@@ -10,22 +21,6 @@ export const GET_PRODUCTS_FOR_COMBO = `
     elaborados {
       nodes {
         producto { id nombre descripcion precio tipo }
-      }
-    }
-  }
-`;
-
-export const COMBOS_QUERY = `
-  query GetCombos {
-    combos {
-      nodes {
-        producto { id nombre descripcion precio tipo }
-        detalles {
-          producto { id nombre descripcion precio tipo }
-          cantidad
-          opcional
-        }
-        cantidadProducible
       }
     }
   }

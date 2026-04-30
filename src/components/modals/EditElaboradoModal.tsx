@@ -40,6 +40,7 @@ export interface EditElaboradoModalProps {
   categoryOptions: { value: string; label: string }[];
   onSaved: (updated: Product) => void;
   onRecetaSaved?: () => void;
+  onRefreshInventory?: () => Promise<void>;
 }
 
 export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
@@ -49,6 +50,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
   product,
   categoryOptions,
   onSaved,
+  onRefreshInventory,
 }) => {
   const [tab, setTab] = useState<'datos' | 'receta'>('datos');
   const [isSaving, setIsSaving] = useState(false);
@@ -419,6 +421,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
                 insumos={insumos}
                 products={products}
                 onSuccess={() => onRecetaSaved?.()}
+                onRefreshInventory={onRefreshInventory}
               />
             </div>
           )}

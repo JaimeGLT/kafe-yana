@@ -185,7 +185,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
                       setSupplierId(value);
                       if (errors.supplierId) setErrors((prev) => ({ ...prev, supplierId: '' }));
                     }}
-                    options={activeSuppliers.map((s) => ({ value: s.id, label: s.name }))}
+                    options={activeSuppliers.map((s) => ({ value: s.id, label: s.razon_Social }))}
                     placeholder="Seleccionar proveedor"
                     error={errors.supplierId}
                   />

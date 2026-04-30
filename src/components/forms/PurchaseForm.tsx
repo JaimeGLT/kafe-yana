@@ -123,7 +123,7 @@ export const PurchaseForm: React.FC<PurchaseFormProps> = ({
               onChange={handleSupplierChange}
               options={suppliers
                 .filter(s => s.isActive)
-                .map(s => ({ value: s.id, label: s.name }))}
+                .map(s => ({ value: s.id, label: s.razon_Social }))}
               placeholder="Seleccionar proveedor"
             />
           </FormField>

@@ -1,154 +1,127 @@
-import { useState, useEffect } from 'react';
-import { gql } from '../lib/graphql';
-import { GET_REPORTE_INVENTARIO } from '../lib/queries/inventory.queries';
-import type { ReporteInventarioResponse, InventoryReportItem, ReporteStats, CriticalStockItem, ExpiringItem } from '../types/reports';
+import { useMemo } from 'react';
+import { useFullInventory } from '../contexts';
+import type { InventoryReportItem, ReporteStats, CriticalStockItem, ExpiringItem } from '../types/reports';
 
 export function useInventoryReport() {
-  const [items, setItems] = useState<InventoryReportItem[]>([]);
-  const [criticalItems, setCriticalItems] = useState<CriticalStockItem[]>([]);
-  const [expiringItems, setExpiringItems] = useState<ExpiringItem[]>([]);
-  const [stats, setStats] = useState<ReporteStats>({
-    totalProducts: 0,
-    totalInsumos: 0,
-    lowStockItems: 0,
-    totalValue: 0,
-  });
-  const [categoryData, setCategoryData] = useState<{ name: string; count: number }[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { products, insumos, isLoading } = useFullInventory();
 
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    setError(null);
+  const items = useMemo<InventoryReportItem[]>(() => {
+    const comprados: InventoryReportItem[] = products
+      .filter(p => p.tipo === 'comprado')
+      .map(p => ({
+        id: `comprado-${p.id}`,
+        code: p.barcode || p.code,
+        name: p.name,
+        tipo: 'comprado' as const,
+        categoryName: p.categoryName || 'Sin categoría',
+        categoryColor: '#8B4513',
+        stock: p.stock,
+        minStock: p.minStock,
+        costPrice: p.costPrice,
+        available: p.isActive,
+      }));
 
-    gql<ReporteInventarioResponse>(GET_REPORTE_INVENTARIO)
-      .then(data => {
-        if (cancelled) return;
+    const elaborados: InventoryReportItem[] = products
+      .filter(p => p.tipo === 'elaborado')
+      .map(p => ({
+        id: `elaborado-${p.id}`,
+        code: p.code,
+        name: p.name,
+        tipo: 'elaborado' as const,
+        categoryName: p.categoryName || 'Sin categoría',
+        categoryColor: '#8B4513',
+        stock: p.stock,
+        minStock: 0,
+        costPrice: 0,
+        available: p.isActive,
+      }));
 
-        const comprados: InventoryReportItem[] = data.comprados.nodes.map(n => ({
-          id: `comprado-${n.producto.id}`,
-          code: n.codigo_barra || String(n.producto.id),
-          name: n.producto.nombre,
-          tipo: 'comprado' as const,
-          categoryName: n.producto.categoria?.nombre || 'Sin categoría',
-          categoryColor: n.producto.categoria?.color || '#8B4513',
-          stock: n.stock_actual,
-          minStock: n.stock_minimo,
-          costPrice: n.costo_compra,
-          available: n.disponible,
-        }));
+    const insumosReport: InventoryReportItem[] = (insumos as any[]).map(n => ({
+      id: `insumo-${n.id}`,
+      code: String(n.id),
+      name: n.nombre,
+      tipo: 'insumo' as const,
+      categoryName: n.categoria || 'Sin categoría',
+      categoryColor: '#8B4513',
+      stock: n.stock_actual,
+      minStock: n.stock_min * n.factor_conversion,
+      costPrice: n.costo,
+      available: true,
+      unidad: n.unidad_min_uso,
+      factorConversion: n.factor_conversion,
+    }));
 
-        const elaborados: InventoryReportItem[] = data.elaborados.nodes.map(n => ({
-          id: `elaborado-${n.id_Producto}`,
-          code: String(n.id_Producto),
-          name: n.producto.nombre,
-          tipo: 'elaborado' as const,
-          categoryName: n.producto.categoria?.nombre || 'Sin categoría',
-          categoryColor: n.producto.categoria?.color || '#8B4513',
-          stock: n.stock_actual,
-          minStock: 0,
-          costPrice: 0,
-          available: n.producible,
-        }));
+    return [...comprados, ...elaborados, ...insumosReport];
+  }, [products, insumos]);
 
-        const insumos: InventoryReportItem[] = data.insumos.nodes.map(n => ({
-          id: `insumo-${n.id}`,
-          code: String(n.id),
-          name: n.nombre,
-          tipo: 'insumo' as const,
-          categoryName: n.categoria || 'Sin categoría',
-          categoryColor: '#8B4513',
-          stock: n.stock_actual,
-          minStock: n.stock_min * n.factor_conversion,
-          costPrice: n.costo,
-          available: true,
-          unidad: n.unidad_min_uso,
-          factorConversion: n.factor_conversion,
-        }));
+  const stats = useMemo<ReporteStats>(() => {
+    const comprados = items.filter(i => i.tipo === 'comprado');
+    const elaborados = items.filter(i => i.tipo === 'elaborado');
+    const insumosItems = items.filter(i => i.tipo === 'insumo');
 
-        const allItems = [...comprados, ...elaborados, ...insumos];
-        setItems(allItems);
+    const totalProducts = comprados.length + elaborados.length;
+    const totalInsumos = insumosItems.length;
+    const lowStockItems = [...comprados, ...insumosItems].filter(i => i.stock <= i.minStock).length;
 
-        const totalProducts = comprados.length + elaborados.length;
-        const totalInsumos = insumos.length;
+    const valorComprados = comprados.reduce((sum, p) => sum + p.stock * p.costPrice, 0);
+    const valorInsumos = insumosItems.reduce((sum, i) => {
+      const stockEnUnidadCompra = i.stock / (i.factorConversion || 1);
+      return sum + stockEnUnidadCompra * i.costPrice;
+    }, 0);
+    const totalValue = valorComprados + valorInsumos;
 
-        const insumosCriticos: CriticalStockItem[] = insumos
-          .filter(i => i.stock < i.minStock)
-          .map(i => ({
-            id: i.id,
-            name: i.name,
-            tipo: 'insumo' as const,
-            categoryName: i.categoryName,
-            stock: i.stock,
-            minStock: i.minStock,
-            unidad: i.unidad,
-            ratio: i.minStock > 0 ? i.stock / i.minStock : 1,
-          }));
+    return { totalProducts, totalInsumos, lowStockItems, totalValue };
+  }, [items]);
 
-        const compradosCriticos: CriticalStockItem[] = comprados
-          .filter(i => i.stock < i.minStock)
-          .map(i => ({
-            id: i.id,
-            name: i.name,
-            tipo: 'comprado' as const,
-            categoryName: i.categoryName,
-            stock: i.stock,
-            minStock: i.minStock,
-            unidad: undefined,
-            ratio: i.minStock > 0 ? i.stock / i.minStock : 1,
-          }));
+  const criticalItems = useMemo<CriticalStockItem[]>(() => {
+    const comprados = items.filter(i => i.tipo === 'comprado' && i.stock < i.minStock);
+    const insumosItems = items.filter(i => i.tipo === 'insumo' && i.stock < i.minStock);
 
-        const allCritical = [...insumosCriticos, ...compradosCriticos].sort((a, b) => a.ratio - b.ratio);
-        setCriticalItems(allCritical);
+    return [...insumosItems.map(i => ({
+      id: i.id,
+      name: i.name,
+      tipo: 'insumo' as const,
+      categoryName: i.categoryName,
+      stock: i.stock,
+      minStock: i.minStock,
+      unidad: i.unidad,
+      ratio: i.minStock > 0 ? i.stock / i.minStock : 1,
+    })), ...comprados.map(i => ({
+      id: i.id,
+      name: i.name,
+      tipo: 'comprado' as const,
+      categoryName: i.categoryName,
+      stock: i.stock,
+      minStock: i.minStock,
+      unidad: undefined,
+      ratio: i.minStock > 0 ? i.stock / i.minStock : 1,
+    }))].sort((a, b) => a.ratio - b.ratio);
+  }, [items]);
 
-        const allLowStockItems = [...comprados, ...insumos].filter(i => i.stock <= i.minStock);
-        const lowStockItems = allLowStockItems.length;
+  const expiringItems = useMemo<ExpiringItem[]>(() => {
+    return [...items.filter(i => (i.tipo === 'comprado' || i.tipo === 'insumo') && i.minStock > 0)]
+      .map(i => ({
+        id: i.id,
+        name: i.name,
+        tipo: i.tipo as 'comprado' | 'insumo',
+        categoryName: i.categoryName,
+        stock: i.stock,
+        minStock: i.minStock,
+        unidad: i.unidad,
+        ratio: i.stock / i.minStock,
+      }))
+      .sort((a, b) => a.ratio - b.ratio)
+      .slice(0, 10);
+  }, [items]);
 
-        const expiring: ExpiringItem[] = [...comprados, ...insumos]
-          .filter(i => i.minStock > 0)
-          .map(i => ({
-            id: i.id,
-            name: i.name,
-            tipo: i.tipo as 'comprado' | 'insumo',
-            categoryName: i.categoryName,
-            stock: i.stock,
-            minStock: i.minStock,
-            unidad: i.unidad,
-            ratio: i.stock / i.minStock,
-          }))
-          .sort((a, b) => a.ratio - b.ratio)
-          .slice(0, 10);
-        setExpiringItems(expiring);
+  const categoryData = useMemo(() => {
+    const catMap: Record<string, { name: string; count: number }> = {};
+    items.filter(i => i.tipo === 'comprado' || i.tipo === 'elaborado').forEach(item => {
+      if (!catMap[item.categoryName]) catMap[item.categoryName] = { name: item.categoryName, count: 0 };
+      catMap[item.categoryName].count += 1;
+    });
+    return Object.values(catMap).sort((a, b) => b.count - a.count);
+  }, [items]);
 
-        const valorComprados = comprados.reduce((sum, p) => sum + p.stock * p.costPrice, 0);
-        const valorInsumos = insumos.reduce((sum, i) => {
-          const stockEnUnidadCompra = i.stock / (i.factorConversion || 1);
-          return sum + stockEnUnidadCompra * i.costPrice;
-        }, 0);
-        const totalValue = valorComprados + valorInsumos;
-
-        setStats({ totalProducts, totalInsumos, lowStockItems, totalValue });
-
-        const catMap: Record<string, { name: string; count: number }> = {};
-        [...comprados, ...elaborados].forEach(item => {
-          if (!catMap[item.categoryName]) catMap[item.categoryName] = { name: item.categoryName, count: 0 };
-          catMap[item.categoryName].count += 1;
-        });
-        setCategoryData(Object.values(catMap).sort((a, b) => b.count - a.count));
-
-        setIsLoading(false);
-      })
-      .catch(err => {
-        if (cancelled) return;
-        setError(err.message || 'Error al cargar datos');
-        setIsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { items, stats, categoryData, criticalItems, expiringItems, isLoading, error };
+  return { items, stats, categoryData, criticalItems, expiringItems, isLoading, error: null };
 }

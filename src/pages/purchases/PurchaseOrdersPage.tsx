@@ -76,7 +76,7 @@ export const PurchaseOrdersPage: React.FC = () => {
       date: new Date(),
       expectedDate: input.expectedDate,
       supplierId: input.supplierId,
-      supplierName: supplier?.name,
+      supplierName: supplier?.razon_Social,
       items: input.items.map((item, idx) => {
         const product = products.find((p) => p.id === item.productId);
         const insumo = insumos.find((i) => i.id === item.insumoId);

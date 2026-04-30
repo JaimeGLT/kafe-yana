@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 // RecetaFormContent is exported for inline use (e.g. inside another modal tab)
 import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
@@ -7,13 +7,13 @@ import { Input } from '../ui/Input';
 import { Select, SearchableSelect } from '../ui/Select';
 import { toast } from '../ui/Toast';
 import { api } from '../../lib/api';
-import { gql } from '../../lib/graphql';
 import { InsumoModal } from './InsumoModal';
-import { mapInsumo } from '../../lib/mappers/insumos.mappers';
-import { GET_ALL_INSUMOS } from '../../lib/queries/insumos.queries';
-import type { InsumosResponse } from '../../types/graphql';
 import type { Receta, Insumo, Product } from '../../types';
 import { formatCurrency } from '../../utils';
+import { gql } from '../../lib/graphql';
+import { GET_ALL_INSUMOS } from '../../lib/queries/insumos.queries';
+import type { InsumosResponse } from '../../types/graphql';
+import { mapInsumo } from '../../lib/mappers/insumos.mappers';
 
 interface IngredienteLine {
   insumoId: string;
@@ -38,6 +38,7 @@ export interface RecetaFormProps {
   insumos: Insumo[];
   products: Product[];
   onSuccess: () => void;
+  onRefreshInventory?: () => Promise<void>;
 }
 
 // ── Form content (reusable without Modal wrapper) ─────────────────────────────
@@ -50,13 +51,31 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
   insumos,
   products,
   onSuccess,
+  onRefreshInventory,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [localInsumos, setLocalInsumos] = useState<Insumo[]>(insumos);
   const [insumoModalOpen, setInsumoModalOpen] = useState(false);
-  const [insumoModalTargetRow, setInsumoModalTargetRow] = useState<number | null>(null);
+  const [localInsumos, setLocalInsumos] = useState<Insumo[]>(insumos);
 
-  useEffect(() => { setLocalInsumos(insumos); }, [insumos]);
+  useEffect(() => {
+    setLocalInsumos(insumos);
+  }, [insumos]);
+
+  const handleInsumoCreated = useCallback(async () => {
+    setInsumoModalOpen(false);
+    try {
+      const data = await gql<InsumosResponse>(GET_ALL_INSUMOS);
+      setLocalInsumos(data.insumos.nodes.map(mapInsumo));
+    } catch {
+      if (onRefreshInventory) {
+        await onRefreshInventory();
+      }
+    }
+  }, [onRefreshInventory]);
+
+  const openInsumoModalForRow = () => {
+    setInsumoModalOpen(true);
+  };
 
   const [productId, setProductId] = useState('');
   const [nombre, setNombre] = useState('');
@@ -130,11 +149,6 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
     [productOverride, products, productId]
   );
 
-  const openInsumoModalForRow = (rowIdx: number) => {
-    setInsumoModalTargetRow(rowIdx);
-    setInsumoModalOpen(true);
-  };
-
   const margen = selectedProduct ? selectedProduct.salePrice - costoPorPorcion : null;
   const margenPct =
     selectedProduct && selectedProduct.salePrice > 0
@@ -174,20 +188,18 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
     const productName = productOverride?.name ?? products.find((p) => p.id === productId)?.name ?? '';
     try {
       const body = {
-        nombre: nombre.trim(),
-        nota: notas.trim(),
-        id_Elaborado: Number(productId),
-        porciones: porcionesBase,
-        detalles: ingredientes.map((ing) => {
-          const insumo = localInsumos.find((i) => i.id === ing.insumoId);
-          const subTotal = insumo ? insumo.costoUnitario * ing.quantity * (1 + ing.merma / 100) : 0;
-          return {
+        datos: {
+          nombre: nombre.trim(),
+          nota: notas.trim(),
+          id_Elaborado: Number(productId),
+          porciones: porcionesBase,
+          detalles: ingredientes.map((ing) => ({
             cantidad: ing.quantity,
             merma: ing.merma,
-            subTotal,
+            subTotal: '0.00',
             id_insumo: Number(ing.insumoId),
-          };
-        }),
+          })),
+        },
       };
       if (receta) {
         await api.put(`/Receta/${receta.id}`, body);
@@ -206,6 +218,7 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
   };
 
   return (
+    <div>
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Product + Porciones */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -256,7 +269,7 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
             <Button
               type="button" variant="ghost" size="sm"
               leftIcon={<Plus className="h-4 w-4" />}
-              onClick={() => { setInsumoModalTargetRow(ingredientes.length); setInsumoModalOpen(true); }}
+              onClick={() => { setInsumoModalOpen(true); }}
               title="Crear nuevo insumo"
             >
               Nuevo insumo
@@ -267,7 +280,7 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
           </div>
         </div>
 
-        <div className="hidden sm:grid grid-cols-[1fr_90px_80px_56px_20px] gap-2 text-xs text-coffee-400 font-medium mb-1 px-1">
+        <div className="hidden sm:grid grid-cols-[1fr_90px_70px_70px_20px] gap-2 text-xs text-coffee-400 font-medium mb-1 px-1">
           <span>Insumo</span>
           <span className="text-right">Cantidad</span>
           <span className="text-right">Merma %</span>
@@ -278,13 +291,12 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
         <div className="space-y-2">
           {ingredientes.map((line, idx) => {
             const insumo = localInsumos.find((i) => i.id === line.insumoId);
-            const subtotal =
-              insumo && line.quantity > 0
-                ? insumo.costoUnitario * line.quantity * (1 + line.merma / 100)
-                : 0;
+            const lineSubtotal = insumo && line.quantity > 0
+              ? insumo.costoUnitario * line.quantity * (1 + line.merma / 100)
+              : 0;
 
             return (
-              <div key={idx} className="rounded-lg border border-coffee-100 bg-white p-2.5 sm:p-0 sm:border-0 sm:rounded-none sm:grid sm:grid-cols-[1fr_90px_80px_56px_20px] sm:gap-2 sm:items-center">
+              <div key={idx} className="rounded-lg border border-coffee-100 bg-white p-2.5 sm:p-0 sm:border-0 sm:rounded-none sm:grid sm:grid-cols-[1fr_90px_70px_70px_20px] sm:gap-2 sm:items-center">
                 <div className="flex gap-1">
                   <div className="flex-1">
                     <SearchableSelect
@@ -296,14 +308,14 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
                   </div>
                   <button
                     type="button"
-                    onClick={() => openInsumoModalForRow(idx)}
+                    onClick={() => openInsumoModalForRow()}
                     className="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-lg border border-coffee-200 text-coffee-500 hover:bg-coffee-50 hover:text-coffee-800 transition-colors"
                     title="Crear nuevo insumo"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-1.5 items-end mt-2 sm:mt-0 sm:contents">
+                <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 items-end mt-2 sm:mt-0 sm:contents">
                   <div className="sm:contents">
                     <p className="sm:hidden text-xs text-coffee-400 mb-0.5">Cantidad</p>
                     <Input
@@ -329,9 +341,12 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
                       className="text-right"
                     />
                   </div>
-                  <span className="text-xs text-coffee-500 font-medium shrink-0 text-right self-center min-w-[48px]">
-                    {subtotal > 0 ? formatCurrency(subtotal) : '—'}
-                  </span>
+                  <div className="sm:contents">
+                    <p className="sm:hidden text-xs text-coffee-400 mb-0.5">Subtotal</p>
+                    <p className="text-right text-sm font-medium text-coffee-700 py-2 sm:py-0 sm:font-normal tabular-nums">
+                      {lineSubtotal > 0 ? formatCurrency(lineSubtotal) : '—'}
+                    </p>
+                  </div>
                   <button
                     type="button"
                     onClick={() => removeLine(idx)}
@@ -405,32 +420,15 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
           {receta ? 'Guardar cambios' : 'Crear receta'}
         </Button>
       </div>
-
-      <InsumoModal
-        isOpen={insumoModalOpen}
-        onClose={() => setInsumoModalOpen(false)}
-        onSuccess={() => {}}
-        onCreated={async (nombre) => {
-          setInsumoModalOpen(false);
-          const data = await gql<InsumosResponse>(GET_ALL_INSUMOS).catch(() => null);
-          if (!data) return;
-          const refreshed = data.insumos.nodes.map(mapInsumo);
-          setLocalInsumos(refreshed);
-          const created = refreshed.find((i) => i.name === nombre);
-          if (created && insumoModalTargetRow !== null) {
-            setIngredientes((prev) => {
-              const next = [...prev];
-              if (insumoModalTargetRow >= next.length) {
-                next.push({ insumoId: created.id, quantity: 0, merma: 0 });
-              } else {
-                next[insumoModalTargetRow] = { ...next[insumoModalTargetRow], insumoId: created.id };
-              }
-              return next;
-            });
-          }
-        }}
-      />
     </form>
+
+    <InsumoModal
+      isOpen={insumoModalOpen}
+      onClose={() => setInsumoModalOpen(false)}
+      onSuccess={() => {}}
+onCreated={handleInsumoCreated}
+    />
+  </div>
   );
 };
 

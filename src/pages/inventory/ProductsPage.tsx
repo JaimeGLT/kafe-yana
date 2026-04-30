@@ -12,7 +12,7 @@ import { useToast } from '../../components/ui/Toast';
 import { ProductModal } from '../../components/modals/ProductModal';
 import { gql } from '../../lib/graphql';
 import { api } from '../../lib/api';
-import { GET_COMPRADOS_QUERY, GET_ALL_CATEGORIES_QUERY, GET_COMPRADO_DETAIL } from '../../lib/queries/products.queries';
+import { GET_COMPRADOS_WITH_CATEGORIES_QUERY, GET_COMPRADO_DETAIL } from '../../lib/queries/products.queries';
 import type { Product, Category } from '../../types';
 import { formatCurrency } from '../../utils';
 import type { ProductDestino } from '../../types';
@@ -69,11 +69,8 @@ interface CompradoListNode {
   };
 }
 
-interface CompradosLoadResponse {
+interface CompradosWithCategoriesResponse {
   comprados: { nodes: CompradoListNode[] };
-}
-
-interface CategoriasResponse {
   categorias: { nodes: CategoriaNode[] };
 }
 
@@ -152,12 +149,9 @@ const ProductsPage: React.FC = () => {
   const loadAll = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [compradosData, categoriasData] = await Promise.all([
-        gql<CompradosLoadResponse>(GET_COMPRADOS_QUERY),
-        gql<CategoriasResponse>(GET_ALL_CATEGORIES_QUERY),
-      ]);
+      const data = await gql<CompradosWithCategoriesResponse>(GET_COMPRADOS_WITH_CATEGORIES_QUERY);
       setCategories(
-        categoriasData.categorias.nodes.map((n) => ({
+        data.categorias.nodes.map((n) => ({
           id: String(n.id),
           name: n.nombre,
           description: '',
@@ -169,7 +163,7 @@ const ProductsPage: React.FC = () => {
           updatedAt: new Date(),
         })),
       );
-      setProducts(compradosData.comprados.nodes.map(mapNode));
+      setProducts(data.comprados.nodes.map(mapNode));
     } catch (err) {
       console.error('Error loading comprados:', err);
       toast.error('Error al cargar', 'No se pudieron cargar los productos. Intenta de nuevo.');

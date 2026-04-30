@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Plus, Trash2, CheckCircle2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { gql } from '../../lib/graphql';
@@ -38,6 +38,12 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
   const [errors, setErrors] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [insumoModalOpen, setInsumoModalOpen] = useState(false);
+
+  const handleInsumoCreated = useCallback(async () => {
+    setInsumoModalOpen(false);
+    const data = await gql<InsumosResponse>(GET_ALL_INSUMOS);
+    setLocalInsumos(data.insumos.nodes.map(mapInsumo));
+  }, []);
 
   const recetaOptions = useMemo(
     () =>
@@ -271,7 +277,7 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
           </div>
         </div>
 
-        <div className="hidden sm:grid grid-cols-[1fr_90px_60px_56px_24px] gap-2 text-xs text-coffee-400 font-medium mb-1 px-1">
+        <div className="hidden sm:grid grid-cols-[1fr_90px_60px_24px] gap-2 text-xs text-coffee-400 font-medium mb-1 px-1">
           <span>Insumo</span>
           <span className="text-right">
             Cantidad
@@ -281,26 +287,21 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
             Merma %
             <HelpTooltip text="Porcentaje de pérdida en el proceso. Ej: pelar frutas = 15%, hervir = 5%. Se suma al costo automáticamente." />
           </span>
-          <span className="text-right">Subtotal</span>
           <span />
         </div>
 
         <div className="space-y-2">
           {ingredientes.map((line, idx) => {
             const insumo = localInsumos.find((i) => i.id === line.insumoId);
-            const subtotal =
-              insumo && line.quantity > 0
-                ? insumo.costoUnitario * line.quantity * (1 + line.merma / 100)
-                : 0;
 
             return (
-              <div key={idx} className="rounded-lg border border-coffee-100 bg-white p-2.5 sm:p-0 sm:border-0 sm:rounded-none sm:grid sm:grid-cols-[1fr_90px_60px_56px_24px] sm:gap-2 sm:items-center">
+              <div key={idx} className="rounded-lg border border-coffee-100 bg-white p-2.5 sm:p-0 sm:border-0 sm:rounded-none sm:grid sm:grid-cols-[1fr_90px_60px_24px] sm:gap-2 sm:items-center">
                 <Select
                   value={line.insumoId}
                   onChange={(v) => updateLine(idx, 'insumoId', v)}
                   options={insumoOptions}
                 />
-                <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-1.5 items-end mt-2 sm:mt-0 sm:contents">
+                <div className="grid grid-cols-[1fr_1fr_auto] gap-1.5 items-end mt-2 sm:mt-0 sm:contents">
                   <div className="sm:contents">
                     <p className="sm:hidden text-xs text-coffee-400 mb-0.5">Cantidad</p>
                     <Input
@@ -326,9 +327,6 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
                       className="text-right"
                     />
                   </div>
-                  <span className="text-xs text-coffee-500 font-medium shrink-0 text-right self-center min-w-[48px]">
-                    {subtotal > 0 ? formatCurrency(subtotal) : '—'}
-                  </span>
                   <button
                     type="button"
                     onClick={() => removeLine(idx)}
@@ -409,13 +407,8 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
       <InsumoModal
         isOpen={insumoModalOpen}
         onClose={() => setInsumoModalOpen(false)}
-        onSuccess={async () => {
-          setInsumoModalOpen(false);
-          try {
-            const data = await gql<InsumosResponse>(GET_ALL_INSUMOS);
-            setLocalInsumos(data.insumos.nodes.map(mapInsumo));
-          } catch {}
-        }}
+        onSuccess={() => setInsumoModalOpen(false)}
+        onCreated={handleInsumoCreated}
       />
       </>}
     </div>

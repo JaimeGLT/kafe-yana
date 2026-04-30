@@ -1,11 +1,5 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { gql } from '../../lib/graphql';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { api } from '../../lib/api';
-import { GET_ALL_INSUMOS } from '../../lib/queries/insumos.queries';
-import { GET_ALL_ELABORADOS } from '../../lib/queries/elaborados.queries';
-import { mapInsumo } from '../../lib/mappers/insumos.mappers';
-import { mapElaborado, mapRecetaFromElaborado } from '../../lib/mappers/elaborados.mappers';
-import type { InsumosResponse, ElaboradosResponse } from '../../types/graphql';
 import {
   Plus,
   FlaskConical,
@@ -26,16 +20,15 @@ import { RecetaModal } from '../../components/modals/RecetaModal';
 import { EditElaboradoModal } from '../../components/modals/EditElaboradoModal';
 import { ProductCard } from '../../components/elaborados/ProductCard';
 import { ElaboradoWizard } from '../../components/elaborados/ElaboradoWizard';
+import { useFullInventory } from '../../contexts';
 import type { Product, Receta, Insumo } from '../../types';
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const ElaboradosPage: React.FC = () => {
-  const [recetas, setRecetas] = useState<Receta[]>([]);
+  const { products: allProducts, recetas, categorias, insumos: contextInsumos, isLoading: isLoadingContext, refresh } = useFullInventory();
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [elaborados, setElaborados] = useState<Product[]>([]);
-  const [elaboradosMeta, setElaboradosMeta] = useState<Record<string, { stockActual: number; producible: boolean }>>({});
-  const [rawCategories, setRawCategories] = useState<{ id: string; nombre: string; estado: boolean }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const getRecetaByProductId = useCallback((productId: string) => {
@@ -49,29 +42,35 @@ const ElaboradosPage: React.FC = () => {
   const addReceta = useCallback(async (recetaData: { productId: string; nombre: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string }, _productName: string) => {
     try {
       await api.post('/Receta', {
-        nombre: recetaData.nombre,
-        nota: recetaData.notas ?? '',
-        porciones: recetaData.porcionesBase,
-        id_Elaborado: Number(recetaData.productId),
-        detalles: recetaData.ingredientes.map((ing) => ({
-          cantidad: ing.quantity,
-          merma: ing.merma,
-          subTotal: 0,
-          id_insumo: Number(ing.insumoId),
-        })),
+        datos: {
+          nombre: recetaData.nombre,
+          nota: recetaData.notas ?? '',
+          porciones: recetaData.porcionesBase,
+          id_Elaborado: Number(recetaData.productId),
+          detalles: recetaData.ingredientes.map((ing) => ({
+            cantidad: ing.quantity,
+            merma: ing.merma,
+            subTotal: '0.00',
+            id_insumo: Number(ing.insumoId),
+          })),
+        },
       });
-      await loadElaborados();
+      await refresh();
     } catch (error) {
       console.error('Error adding receta:', error);
       throw error;
     }
-  }, []);
+  }, [refresh]);
 
   useEffect(() => {
-    gql<InsumosResponse>(GET_ALL_INSUMOS)
-      .then((data) => setInsumos(data.insumos.nodes.map(mapInsumo)))
-      .catch((err) => console.error('Error loading insumos:', err));
-  }, []);
+    setInsumos(contextInsumos as unknown as Insumo[]);
+  }, [contextInsumos]);
+
+  useEffect(() => {
+    if (isLoadingContext) return;
+    setElaborados(allProducts.filter((p) => p.tipo === 'elaborado'));
+    setIsLoading(false);
+  }, [allProducts, isLoadingContext]);
 
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -83,37 +82,9 @@ const ElaboradosPage: React.FC = () => {
     isOpen: false,
   });
 
-  interface CatNode { id: number; nombre: string; estado: boolean; }
-  interface CatsResponse { categorias: { nodes: CatNode[] }; }
-
-  const loadElaborados = useCallback(async () => {
-    const data = await gql<ElaboradosResponse>(GET_ALL_ELABORADOS);
-    const nodes = data.elaborados.nodes;
-    setElaborados(nodes.map(mapElaborado));
-    setRecetas(nodes.map(mapRecetaFromElaborado).filter((r): r is Receta => r !== null));
-    setElaboradosMeta(
-      Object.fromEntries(
-        nodes.map((n) => [String(n.id_Producto), { stockActual: n.stock_actual, producible: n.producible }]),
-      ),
-    );
-  }, []);
-
-  useEffect(() => {
-    Promise.all([
-      gql<CatsResponse>(`query { categorias { nodes { id nombre estado } } }`),
-      loadElaborados(),
-    ])
-      .then(([catsData]) => {
-        const cats = catsData.categorias.nodes.map((n) => ({ id: String(n.id), nombre: n.nombre, estado: n.estado }));
-        setRawCategories(cats);
-      })
-      .catch(() => {/* silencioso */})
-      .finally(() => setIsLoading(false));
-  }, []);
-
   const categories = useMemo(
-    () => rawCategories.filter((c) => c.estado).map((c) => ({ value: c.id, label: c.nombre })),
-    [rawCategories]
+    () => categorias.filter((c) => c.name).map((c) => ({ value: c.id, label: c.name })),
+    [categorias]
   );
 
 
@@ -302,15 +273,13 @@ const ElaboradosPage: React.FC = () => {
             {filtered.map((product) => {
               const receta = getRecetaByProductId(product.id);
               const portions = getElaboradoAvailability(product.id);
-              const meta = elaboradosMeta[product.id];
-              const tipoPreparacion = meta?.producible ? 'en_lote' : 'al_momento';
-              const portionsToShow = meta?.producible ? (meta.stockActual ?? 0) : portions;
+              const tipoPreparacion = product.isActive ? 'en_lote' : 'al_momento';
               return (
                 <ProductCard
                   key={product.id}
                   product={product}
                   receta={receta}
-                  portionsAvailable={portionsToShow}
+                  portionsAvailable={portions}
                   tipoPreparacion={tipoPreparacion}
                   onEditProduct={(p) => setEditingProduct(p)}
                   onManageReceta={(p) => {
@@ -328,8 +297,8 @@ const ElaboradosPage: React.FC = () => {
       {/* Wizard: create elaborado + recipe */}
       <ElaboradoWizard
         isOpen={isWizardOpen}
-        onClose={() => { setIsWizardOpen(false); loadElaborados(); }}
-        onCreated={() => loadElaborados()}
+        onClose={() => { setIsWizardOpen(false); refresh(); }}
+        onCreated={() => refresh()}
         categories={categories}
         insumos={insumos}
         recetas={recetas}
@@ -346,9 +315,10 @@ const ElaboradosPage: React.FC = () => {
           onSaved={(updated) => {
             setElaborados((prev) => prev.map((p) => p.id === updated.id ? updated : p));
             setEditingProduct(null);
-            loadElaborados();
+            refresh();
           }}
-          onRecetaSaved={() => loadElaborados()}
+          onRecetaSaved={() => refresh()}
+          onRefreshInventory={refresh}
         />
       )}
 
@@ -375,7 +345,7 @@ const ElaboradosPage: React.FC = () => {
         products={elaborados}
         onSuccess={async () => {
           setRecetaModal({ isOpen: false });
-          await loadElaborados().catch(() => {});
+          await refresh().catch(() => {});
         }}
       />
     </MainLayout>

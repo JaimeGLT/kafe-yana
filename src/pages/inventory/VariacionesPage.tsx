@@ -21,7 +21,7 @@ interface ElaboradoVariacionNode {
   variaciones: {
     id: number; nombre: string; requerido: boolean;
     opciones: {
-      id: number; nombre: string; ajustePrecio: number;
+      id: number; nombre: string; ajuste_precio: number;
       ajustes: { tipoAjuste: string; cantidad: number; id_Insumo: number; id_InsumoNuevo: number | null }[];
     }[];
   }[];
@@ -78,8 +78,8 @@ interface ProductRowProps {
   onAddAtributo: (productId: string, data: { nombre: string; esRequerido: boolean }) => Promise<VariacionAtributo>;
   onUpdateAtributo: (atributoId: string, data: { nombre: string; esRequerido: boolean }) => Promise<void>;
   onDeleteAtributo: (atributoId: string) => Promise<void>;
-  onAddOpcion: (atributoId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }) => Promise<void>;
-  onUpdateOpcion: (atributoId: string, opcionId: string, data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number }) => Promise<void>;
+  onAddOpcion: (atributoId: string, data: { nombre: string; precioAjuste: number; tipoOpcion: string; valorAnterior: string; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: { insumoId: string; cantidad: number }[] }) => Promise<void>;
+  onUpdateOpcion: (atributoId: string, opcionId: string, data: { nombre: string; precioAjuste: number; tipoOpcion: string; valorAnterior: string; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: { insumoId: string; cantidad: number }[] }) => Promise<void>;
   onDeleteOpcion: (atributoId: string, opcionId: string) => Promise<void>;
 }
 
@@ -272,7 +272,7 @@ const VariacionesPage: React.FC = () => {
               id: String(o.id),
               atributoId: String(v.id),
               nombre: o.nombre,
-              precioAjuste: o.ajustePrecio,
+              precioAjuste: o.ajuste_precio,
               isActive: true,
               insumoReemplazadoId: reemplazo ? String(reemplazo.id_Insumo) : undefined,
               insumoExtraId: reemplazo?.id_InsumoNuevo ? String(reemplazo.id_InsumoNuevo) : undefined,
@@ -377,20 +377,19 @@ const VariacionesPage: React.FC = () => {
 
   const handleAddOpcion = useCallback(async (
     atributoId: string,
-    data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: { insumoId: string; cantidad: number }[] }
+    data: { nombre: string; precioAjuste: number; tipoOpcion: string; valorAnterior: string; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: { insumoId: string; cantidad: number }[] }
   ): Promise<void> => {
-    // Build ajustes array for the backend
-    let ajustes: { id_Insumo: number; id_InsumoNuevo: number | null; cantidad: number }[] = [];
+    let ajustes: { id_insumo: number; id_insumo_nuevo: number | null; cantidad: number }[] = [];
     if (data.insumoReemplazadoId) {
       ajustes = [{
-        id_Insumo: Number(data.insumoReemplazadoId),
-        id_InsumoNuevo: data.insumoExtraId ? Number(data.insumoExtraId) : null,
+        id_insumo: Number(data.insumoReemplazadoId),
+        id_insumo_nuevo: data.insumoExtraId ? Number(data.insumoExtraId) : null,
         cantidad: data.cantidadExtra ?? 1,
       }];
     } else if (data.ajustesCantidad?.length) {
       ajustes = data.ajustesCantidad.map((a) => ({
-        id_Insumo: Number(a.insumoId),
-        id_InsumoNuevo: null,
+        id_insumo: Number(a.insumoId),
+        id_insumo_nuevo: null,
         cantidad: a.cantidad,
       }));
     }
@@ -399,9 +398,11 @@ const VariacionesPage: React.FC = () => {
       setIsRefreshing(true);
       await api.post('/Variacion/Opcion', {
         nombre: data.nombre,
-        ajustePrecio: data.precioAjuste,
+        ajuste_precio: data.precioAjuste,
         id_variacion: Number(atributoId),
         ajustes,
+        tipo_opcion: data.tipoOpcion,
+        valor_anterior: data.valorAnterior || null,
       });
       await fetchData();
     } catch {
@@ -415,19 +416,19 @@ const VariacionesPage: React.FC = () => {
   const handleUpdateOpcion = useCallback(async (
     atributoId: string,
     opcionId: string,
-    data: { nombre: string; precioAjuste: number; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: { insumoId: string; cantidad: number }[] }
+    data: { nombre: string; precioAjuste: number; tipoOpcion: string; valorAnterior: string; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: { insumoId: string; cantidad: number }[] }
   ): Promise<void> => {
-    let ajustes: { id_Insumo: number; id_InsumoNuevo: number | null; cantidad: number }[] = [];
+    let ajustes: { id_insumo: number; id_insumo_nuevo: number | null; cantidad: number }[] = [];
     if (data.insumoReemplazadoId) {
       ajustes = [{
-        id_Insumo: Number(data.insumoReemplazadoId),
-        id_InsumoNuevo: data.insumoExtraId ? Number(data.insumoExtraId) : null,
+        id_insumo: Number(data.insumoReemplazadoId),
+        id_insumo_nuevo: data.insumoExtraId ? Number(data.insumoExtraId) : null,
         cantidad: data.cantidadExtra ?? 1,
       }];
     } else if (data.ajustesCantidad?.length) {
       ajustes = data.ajustesCantidad.map((a) => ({
-        id_Insumo: Number(a.insumoId),
-        id_InsumoNuevo: null,
+        id_insumo: Number(a.insumoId),
+        id_insumo_nuevo: null,
         cantidad: a.cantidad,
       }));
     }
@@ -436,9 +437,11 @@ const VariacionesPage: React.FC = () => {
       setIsRefreshing(true);
       await api.put(`/Variacion/Opcion/${opcionId}`, {
         nombre: data.nombre,
-        ajustePrecio: data.precioAjuste,
+        ajuste_precio: data.precioAjuste,
         id_variacion: Number(atributoId),
         ajustes,
+        tipo_opcion: data.tipoOpcion,
+        valor_anterior: data.valorAnterior || null,
       });
       await fetchData();
     } catch {

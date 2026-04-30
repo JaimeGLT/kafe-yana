@@ -156,10 +156,13 @@ export const SkeletonAjusteRow: React.FC = () => (
 );
 
 export const SkeletonMesaCard: React.FC = () => (
-  <div className="border-2 border-coffee-200 rounded-2xl p-4 flex flex-col items-center">
-    <div className="h-11 w-11 rounded-xl bg-coffee-100 mb-2" />
-    <Skeleton className="h-4 w-16 mb-2" />
-    <Skeleton className="h-5 w-14 rounded-full" />
+  <div className="relative border-2 border-coffee-500/30 rounded-2xl p-4 flex flex-col items-center bg-coffee-800/50">
+    <div className="absolute top-3 left-3 h-2 w-2 rounded-full bg-coffee-400" />
+    <div className="h-11 w-11 rounded-xl bg-coffee-800/70 flex items-center justify-center mt-3 mb-2">
+      <div className="h-5 w-5 rounded bg-coffee-600" />
+    </div>
+    <Skeleton className="h-4 w-16 mb-2 rounded" />
+    <Skeleton className="h-5 w-14 rounded-full bg-emerald-500/20" />
   </div>
 );
 

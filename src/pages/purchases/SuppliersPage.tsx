@@ -5,7 +5,8 @@ import { PageHeader, PageContainer } from '../../components/layout';
 import { Button, Modal, ConfirmModal } from '../../components/ui';
 import { SupplierModal } from '../../components/modals';
 import { toast } from '../../components/ui/Toast';
-import { MOCK_SUPPLIERS } from '../../data/reportsMocks';
+import { api } from '../../lib/api';
+import { useFullInventory } from '../../contexts';
 import type { Supplier, SupplierInput } from '../../types';
 
 const AVATAR_COLORS = [
@@ -17,13 +18,14 @@ const AVATAR_COLORS = [
   'bg-rose-100 text-rose-700',
 ];
 
-function avatarColor(id: string) {
-  const hash = id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+function avatarColor(id: string | number) {
+  const hash = String(id).split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
   return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
 export const SuppliersPage: React.FC = () => {
-  const [suppliers, setSuppliers] = useState<Supplier[]>(MOCK_SUPPLIERS);
+  const { proveedores, isLoading, refresh } = useFullInventory();
+
   const [isProcessing, setIsProcessing] = useState(false);
 
   const [search, setSearch] = useState('');
@@ -36,53 +38,49 @@ export const SuppliersPage: React.FC = () => {
 
   const filteredSuppliers = useMemo(() => {
     const q = search.toLowerCase();
-    return suppliers.filter(
+    return proveedores.filter(
       (s) =>
-        s.name.toLowerCase().includes(q) ||
-        (s.ruc || '').toLowerCase().includes(q) ||
+        s.razon_Social.toLowerCase().includes(q) ||
+        (s.dni || '').toLowerCase().includes(q) ||
         (s.email || '').toLowerCase().includes(q) ||
-        s.phone.includes(q) ||
-        (s.mobile || '').includes(q) ||
-        s.code.toLowerCase().includes(q)
+        s.telefono.includes(q) ||
+        (s.celular || '').includes(q)
     );
-  }, [suppliers, search]);
+  }, [proveedores, search]);
 
   const openCreate = () => { setEditingSupplier(undefined); setIsModalOpen(true); };
   const openEdit = (s: Supplier) => { setEditingSupplier(s); setIsModalOpen(true); };
   const openDelete = (s: Supplier) => { setDeletingSupplier(s); setIsDeleteOpen(true); };
   const openDetail = (s: Supplier) => { setViewingSupplier(s); setIsDetailOpen(true); };
 
-  const handleSaveSupplier = (input: SupplierInput, isEdit: boolean, supplierId?: string) => {
+  const handleSaveSupplier = async (input: SupplierInput, isEdit: boolean, supplierId?: string) => {
     if (isEdit && supplierId) {
-      setSuppliers((prev) =>
-        prev.map((s) => s.id === supplierId ? { ...s, ...input, updatedAt: new Date() } : s)
-      );
+      await api.put(`/Proveedor/${supplierId}`, input);
+      toast.success('Proveedor actualizado', `${input.razon_Social} fue actualizado.`);
     } else {
-      const newSupplier: Supplier = {
-        id: `sup-${Date.now()}`,
-        code: `SUP-${String(suppliers.length + 1).padStart(3, '0')}`,
-        ...input,
-        isActive: input.isActive ?? true,
-        currentDebt: 0,
-        totalPurchases: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      setSuppliers((prev) => [newSupplier, ...prev]);
+      await api.post('/Proveedor', input);
+      toast.success('Proveedor creado', `${input.razon_Social} fue registrado.`);
+    }
+    refresh();
+  };
+
+  const handleDelete = async () => {
+    if (!deletingSupplier) return;
+    setIsProcessing(true);
+    try {
+      await api.delete(`/Proveedor/${deletingSupplier.id}`);
+      toast.success('Proveedor eliminado', `${deletingSupplier.razon_Social} fue eliminado.`);
+      refresh();
+    } catch {
+      toast.error('Error', 'No se pudo eliminar el proveedor.');
+    } finally {
+      setIsDeleteOpen(false);
+      setDeletingSupplier(null);
+      setIsProcessing(false);
     }
   };
 
-  const handleDelete = () => {
-    if (!deletingSupplier) return;
-    setIsProcessing(true);
-    setSuppliers((prev) => prev.filter((s) => s.id !== deletingSupplier.id));
-    toast.success('Proveedor eliminado', `${deletingSupplier.name} fue eliminado.`);
-    setIsDeleteOpen(false);
-    setDeletingSupplier(null);
-    setIsProcessing(false);
-  };
-
-  const activeCount = suppliers.filter((s) => s.isActive).length;
+  const activeCount = proveedores.filter((s) => s.isActive).length;
 
   return (
     <MainLayout>
@@ -105,7 +103,7 @@ export const SuppliersPage: React.FC = () => {
             </div>
             <div>
               <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide">Total</p>
-              <p className="text-2xl font-bold text-coffee-900">{suppliers.length}</p>
+              <p className="text-2xl font-bold text-coffee-900">{proveedores.length}</p>
             </div>
           </div>
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 flex items-center gap-3">
@@ -123,7 +121,7 @@ export const SuppliersPage: React.FC = () => {
             </div>
             <div>
               <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide">Con email</p>
-              <p className="text-2xl font-bold text-amber-600">{suppliers.filter((s) => s.email).length}</p>
+              <p className="text-2xl font-bold text-amber-600">{proveedores.filter((s) => s.email).length}</p>
             </div>
           </div>
         </div>
@@ -170,63 +168,80 @@ export const SuppliersPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-coffee-50">
-                {filteredSuppliers.map((supplier) => (
-                  <tr
-                    key={supplier.id}
-                    className="hover:bg-coffee-50/60 transition-colors cursor-pointer"
-                    onClick={() => openDetail(supplier)}
-                  >
-                    <td className="px-5 py-3.5 whitespace-nowrap">
-                      <div className="flex items-center gap-3">
-                        <div className={`h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm ${avatarColor(supplier.id)}`}>
-                          {supplier.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-coffee-900 text-sm">{supplier.name}</p>
-                          <p className="text-xs font-mono text-coffee-400">{supplier.code}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 whitespace-nowrap text-sm text-coffee-600">
-                      {supplier.ruc || <span className="text-coffee-300">—</span>}
-                    </td>
-                    <td className="px-5 py-3.5 whitespace-nowrap">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-1.5 text-sm text-coffee-700">
-                          <Phone className="h-3.5 w-3.5 text-coffee-400" />
-                          {supplier.phone}
-                        </div>
-                        {supplier.email && (
-                          <div className="flex items-center gap-1.5 text-xs text-coffee-500">
-                            <Mail className="h-3 w-3 text-coffee-400" />
-                            {supplier.email}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-sm text-coffee-600 max-w-[200px] truncate">
-                      {supplier.address || <span className="text-coffee-300">—</span>}
-                    </td>
-                    <td className="px-5 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEdit(supplier)}
-                          className="p-1.5 rounded-lg hover:bg-coffee-100 text-coffee-400 hover:text-coffee-700 transition-colors"
-                          title="Editar"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => openDelete(supplier)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-coffee-400 hover:text-red-500 transition-colors"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i}>
+                      <td className="px-5 py-3.5"><div className="h-4 w-32 bg-coffee-100 rounded animate-pulse" /></td>
+                      <td className="px-5 py-3.5"><div className="h-4 w-20 bg-coffee-100 rounded animate-pulse" /></td>
+                      <td className="px-5 py-3.5"><div className="h-4 w-28 bg-coffee-100 rounded animate-pulse" /></td>
+                      <td className="px-5 py-3.5"><div className="h-4 w-32 bg-coffee-100 rounded animate-pulse" /></td>
+                      <td className="px-5 py-3.5"><div className="h-4 w-12 bg-coffee-100 rounded animate-pulse" /></td>
+                    </tr>
+                  ))
+                ) : filteredSuppliers.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-10 text-center text-coffee-400">
+                      No hay proveedores registrados
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredSuppliers.map((supplier) => (
+                    <tr
+                      key={supplier.id}
+                      className="hover:bg-coffee-50/60 transition-colors cursor-pointer"
+                      onClick={() => openDetail(supplier)}
+                    >
+                      <td className="px-5 py-3.5 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          <div className={`h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm ${avatarColor(supplier.id)}`}>
+                            {supplier.razon_Social.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-coffee-900 text-sm">{supplier.razon_Social}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 whitespace-nowrap text-sm text-coffee-600">
+                        {supplier.dni || <span className="text-coffee-300">—</span>}
+                      </td>
+                      <td className="px-5 py-3.5 whitespace-nowrap">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-1.5 text-sm text-coffee-700">
+                            <Phone className="h-3.5 w-3.5 text-coffee-400" />
+                            {supplier.telefono}
+                          </div>
+                          {supplier.email && (
+                            <div className="flex items-center gap-1.5 text-xs text-coffee-500">
+                              <Mail className="h-3 w-3 text-coffee-400" />
+                              {supplier.email}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 text-sm text-coffee-600 max-w-[200px] truncate">
+                        {supplier.direccion || <span className="text-coffee-300">—</span>}
+                      </td>
+                      <td className="px-5 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => openEdit(supplier)}
+                            className="p-1.5 rounded-lg hover:bg-coffee-100 text-coffee-400 hover:text-coffee-700 transition-colors"
+                            title="Editar"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => openDelete(supplier)}
+                            className="p-1.5 rounded-lg hover:bg-red-50 text-coffee-400 hover:text-red-500 transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -247,7 +262,7 @@ export const SuppliersPage: React.FC = () => {
           onClose={() => setIsDeleteOpen(false)}
           onConfirm={handleDelete}
           title="Eliminar Proveedor"
-          message={`¿Estás seguro de que deseas eliminar a "${deletingSupplier?.name}"? Esta acción no se puede deshacer.`}
+          message={`¿Estás seguro de que deseas eliminar a "${deletingSupplier?.razon_Social}"? Esta acción no se puede deshacer.`}
           confirmText="Eliminar"
           variant="danger"
           isLoading={isProcessing}
@@ -265,11 +280,10 @@ export const SuppliersPage: React.FC = () => {
               {/* Header */}
               <div className="flex items-center gap-4 pb-4 border-b border-coffee-100">
                 <div className={`h-14 w-14 rounded-2xl flex items-center justify-center text-xl font-bold flex-shrink-0 ${avatarColor(viewingSupplier.id)}`}>
-                  {viewingSupplier.name.charAt(0).toUpperCase()}
+                  {viewingSupplier.razon_Social.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <p className="font-bold text-coffee-900 text-lg leading-tight">{viewingSupplier.name}</p>
-                  <p className="text-xs font-mono text-coffee-400 mt-0.5">{viewingSupplier.code}</p>
+                  <p className="font-bold text-coffee-900 text-lg leading-tight">{viewingSupplier.razon_Social}</p>
                   {viewingSupplier.isActive ? (
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 mt-1">Activo</span>
                   ) : (
@@ -280,23 +294,23 @@ export const SuppliersPage: React.FC = () => {
 
               {/* Info grid */}
               <div className="grid grid-cols-2 gap-4 text-sm">
-                {viewingSupplier.ruc && (
+                {viewingSupplier.dni && (
                   <div>
                     <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide mb-1">N° Documento</p>
-                    <p className="font-semibold text-coffee-900">{viewingSupplier.ruc}</p>
+                    <p className="font-semibold text-coffee-900">{viewingSupplier.dni}</p>
                   </div>
                 )}
                 <div>
                   <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide mb-1">Teléfono</p>
                   <p className="font-semibold text-coffee-900 flex items-center gap-1.5">
                     <Phone className="h-3.5 w-3.5 text-coffee-400" />
-                    {viewingSupplier.phone}
+                    {viewingSupplier.telefono}
                   </p>
                 </div>
-                {viewingSupplier.mobile && (
+                {viewingSupplier.celular && (
                   <div>
                     <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide mb-1">Celular</p>
-                    <p className="font-semibold text-coffee-900">{viewingSupplier.mobile}</p>
+                    <p className="font-semibold text-coffee-900">{viewingSupplier.celular}</p>
                   </div>
                 )}
                 {viewingSupplier.email && (
@@ -308,10 +322,10 @@ export const SuppliersPage: React.FC = () => {
                     </p>
                   </div>
                 )}
-                {viewingSupplier.address && (
+                {viewingSupplier.direccion && (
                   <div className="col-span-2">
                     <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide mb-1">Dirección</p>
-                    <p className="font-semibold text-coffee-900">{viewingSupplier.address}</p>
+                    <p className="font-semibold text-coffee-900">{viewingSupplier.direccion}</p>
                   </div>
                 )}
               </div>

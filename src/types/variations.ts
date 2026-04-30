@@ -10,6 +10,8 @@ export interface VariacionOpcion {
   atributoId: UUID;
   nombre: string;
   precioAjuste: number;
+  tipoOpcion?: string;
+  valorAnterior?: string;
   // Ingredient substitution (reemplazar)
   insumoExtraId?: UUID;
   cantidadExtra?: number;
@@ -49,6 +51,8 @@ export interface VariacionOpcionInput {
   insumoReemplazadoId?: UUID;
   ajustesCantidad?: AjusteCantidad[];
   isActive?: boolean;
+  tipoOpcion?: string;
+  valorAnterior?: string;
 }
 
 // Used in cart when customer has selected options
@@ -66,4 +70,15 @@ export interface OpcionSeleccionada {
   insumoNuevoNombre?: string;
   tipoAjuste?: string;
   ajusteCantidad?: number;
+  tipoOpcion?: string;
+  valorAnterior?: string | null;
+  costoExtra?: number | null;
+  opcionRaw?: {
+    ajustes?: {
+      cantidad: number;
+      tipoAjuste: string;
+      insumoBase?: { nombre: string } | null;
+      insumoNuevo?: { nombre: string } | null;
+    }[];
+  };
 }
