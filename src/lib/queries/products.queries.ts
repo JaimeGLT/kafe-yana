@@ -16,10 +16,11 @@ export const INITIAL_LOAD_QUERY = `
 
 export const GET_COMPRADOS_WITH_CATEGORIES_QUERY = `
   query GetCompradosWithCategories {
-    comprados {
+    comprados(order: [{ producto: { nombre: ASC } }]) {
       nodes {
         codigo_barra
         unidad_medida
+        ubicacion
         costo_compra
         stock_actual
         stock_minimo

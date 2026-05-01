@@ -54,6 +54,7 @@ interface CategoriaNode {
 interface CompradoListNode {
   codigo_barra: string;
   unidad_medida: string;
+  ubicacion: string;
   costo_compra: number;
   stock_actual: number;
   stock_minimo: number;
@@ -102,6 +103,11 @@ interface CompradoDetailResponse {
 
 function mapNode(node: CompradoListNode): Product {
   const cat = node.producto.categoria;
+  const rawUbicacion = node.ubicacion ?? '';
+  const destino: ProductDestino =
+    rawUbicacion === 'Barra' ? 'barra'
+    : rawUbicacion === 'Cocina' ? 'cocina'
+    : 'sin_destino';
   return {
     id: String(node.producto.id),
     code: String(node.producto.id),
@@ -117,6 +123,8 @@ function mapNode(node: CompradoListNode): Product {
     minStock: node.stock_minimo,
     maxStock: 0,
     barcode: node.codigo_barra,
+    locationId: rawUbicacion || undefined,
+    destino,
     variations: [],
     hasVariations: false,
     isActive: node.disponible,
@@ -243,6 +251,7 @@ const ProductsPage: React.FC = () => {
           stock: d.stock_actual,
           minStock: d.stock_minimo,
           isActive: d.disponible,
+          locationId: d.ubicacion || undefined,
         });
       }
     } catch {
