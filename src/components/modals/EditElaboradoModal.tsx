@@ -133,6 +133,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
         categoria_Id: Number(categoryId) || 0,
         unidad_medida: unit,
         producible: preparationType === 'en_lote',
+        ubicacion: destino === 'barra' ? 'Barra' : destino === 'cocina' ? 'Cocina' : '',
       });
       const catName = categoryOptions.find((o) => o.value === categoryId)?.label ?? '';
       const updated = { ...product, name: name.trim(), description: description.trim(), salePrice: Number(salePrice), categoryId, categoryName: catName, unit };

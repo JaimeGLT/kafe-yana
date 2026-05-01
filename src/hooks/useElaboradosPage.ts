@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { gql } from '../lib/graphql';
 import { GET_ELABORADOS_PAGE } from '../lib/queries/elaborados.queries';
-import type { Product, Receta, Insumo } from '../types';
+import type { Product, Receta, Insumo, ProductDestino } from '../types';
 
 interface ElaboradoNode {
   id_Producto: number;
   stock_actual: number;
   producible: boolean;
   unidad_medida: string;
+  ubicacion: string;
   producto: {
     id: number;
     nombre: string;
@@ -104,6 +105,11 @@ export function useElaboradosPage(): UseElaboradosPageReturn {
 
       const mappedElaborados = data.elaborados.nodes.map((n) => {
         const cat = n.producto.categoria;
+        const rawUbicacion = n.ubicacion ?? '';
+        const destino: ProductDestino =
+          rawUbicacion === 'Barra' ? 'barra'
+          : rawUbicacion === 'Cocina' ? 'cocina'
+          : 'sin_destino';
         return {
           id: String(n.id_Producto),
           code: String(n.id_Producto),
@@ -119,6 +125,8 @@ export function useElaboradosPage(): UseElaboradosPageReturn {
           minStock: 0,
           maxStock: 0,
           barcode: '',
+          locationId: rawUbicacion || undefined,
+          destino,
           variations: n.variaciones.map((v) => ({
             id: String(v.id),
             name: v.nombre,

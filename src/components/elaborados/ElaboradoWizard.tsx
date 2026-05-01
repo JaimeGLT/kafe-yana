@@ -9,7 +9,13 @@ import { toast } from '../ui/Toast';
 import { RecetaStepTwo } from './RecetaStepTwo';
 import { CategoryModal } from '../modals/CategoryModal';
 import { GET_ALL_ELABORADOS } from '../../lib/queries/elaborados.queries';
-import type { Receta, Insumo, CategoryInput } from '../../types';
+import type { Receta, Insumo, CategoryInput, ProductDestino } from '../../types';
+
+const DESTINO_OPTIONS = [
+  { value: 'sin_destino', label: 'Sin destino' },
+  { value: 'barra', label: 'Barra' },
+  { value: 'cocina', label: 'Cocina' },
+];
 
 interface WizardProps {
   isOpen: boolean;
@@ -34,6 +40,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
   const [salePrice, setSalePrice] = useState<number | ''>('');
   const [unit, setUnit] = useState('unidad');
   const [preparationType, setPreparationType] = useState<'al_momento' | 'en_lote'>('al_momento');
+  const [destino, setDestino] = useState<ProductDestino>('sin_destino');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [localCategories, setLocalCategories] = useState(categories);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -53,6 +60,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
     setSalePrice('');
     setUnit('unidad');
     setPreparationType('al_momento');
+    setDestino('sin_destino');
     setErrors({});
   };
 
@@ -101,6 +109,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
         categoria_Id: Number(categoryId) || 0,
         unidad_medida: unit,
         producible: preparationType === 'en_lote',
+        ubicacion: destino === 'barra' ? 'Barra' : destino === 'cocina' ? 'Cocina' : '',
       });
       const data = await gql<{ elaborados: { nodes: { id_Producto: number; producto: { nombre: string } }[] } }>(GET_ALL_ELABORADOS);
       const created = data.elaborados.nodes.find((e) => e.producto.nombre === name.trim());
@@ -310,6 +319,19 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
                   placeholder="0.00"
                 />
                 {errors.salePrice && <p className="text-xs text-red-600 mt-1">{errors.salePrice}</p>}
+              </div>
+
+              {/* Destino */}
+              <div>
+                <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
+                  Destino
+                  <HelpTooltip text="Define si este producto se prepara en barra o en cocina." />
+                </label>
+                <Select
+                  value={destino}
+                  onChange={(v) => setDestino(v as ProductDestino)}
+                  options={DESTINO_OPTIONS}
+                />
               </div>
 
               {/* Info callout */}

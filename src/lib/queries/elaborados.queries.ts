@@ -6,6 +6,7 @@ export const GET_ALL_ELABORADOS = `
         unidad_medida
         producible
         stock_actual
+        ubicacion
         producto {
           id
           nombre
@@ -128,6 +129,7 @@ export const GET_ELABORADO_BY_ID = `
         unidad_medida
         producible
         stock_actual
+        ubicacion
         producto {
           id
           nombre
@@ -192,6 +194,7 @@ export const GET_ELABORADOS_PAGE = `
         stock_actual
         producible
         unidad_medida
+        ubicacion
         producto {
           id
           nombre
