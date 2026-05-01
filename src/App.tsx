@@ -37,7 +37,7 @@ import LoginPage from './pages/auth/LoginPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
 // Contexts
-import { AuthProvider, UIProvider, SettingsProvider, InventoryProvider } from './contexts';
+import { AuthProvider, UIProvider, SettingsProvider } from './contexts';
 import { ToastProvider } from './components/ui';
 
 const ADMIN = 'admin';
@@ -52,7 +52,6 @@ function App() {
       <SettingsProvider>
         <UIProvider>
           <ToastProvider>
-            <InventoryProvider>
             <BrowserRouter>
               <Routes>
                 {/* Ruta pública */}
@@ -109,7 +108,6 @@ function App() {
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </BrowserRouter>
-          </InventoryProvider>
           </ToastProvider>
         </UIProvider>
       </SettingsProvider>

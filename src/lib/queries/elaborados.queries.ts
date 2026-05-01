@@ -183,3 +183,86 @@ export const GET_ELABORADO_BY_ID = `
     }
   }
 `
+
+export const GET_ELABORADOS_PAGE = `
+  query GetElaboradosPage {
+    elaborados {
+      nodes {
+        id_Producto
+        stock_actual
+        producible
+        unidad_medida
+        producto {
+          id
+          nombre
+          descripcion
+          precio
+          tipo
+          categoria { id nombre descripcion estado color }
+        }
+        receta {
+          id
+          nombre
+          nota
+          cantidadProducible
+          porciones
+          detalles {
+            id_receta
+            id_insumo
+            cantidad
+            merma
+            subTotal
+            insumo {
+              id
+              nombre
+              categoria
+              unidad_min_uso
+              unidad_compra
+              factor_conversion
+              costo
+              stock_actual
+              stock_min
+            }
+          }
+        }
+        variaciones {
+          id
+          nombre
+          requerido
+          opciones {
+            id
+            nombre
+            ajustePrecio
+            id_variacion
+            ajustes {
+              tipoAjuste
+              cantidad
+              insumoBase { id nombre }
+              insumoNuevo { id nombre }
+            }
+          }
+        }
+      }
+    }
+    insumos {
+      nodes {
+        id
+        nombre
+        categoria
+        unidad_min_uso
+        unidad_compra
+        factor_conversion
+        costo
+        stock_actual
+        stock_min
+      }
+    }
+    categorias {
+      nodes {
+        id
+        nombre
+        color
+      }
+    }
+  }
+`

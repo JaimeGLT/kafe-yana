@@ -7,7 +7,7 @@ import { MainLayout, PageHeader, PageContainer, PageSection } from '../../compon
 import { Button, Badge } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
 import { formatCurrency } from '../../utils';
-import { useInventoryReport } from '../../hooks/useInventoryReport';
+import { useInventoryReportPage } from '../../hooks/useInventoryReportPage';
 
 const PIE_PALETTE = [
   '#8B4513', '#D4A574', '#C4883A', '#22c55e', '#eab308',
@@ -24,7 +24,7 @@ const tooltipStyle = {
 };
 
 const InventoryReportPage: React.FC = () => {
-  const { stats, categoryData, criticalItems, expiringItems, isLoading, error } = useInventoryReport();
+  const { stats, categoryData, criticalItems, expiringItems, isLoading, error } = useInventoryReportPage();
 
   const getRatioColor = (ratio: number) => {
     const pct = ratio * 100;

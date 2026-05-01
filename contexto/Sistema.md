@@ -32,6 +32,12 @@ El proyecto utiliza GrahpQL para las peticiones GET y API REST para las peticion
 ## Que tener muy claro
 - El inicio de sesión funciona con cookies.
 
+## Revisar siempre
+- Que el codigo sea limpio
+- Que el codigo no se repita
+- Que el codigo sea rápido
+- La estructura de lrpoyecto debe ser ordenada
+- Ejecutar npm run build para los errores de type script.
 
 
 

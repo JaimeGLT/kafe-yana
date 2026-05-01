@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { api } from '../../lib/api';
 import {
   Plus,
@@ -20,16 +20,13 @@ import { RecetaModal } from '../../components/modals/RecetaModal';
 import { EditElaboradoModal } from '../../components/modals/EditElaboradoModal';
 import { ProductCard } from '../../components/elaborados/ProductCard';
 import { ElaboradoWizard } from '../../components/elaborados/ElaboradoWizard';
-import { useFullInventory } from '../../contexts';
-import type { Product, Receta, Insumo } from '../../types';
+import { useElaboradosPage } from '../../hooks/useElaboradosPage';
+import type { Product, Receta } from '../../types';
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const ElaboradosPage: React.FC = () => {
-  const { products: allProducts, recetas, categorias, insumos: contextInsumos, isLoading: isLoadingContext, refresh } = useFullInventory();
-  const [insumos, setInsumos] = useState<Insumo[]>([]);
-  const [elaborados, setElaborados] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { elaborados, recetas, insumos, categorias, isLoading, refresh } = useElaboradosPage();
 
   const getRecetaByProductId = useCallback((productId: string) => {
     return recetas.find((r: Receta) => r.productId === productId);
@@ -61,16 +58,6 @@ const ElaboradosPage: React.FC = () => {
       throw error;
     }
   }, [refresh]);
-
-  useEffect(() => {
-    setInsumos(contextInsumos as unknown as Insumo[]);
-  }, [contextInsumos]);
-
-  useEffect(() => {
-    if (isLoadingContext) return;
-    setElaborados(allProducts.filter((p) => p.tipo === 'elaborado'));
-    setIsLoading(false);
-  }, [allProducts, isLoadingContext]);
 
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -123,7 +110,7 @@ const ElaboradosPage: React.FC = () => {
     setIsDeleting(true);
     try {
       await api.delete(`/Producto/${deletingProduct.id}`);
-      setElaborados((prev) => prev.filter((p) => p.id !== deletingProduct.id));
+      await refresh();
       toast.success('Producto eliminado', `"${deletingProduct.name}" fue eliminado correctamente.`);
       setDeletingProduct(null);
     } catch {
@@ -312,8 +299,7 @@ const ElaboradosPage: React.FC = () => {
           onClose={() => setEditingProduct(null)}
           product={editingProduct}
           categoryOptions={categories}
-          onSaved={(updated) => {
-            setElaborados((prev) => prev.map((p) => p.id === updated.id ? updated : p));
+          onSaved={() => {
             setEditingProduct(null);
             refresh();
           }}

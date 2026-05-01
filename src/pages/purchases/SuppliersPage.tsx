@@ -6,7 +6,7 @@ import { Button, Modal, ConfirmModal } from '../../components/ui';
 import { SupplierModal } from '../../components/modals';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import { useFullInventory } from '../../contexts';
+import { useSuppliersPage } from '../../hooks/useSuppliersPage';
 import type { Supplier, SupplierInput } from '../../types';
 
 const AVATAR_COLORS = [
@@ -24,7 +24,7 @@ function avatarColor(id: string | number) {
 }
 
 export const SuppliersPage: React.FC = () => {
-  const { proveedores, isLoading, refresh } = useFullInventory();
+  const { proveedores, isLoading, refresh } = useSuppliersPage();
 
   const [isProcessing, setIsProcessing] = useState(false);
 

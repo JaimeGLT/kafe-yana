@@ -8,13 +8,13 @@ import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { formatDate } from '../../utils';
 import { useAuth } from '../../contexts/AuthContext';
-import { useFullInventory } from '../../contexts';
+import { useCustomersPage } from '../../hooks/useCustomersPage';
 import type { Customer, CustomerInput } from '../../types';
 
 export const CustomersPage: React.FC = () => {
   const { user } = useAuth();
   const isAdmin = user?.rol?.toLowerCase() === 'admin';
-  const { clientes, isLoading, refresh } = useFullInventory();
+  const { clientes, isLoading, refresh } = useCustomersPage();
 
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);

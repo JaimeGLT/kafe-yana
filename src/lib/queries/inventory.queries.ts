@@ -320,3 +320,51 @@ export const GET_REPORTE_INVENTARIO = `
     }
   }
 `
+
+export const GET_HEADER_NOTIFICATIONS = `
+  query GetHeaderNotifications {
+    comprados {
+      nodes {
+        costo_compra
+        stock_actual
+        disponible
+        producto {
+          id
+          nombre
+          descripcion
+          precio
+          tipo
+          categoria { id nombre color }
+        }
+      }
+    }
+    elaborados {
+      nodes {
+        id_Producto
+        stock_actual
+        producible
+        producto {
+          id
+          nombre
+          descripcion
+          precio
+          tipo
+          categoria { id nombre color }
+        }
+      }
+    }
+    insumos {
+      nodes {
+        id
+        nombre
+        categoria
+        unidad_min_uso
+        unidad_compra
+        factor_conversion
+        costo
+        stock_actual
+        stock_min
+      }
+    }
+  }
+`

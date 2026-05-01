@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { api, ApiError } from '../lib/api';
+import { gql } from '../lib/graphql';
+import { ME_QUERY } from '../lib/queries/auth.queries';
 import type { SessionUser } from '../types/user';
 
 interface AuthState {
@@ -25,9 +27,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkSession = useCallback(async () => {
     try {
-      const userData = await api.post<SessionUser>('/Aunth/RefreshToken');
-      if (userData?.nombre && userData?.rol) {
-        setState({ user: userData, isAuthenticated: true, isCheckingSession: false });
+      const data = await gql<{ me: SessionUser }>(ME_QUERY);
+      if (data?.me?.nombre && data?.me?.rol) {
+        setState({ user: data.me, isAuthenticated: true, isCheckingSession: false });
       } else {
         setState({ user: null, isAuthenticated: false, isCheckingSession: false });
       }

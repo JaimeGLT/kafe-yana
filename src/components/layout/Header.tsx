@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useUI } from '../../contexts/UIContext';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { useFullInventory } from '../../contexts';
+import { useHeaderNotifications } from '../../hooks/useHeaderNotifications';
 import type { CriticalStockItem } from '../../types';
 
 interface NotificationItem extends CriticalStockItem {
@@ -19,7 +19,7 @@ export const Header: React.FC = () => {
   const { currentBranch } = useSettings();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { products, insumos, isLoading } = useFullInventory();
+  const { products, insumos, isLoading, hasLoaded, loadNotifications } = useHeaderNotifications();
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -125,7 +125,12 @@ export const Header: React.FC = () => {
           {/* Notifications */}
           <div ref={notificationRef} className="relative">
             <button
-              onClick={() => setNotificationsOpen(!notificationsOpen)}
+              onClick={() => {
+                if (!hasLoaded && !isLoading) {
+                  loadNotifications();
+                }
+                setNotificationsOpen(!notificationsOpen);
+              }}
               className="relative p-2 rounded-lg hover:bg-coffee-50 transition-colors"
             >
               <Bell className="h-5 w-5 text-coffee-600" />

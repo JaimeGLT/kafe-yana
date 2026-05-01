@@ -10,7 +10,7 @@ import { Button, ConfirmModal, Input, Select } from '../../components/ui';
 import { ComboModal } from '../../components/modals/ComboModal';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import { useFullInventory } from '../../contexts';
+import { useCombosPage } from '../../hooks/useCombosPage';
 import type { Combo, Product, Receta } from '../../types';
 import { formatCurrency } from '../../utils';
 
@@ -196,7 +196,7 @@ const ComboCard: React.FC<ComboCardProps> = ({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const CombosPage: React.FC = () => {
-  const { combos, products: allProducts, recetas, isLoading, refresh } = useFullInventory();
+  const { combos, products: allProducts, isLoading, refresh: loadData } = useCombosPage();
   // ── Estado de UI ──
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -251,7 +251,7 @@ const CombosPage: React.FC = () => {
       await api.delete(`/Producto/${deleting.id}`);
       toast.success('Combo eliminado', `"${deleting.name}" fue eliminado.`);
       setDeleting(null);
-      await refresh();
+      await loadData();
     } catch {
       toast.error('Error', 'No se pudo eliminar el combo.');
     } finally {
@@ -396,7 +396,7 @@ const CombosPage: React.FC = () => {
                 combo={combo}
                 availability={combo.availability}
                 products={allProducts}
-                recetas={recetas}
+                recetas={[]}
                 onEdit={openEdit}
                 onDelete={(c) => setDeleting(c)}
               />
@@ -410,7 +410,7 @@ const CombosPage: React.FC = () => {
         onClose={handleModalClose}
         combo={editing}
         products={allProducts}
-        onSuccess={() => refresh()}
+        onSuccess={() => loadData()}
         recetas={[]}
       />
 
