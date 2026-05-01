@@ -120,7 +120,8 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
       onSuccess();
       onClose();
     } catch (error) {
-      toast.error('Error', 'No se pudo guardar el cliente. Intente nuevamente.');
+      const message = error instanceof Error ? error.message : 'No se pudo guardar el cliente. Intente nuevamente.';
+      toast.error('Error', message);
     } finally {
       setIsLoading(false);
     }

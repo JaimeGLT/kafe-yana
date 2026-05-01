@@ -32,8 +32,8 @@ export const QuotesPage: React.FC = () => {
         const data = await api.get<Quote[]>('/quotes');
         setQuotes(data);
       } catch (error) {
-        console.error('Error fetching quotes:', error);
-        toast.error('Error', 'No se pudieron cargar las cotizaciones.');
+        const message = error instanceof Error ? error.message : 'No se pudieron cargar las cotizaciones.';
+        toast.error('Error', message);
       } finally {
         setLoading(false);
       }
@@ -46,7 +46,8 @@ export const QuotesPage: React.FC = () => {
       const sale = await api.post<Sale>('/quotes/' + quoteId + '/convert');
       return sale;
     } catch (error) {
-      console.error('Error converting quote:', error);
+      const message = error instanceof Error ? error.message : 'No se pudo convertir la cotización. Intente nuevamente.';
+      toast.error('Error', message);
       return null;
     }
   }, []);
@@ -56,8 +57,8 @@ export const QuotesPage: React.FC = () => {
       await api.delete('/quotes/' + quoteId);
       setQuotes(prev => prev.filter((q: Quote) => q.id !== quoteId));
     } catch (error) {
-      console.error('Error deleting quote:', error);
-      toast.error('Error', 'No se pudo eliminar la cotización.');
+      const message = error instanceof Error ? error.message : 'No se pudo eliminar la cotización. Intente nuevamente.';
+      toast.error('Error', message);
     }
   }, []);
 
@@ -71,8 +72,9 @@ export const QuotesPage: React.FC = () => {
       } else {
         toast.error('Error', 'No se pudo convertir la cotización.');
       }
-    } catch {
-      toast.error('Error', 'No se pudo convertir la cotización.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo convertir la cotización.';
+      toast.error('Error', message);
     } finally {
       setIsConverting(false);
       setConvertingQuote(null);

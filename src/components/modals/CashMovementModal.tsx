@@ -126,7 +126,8 @@ export const CashMovementModal: React.FC<CashMovementModalProps> = ({
       onSuccess();
       onClose();
     } catch (error) {
-      toast.error('Error', 'No se pudo registrar el movimiento. Verifique que la caja esté abierta.');
+      const message = error instanceof Error ? error.message : 'No se pudo registrar el movimiento. Verifique que la caja esté abierta.';
+      toast.error('Error', message);
     } finally {
       setIsLoading(false);
     }

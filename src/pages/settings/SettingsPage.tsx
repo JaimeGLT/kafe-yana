@@ -90,7 +90,8 @@ const SettingsPage: React.FC = () => {
       }
       setModalOpen(false);
     } catch (error) {
-      console.error('Error saving user:', error);
+      const message = error instanceof Error ? error.message : 'No se pudo guardar el usuario. Intente nuevamente.';
+      toast.error('Error', message);
     }
   };
 
@@ -102,7 +103,8 @@ const SettingsPage: React.FC = () => {
       setDeleteId(null);
       toast.success('Usuario eliminado');
     } catch (error) {
-      console.error('Error deleting user:', error);
+      const message = error instanceof Error ? error.message : 'No se pudo eliminar el usuario. Intente nuevamente.';
+      toast.error('Error', message);
     }
   };
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   Plus, Search, ShoppingBag, Edit, Trash2,
   X, TrendingUp, Tag, ChevronRight,
@@ -8,7 +8,7 @@ import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
 import { Button, Input, Select, ConfirmModal, Badge } from '../../components/ui';
-import { useToast } from '../../components/ui/Toast';
+import { toast } from '../../components/ui/Toast';
 import { ProductModal } from '../../components/modals/ProductModal';
 import { gql } from '../../lib/graphql';
 import { api } from '../../lib/api';
@@ -142,11 +142,13 @@ const ProductsPage: React.FC = () => {
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [detailDestino, setDetailDestino] = useState<ProductDestino>('sin_destino');
 
-  const toast = useToast();
+  const isRefreshing = useRef(false);
 
   // ── Carga de datos ─────────────────────────────────────────────────────────
 
   const loadAll = useCallback(async () => {
+    if (isRefreshing.current) return;
+    isRefreshing.current = true;
     setIsLoading(true);
     try {
       const data = await gql<CompradosWithCategoriesResponse>(GET_COMPRADOS_WITH_CATEGORIES_QUERY);
@@ -166,11 +168,12 @@ const ProductsPage: React.FC = () => {
       setProducts(data.comprados.nodes.map(mapNode));
     } catch (err) {
       console.error('Error loading comprados:', err);
-      toast.error('Error al cargar', 'No se pudieron cargar los productos. Intenta de nuevo.');
+      toast.error('Error al cargar', 'No se konnten cargar los productos. Intenta de nuevo.');
     } finally {
+      isRefreshing.current = false;
       setIsLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     loadAll();

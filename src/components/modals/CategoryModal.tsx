@@ -86,7 +86,8 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
       onSuccess();
       onClose();
     } catch (error) {
-      toast.error('Error', 'No se pudo guardar la categoría. Intente nuevamente.');
+      const message = error instanceof Error ? error.message : 'No se pudo guardar la categoría. Intente nuevamente.';
+      toast.error('Error', message);
     } finally {
       setIsLoading(false);
     }

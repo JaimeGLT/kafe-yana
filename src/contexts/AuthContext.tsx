@@ -41,12 +41,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     try {
+      await api.post('/Aunth/RefreshToken');
       const data = await gql<{ me: SessionUser }>(ME_QUERY);
       if (data?.me?.nombre && data?.me?.rol) {
         setState((prev) => ({ ...prev, user: data.me, isAuthenticated: true }));
       }
     } catch {
-      // si falla, no hace nada - el usuario sigue autenticado
     }
   }, []);
 
