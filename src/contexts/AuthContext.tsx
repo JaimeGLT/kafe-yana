@@ -14,6 +14,7 @@ interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   checkSession: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -38,14 +39,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const userData = await api.post<SessionUser>('/Aunth/Login', { email, password });
-    if (userData?.nombre && userData?.rol) {
-      setState({ user: userData, isAuthenticated: true, isCheckingSession: false });
-    } else {
-      setState({ user: null, isAuthenticated: false, isCheckingSession: false });
+  const refreshUser = useCallback(async () => {
+    try {
+      const data = await gql<{ me: SessionUser }>(ME_QUERY);
+      if (data?.me?.nombre && data?.me?.rol) {
+        setState((prev) => ({ ...prev, user: data.me, isAuthenticated: true }));
+      }
+    } catch {
+      // si falla, no hace nada - el usuario sigue autenticado
     }
   }, []);
+
+  const login = useCallback(async (email: string, password: string) => {
+    await api.post('/Aunth/Login', { email, password });
+    // después de login exitoso, obtener datos del usuario con /me
+    await refreshUser();
+  }, [refreshUser]);
 
   const logout = useCallback(async () => {
     try {
@@ -69,19 +78,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
   }, []);
 
-  useEffect(() => {
-    const handleUserRefreshed = (e: Event) => {
-      const userData = (e as CustomEvent<SessionUser>).detail;
-      if (userData?.nombre && userData?.rol) {
-        setState((prev) => ({ ...prev, user: userData, isAuthenticated: true }));
-      }
-    };
-    window.addEventListener('auth:user-refreshed', handleUserRefreshed);
-    return () => window.removeEventListener('auth:user-refreshed', handleUserRefreshed);
-  }, []);
-
   return (
-    <AuthContext.Provider value={{ ...state, login, logout, checkSession }}>
+    <AuthContext.Provider value={{ ...state, login, logout, checkSession, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
