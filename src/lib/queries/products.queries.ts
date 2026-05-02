@@ -15,8 +15,14 @@ export const INITIAL_LOAD_QUERY = `
 `;
 
 export const GET_COMPRADOS_WITH_CATEGORIES_QUERY = `
-  query GetCompradosWithCategories {
-    comprados(order: [{ producto: { nombre: ASC } }]) {
+  query GetCompradosWithCategories($first: Int, $after: String) {
+    comprados(
+      first: $first
+      after: $after
+      order: [{ producto: { nombre: ASC } }]
+    ) {
+      totalCount
+      pageInfo { hasNextPage endCursor }
       nodes {
         codigo_barra
         unidad_medida

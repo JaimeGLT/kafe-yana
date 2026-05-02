@@ -161,8 +161,9 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
       toast.success('Orden de compra creada', 'La orden de compra fue registrada correctamente.');
       onSuccess();
       onClose();
-    } catch {
-      toast.error('Error', 'No se pudo crear la orden de compra. Intente nuevamente.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo crear la orden de compra. Intente nuevamente.';
+      toast.error('Error', message);
     } finally {
       setIsLoading(false);
     }

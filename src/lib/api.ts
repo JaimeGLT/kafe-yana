@@ -96,11 +96,17 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
     let message = 'Error del servidor. Intenta de nuevo.';
     try {
       const body = await response.json();
-      message =
-        (body as { message?: string; detail?: string; error?: string }).message ??
-        (body as { detail?: string }).detail ??
-        (body as { error?: string }).error ??
-        message;
+      const fieldErrors = body.errors as Record<string, string[]> | undefined;
+      if (fieldErrors) {
+        const firstError = Object.values(fieldErrors).flat()[0];
+        if (firstError) message = firstError;
+      } else {
+        message =
+          (body as { message?: string; detail?: string; error?: string }).message ??
+          (body as { detail?: string }).detail ??
+          (body as { error?: string }).error ??
+          message;
+      }
     } catch {
       // body no es JSON — usar mensaje por defecto
     }

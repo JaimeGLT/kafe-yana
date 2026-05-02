@@ -3,12 +3,11 @@ import { FlaskConical, BookOpen, ChevronRight, CheckCircle2, ArrowRight, Plus } 
 import { clsx } from 'clsx';
 import { api } from '../../lib/api';
 import { gql } from '../../lib/graphql';
-import { Button, Input, Select, ImageUploadField } from '../ui';
-import { HelpTooltip } from '../ui/Tooltip';
 import { toast } from '../ui/Toast';
 import { RecetaStepTwo } from './RecetaStepTwo';
 import { CategoryModal } from '../modals/CategoryModal';
-import { GET_ALL_ELABORADOS } from '../../lib/queries/elaborados.queries';
+import { Button, Input, Select, ImageUploadField } from '../ui';
+import { HelpTooltip } from '../ui/Tooltip';
 import type { Receta, Insumo, CategoryInput, ProductDestino } from '../../types';
 
 const DESTINO_OPTIONS = [
@@ -102,7 +101,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
     if (!validateStep1()) return;
     
     try {
-      await api.post('/Elaborado', {
+      const res = await api.post<{ Id: number; Nombre: string; message?: string }>('/Elaborado', {
         nombre: name.trim(),
         descripcion: description.trim() || '',
         precio: Number(salePrice),
@@ -111,17 +110,16 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
         producible: preparationType === 'en_lote',
         ubicacion: destino === 'barra' ? 'Barra' : destino === 'cocina' ? 'Cocina' : '',
       });
-      const data = await gql<{ elaborados: { nodes: { id_Producto: number; producto: { nombre: string } }[] } }>(GET_ALL_ELABORADOS);
-      const created = data.elaborados.nodes.find((e) => e.producto.nombre === name.trim());
-      const id = created ? String(created.id_Producto) : null;
+      const id = String(res.Id);
       setNewProductId(id);
       setNewProductName(name.trim());
       setNewProductSalePrice(Number(salePrice));
       setStep(2);
       toast.success('Producto creado', `"${name}" fue agregado como producto elaborado.`);
       onCreated();
-    } catch {
-      toast.error('Error', 'No se pudo crear el producto. Intente nuevamente.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo crear el producto. Intente nuevamente.';
+      toast.error('Error', message);
     }
   };
 

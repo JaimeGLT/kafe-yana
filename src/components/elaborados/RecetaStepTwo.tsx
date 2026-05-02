@@ -48,7 +48,9 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
   const recetaOptions = useMemo(
     () =>
       [{ value: '', label: 'Seleccionar receta existente…' }].concat(
-        recetas.map((r) => ({ value: r.id, label: `${r.productName} (${r.ingredientes.length} ingredientes)` }))
+        recetas
+          .filter((r) => !r.productId)
+          .map((r) => ({ value: r.id, label: `${r.productName} (${r.ingredientes.length} ingredientes)` }))
       ),
     [recetas]
   );
@@ -121,8 +123,9 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
         );
         toast.success('Receta asignada', `Se usó la receta de "${recetaBase.productName}" para "${productName}".`);
         onDone();
-      } catch {
-        toast.error('Error', 'No se pudo guardar la receta. Intenta nuevamente.');
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'No se pudo guardar la receta. Intenta nuevamente.';
+        toast.error('Error', message);
       } finally {
         setIsSaving(false);
       }
@@ -134,8 +137,9 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
       await onAddReceta({ productId, nombre: nombre.trim(), porcionesBase, ingredientes, notas }, productName);
       toast.success('Receta guardada', `"${productName}" — costo/porción: ${formatCurrency(costoPorPorcion)}`);
       onDone();
-    } catch {
-      toast.error('Error', 'No se pudo guardar la receta. Intenta nuevamente.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo guardar la receta. Intenta nuevamente.';
+      toast.error('Error', message);
     } finally {
       setIsSaving(false);
     }

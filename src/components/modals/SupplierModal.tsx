@@ -97,8 +97,9 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
 
       onSuccess();
       onClose();
-    } catch {
-      toast.error('Error', 'No se pudo guardar el proveedor. Intente nuevamente.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo guardar el proveedor. Intente nuevamente.';
+      toast.error('Error', message);
     } finally {
       setIsLoading(false);
     }

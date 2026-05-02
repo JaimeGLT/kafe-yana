@@ -71,8 +71,9 @@ export const SuppliersPage: React.FC = () => {
       await api.delete(`/Proveedor/${deletingSupplier.id}`);
       toast.success('Proveedor eliminado', `${deletingSupplier.razon_Social} fue eliminado.`);
       refresh();
-    } catch {
-      toast.error('Error', 'No se pudo eliminar el proveedor.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo eliminar el proveedor.';
+      toast.error('Error', message);
     } finally {
       setIsDeleteOpen(false);
       setDeletingSupplier(null);

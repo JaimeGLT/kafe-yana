@@ -188,18 +188,16 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
     const productName = productOverride?.name ?? products.find((p) => p.id === productId)?.name ?? '';
     try {
       const body = {
-        datos: {
-          nombre: nombre.trim(),
-          nota: notas.trim(),
-          id_Elaborado: Number(productId),
-          porciones: porcionesBase,
-          detalles: ingredientes.map((ing) => ({
-            cantidad: ing.quantity,
-            merma: ing.merma,
-            subTotal: '0.00',
-            id_insumo: Number(ing.insumoId),
-          })),
-        },
+        nombre: nombre.trim(),
+        nota: notas.trim(),
+        id_Elaborado: Number(productId),
+        porciones: porcionesBase,
+        detalles: ingredientes.map((ing) => ({
+          cantidad: ing.quantity,
+          merma: ing.merma,
+          subTotal: 0,
+          id_insumo: Number(ing.insumoId),
+        })),
       };
       if (receta) {
         await api.put(`/Receta/${receta.id}`, body);
@@ -210,8 +208,9 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
       }
       onSuccess();
       onClose();
-    } catch {
-      toast.error('Error', 'No se pudo guardar la receta. Intente nuevamente.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo guardar la receta. Intente nuevamente.';
+      toast.error('Error', message);
     } finally {
       setIsLoading(false);
     }

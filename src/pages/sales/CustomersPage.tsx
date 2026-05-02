@@ -61,8 +61,9 @@ export const CustomersPage: React.FC = () => {
       await api.delete(`/Cliente/${deletingCustomer.id}`);
       toast.success('Cliente eliminado', `${deletingCustomer.nombre} fue eliminado.`);
       refresh();
-    } catch {
-      toast.error('Error', 'No se pudo eliminar el cliente.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo eliminar el cliente.';
+      toast.error('Error', message);
     }
     setIsDeleteOpen(false);
     setDeletingCustomer(null);

@@ -20,30 +20,48 @@ interface ProductsNode {
 }
 
 interface CombosPageResponse {
-  combos: { nodes: ComboNode[] };
+  combos: { nodes: ComboNode[]; totalCount: number; pageInfo?: { endCursor?: string | null } };
   comprados: { nodes: ProductsNode[] };
   elaborados: { nodes: ProductsNode[] };
+}
+
+interface UseCombosPageOptions {
+  page: number;
+  pageSize: number;
+  afterCursor?: string;
 }
 
 export interface UseCombosPageReturn {
   combos: Combo[];
   products: Product[];
+  totalCount: number;
   isLoading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  endCursor: string | null;
 }
 
-export function useCombosPage(): UseCombosPageReturn {
+export function useCombosPage(options: UseCombosPageOptions): UseCombosPageReturn {
+  const { page, pageSize, afterCursor } = options;
   const [combos, setCombos] = useState<Combo[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [endCursor, setEndCursor] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await gql<CombosPageResponse>(GET_COMBOS_WITH_PRODUCTS);
+      const variables: Record<string, unknown> = { first: pageSize };
+      if (page > 1 && afterCursor) {
+        variables.after = afterCursor;
+      }
+
+      const data = await gql<CombosPageResponse>(GET_COMBOS_WITH_PRODUCTS, variables);
+      setTotalCount(data.combos.totalCount);
+      setEndCursor(data.combos.pageInfo?.endCursor ?? null);
 
       const mappedProducts: Product[] = [
         ...data.comprados.nodes.map((n) => ({
@@ -125,7 +143,7 @@ export function useCombosPage(): UseCombosPageReturn {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [page, pageSize, afterCursor]);
 
   useEffect(() => {
     loadData();
@@ -135,5 +153,5 @@ export function useCombosPage(): UseCombosPageReturn {
     await loadData();
   }, [loadData]);
 
-  return { combos, products, isLoading, error, refresh };
+  return { combos, products, totalCount, isLoading, error, refresh, endCursor };
 }

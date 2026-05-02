@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { api } from '../../lib/api';
 import {
   Plus,
@@ -15,18 +15,35 @@ import { MainLayout } from '../../components/layout';
 import { PageContainer, PageHeader } from '../../components/layout';
 import { Button, Input, Select } from '../../components/ui';
 import { ConfirmModal } from '../../components/ui/Modal';
+import { Pagination } from '../../components/ui/Pagination';
 import { toast } from '../../components/ui/Toast';
 import { RecetaModal } from '../../components/modals/RecetaModal';
 import { EditElaboradoModal } from '../../components/modals/EditElaboradoModal';
 import { ProductCard } from '../../components/elaborados/ProductCard';
 import { ElaboradoWizard } from '../../components/elaborados/ElaboradoWizard';
 import { useElaboradosPage } from '../../hooks/useElaboradosPage';
+import { useFilters } from '../../hooks/useFilters';
 import type { Product, Receta } from '../../types';
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const ElaboradosPage: React.FC = () => {
-  const { elaborados, recetas, insumos, categorias, isLoading, refresh } = useElaboradosPage();
+  const { filters, setSearch, setPage, setPageSize } = useFilters('elaborados-filters');
+  const [cursors, setCursors] = useState<Record<number, string>>({});
+  const [filterStatus, setFilterStatus] = useState('');
+  const { elaborados, recetas, insumos, categorias, totalCount, isLoading, refresh, endCursor } = useElaboradosPage({
+    page: filters.page,
+    pageSize: filters.pageSize,
+    afterCursor: filters.page > 1 ? cursors[filters.page - 1] : undefined,
+  });
+
+  const prevEndCursor = useRef<string | null>(null);
+  useEffect(() => {
+    if (endCursor && endCursor !== prevEndCursor.current) {
+      prevEndCursor.current = endCursor;
+      setCursors((prev) => ({ ...prev, [filters.page]: endCursor }));
+    }
+  }, [endCursor, filters.page]);
 
   const getRecetaByProductId = useCallback((productId: string) => {
     return recetas.find((r: Receta) => r.productId === productId);
@@ -57,8 +74,6 @@ const ElaboradosPage: React.FC = () => {
     }
   }, [refresh]);
 
-  const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
@@ -75,15 +90,15 @@ const ElaboradosPage: React.FC = () => {
 
   const filtered = useMemo(() => {
     let list = elaborados;
-    if (search) {
-      const q = search.toLowerCase();
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
       list = list.filter((p) => p.name.toLowerCase().includes(q) || p.categoryName?.toLowerCase().includes(q));
     }
     if (filterStatus === 'con_receta') list = list.filter((p) => !!getRecetaByProductId(p.id));
     if (filterStatus === 'sin_receta') list = list.filter((p) => !getRecetaByProductId(p.id));
     if (filterStatus === 'sin_stock') list = list.filter((p) => getElaboradoAvailability(p.id) === 0);
     return list;
-  }, [elaborados, search, filterStatus, recetas, getRecetaByProductId, getElaboradoAvailability]);
+  }, [elaborados, filters.search, filterStatus, getRecetaByProductId, getElaboradoAvailability]);
 
   // KPIs
   const sinReceta = elaborados.filter((p) => !getRecetaByProductId(p.id)).length;
@@ -199,7 +214,7 @@ const ElaboradosPage: React.FC = () => {
           <div className="flex-1">
             <Input
               placeholder="Buscar producto…"
-              value={search}
+              value={filters.search}
               onChange={(e) => setSearch(e.target.value)}
               leftIcon={<Search className="h-4 w-4" />}
             />
@@ -254,28 +269,38 @@ const ElaboradosPage: React.FC = () => {
             No hay productos que coincidan con los filtros.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filtered.map((product) => {
-              const receta = getRecetaByProductId(product.id);
-              const portions = getElaboradoAvailability(product.id);
-              const tipoPreparacion = product.isActive ? 'en_lote' : 'al_momento';
-              return (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  receta={receta}
-                  portionsAvailable={portions}
-                  tipoPreparacion={tipoPreparacion}
-                  onEditProduct={(p) => setEditingProduct(p)}
-                  onManageReceta={(p) => {
-                    const r = getRecetaByProductId(p.id);
-                    setRecetaModal({ isOpen: true, product: p, receta: r });
-                  }}
-                  onDeleteProduct={(p) => setDeletingProduct(p)}
-                />
-              );
-            })}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filtered.map((product) => {
+                const receta = getRecetaByProductId(product.id);
+                const portions = getElaboradoAvailability(product.id);
+                const tipoPreparacion = product.isActive ? 'en_lote' : 'al_momento';
+                return (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    receta={receta}
+                    portionsAvailable={portions}
+                    tipoPreparacion={tipoPreparacion}
+                    onEditProduct={(p) => setEditingProduct(p)}
+                    onManageReceta={(p) => {
+                      const r = getRecetaByProductId(p.id);
+                      setRecetaModal({ isOpen: true, product: p, receta: r });
+                    }}
+                    onDeleteProduct={(p) => setDeletingProduct(p)}
+                  />
+                );
+              })}
+            </div>
+            <Pagination
+              totalCount={totalCount}
+              page={filters.page}
+              pageSize={filters.pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+              isLoading={isLoading}
+            />
+          </>
         )}
       </PageContainer>
 
@@ -325,6 +350,11 @@ const ElaboradosPage: React.FC = () => {
         onClose={() => setRecetaModal({ isOpen: false })}
         receta={recetaModal.receta}
         preselectedProductId={recetaModal.product?.id}
+        productOverride={recetaModal.product ? {
+          id: recetaModal.product.id,
+          name: recetaModal.product.name,
+          salePrice: recetaModal.product.salePrice,
+        } : undefined}
         insumos={insumos}
         products={elaborados}
         onSuccess={async () => {

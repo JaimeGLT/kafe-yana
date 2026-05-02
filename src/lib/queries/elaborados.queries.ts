@@ -187,8 +187,14 @@ export const GET_ELABORADO_BY_ID = `
 `
 
 export const GET_ELABORADOS_PAGE = `
-  query GetElaboradosPage {
-    elaborados {
+  query GetElaboradosPage($first: Int, $after: String) {
+    elaborados(
+      first: $first
+      after: $after
+      order: [{ producto: { nombre: ASC } }]
+    ) {
+      totalCount
+      pageInfo { hasNextPage endCursor }
       nodes {
         id_Producto
         stock_actual

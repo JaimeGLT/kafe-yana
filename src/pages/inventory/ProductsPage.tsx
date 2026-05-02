@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   Plus, Search, ShoppingBag, Edit, Trash2,
   X, TrendingUp, Tag, ChevronRight,
@@ -8,11 +8,13 @@ import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
 import { Button, Input, Select, ConfirmModal, Badge } from '../../components/ui';
+import { Pagination } from '../../components/ui/Pagination';
 import { toast } from '../../components/ui/Toast';
 import { ProductModal } from '../../components/modals/ProductModal';
 import { gql } from '../../lib/graphql';
 import { api } from '../../lib/api';
 import { GET_COMPRADOS_WITH_CATEGORIES_QUERY, GET_COMPRADO_DETAIL } from '../../lib/queries/products.queries';
+import { useFilters } from '../../hooks/useFilters';
 import type { Product, Category } from '../../types';
 import { formatCurrency } from '../../utils';
 import type { ProductDestino } from '../../types';
@@ -71,7 +73,7 @@ interface CompradoListNode {
 }
 
 interface CompradosWithCategoriesResponse {
-  comprados: { nodes: CompradoListNode[] };
+  comprados: { nodes: CompradoListNode[]; totalCount: number; pageInfo?: { endCursor?: string | null } };
   categorias: { nodes: CategoriaNode[] };
 }
 
@@ -136,11 +138,10 @@ function mapNode(node: CompradoListNode): Product {
 // ── Componente ─────────────────────────────────────────────────────────────────
 
 const ProductsPage: React.FC = () => {
+  const { filters, setSearch, setCategory, setPage, setPageSize } = useFilters('products-filters');
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
@@ -149,17 +150,27 @@ const ProductsPage: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [detailDestino, setDetailDestino] = useState<ProductDestino>('sin_destino');
-
+  const [totalCount, setTotalCount] = useState(0);
+  const [cursors, setCursors] = useState<Record<number, string>>({});
   const isRefreshing = useRef(false);
 
   // ── Carga de datos ─────────────────────────────────────────────────────────
 
-  const loadAll = useCallback(async () => {
+  const loadData = useCallback(async () => {
     if (isRefreshing.current) return;
     isRefreshing.current = true;
     setIsLoading(true);
     try {
-      const data = await gql<CompradosWithCategoriesResponse>(GET_COMPRADOS_WITH_CATEGORIES_QUERY);
+      const variables: Record<string, unknown> = { first: filters.pageSize };
+      if (filters.page > 1 && cursors[filters.page - 1]) {
+        variables.after = cursors[filters.page - 1];
+      }
+
+      const data = await gql<CompradosWithCategoriesResponse>(GET_COMPRADOS_WITH_CATEGORIES_QUERY, variables);
+      setTotalCount(data.comprados.totalCount);
+      if (data.comprados.pageInfo?.endCursor) {
+        setCursors((prev) => ({ ...prev, [filters.page]: data.comprados.pageInfo!.endCursor as string }));
+      }
       setCategories(
         data.categorias.nodes.map((n) => ({
           id: String(n.id),
@@ -181,38 +192,17 @@ const ProductsPage: React.FC = () => {
       isRefreshing.current = false;
       setIsLoading(false);
     }
-  }, []);
+  }, [filters.page, filters.pageSize]);
 
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    setCursors({});
+  }, [filters.page]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData, filters.search, filters.category]);
 
   // ── Filtros ────────────────────────────────────────────────────────────────
-
-  const filtered = useMemo(() => {
-    return products.filter((p) => {
-      const q = searchQuery.toLowerCase();
-      const matchesSearch =
-        !searchQuery ||
-        p.name.toLowerCase().includes(q) ||
-        p.code.toLowerCase().includes(q) ||
-        (p.barcode || '').toLowerCase().includes(q);
-      const matchesCategory = !selectedCategory || p.categoryName === selectedCategory;
-      return matchesSearch && matchesCategory;
-    });
-  }, [products, searchQuery, selectedCategory]);
-
-  const kpis = useMemo(() => {
-    const sinStock = products.filter((p) => p.stock <= 0).length;
-    const stockBajo = products.filter((p) => p.stock > 0 && p.stock <= p.minStock).length;
-    const margins = products
-      .map((p) => calcMargin(p.costPrice, p.salePrice))
-      .filter((m): m is number => m !== null);
-    const avgMargin = margins.length > 0
-      ? margins.reduce((s, m) => s + m, 0) / margins.length
-      : null;
-    return { total: products.length, sinStock, stockBajo, avgMargin };
-  }, [products]);
 
   const categoryOptions = useMemo(
     () => [
@@ -221,6 +211,31 @@ const ProductsPage: React.FC = () => {
     ],
     [categories],
   );
+
+  const filtered = useMemo(() => {
+    return products.filter((p) => {
+      const q = filters.search.toLowerCase();
+      const matchesSearch =
+        !filters.search ||
+        p.name.toLowerCase().includes(q) ||
+        p.code.toLowerCase().includes(q) ||
+        (p.barcode || '').toLowerCase().includes(q);
+      const matchesCategory = !filters.category || p.categoryName === filters.category;
+      return matchesSearch && matchesCategory;
+    });
+  }, [products, filters.search, filters.category]);
+
+  const kpis = useMemo(() => {
+    const sinStock = filtered.filter((p) => p.stock <= 0).length;
+    const stockBajo = filtered.filter((p) => p.stock > 0 && p.stock <= p.minStock).length;
+    const margins = filtered
+      .map((p) => calcMargin(p.costPrice, p.salePrice))
+      .filter((m): m is number => m !== null);
+    const avgMargin = margins.length > 0
+      ? margins.reduce((s, m) => s + m, 0) / margins.length
+      : null;
+    return { total: totalCount, sinStock, stockBajo, avgMargin };
+  }, [filtered, totalCount]);
 
   // ── Acciones ───────────────────────────────────────────────────────────────
 
@@ -268,7 +283,7 @@ const ProductsPage: React.FC = () => {
       await api.delete(`/Producto/${deletingProduct.id}`);
       toast.success('Producto eliminado', `"${deletingProduct.name}" fue eliminado.`);
       setDeletingProduct(null);
-      await loadAll();
+      await loadData();
     } catch {
       toast.error('Error', 'No se pudo eliminar el producto.');
     } finally {
@@ -286,7 +301,7 @@ const ProductsPage: React.FC = () => {
       <PageContainer>
         <PageHeader
           title="Comprados"
-          subtitle={`${filtered.length} producto${filtered.length !== 1 ? 's' : ''} encontrado${filtered.length !== 1 ? 's' : ''}`}
+          subtitle={`${totalCount} producto${totalCount !== 1 ? 's' : ''} encontrado${totalCount !== 1 ? 's' : ''}`}
           actions={
             <Button variant="primary" leftIcon={<Plus className="h-4 w-4" />} onClick={handleOpenCreate} className="w-full sm:w-auto">
               Nuevo Producto
@@ -356,16 +371,16 @@ const ProductsPage: React.FC = () => {
           <div className="flex-1">
             <Input
               placeholder="Buscar por nombre o código…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={filters.search}
+              onChange={(e) => setSearch(e.target.value)}
               leftIcon={<Search className="h-4 w-4" />}
             />
           </div>
           <div className="sm:w-52">
             <Select
               options={categoryOptions}
-              value={selectedCategory}
-              onChange={setSelectedCategory}
+              value={filters.category}
+              onChange={setCategory}
               placeholder="Todas las categorías"
             />
           </div>
@@ -419,9 +434,9 @@ const ProductsPage: React.FC = () => {
             <ShoppingBag className="h-12 w-12 mb-3 text-coffee-300" />
             <p className="text-lg font-medium">Sin productos comprados</p>
             <p className="text-sm mt-1">
-              {searchQuery || selectedCategory ? 'Prueba con otros filtros.' : 'Agrega tu primer producto para comenzar.'}
+              {filters.search || filters.category ? 'Prueba con otros filtros.' : 'Agrega tu primer producto para comenzar.'}
             </p>
-            {!searchQuery && !selectedCategory && (
+            {!filters.search && !filters.category && (
               <Button variant="primary" className="mt-4" leftIcon={<Plus className="h-4 w-4" />} onClick={handleOpenCreate}>
                 Nuevo Producto
               </Button>
@@ -474,7 +489,7 @@ const ProductsPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-coffee-50">
-                {filtered.map((p) => {
+                {products.map((p) => {
                   const margin = calcMargin(p.costPrice, p.salePrice);
                   return (
                     <tr key={p.id} className="hover:bg-coffee-50/50 transition-colors">
@@ -537,16 +552,24 @@ const ProductsPage: React.FC = () => {
               </tbody>
             </table>
 
+            {/* ── Pagination ───────────────────────────────────────────────── */}
+            <Pagination
+              totalCount={totalCount}
+              page={filters.page}
+              pageSize={filters.pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+              isLoading={isLoading}
+            />
           </div>
         )}
-      </PageContainer>
-
+</PageContainer>
       <ProductModal
         isOpen={isProductModalOpen}
         onClose={() => setIsProductModalOpen(false)}
         product={editingProduct}
         categories={categories}
-        onSuccess={() => { loadAll(); }}
+        onSuccess={() => { loadData(); }}
         isLoadingDetail={isLoadingEditDetail}
       />
 
@@ -558,7 +581,7 @@ const ProductsPage: React.FC = () => {
         message={`¿Eliminar "${deletingProduct?.name}"? Esta acción no se puede deshacer.`}
         confirmText="Eliminar"
         variant="danger"
-        isLoading={isDeleting}
+isLoading={isDeleting}
       />
 
       {/* ── Modal de detalle ───────────────────────────────────────────────── */}

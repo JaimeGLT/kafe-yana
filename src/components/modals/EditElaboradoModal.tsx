@@ -140,8 +140,9 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
       onSaved(updated);
       toast.success('Producto actualizado', `"${name}" fue actualizado correctamente.`);
       onClose();
-    } catch {
-      toast.error('Error', 'No se pudo actualizar el producto. Intente nuevamente.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo actualizar el producto. Intente nuevamente.';
+      toast.error('Error', message);
     } finally {
       setIsSaving(false);
     }

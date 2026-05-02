@@ -1,6 +1,12 @@
 export const GET_COMBOS_WITH_PRODUCTS = `
-  query GetCombosWithProducts {
-    combos {
+  query GetCombosWithProducts($first: Int, $after: String) {
+    combos(
+      first: $first
+      after: $after
+      order: [{ producto: { nombre: ASC } }]
+    ) {
+      totalCount
+      pageInfo { hasNextPage endCursor }
       nodes {
         producto { id nombre descripcion precio tipo }
         detalles {

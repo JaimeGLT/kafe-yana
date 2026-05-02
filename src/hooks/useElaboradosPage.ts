@@ -74,9 +74,15 @@ interface CategoriaNode {
 }
 
 interface ElaboradosPageResponse {
-  elaborados: { nodes: ElaboradoNode[] };
+  elaborados: { nodes: ElaboradoNode[]; totalCount: number; pageInfo?: { endCursor?: string | null } };
   insumos: { nodes: InsumoNode[] };
   categorias: { nodes: CategoriaNode[] };
+}
+
+interface UseElaboradosPageOptions {
+  page: number;
+  pageSize: number;
+  afterCursor?: string;
 }
 
 export interface UseElaboradosPageReturn {
@@ -84,24 +90,36 @@ export interface UseElaboradosPageReturn {
   recetas: Receta[];
   insumos: Insumo[];
   categorias: Array<{ id: string; name: string; color: string }>;
+  totalCount: number;
   isLoading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  endCursor: string | null;
 }
 
-export function useElaboradosPage(): UseElaboradosPageReturn {
+export function useElaboradosPage(options: UseElaboradosPageOptions): UseElaboradosPageReturn {
+  const { page, pageSize, afterCursor } = options;
   const [elaborados, setElaborados] = useState<Product[]>([]);
   const [recetas, setRecetas] = useState<Receta[]>([]);
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [categorias, setCategorias] = useState<Array<{ id: string; name: string; color: string }>>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [endCursor, setEndCursor] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await gql<ElaboradosPageResponse>(GET_ELABORADOS_PAGE);
+      const variables: Record<string, unknown> = { first: pageSize };
+      if (page > 1 && afterCursor) {
+        variables.after = afterCursor;
+      }
+
+      const data = await gql<ElaboradosPageResponse>(GET_ELABORADOS_PAGE, variables);
+      setTotalCount(data.elaborados.totalCount);
+      setEndCursor(data.elaborados.pageInfo?.endCursor ?? null);
 
       const mappedElaborados = data.elaborados.nodes.map((n) => {
         const cat = n.producto.categoria;
@@ -121,7 +139,9 @@ export function useElaboradosPage(): UseElaboradosPageReturn {
           unit: n.unidad_medida ?? 'unidad',
           costPrice: 0,
           salePrice: n.producto.precio,
-          stock: n.receta?.cantidadProducible ?? n.stock_actual,
+          stock: n.producible
+            ? (n.receta?.cantidadProducible ?? 0) * (n.receta?.porciones ?? 1)
+            : n.stock_actual,
           minStock: 0,
           maxStock: 0,
           barcode: '',
@@ -138,7 +158,7 @@ export function useElaboradosPage(): UseElaboradosPageReturn {
               id_variacion: String(o.id_variacion),
             })),
           })),
-          hasVariations: n.variaciones.length > 0,
+          hasVariations: n.producible && n.variaciones.length > 0,
           isActive: Boolean(n.producible),
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -210,7 +230,7 @@ export function useElaboradosPage(): UseElaboradosPageReturn {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [page, pageSize, afterCursor]);
 
   useEffect(() => {
     loadData();
@@ -225,9 +245,11 @@ export function useElaboradosPage(): UseElaboradosPageReturn {
     recetas,
     insumos,
     categorias,
+    totalCount,
     isLoading,
     error,
     refresh,
+    endCursor,
   };
 }
 

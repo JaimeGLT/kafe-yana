@@ -75,15 +75,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             {/* Availability */}
             <div className="flex items-center justify-between text-sm">
               <span className="text-coffee-500">
-                {tipoPreparacion === 'en_lote' ? 'En stock' : 'Producibles hoy'}
+                {tipoPreparacion === 'en_lote' ? 'En stock' : 'Producible'}
               </span>
               <span className={clsx(
                 'font-semibold',
-                portionsAvailable === 0 ? 'text-red-600' : portionsAvailable <= 5 ? 'text-amber-600' : 'text-emerald-600'
+                tipoPreparacion === 'en_lote'
+                  ? (portionsAvailable === 0 ? 'text-red-600' : portionsAvailable <= 5 ? 'text-amber-600' : 'text-emerald-600')
+                  : 'text-coffee-600'
               )}>
-                {portionsAvailable === 0
-                  ? (tipoPreparacion === 'en_lote' ? '⚠ Sin stock' : '⚠ Sin insumos')
-                  : `${portionsAvailable} ${product.unit ?? 'unidades'}`}
+                {tipoPreparacion === 'en_lote'
+                  ? (portionsAvailable === 0
+                      ? '⚠ Sin stock'
+                      : `${portionsAvailable} ${product.unit ?? 'unidades'}`)
+                  : (portionsAvailable === 0 ? '⚠ Sin insumos' : '✓ Bajo pedido')}
               </span>
             </div>
             {/* Recipe badge */}

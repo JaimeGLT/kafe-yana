@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Plus, Edit2, Trash2, Search, Layers, Tag,
   TrendingUp, AlertTriangle, CheckCircle2, XCircle,
@@ -7,10 +7,12 @@ import {
 import { clsx } from 'clsx';
 import { MainLayout, PageContainer, PageHeader } from '../../components/layout';
 import { Button, ConfirmModal, Input, Select } from '../../components/ui';
+import { Pagination } from '../../components/ui/Pagination';
 import { ComboModal } from '../../components/modals/ComboModal';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { useCombosPage } from '../../hooks/useCombosPage';
+import { useFilters } from '../../hooks/useFilters';
 import type { Combo, Product, Receta } from '../../types';
 import { formatCurrency } from '../../utils';
 
@@ -196,10 +198,24 @@ const ComboCard: React.FC<ComboCardProps> = ({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const CombosPage: React.FC = () => {
-  const { combos, products: allProducts, isLoading, refresh: loadData } = useCombosPage();
-  // ── Estado de UI ──
-  const [search, setSearch] = useState('');
+  const { filters, setSearch, setPage, setPageSize } = useFilters('combos-filters');
+  const [cursors, setCursors] = useState<Record<number, string>>({});
   const [filterStatus, setFilterStatus] = useState('');
+  const { combos, products: allProducts, totalCount, isLoading, refresh, endCursor } = useCombosPage({
+    page: filters.page,
+    pageSize: filters.pageSize,
+    afterCursor: filters.page > 1 ? cursors[filters.page - 1] : undefined,
+  });
+
+  const prevEndCursor = useRef<string | null>(null);
+  useEffect(() => {
+    if (endCursor && endCursor !== prevEndCursor.current) {
+      prevEndCursor.current = endCursor;
+      setCursors((prev) => ({ ...prev, [filters.page]: endCursor }));
+    }
+  }, [endCursor, filters.page]);
+
+  // ── Estado de UI ──
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<Combo | undefined>(undefined);
   const [deleting, setDeleting] = useState<Combo | null>(null);
@@ -210,8 +226,8 @@ const CombosPage: React.FC = () => {
 
   const filtered = useMemo(() => {
     let list = activeCombos;
-    if (search) {
-      const q = search.toLowerCase();
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
       list = list.filter((c) =>
         c.name.toLowerCase().includes(q) || c.description?.toLowerCase().includes(q),
       );
@@ -219,7 +235,7 @@ const CombosPage: React.FC = () => {
     if (filterStatus === 'sin_stock') list = list.filter((c) => c.availability === 0);
     if (filterStatus === 'disponible') list = list.filter((c) => c.availability > 0);
     return list;
-  }, [activeCombos, search, filterStatus]);
+  }, [activeCombos, filters.search, filterStatus]);
 
   // ── KPIs ──
   const sinStock = activeCombos.filter((c) => c.availability === 0).length;
@@ -251,7 +267,7 @@ const CombosPage: React.FC = () => {
       await api.delete(`/Producto/${deleting.id}`);
       toast.success('Combo eliminado', `"${deleting.name}" fue eliminado.`);
       setDeleting(null);
-      await loadData();
+      await refresh();
     } catch {
       toast.error('Error', 'No se pudo eliminar el combo.');
     } finally {
@@ -335,7 +351,7 @@ const CombosPage: React.FC = () => {
           <div className="flex-1">
             <Input
               placeholder="Buscar combo…"
-              value={search}
+              value={filters.search}
               onChange={(e) => setSearch(e.target.value)}
               leftIcon={<Search className="h-4 w-4" />}
             />
@@ -389,19 +405,29 @@ const CombosPage: React.FC = () => {
             No hay combos que coincidan con los filtros.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filtered.map((combo) => (
-              <ComboCard
-                key={combo.id}
-                combo={combo}
-                availability={combo.availability}
-                products={allProducts}
-                recetas={[]}
-                onEdit={openEdit}
-                onDelete={(c) => setDeleting(c)}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filtered.map((combo) => (
+                <ComboCard
+                  key={combo.id}
+                  combo={combo}
+                  availability={combo.availability}
+                  products={allProducts}
+                  recetas={[]}
+                  onEdit={openEdit}
+                  onDelete={(c) => setDeleting(c)}
+                />
+              ))}
+            </div>
+            <Pagination
+              totalCount={totalCount}
+              page={filters.page}
+              pageSize={filters.pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+              isLoading={isLoading}
+            />
+          </>
         )}
       </PageContainer>
 
@@ -410,7 +436,7 @@ const CombosPage: React.FC = () => {
         onClose={handleModalClose}
         combo={editing}
         products={allProducts}
-        onSuccess={() => loadData()}
+        onSuccess={() => refresh()}
         recetas={[]}
       />
 
