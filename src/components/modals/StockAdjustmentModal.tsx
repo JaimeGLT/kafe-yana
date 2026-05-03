@@ -319,12 +319,17 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
       } else {
         // elaborado
         const isEntrada = tipoElaborado === 'en_lote' && elaboradoDirection === 'entrada';
+        const cantidadIngresada = parseInt(quantityStr, 10);
         const fecha = fechaProduccion
           ? new Date(fechaProduccion).toISOString()
           : new Date().toISOString();
+        const cantidad =
+          isEntrada && selectedElaborado?.receta?.porciones
+            ? cantidadIngresada * selectedElaborado.receta.porciones
+            : cantidadIngresada;
         await api.post(`/AjusteStock/Elaborado?entrada=${isEntrada}`, {
           id_elaborado: id,
-          cantidad: parseInt(quantityStr, 10),
+          cantidad,
           fecha,
           motivo: isEntrada ? '' : reason,
           nota: notes,
@@ -610,7 +615,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
             {/* Elaborado en_lote ENTRADA: cantidad producida + fecha */}
             {productType === 'elaborado' && tipoElaborado === 'en_lote' && elaboradoDirection === 'entrada' && (
               <>
-                <FormField label={`Cantidad producida (${selectedElaborado?.unidad_medida ?? 'unidades'})`} required error={errors.quantity}>
+                <FormField label="Cantidad a producir" required error={errors.quantity}>
                   <Input
                     type="number"
                     min="1"
