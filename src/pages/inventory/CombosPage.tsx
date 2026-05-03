@@ -199,7 +199,18 @@ const ComboCard: React.FC<ComboCardProps> = ({
 
 const CombosPage: React.FC = () => {
   const { filters, setSearch, setPage, setPageSize } = useFilters('combos-filters');
-  const [cursors, setCursors] = useState<Record<number, string>>({});
+  const readCursors = () => {
+    try {
+      const raw = sessionStorage.getItem('combos-cursors');
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  };
+
+  const [cursors, setCursors] = useState<Record<number, string>>(() => readCursors());
+
+  useEffect(() => {
+    try { sessionStorage.setItem('combos-cursors', JSON.stringify(cursors)); } catch {}
+  }, [cursors]);
   const [filterStatus, setFilterStatus] = useState('');
   const { combos, products: allProducts, totalCount, isLoading, refresh, endCursor } = useCombosPage({
     page: filters.page,

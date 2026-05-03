@@ -1,12 +1,14 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Plus, Search, Edit2, Trash2, Building2, Phone, Mail, Users } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
 import { Button, Modal, ConfirmModal } from '../../components/ui';
+import { Pagination } from '../../components/ui/Pagination';
 import { SupplierModal } from '../../components/modals';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { useSuppliersPage } from '../../hooks/useSuppliersPage';
+import { useFilters } from '../../hooks/useFilters';
 import type { Supplier, SupplierInput } from '../../types';
 
 const AVATAR_COLORS = [
@@ -24,11 +26,38 @@ function avatarColor(id: string | number) {
 }
 
 export const SuppliersPage: React.FC = () => {
-  const { proveedores, isLoading, refresh } = useSuppliersPage();
+  const { filters, setSearch, setPage, setPageSize } = useFilters('suppliers-filters');
+
+  const readCursors = () => {
+    try {
+      const raw = sessionStorage.getItem('suppliers-cursors');
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  };
+
+  const [cursors, setCursors] = useState<Record<number, string>>(() => readCursors());
+
+  useEffect(() => {
+    try { sessionStorage.setItem('suppliers-cursors', JSON.stringify(cursors)); } catch {}
+  }, [cursors]);
+
+  const { proveedores, totalCount, endCursor, isLoading, refresh } = useSuppliersPage({
+    page: filters.page,
+    pageSize: filters.pageSize,
+    afterCursor: filters.page > 1 ? cursors[filters.page - 1] : undefined,
+  });
+
+  const prevEndCursor = useRef<string | null>(null);
+  useEffect(() => {
+    if (endCursor && endCursor !== prevEndCursor.current) {
+      prevEndCursor.current = endCursor;
+      setCursors((prev) => ({ ...prev, [filters.page]: endCursor }));
+    }
+  }, [endCursor, filters.page]);
 
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const [search, setSearch] = useState('');
+  const [search, setSearchLocal] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -104,7 +133,7 @@ export const SuppliersPage: React.FC = () => {
             </div>
             <div>
               <p className="text-xs text-coffee-400 font-medium uppercase tracking-wide">Total</p>
-              <p className="text-2xl font-bold text-coffee-900">{proveedores.length}</p>
+              <p className="text-2xl font-bold text-coffee-900">{totalCount}</p>
             </div>
           </div>
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 flex items-center gap-3">
@@ -135,7 +164,10 @@ export const SuppliersPage: React.FC = () => {
               type="text"
               placeholder="Buscar por nombre, RUC, email, teléfono..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearchLocal(e.target.value);
+                setSearch(e.target.value);
+              }}
               className="w-full pl-9 pr-4 py-2 border border-coffee-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-coffee-400 bg-white"
             />
           </div>
@@ -146,7 +178,7 @@ export const SuppliersPage: React.FC = () => {
         </div>
 
         {/* Table / empty */}
-        {filteredSuppliers.length === 0 ? (
+        {filteredSuppliers.length === 0 && !isLoading ? (
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm flex flex-col items-center justify-center py-16 text-coffee-400">
             <Building2 className="h-10 w-10 mb-3 opacity-30" />
             <p className="font-medium text-coffee-600">
@@ -245,6 +277,15 @@ export const SuppliersPage: React.FC = () => {
                 )}
               </tbody>
             </table>
+
+            <Pagination
+              totalCount={totalCount}
+              page={filters.page}
+              pageSize={filters.pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+              isLoading={isLoading}
+            />
           </div>
         )}
 

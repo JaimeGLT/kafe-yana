@@ -29,7 +29,20 @@ import type { Product, Receta } from '../../types';
 
 const ElaboradosPage: React.FC = () => {
   const { filters, setSearch, setPage, setPageSize } = useFilters('elaborados-filters');
-  const [cursors, setCursors] = useState<Record<number, string>>({});
+
+  const readCursors = () => {
+    try {
+      const raw = sessionStorage.getItem('elaborados-cursors');
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  };
+
+  const [cursors, setCursors] = useState<Record<number, string>>(() => readCursors());
+
+  useEffect(() => {
+    try { sessionStorage.setItem('elaborados-cursors', JSON.stringify(cursors)); } catch {}
+  }, [cursors]);
+
   const [filterStatus, setFilterStatus] = useState('');
   const { elaborados, recetas, insumos, categorias, totalCount, isLoading, refresh, endCursor } = useElaboradosPage({
     page: filters.page,

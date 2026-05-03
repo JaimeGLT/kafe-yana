@@ -1,20 +1,35 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Plus, Search, Edit2, Trash2, User, Phone, Mail, Calendar, Star } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Button, Badge, Modal, ConfirmModal, SkeletonRow } from '../../components/ui';
+import { Pagination } from '../../components/ui/Pagination';
 import { CustomerModal } from '../../components/modals';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { formatDate } from '../../utils';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCustomersPage } from '../../hooks/useCustomersPage';
+import { useFilters } from '../../hooks/useFilters';
 import type { Customer, CustomerInput } from '../../types';
 
 export const CustomersPage: React.FC = () => {
   const { user } = useAuth();
   const isAdmin = user?.rol?.toLowerCase() === 'admin';
-  const { clientes, isLoading, refresh } = useCustomersPage();
+  const { filters, setPage, setPageSize } = useFilters('customers-filters');
+
+  const readCursors = () => {
+    try {
+      const raw = sessionStorage.getItem('customers-cursors');
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  };
+
+  const [cursors, setCursors] = useState<Record<number, string>>(() => readCursors());
+
+  useEffect(() => {
+    try { sessionStorage.setItem('customers-cursors', JSON.stringify(cursors)); } catch {}
+  }, [cursors]);
 
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -23,6 +38,20 @@ export const CustomersPage: React.FC = () => {
   const [editingCustomer, setEditingCustomer] = useState<Customer | undefined>(undefined);
   const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
   const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
+
+  const { clientes, isLoading, refresh, totalCount, endCursor } = useCustomersPage({
+    page: filters.page,
+    pageSize: filters.pageSize,
+    afterCursor: filters.page > 1 ? cursors[filters.page - 1] : undefined,
+  });
+
+  const prevEndCursor = useRef<string | null>(null);
+  useEffect(() => {
+    if (endCursor && endCursor !== prevEndCursor.current) {
+      prevEndCursor.current = endCursor;
+      setCursors((prev) => ({ ...prev, [filters.page]: endCursor }));
+    }
+  }, [endCursor, filters.page]);
 
   const filteredCustomers = useMemo(() => {
     const q = search.toLowerCase();
@@ -210,6 +239,15 @@ export const CustomersPage: React.FC = () => {
             </table>
           </div>
         </PageSection>
+
+        <Pagination
+          totalCount={totalCount}
+          page={filters.page}
+          pageSize={filters.pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          isLoading={isLoading}
+        />
 
         {/* CustomerModal for create/edit */}
         <CustomerModal

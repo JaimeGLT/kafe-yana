@@ -82,8 +82,10 @@ export const GET_ELABORADOS_AJUSTES = `
 `;
 
 export const GET_ADJUSTMENTS_DATA = `
-  query GetAdjustmentsData {
-    ajustes {
+  query GetAdjustmentsData($first: Int, $after: String) {
+    ajustes(first: $first, after: $after, order: { fecha: DESC }) {
+      totalCount
+      pageInfo { hasNextPage endCursor }
       nodes {
         fecha
         id

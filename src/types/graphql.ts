@@ -201,7 +201,14 @@ export interface RecetaResponse {
 }
 
 export interface InsumosResponse {
-  insumos: { nodes: InsumoNode[] };
+  insumos: {
+    nodes: InsumoNode[];
+    totalCount: number;
+    pageInfo: {
+      hasNextPage: boolean;
+      endCursor: string | null;
+    };
+  };
 }
 
 export interface CombosResponse {
@@ -229,7 +236,11 @@ export interface AjustesResponse {
 }
 
 export interface AdjustmentsDataResponse {
-  ajustes: { nodes: AjusteNode[] };
+  ajustes: {
+    totalCount: number;
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+    nodes: AjusteNode[]
+  };
   comprados: { nodes: CompradoNode[] };
   insumos: { nodes: InsumoNode[] };
   elaborados: { nodes: ElaboradoAjusteNode[] };

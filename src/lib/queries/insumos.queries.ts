@@ -1,6 +1,6 @@
 export const GET_ALL_INSUMOS = `
-  query GetAllInsumos {
-    insumos {
+  query GetAllInsumos($first: Int, $after: String) {
+    insumos(first: $first, after: $after) {
       nodes {
         id
         nombre
@@ -11,6 +11,11 @@ export const GET_ALL_INSUMOS = `
         costo
         stock_actual
         stock_min
+      }
+      totalCount
+      pageInfo {
+        hasNextPage
+        endCursor
       }
     }
   }

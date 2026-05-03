@@ -1,6 +1,6 @@
 export const GET_PROVEEDORES = `
-  query GetProveedores {
-    proveedores {
+  query GetProveedores($first: Int, $after: String) {
+    proveedores(first: $first, after: $after) {
       nodes {
         id
         razon_Social
@@ -9,6 +9,11 @@ export const GET_PROVEEDORES = `
         celular
         email
         direccion
+      }
+      totalCount
+      pageInfo {
+        hasNextPage
+        endCursor
       }
     }
   }

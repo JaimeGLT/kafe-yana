@@ -1,6 +1,6 @@
 export const GET_CLIENTES = `
-  query GetClientes {
-    clientes {
+  query GetClientes($first: Int, $after: String) {
+    clientes(first: $first, after: $after) {
       nodes {
         dni
         nombre
@@ -11,6 +11,11 @@ export const GET_CLIENTES = `
         puntos
         estado
         id
+      }
+      totalCount
+      pageInfo {
+        hasNextPage
+        endCursor
       }
     }
   }

@@ -161,9 +161,10 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
     const stockEnUso = selectedInsumo.stock_actual;
     const costoUnitario = selectedInsumo.costo / fc;
     if (direction === 'entrada') {
-      const q = parseFloat(quantityStr);
+      const q = parseInt(quantityStr, 10);
       if (isNaN(q) || q <= 0) return null;
-      return { diff: q, newStock: stockEnUso + q, perdida: 0, costoUnitario };
+      const diffEnUso = q * fc;
+      return { diff: diffEnUso, newStock: stockEnUso + diffEnUso, perdida: 0, costoUnitario };
     }
     // Salida: el usuario ingresa cuánto hay físicamente en unidad de uso
     const fisico = parseFloat(stockFisicoStr);
@@ -274,8 +275,8 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
         }
       }
     } else if (direction === 'entrada') {
-      const q = productType === 'insumo' ? parseFloat(quantityStr) : parseInt(quantityStr, 10);
-      if (isNaN(q) || q <= 0) errs.quantity = productType === 'insumo' ? 'Ingresa una cantidad válida' : 'Ingresa una cantidad entera válida';
+      const q = parseInt(quantityStr, 10);
+      if (isNaN(q) || q <= 0) errs.quantity = 'Ingresa una cantidad entera válida';
       if (!reason) errs.reason = 'Selecciona un motivo';
     } else {
       const f = productType === 'insumo' ? parseFloat(stockFisicoStr) : parseInt(stockFisicoStr, 10);
@@ -308,7 +309,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
         });
       } else if (productType === 'insumo') {
         const isEntrada = direction === 'entrada';
-        const cantidad = isEntrada ? parseFloat(quantityStr) : (insumoAjuste?.diff ?? 0);
+        const cantidad = isEntrada ? (insumoAjuste?.diff ?? 0) : (insumoAjuste?.diff ?? 0);
         await api.post(`/AjusteStock/Insumo?entrada=${isEntrada}`, {
           id,
           cantidad,
@@ -546,17 +547,22 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
           <>
             {/* Comprado/insumo entrada: cantidad directa */}
             {productType !== 'elaborado' && direction === 'entrada' && (
-              <FormField label="Cantidad a agregar" required error={errors.quantity}>
+              <FormField label={`Cantidad a agregar (${selectedInsumo?.unidad_compra ?? 'unidades'})`} required error={errors.quantity}>
                 <Input
                   type="number"
-                  min={productType === 'insumo' ? '0.001' : '1'}
-                  step={productType === 'insumo' ? '0.001' : '1'}
+                  min="1"
+                  step="1"
                   value={quantityStr}
                   onChange={(e) => { setQuantityStr(e.target.value); setErrors((p) => ({ ...p, quantity: '' })); }}
                   placeholder="0"
                   error={errors.quantity}
                   showMessage={false}
                 />
+                {selectedInsumo && (
+                  <p className="text-xs text-coffee-500 mt-1">
+                    Equivale a {(parseInt(quantityStr, 10) || 0) * selectedInsumo.factor_conversion} {selectedInsumo.unidad_min_uso}
+                  </p>
+                )}
               </FormField>
             )}
 

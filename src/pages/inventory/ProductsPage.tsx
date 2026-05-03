@@ -151,7 +151,18 @@ const ProductsPage: React.FC = () => {
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [detailDestino, setDetailDestino] = useState<ProductDestino>('sin_destino');
   const [totalCount, setTotalCount] = useState(0);
-  const [cursors, setCursors] = useState<Record<number, string>>({});
+  const readCursors = () => {
+    try {
+      const raw = sessionStorage.getItem('products-cursors');
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  };
+
+  const [cursors, setCursors] = useState<Record<number, string>>(() => readCursors());
+
+  useEffect(() => {
+    try { sessionStorage.setItem('products-cursors', JSON.stringify(cursors)); } catch {}
+  }, [cursors]);
   const isRefreshing = useRef(false);
 
   // ── Carga de datos ─────────────────────────────────────────────────────────

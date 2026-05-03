@@ -16,7 +16,17 @@ interface ClienteNode {
 }
 
 interface ClientesResponse {
-  clientes: { nodes: ClienteNode[] };
+  clientes: {
+    nodes: ClienteNode[];
+    totalCount: number;
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  };
+}
+
+export interface UseCustomersPageOptions {
+  page: number;
+  pageSize: number;
+  afterCursor?: string;
 }
 
 export interface UseCustomersPageReturn {
@@ -24,18 +34,28 @@ export interface UseCustomersPageReturn {
   isLoading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  totalCount: number;
+  endCursor: string | null;
 }
 
-export function useCustomersPage(): UseCustomersPageReturn {
+export function useCustomersPage({
+  pageSize,
+  afterCursor,
+}: UseCustomersPageOptions): UseCustomersPageReturn {
   const [clientes, setClientes] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
+  const [endCursor, setEndCursor] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await gql<ClientesResponse>(GET_CLIENTES);
+      const data = await gql<ClientesResponse>(GET_CLIENTES, {
+        first: pageSize,
+        after: afterCursor,
+      });
       setClientes(
         data.clientes.nodes.map((n) => ({
           id: String(n.id),
@@ -49,13 +69,15 @@ export function useCustomersPage(): UseCustomersPageReturn {
           estado: n.estado === '1' || n.estado === 'true',
         })),
       );
+      setTotalCount(data.clientes.totalCount);
+      setEndCursor(data.clientes.pageInfo.endCursor);
     } catch (e) {
       console.error('Error loading clientes:', e);
       setError('No se pudieron cargar los clientes.');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [pageSize, afterCursor]);
 
   useEffect(() => {
     loadData();
@@ -65,5 +87,5 @@ export function useCustomersPage(): UseCustomersPageReturn {
     await loadData();
   }, [loadData]);
 
-  return { clientes, isLoading, error, refresh };
+  return { clientes, isLoading, error, refresh, totalCount, endCursor };
 }

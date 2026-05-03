@@ -67,7 +67,6 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
   const [salePrice, setSalePrice] = useState<number | ''>(product.salePrice);
   const [categoryId, setCategoryId] = useState(product.categoryId || '');
   const [unit, setUnit] = useState(product.unit || 'unidad');
-  const [preparationType, setPreparationType] = useState<'al_momento' | 'en_lote'>('al_momento');
   const [destino, setDestino] = useState<ProductDestino>(product.destino ?? 'sin_destino');
 
   useEffect(() => {
@@ -91,7 +90,6 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
         setProducts(prods.elaborados.nodes.map(mapElaborado));
         const node = byId.elaborados.nodes[0];
         if (node) {
-          setPreparationType(node.producible ? 'en_lote' : 'al_momento');
           setReceta(mapRecetaFromElaborado(node) ?? undefined);
         }
       }).catch(() => {}).finally(() => setIsLoadingData(false));
@@ -132,7 +130,6 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
         precio: Number(salePrice),
         categoria_Id: Number(categoryId) || 0,
         unidad_medida: unit,
-        producible: preparationType === 'en_lote',
         ubicacion: destino === 'barra' ? 'Barra' : destino === 'cocina' ? 'Cocina' : '',
       });
       const catName = categoryOptions.find((o) => o.value === categoryId)?.label ?? '';
@@ -215,12 +212,9 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
                 <div className="h-10 w-full bg-coffee-100 rounded-lg" />
               </div>
               {/* Tipo preparación */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <div className="h-3 w-48 bg-coffee-200 rounded" />
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="h-16 bg-coffee-100 rounded-lg" />
-                  <div className="h-16 bg-coffee-100 rounded-lg" />
-                </div>
+                <div className="h-14 bg-coffee-100 rounded-lg" />
               </div>
               {/* Descripción */}
               <div className="space-y-1.5">
@@ -273,55 +267,16 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
               </div>
 
               {/* Preparation type */}
-              <div>
-                <label className="flex items-center text-sm font-medium text-coffee-700 mb-2">
-                  ¿Cómo se prepara este producto?
-                  <HelpTooltip text="Define si el producto se elabora al momento del pedido o en lotes para tener stock listo." />
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setPreparationType('al_momento')}
-                    className={clsx(
-                      'flex items-start gap-3 rounded-lg border-2 px-4 py-3 text-left transition-colors',
-                      preparationType === 'al_momento'
-                        ? 'border-amber-500 bg-amber-50'
-                        : 'border-coffee-200 bg-white hover:border-coffee-300'
-                    )}
-                  >
-                    <span className={clsx('mt-0.5 flex h-4 w-4 shrink-0 rounded-full border-2 items-center justify-center', preparationType === 'al_momento' ? 'border-amber-500' : 'border-coffee-300')}>
-                      {preparationType === 'al_momento' && <span className="h-2 w-2 rounded-full bg-amber-500" />}
-                    </span>
-                    <div>
-                      <p className={clsx('text-sm font-semibold', preparationType === 'al_momento' ? 'text-amber-700' : 'text-coffee-800')}>Al momento</p>
-                      <p className="text-xs text-coffee-500 mt-0.5">Se prepara cuando llega el pedido</p>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPreparationType('en_lote')}
-                    className={clsx(
-                      'flex items-start gap-3 rounded-lg border-2 px-4 py-3 text-left transition-colors',
-                      preparationType === 'en_lote'
-                        ? 'border-amber-500 bg-amber-50'
-                        : 'border-coffee-200 bg-white hover:border-coffee-300'
-                    )}
-                  >
-                    <span className={clsx('mt-0.5 flex h-4 w-4 shrink-0 rounded-full border-2 items-center justify-center', preparationType === 'en_lote' ? 'border-amber-500' : 'border-coffee-300')}>
-                      {preparationType === 'en_lote' && <span className="h-2 w-2 rounded-full bg-amber-500" />}
-                    </span>
-                    <div>
-                      <p className={clsx('text-sm font-semibold', preparationType === 'en_lote' ? 'text-amber-700' : 'text-coffee-800')}>En lote</p>
-                      <p className="text-xs text-coffee-500 mt-0.5">Se prepara en cantidad y se tiene listo para vender</p>
-                    </div>
-                  </button>
+              <div className="rounded-lg bg-coffee-50 border border-coffee-200 px-4 py-3 flex items-start gap-2">
+                <Info className="h-4 w-4 shrink-0 mt-0.5 text-coffee-500" />
+                <div>
+                  <p className="text-sm font-medium text-coffee-700">
+                    Este producto fue creado como <strong>{product.isActive ? 'En lote' : 'Al momento'}</strong>.
+                  </p>
+                  <p className="text-xs text-coffee-500 mt-0.5">
+                    La forma de preparación no se puede cambiar una vez creado el producto.
+                  </p>
                 </div>
-                {preparationType === 'en_lote' && (
-                  <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 flex items-start gap-2">
-                    <Info className="h-4 w-4 shrink-0 mt-0.5 text-amber-500" />
-                    <p>Deberás registrar cada producción en <strong>Ajustes</strong> para mantener el stock actualizado.</p>
-                  </div>
-                )}
               </div>
 
               <div>

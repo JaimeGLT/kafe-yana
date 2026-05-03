@@ -128,8 +128,8 @@ export function useElaboradosPage(options: UseElaboradosPageOptions): UseElabora
           unit: n.unidad_medida ?? 'unidad',
           costPrice: 0,
           salePrice: n.producto.precio,
-          stock: n.producible
-            ? (n.receta?.cantidadProducible ?? 0) * (n.receta?.porciones ?? 1)
+          stock: n.receta?.cantidadProducible != null
+            ? n.receta.cantidadProducible * (n.receta.porciones ?? 1)
             : n.stock_actual,
           minStock: 0,
           maxStock: 0,

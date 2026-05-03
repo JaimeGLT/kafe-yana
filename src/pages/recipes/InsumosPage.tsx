@@ -1,9 +1,10 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Plus, Edit2, Trash2, Search, FlaskConical, AlertTriangle } from 'lucide-react';
 import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
 import { PageContainer, PageHeader } from '../../components/layout';
 import { Button, Input, Select, ConfirmModal, SkeletonRow } from '../../components/ui';
+import { Pagination } from '../../components/ui/Pagination';
 import { InsumoModal } from '../../components/modals/InsumoModal';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
@@ -12,30 +13,57 @@ import { GET_ALL_INSUMOS } from '../../lib/queries/insumos.queries';
 import { GET_ALL_RECETAS } from '../../lib/queries/recetas.queries';
 import { mapInsumo } from '../../lib/mappers/insumos.mappers';
 import { mapReceta } from '../../lib/mappers/recetas.mappers';
+import { useFilters } from '../../hooks/useFilters';
 import type { InsumosResponse, RecetasResponse } from '../../types/graphql';
 import type { Insumo, Receta } from '../../types';
 import { formatCurrency } from '../../utils';
 
 const InsumosPage: React.FC = () => {
+  const { filters, setSearch, setPage, setPageSize } = useFilters('insumos-filters');
+
+  const readCursors = () => {
+    try {
+      const raw = sessionStorage.getItem('insumos-cursors');
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  };
+
+  const [cursors, setCursors] = useState<Record<number, string>>(() => readCursors());
+
+  useEffect(() => {
+    try { sessionStorage.setItem('insumos-cursors', JSON.stringify(cursors)); } catch {}
+  }, [cursors]);
+
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [recetas, setRecetas] = useState<Receta[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
   const [filterCategoria, setFilterCategoria] = useState('');
   const [filterStock, setFilterStock] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<Insumo | undefined>(undefined);
   const [deleting, setDeleting] = useState<Insumo | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+
+  const prevEndCursor = useRef<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setLoading(true);
         const [insumosData, recetasData] = await Promise.all([
-          gql<InsumosResponse>(GET_ALL_INSUMOS),
+          gql<InsumosResponse>(GET_ALL_INSUMOS, {
+            first: filters.pageSize,
+            after: filters.page > 1 ? cursors[filters.page - 1] : undefined,
+          }),
           gql<RecetasResponse>(GET_ALL_RECETAS),
         ]);
         setInsumos(insumosData.insumos.nodes.map(mapInsumo));
+        setTotalCount(insumosData.insumos.totalCount);
+        if (insumosData.insumos.pageInfo?.endCursor && insumosData.insumos.pageInfo.endCursor !== prevEndCursor.current) {
+          prevEndCursor.current = insumosData.insumos.pageInfo.endCursor;
+          setCursors((prev) => ({ ...prev, [filters.page]: insumosData.insumos.pageInfo.endCursor as string }));
+        }
         setRecetas(recetasData.recetas.nodes.map(mapReceta).filter((r): r is Receta => r !== null));
       } catch (error) {
         console.error('Error loading insumos data:', error);
@@ -44,7 +72,7 @@ const InsumosPage: React.FC = () => {
       }
     };
     fetchData();
-  }, []);
+  }, [filters.page, filters.pageSize]);
 
   // Category options derived from current insumos
   const categoriaOptions = useMemo(() => {
@@ -59,7 +87,7 @@ const InsumosPage: React.FC = () => {
   ];
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
+    const q = filters.search.toLowerCase();
     return insumos.filter((ins: Insumo) => {
       const matchSearch =
         !q ||
@@ -75,7 +103,7 @@ const InsumosPage: React.FC = () => {
         (filterStock === 'ok' && !isLowFilter);
       return matchSearch && matchCat && matchStock;
     });
-  }, [insumos, search, filterCategoria, filterStock]);
+  }, [insumos, filters.search, filterCategoria, filterStock]);
 
   // Count how many recipes use each insumo
   const usageCount = useMemo(() => {
@@ -150,7 +178,7 @@ const InsumosPage: React.FC = () => {
             <Input
               className="pl-9"
               placeholder="Buscar por nombre, categoría…"
-              value={search}
+              value={filters.search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
@@ -186,11 +214,11 @@ const InsumosPage: React.FC = () => {
             <div className="flex flex-col items-center justify-center py-16 text-coffee-400">
               <FlaskConical className="h-10 w-10 mb-3 opacity-40" />
               <p className="font-medium">
-                {search || filterCategoria || filterStock
+                {filters.search || filterCategoria || filterStock
                   ? 'Sin resultados para los filtros aplicados'
                   : 'Sin insumos registrados'}
               </p>
-              {!search && !filterCategoria && !filterStock && (
+              {!filters.search && !filterCategoria && !filterStock && (
                 <p className="text-sm mt-1">Crea tu primer insumo para empezar a armar recetas.</p>
               )}
             </div>
@@ -286,6 +314,15 @@ const InsumosPage: React.FC = () => {
             </table>
           )}
         </div>
+
+        <Pagination
+          totalCount={totalCount}
+          page={filters.page}
+          pageSize={filters.pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          isLoading={loading}
+        />
       </PageContainer>
 
       <InsumoModal
@@ -296,7 +333,10 @@ const InsumosPage: React.FC = () => {
           setIsModalOpen(false);
           setEditing(undefined);
           try {
-            const data = await gql<InsumosResponse>(GET_ALL_INSUMOS);
+            const data = await gql<InsumosResponse>(GET_ALL_INSUMOS, {
+              first: filters.pageSize,
+              after: filters.page > 1 ? cursors[filters.page - 1] : undefined,
+            });
             setInsumos(data.insumos.nodes.map(mapInsumo));
           } catch (error) {
             console.error('Error reloading insumos:', error);

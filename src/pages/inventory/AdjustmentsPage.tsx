@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   Plus, TrendingUp, TrendingDown, Package, FlaskConical,
   ChefHat, ClipboardList, ArrowRight, AlertTriangle,
@@ -6,9 +6,11 @@ import {
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
 import { Button, Badge, SkeletonStatCard, SkeletonAjusteRow } from '../../components/ui';
+import { Pagination } from '../../components/ui/Pagination';
 import { StockAdjustmentModal } from '../../components/modals/StockAdjustmentModal';
 import { gql } from '../../lib/graphql';
 import { GET_ADJUSTMENTS_DATA } from '../../lib/queries/ajustes.queries';
+import { useFilters } from '../../hooks/useFilters';
 import { formatCurrency } from '../../utils';
 import type {
   AdjustmentsDataResponse,
@@ -72,6 +74,24 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, icon, accent = 'defau
 };
 
 const AdjustmentsPage: React.FC = () => {
+  const { filters, setPage, setPageSize } = useFilters('adjustments-filters');
+
+  const readCursors = () => {
+    try {
+      const raw = sessionStorage.getItem('adjustments-cursors');
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  };
+
+  const [cursors, setCursors] = useState<Record<number, string>>(() => readCursors());
+  const [totalCount, setTotalCount] = useState(0);
+  const cursorsRef = useRef<Record<number, string>>(cursors);
+  cursorsRef.current = cursors;
+
+  useEffect(() => {
+    try { sessionStorage.setItem('adjustments-cursors', JSON.stringify(cursors)); } catch {}
+  }, [cursors]);
+
   const [ajustes, setAjustes] = useState<AjusteNode[]>([]);
   const [comprados, setComprados] = useState<CompradoNode[]>([]);
   const [insumos, setInsumos] = useState<InsumoNode[]>([]);
@@ -81,10 +101,16 @@ const AdjustmentsPage: React.FC = () => {
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
+    let endCursor: string | null = null;
     try {
-      const data = await gql<AdjustmentsDataResponse>(GET_ADJUSTMENTS_DATA);
+      const data = await gql<AdjustmentsDataResponse>(GET_ADJUSTMENTS_DATA, {
+        first: filters.pageSize,
+        after: filters.page > 1 ? cursorsRef.current[filters.page - 1] : undefined,
+      });
 
       setAjustes(data.ajustes?.nodes ?? []);
+      setTotalCount(data.ajustes?.totalCount ?? 0);
+      endCursor = data.ajustes?.pageInfo?.endCursor ?? null;
       setComprados(data.comprados?.nodes ?? []);
       setInsumos(data.insumos?.nodes ?? []);
       setElaborados(
@@ -100,11 +126,19 @@ const AdjustmentsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+    return endCursor;
+  }, [filters.pageSize, filters.page]);
 
+  const prevEndCursor = useRef<string | null>(null);
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    let mounted = true;
+    loadData().then((endCursor) => {
+      if (mounted && endCursor && endCursor !== prevEndCursor.current) {
+        prevEndCursor.current = endCursor;
+        setCursors((prev) => ({ ...prev, [filters.page]: endCursor }));
+      }
+    });
+  }, [filters.page, filters.pageSize]);
 
   const stats = useMemo(() => {
     const entradas = ajustes.filter((a) => a.ajuste > 0).length;
@@ -139,7 +173,7 @@ const AdjustmentsPage: React.FC = () => {
             <>
               <StatCard
                 label="Total registros"
-                value={ajustes.length}
+                value={totalCount}
                 icon={<ClipboardList className="h-5 w-5" />}
               />
               <StatCard
@@ -306,6 +340,15 @@ const AdjustmentsPage: React.FC = () => {
             </table>
           )}
         </div>
+
+        <Pagination
+          totalCount={totalCount}
+          page={filters.page}
+          pageSize={filters.pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          isLoading={isLoading}
+        />
       </PageContainer>
 
       <StockAdjustmentModal

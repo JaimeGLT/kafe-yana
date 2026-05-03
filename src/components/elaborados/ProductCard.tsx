@@ -87,7 +87,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                   ? (portionsAvailable === 0
                       ? '⚠ Sin stock'
                       : `${portionsAvailable} ${product.unit ?? 'unidades'}`)
-                  : (portionsAvailable === 0 ? '⚠ Sin insumos' : '✓ Bajo pedido')}
+                  : (portionsAvailable === 0 ? '⚠ Sin insumos' : `${portionsAvailable} ${product.unit ?? 'unidades'}`)}
               </span>
             </div>
             {/* Recipe badge */}
