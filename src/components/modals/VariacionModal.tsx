@@ -321,6 +321,31 @@ const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, recetaInsumoO
       toast.warning('Campo requerido', 'El nombre de la opción es obligatorio.');
       return;
     }
+    if (!form.sustituye && !form.modificaCantidad) {
+      toast.warning('Campo requerido', 'Debes seleccionar si la opción sustituye un ingrediente o modifica una cantidad.');
+      return;
+    }
+    if (form.sustituye) {
+      if (!form.insumoReemplazadoId) {
+        toast.warning('Campo requerido', 'Selecciona el ingrediente a quitar.');
+        return;
+      }
+      if (!form.insumoExtraId) {
+        toast.warning('Campo requerido', 'Selecciona el ingrediente alternativo.');
+        return;
+      }
+      if (!form.cantidadExtra || parseFloat(form.cantidadExtra) <= 0) {
+        toast.warning('Campo requerido', 'Ingresa la cantidad del ingrediente alternativo.');
+        return;
+      }
+    }
+    if (form.modificaCantidad) {
+      const validRows = form.ajustesCantidad.filter((r) => r.insumoId && r.cantidad && parseFloat(r.cantidad) > 0);
+      if (validRows.length === 0) {
+        toast.warning('Campo requerido', 'Añade al menos un ingrediente con su nueva cantidad.');
+        return;
+      }
+    }
     const ajustesCantidad = form.modificaCantidad
       ? form.ajustesCantidad
           .filter((r) => r.insumoId && r.cantidad)
@@ -620,6 +645,31 @@ export const VariacionModal: React.FC<Props> = ({
     if (!form.nombre.trim()) {
       toast.warning('Campo requerido', 'El nombre de la opción es obligatorio.');
       return;
+    }
+    if (!form.sustituye && !form.modificaCantidad) {
+      toast.warning('Campo requerido', 'Debes seleccionar si la opción sustituye un ingrediente o modifica una cantidad.');
+      return;
+    }
+    if (form.sustituye) {
+      if (!form.insumoReemplazadoId) {
+        toast.warning('Campo requerido', 'Selecciona el ingrediente a quitar.');
+        return;
+      }
+      if (!form.insumoExtraId) {
+        toast.warning('Campo requerido', 'Selecciona el ingrediente alternativo.');
+        return;
+      }
+      if (!form.cantidadExtra || parseFloat(form.cantidadExtra) <= 0) {
+        toast.warning('Campo requerido', 'Ingresa la cantidad del ingrediente alternativo.');
+        return;
+      }
+    }
+    if (form.modificaCantidad) {
+      const validRows = form.ajustesCantidad.filter((r) => r.insumoId && r.cantidad && parseFloat(r.cantidad) > 0);
+      if (validRows.length === 0) {
+        toast.warning('Campo requerido', 'Añade al menos un ingrediente con su nueva cantidad.');
+        return;
+      }
     }
     const ajustesCantidad = form.modificaCantidad
       ? form.ajustesCantidad

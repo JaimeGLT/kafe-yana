@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { clsx } from 'clsx';
-import { Layers, ChevronDown, ChevronRight, FlaskConical, Coffee, Package, Info } from 'lucide-react';
+import { Layers, ChevronDown, ChevronRight, FlaskConical, Coffee, Package, Info, Repeat2, SlidersHorizontal } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageContainer, PageHeader } from '../../components/layout';
 import { Button, Input } from '../../components/ui';
@@ -22,7 +22,7 @@ interface ElaboradoVariacionNode {
   variaciones: {
     id: number; nombre: string; requerido: boolean;
     opciones: {
-      id: number; nombre: string; ajuste_precio: number;
+      id: number; nombre: string; ajustePrecio: number;
       ajustes: { tipoAjuste: string; cantidad: number; id_Insumo: number; id_InsumoNuevo: number | null }[];
     }[];
   }[];
@@ -114,6 +114,15 @@ const ProductRow: React.FC<ProductRowProps> = ({
   const productAtributos = atributos.filter((a: VariacionAtributo) => a.productId === product.id && a.isActive);
   const totalOpciones = productAtributos.reduce((s: number, a: VariacionAtributo) => s + a.opciones.filter((o) => o.isActive).length, 0);
 
+  const insumoRecetaMap = useMemo(
+    () => new Map(recetaInsumos.map((i) => [i.id, i.name])),
+    [recetaInsumos]
+  );
+  const insumoAllMap = useMemo(
+    () => new Map(insumos.map((i) => [i.id, i.name])),
+    [insumos]
+  );
+
   return (
     <>
       <div className="border border-coffee-100 rounded-xl overflow-hidden">
@@ -175,23 +184,55 @@ const ProductRow: React.FC<ProductRowProps> = ({
                     </span>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  {atributo.opciones.filter((o) => o.isActive).map((opcion) => (
-                    <span
-                      key={opcion.id}
-                      className="text-xs bg-white border border-coffee-200 rounded-full px-2.5 py-1 text-coffee-700"
-                    >
-                      {opcion.nombre}
-                      {opcion.precioAjuste !== 0 && (
-                        <span className={clsx(
-                          'ml-1 font-medium',
-                          opcion.precioAjuste > 0 ? 'text-green-600' : 'text-red-500'
-                        )}>
-                          {opcion.precioAjuste > 0 ? '+' : ''}{opcion.precioAjuste}
-                        </span>
-                      )}
-                    </span>
-                  ))}
+                <div className="space-y-1.5">
+                  {atributo.opciones.filter((o) => o.isActive).map((opcion) => {
+                    const nombreReemplazo = opcion.insumoReemplazadoId
+                      ? insumoRecetaMap.get(opcion.insumoReemplazadoId)
+                      : null;
+                    const nombreExtra = opcion.insumoExtraId
+                      ? insumoAllMap.get(opcion.insumoExtraId)
+                      : null;
+                    const esSustitucion = !!(opcion.insumoReemplazadoId && opcion.insumoExtraId);
+                    const esModificacion = !!(opcion.ajustesCantidad?.length);
+                    const borderClass = esSustitucion ? 'border-l-blue-300' : esModificacion ? 'border-l-emerald-300' : 'border-l-amber-200';
+
+                    return (
+                      <div key={opcion.id} className={clsx('pl-2 border-l-2', borderClass)}>
+                        {/* Línea principal: nombre + precio */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-coffee-800">{opcion.nombre}</span>
+                          <span className={clsx(
+                            'text-xs font-semibold',
+                            (opcion.precioAjuste ?? 0) > 0 ? 'text-green-600' : (opcion.precioAjuste ?? 0) < 0 ? 'text-red-500' : 'text-coffee-500'
+                          )}>
+                            {(opcion.precioAjuste ?? 0) > 0 ? '+' : ''}{opcion.precioAjuste ?? 0} Bs.
+                          </span>
+                        </div>
+                        {/* Línea detallada: sustitución */}
+                        {esSustitucion && nombreReemplazo && nombreExtra && (
+                          <div className="text-xs text-blue-600 pl-2 flex items-center gap-1">
+                            <Repeat2 className="h-3 w-3 shrink-0" />
+                            Quita: <span className="text-red-500">{nombreReemplazo}</span>
+                            {' → '}
+                            Usa: {nombreExtra}
+                            {opcion.cantidadExtra && ` (${opcion.cantidadExtra})`}
+                          </div>
+                        )}
+                        {/* Línea detallada: modificación de cantidad */}
+                        {esModificacion && opcion.ajustesCantidad?.map((a, i) => {
+                          const nombreIng = insumoRecetaMap.get(a.insumoId) ?? a.insumoId;
+                          return (
+                            <div key={i} className="text-xs text-emerald-600 pl-2 flex items-center gap-1">
+                              <SlidersHorizontal className="h-3 w-3 shrink-0" />
+                              <span>{nombreIng}</span>
+                              {' → '}
+                              <span className="font-medium">{a.cantidad}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
                   {atributo.opciones.filter((o) => o.isActive).length === 0 && (
                     <span className="text-xs text-coffee-400 italic">Sin opciones</span>
                   )}
@@ -282,7 +323,7 @@ const VariacionesPage: React.FC = () => {
               id: String(o.id),
               atributoId: String(v.id),
               nombre: o.nombre,
-              precioAjuste: o.ajuste_precio,
+              precioAjuste: o.ajustePrecio,
               isActive: true,
               insumoReemplazadoId: reemplazo ? String(reemplazo.id_Insumo) : undefined,
               insumoExtraId: reemplazo?.id_InsumoNuevo ? String(reemplazo.id_InsumoNuevo) : undefined,
@@ -391,17 +432,17 @@ const VariacionesPage: React.FC = () => {
     atributoId: string,
     data: { nombre: string; precioAjuste: number; tipoOpcion: string; valorAnterior: string; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: { insumoId: string; cantidad: number }[] }
   ): Promise<void> => {
-    let ajustes: { id_insumo: number; id_insumo_nuevo: number | null; cantidad: number }[] = [];
+    let ajustes: { id_Insumo: number; id_InsumoNuevo: number | null; cantidad: number }[] = [];
     if (data.insumoReemplazadoId) {
       ajustes = [{
-        id_insumo: Number(data.insumoReemplazadoId),
-        id_insumo_nuevo: data.insumoExtraId ? Number(data.insumoExtraId) : null,
+        id_Insumo: Number(data.insumoReemplazadoId),
+        id_InsumoNuevo: data.insumoExtraId ? Number(data.insumoExtraId) : null,
         cantidad: data.cantidadExtra ?? 1,
       }];
     } else if (data.ajustesCantidad?.length) {
       ajustes = data.ajustesCantidad.map((a) => ({
-        id_insumo: Number(a.insumoId),
-        id_insumo_nuevo: null,
+        id_Insumo: Number(a.insumoId),
+        id_InsumoNuevo: null,
         cantidad: a.cantidad,
       }));
     }
@@ -431,17 +472,17 @@ const VariacionesPage: React.FC = () => {
     opcionId: string,
     data: { nombre: string; precioAjuste: number; tipoOpcion: string; valorAnterior: string; insumoReemplazadoId?: string; insumoExtraId?: string; cantidadExtra?: number; ajustesCantidad?: { insumoId: string; cantidad: number }[] }
   ): Promise<void> => {
-    let ajustes: { id_insumo: number; id_insumo_nuevo: number | null; cantidad: number }[] = [];
+    let ajustes: { id_Insumo: number; id_InsumoNuevo: number | null; cantidad: number }[] = [];
     if (data.insumoReemplazadoId) {
       ajustes = [{
-        id_insumo: Number(data.insumoReemplazadoId),
-        id_insumo_nuevo: data.insumoExtraId ? Number(data.insumoExtraId) : null,
+        id_Insumo: Number(data.insumoReemplazadoId),
+        id_InsumoNuevo: data.insumoExtraId ? Number(data.insumoExtraId) : null,
         cantidad: data.cantidadExtra ?? 1,
       }];
     } else if (data.ajustesCantidad?.length) {
       ajustes = data.ajustesCantidad.map((a) => ({
-        id_insumo: Number(a.insumoId),
-        id_insumo_nuevo: null,
+        id_Insumo: Number(a.insumoId),
+        id_InsumoNuevo: null,
         cantidad: a.cantidad,
       }));
     }
