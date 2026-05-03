@@ -187,6 +187,7 @@ export interface RecetaNode {
   id: number;
   nombre: string;
   nota: string | null;
+  porciones: number;
   elaborado: { id_Producto: number } | null;
   detalles: RecetaDetalleNode[];
 }
@@ -198,6 +199,12 @@ export interface RecetasResponse {
 
 export interface RecetaResponse {
   receta: RecetaNode;
+}
+
+export interface RecetasPageResponse {
+  recetas: { nodes: RecetaNode[] };
+  insumos: { nodes: InsumoNode[] };
+  elaborados: { nodes: ElaboradoNode[] };
 }
 
 export interface InsumosResponse {

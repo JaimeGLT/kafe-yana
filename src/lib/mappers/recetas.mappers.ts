@@ -19,16 +19,17 @@ export function mapReceta(n: RecetaNode): Receta | null {
     }));
 
   const costoTotal = ingredientes.reduce((sum, i) => sum + i.subtotal, 0);
+  const porciones = n.porciones > 0 ? n.porciones : 1;
 
   return {
     id: String(n.id),
     productId: String(n.elaborado.id_Producto),
     productName: n.nombre,
     nombre: n.nombre,
-    porcionesBase: 1,
+    porcionesBase: porciones,
     ingredientes,
     costoTotal,
-    costoPorPorcion: costoTotal,
+    costoPorPorcion: costoTotal / porciones,
     notas: n.nota ?? undefined,
     isActive: true,
     createdAt: new Date(),

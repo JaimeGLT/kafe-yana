@@ -10,13 +10,11 @@ import { RecetaModal } from '../../components/modals/RecetaModal';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { gql } from '../../lib/graphql';
-import { GET_ALL_RECETAS } from '../../lib/queries/recetas.queries';
-import { GET_ALL_INSUMOS } from '../../lib/queries/insumos.queries';
-import { GET_ALL_ELABORADOS } from '../../lib/queries/elaborados.queries';
+import { GET_RECETAS_PAGE } from '../../lib/queries/recetas.queries';
 import { mapReceta } from '../../lib/mappers/recetas.mappers';
 import { mapInsumo } from '../../lib/mappers/insumos.mappers';
 import { mapElaborado } from '../../lib/mappers/elaborados.mappers';
-import type { RecetasResponse, InsumosResponse, ElaboradosResponse } from '../../types/graphql';
+import type { RecetasPageResponse } from '../../types/graphql';
 import type { Receta, Insumo, Product } from '../../types';
 import { formatCurrency } from '../../utils';
 
@@ -37,14 +35,10 @@ const RecetasPage: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [recetasData, insumosData, elaboradosData] = await Promise.all([
-          gql<RecetasResponse>(GET_ALL_RECETAS),
-          gql<InsumosResponse>(GET_ALL_INSUMOS),
-          gql<ElaboradosResponse>(GET_ALL_ELABORADOS),
-        ]);
-        setRecetas(recetasData.recetas.nodes.map(mapReceta).filter((r): r is Receta => r !== null));
-        setInsumos(insumosData.insumos.nodes.map(mapInsumo));
-        setProducts(elaboradosData.elaborados.nodes.map(mapElaborado));
+        const data = await gql<RecetasPageResponse>(GET_RECETAS_PAGE);
+        setRecetas(data.recetas.nodes.map(mapReceta).filter((r): r is Receta => r !== null));
+        setInsumos(data.insumos.nodes.map(mapInsumo));
+        setProducts(data.elaborados.nodes.map(mapElaborado));
       } catch (error) {
         console.error('Error loading recetas data:', error);
       } finally {
@@ -304,7 +298,7 @@ const RecetasPage: React.FC = () => {
         onSuccess={async () => {
           setIsModalOpen(false);
           try {
-            const data = await gql<RecetasResponse>(GET_ALL_RECETAS);
+            const data = await gql<RecetasPageResponse>(GET_RECETAS_PAGE);
             setRecetas(data.recetas.nodes.map(mapReceta).filter((r): r is Receta => r !== null));
           } catch (error) {
             console.error('Error reloading recetas:', error);
