@@ -67,10 +67,11 @@ export const GET_ALL_ELABORADOS = `
 // cuando algún insumo referenciado en la receta fue eliminado.
 export const GET_ELABORADOS_VARIACIONES = `
   query {
-    elaborados {
+    elaborados(where: { producible: { eq: false } }) {
       nodes {
         id_Producto
         unidad_medida
+        producible
         producto {
           id
           nombre
@@ -101,6 +102,61 @@ export const GET_ELABORADOS_VARIACIONES = `
             }
           }
         }
+      }
+    }
+  }
+`
+
+export const GET_VARIACIONES_DATA = `
+  query {
+    elaborados(where: { producible: { eq: false } }) {
+      nodes {
+        id_Producto
+        unidad_medida
+        producible
+        producto {
+          id
+          nombre
+          descripcion
+          precio
+          tipo
+        }
+        receta {
+          id
+          detalles {
+            id_insumo
+          }
+        }
+        variaciones {
+          id
+          nombre
+          requerido
+          opciones {
+            id
+            nombre
+            ajustePrecio
+            id_variacion
+            ajustes {
+              tipoAjuste
+              cantidad
+              id_Insumo
+              id_InsumoNuevo
+            }
+          }
+        }
+      }
+    }
+    insumos {
+      nodes {
+        id
+        nombre
+        categoria
+        unidad_min_uso
+        unidad_compra
+        factor_conversion
+        costo
+        stock_actual
+        stock_min
       }
     }
   }

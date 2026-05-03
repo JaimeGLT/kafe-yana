@@ -112,6 +112,7 @@ export interface Product extends BaseEntity {
   isActive: boolean;
   hasVariations: boolean;
   destino?: ProductDestino;
+  producible?: boolean;
 }
 
 export interface ProductInput {

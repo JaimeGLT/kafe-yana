@@ -90,8 +90,8 @@ const SustitucionFields: React.FC<SustitucionFieldsProps> = ({ form, setForm, re
     ? 'text-xs font-medium text-coffee-600'
     : 'text-sm font-medium text-coffee-700';
 
-  // Si el producto no tiene receta (o no hay ingredientes mapeados) usamos todos los insumos
-  const removeOptions = recetaInsumoOptions.length > 0 ? recetaInsumoOptions : allInsumoOptions;
+  const hasReceta = recetaInsumoOptions.length > 0;
+  const removeOptions = recetaInsumoOptions;
 
   return (
     <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-3">
@@ -102,15 +102,22 @@ const SustitucionFields: React.FC<SustitucionFieldsProps> = ({ form, setForm, re
           checked={form.sustituye}
           onChange={(e) => setForm({ ...form, sustituye: e.target.checked, insumoReemplazadoId: '', insumoExtraId: '', cantidadExtra: '', modificaCantidad: false, ajustesCantidad: [] })}
           className="mt-0.5 h-4 w-4 rounded border-coffee-300 text-blue-600 focus:ring-blue-400"
+          disabled={!hasReceta}
         />
         <div>
           <p className="text-sm font-semibold text-blue-800 flex items-center gap-1.5">
             <Repeat2 className="h-3.5 w-3.5" />
             Esta opción sustituye un ingrediente
           </p>
-          <p className="text-xs text-blue-600 mt-0.5">
-            Solo para productos con receta. Ej: "Leche de avena" quita la leche normal de la receta y usa avena en su lugar.
-          </p>
+          {!hasReceta ? (
+            <p className="text-xs text-blue-600 mt-0.5">
+              Este producto no tiene receta configurada.
+            </p>
+          ) : (
+            <p className="text-xs text-blue-600 mt-0.5">
+              Solo para productos con receta. Ej: &quot;Leche de avena&quot; quita la leche normal de la receta y usa avena en su lugar.
+            </p>
+          )}
         </div>
       </label>
 

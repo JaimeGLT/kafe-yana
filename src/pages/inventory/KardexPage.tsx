@@ -1,15 +1,13 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { BookOpen, Package, FlaskConical, Layers } from 'lucide-react';
 import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
 import { SearchableSelect, Badge } from '../../components/ui';
-// TODO: import { gql } from '../../lib/graphql';
-// TODO: import { GET_KARDEX_PRODUCTS_QUERY, GET_KARDEX_MOVEMENTS_QUERY } from '../../lib/queries/products.queries';
+import { gql } from '../../lib/graphql';
+import { GET_KARDEX_PRODUCTS, GET_KARDEX_MOVEMENTS } from '../../lib/queries/ajustes.queries';
 import { formatCurrency, formatDateTime } from '../../utils';
-import type { KardexMovement } from '../../types';
-
-// ── Tipos locales ─────────────────────────────────────────────────────────────
+import type { KardexProductsResponse, KardexMovementsResponse } from '../../types/graphql';
 
 type ProductTipo = 'comprado' | 'elaborado' | 'combo';
 
@@ -24,34 +22,29 @@ interface KardexProduct {
   unit: string;
 }
 
-interface RawMovement {
-  id: number;
-  fecha: string;
-  tipo: string;
-  referencia: string;
-  cantidad: number;
-  costoUnitario: number;
-  costoTotal: number;
-  stockResultante: number;
-  notas?: string;
+interface UnifiedMovement {
+  id: string;
+  date: Date;
+  type: 'adjustment' | 'sale';
+  reference: string;
+  quantity: number;
+  unitCost: number;
+  totalCost: number;
+  stockAfter: number;
+  notes?: string;
 }
 
-// TODO: usar cuando el backend implemente GET_KARDEX_PRODUCTS_QUERY
-// interface KardexProductsResponse { ... }
-
-// ── Constantes ────────────────────────────────────────────────────────────────
-
-const TIPO_MOVEMENT_MAP: Record<string, KardexMovement['type']> = {
-  Compra: 'purchase',
+const TIPO_MOVEMENT_MAP: Record<string, UnifiedMovement['type']> = {
+  Compra: 'adjustment',
   Venta: 'sale',
   Ajuste: 'adjustment',
-  Transferencia: 'transfer',
-  Inicial: 'initial',
-  purchase: 'purchase',
+  Transferencia: 'adjustment',
+  Inicial: 'adjustment',
+  purchase: 'adjustment',
   sale: 'sale',
   adjustment: 'adjustment',
-  transfer: 'transfer',
-  initial: 'initial',
+  transfer: 'adjustment',
+  initial: 'adjustment',
 };
 
 const MOVEMENT_LABELS: Record<string, string> = {
@@ -70,139 +63,116 @@ const MOVEMENT_COLORS: Record<string, string> = {
   initial: 'default',
 };
 
-// ── Mapper ────────────────────────────────────────────────────────────────────
-
-function mapMovement(raw: RawMovement): KardexMovement {
-  return {
-    id: String(raw.id),
-    date: new Date(raw.fecha),
-    type: TIPO_MOVEMENT_MAP[raw.tipo] ?? 'adjustment',
-    reference: raw.referencia ?? '',
-    quantity: raw.cantidad,
-    unitCost: raw.costoUnitario,
-    totalCost: raw.costoTotal,
-    stockAfter: raw.stockResultante,
-    notes: raw.notas,
-  };
-}
-
-// ── Íconos por tipo ───────────────────────────────────────────────────────────
-
 const TipoIcon: React.FC<{ tipo: ProductTipo; className?: string }> = ({ tipo, className }) => {
   if (tipo === 'elaborado') return <FlaskConical className={clsx('text-amber-500', className)} />;
   if (tipo === 'combo') return <Layers className={clsx('text-blue-500', className)} />;
   return <Package className={clsx('text-coffee-400', className)} />;
 };
 
-// ── Página ────────────────────────────────────────────────────────────────────
-
 const KardexPage: React.FC = () => {
   const [allProducts, setAllProducts] = useState<KardexProduct[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
 
   const [selectedProductId, setSelectedProductId] = useState('');
-  const [movements, setMovements] = useState<KardexMovement[]>([]);
+  const [movements, setMovements] = useState<UnifiedMovement[]>([]);
   const [isLoadingMovements, setIsLoadingMovements] = useState(false);
 
-  // ── Carga inicial de productos ─────────────────────────────────────────────
+  const loadProducts = useCallback(async () => {
+    try {
+      const data = await gql<KardexProductsResponse>(GET_KARDEX_PRODUCTS);
 
-  // TODO: reemplazar el mock por la llamada real cuando el backend responda bien:
-  //
-  //   gql<KardexProductsResponse>(GET_KARDEX_PRODUCTS_QUERY).then((data) => {
-  //     const comprados = (data.productos?.nodes ?? []).filter(...).map(...)
-  //     const elaborados = data.elaborados.map(...)
-  //     const combos = data.combos.map(...)
-  //     setAllProducts([...comprados, ...elaborados, ...combos])
-  //   })
-  //
-  useEffect(() => {
-    const MOCK_PRODUCTS: KardexProduct[] = [
-      { id: '1', name: 'Café en grano 1kg',    tipo: 'comprado',  categoryName: 'Café',    salePrice: 85,  costPrice: 55,  stock: 40,  unit: 'kg'     },
-      { id: '2', name: 'Leche entera 1L',       tipo: 'comprado',  categoryName: 'Lácteos', salePrice: 12,  costPrice: 8,   stock: 120, unit: 'litro'  },
-      { id: '3', name: 'Azúcar 1kg',            tipo: 'comprado',  categoryName: 'Insumos', salePrice: 10,  costPrice: 6,   stock: 80,  unit: 'kg'     },
-      { id: '4', name: 'Cappuccino 12oz',        tipo: 'elaborado', categoryName: '',        salePrice: 45,  costPrice: 0,   stock: 35,  unit: 'taza'   },
-      { id: '5', name: 'Latte con vainilla',     tipo: 'elaborado', categoryName: '',        salePrice: 52,  costPrice: 0,   stock: 28,  unit: 'taza'   },
-      { id: '6', name: 'Combo desayuno clásico', tipo: 'combo',     categoryName: '',        salePrice: 95,  costPrice: 0,   stock: 15,  unit: 'combo'  },
-    ];
+      const mapped: KardexProduct[] = [
+        ...data.comprados.nodes.map((c) => ({
+          id: String(c.producto.id),
+          name: c.producto.nombre,
+          tipo: 'comprado' as const,
+          categoryName: '',
+          salePrice: 0,
+          costPrice: 0,
+          stock: c.stock_actual,
+          unit: 'unidad',
+        })),
+        ...data.elaborados.nodes.map((e) => ({
+          id: String(e.id_Producto),
+          name: e.producto.nombre,
+          tipo: 'elaborado' as const,
+          categoryName: '',
+          salePrice: 0,
+          costPrice: 0,
+          stock: e.stock_actual,
+          unit: 'unidad',
+        })),
+      ];
 
-    setTimeout(() => {
-      setAllProducts(MOCK_PRODUCTS);
+      setAllProducts(mapped);
+    } catch (error) {
+      console.error('Error loading kardex products:', error);
+    } finally {
       setIsLoadingProducts(false);
-    }, 300);
+    }
   }, []);
 
-  // ── Carga de movimientos al seleccionar producto ───────────────────────────
-  //
-  // TODO: reemplazar el mock por la llamada real cuando el backend lo implemente:
-  //
-  //   gql<{ kardexMovimientos: RawMovement[] }>(
-  //     GET_KARDEX_MOVEMENTS_QUERY,
-  //     { productoId: Number(selectedProductId) }
-  //   ).then(({ kardexMovimientos }) => { ... })
-  //
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
+
+  const loadMovements = useCallback(async (productoId: string) => {
+    setIsLoadingMovements(true);
+    try {
+      const data = await gql<KardexMovementsResponse>(GET_KARDEX_MOVEMENTS, {
+        productoId: Number(productoId),
+      });
+
+      const unified: UnifiedMovement[] = [];
+
+      for (const ajuste of data.ajustes.nodes) {
+        unified.push({
+          id: String(ajuste.id),
+          date: new Date(ajuste.fecha),
+          type: TIPO_MOVEMENT_MAP[ajuste.tipo] ?? 'adjustment',
+          reference: ajuste.nombre,
+          quantity: ajuste.ajuste,
+          unitCost: 0,
+          totalCost: ajuste.perdida,
+          stockAfter: ajuste.stockNuevo,
+          notes: ajuste.nota,
+        });
+      }
+
+      for (const venta of data.ventas.nodes) {
+        for (const detalle of venta.detalles) {
+          unified.push({
+            id: `${venta.id}-${detalle.nombre}`,
+            date: new Date(venta.fecha),
+            type: 'sale',
+            reference: venta.codigo,
+            quantity: -detalle.cantidad,
+            unitCost: 0,
+            totalCost: detalle.total,
+            stockAfter: 0,
+            notes: undefined,
+          });
+        }
+      }
+
+      unified.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+      setMovements(unified);
+    } catch (error) {
+      console.error('Error loading kardex movements:', error);
+      setMovements([]);
+    } finally {
+      setIsLoadingMovements(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!selectedProductId) {
       setMovements([]);
       return;
     }
-    setIsLoadingMovements(true);
-
-    // — MOCK — simula la respuesta que devolverá el backend —
-    const MOCK_MOVEMENTS: RawMovement[] = [
-      {
-        id: 1,
-        fecha: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        tipo: 'Compra',
-        referencia: 'OC-2024-001',
-        cantidad: 50,
-        costoUnitario: 12.5,
-        costoTotal: 625,
-        stockResultante: 50,
-        notas: 'Compra inicial de stock',
-      },
-      {
-        id: 2,
-        fecha: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-        tipo: 'Venta',
-        referencia: 'VTA-00123',
-        cantidad: -3,
-        costoUnitario: 12.5,
-        costoTotal: -37.5,
-        stockResultante: 47,
-      },
-      {
-        id: 3,
-        fecha: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-        tipo: 'Venta',
-        referencia: 'VTA-00124',
-        cantidad: -5,
-        costoUnitario: 12.5,
-        costoTotal: -62.5,
-        stockResultante: 42,
-      },
-      {
-        id: 4,
-        fecha: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-        tipo: 'Ajuste',
-        referencia: 'AJU-00045',
-        cantidad: -2,
-        costoUnitario: 12.5,
-        costoTotal: -25,
-        stockResultante: 40,
-        notas: 'Producto dañado',
-      },
-    ];
-
-    setTimeout(() => {
-      const sorted = MOCK_MOVEMENTS
-        .map(mapMovement)
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      setMovements(sorted);
-      setIsLoadingMovements(false);
-    }, 400); // simula latencia de red
-  }, [selectedProductId]);
-
-  // ── Derivados ─────────────────────────────────────────────────────────────
+    loadMovements(selectedProductId);
+  }, [selectedProductId, loadMovements]);
 
   const TIPO_PREFIX: Record<ProductTipo, string> = {
     comprado: '[C]',
@@ -227,8 +197,6 @@ const KardexPage: React.FC = () => {
     ? selectedProduct.stock * selectedProduct.costPrice
     : 0;
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
   return (
     <MainLayout>
       <PageContainer>
@@ -237,7 +205,6 @@ const KardexPage: React.FC = () => {
           subtitle="Historial de movimientos de stock por producto"
         />
 
-        {/* Selector de producto */}
         <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4">
           <div className="max-w-lg">
             {isLoadingProducts ? (
@@ -253,7 +220,6 @@ const KardexPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Info del producto seleccionado */}
         {selectedProduct && (
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-6">
             <div className="flex items-center gap-3">
@@ -282,12 +248,14 @@ const KardexPage: React.FC = () => {
                 </p>
                 <p className="text-xs text-coffee-400">{selectedProduct.unit}</p>
               </div>
-              <div>
-                <p className="text-xs text-coffee-500 mb-1">Precio venta</p>
-                <p className="text-xl font-bold text-coffee-900">
-                  {formatCurrency(selectedProduct.salePrice)}
-                </p>
-              </div>
+              {selectedProduct.salePrice > 0 && (
+                <div>
+                  <p className="text-xs text-coffee-500 mb-1">Precio venta</p>
+                  <p className="text-xl font-bold text-coffee-900">
+                    {formatCurrency(selectedProduct.salePrice)}
+                  </p>
+                </div>
+              )}
               {selectedProduct.costPrice > 0 && (
                 <div>
                   <p className="text-xs text-coffee-500 mb-1">Costo unitario</p>
@@ -308,7 +276,6 @@ const KardexPage: React.FC = () => {
           </div>
         )}
 
-        {/* Tabla de movimientos */}
         {selectedProductId && (
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-coffee-100 flex items-center gap-2">
@@ -380,13 +347,13 @@ const KardexPage: React.FC = () => {
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right whitespace-nowrap text-coffee-700">
-                            {formatCurrency(m.unitCost)}
+                            {m.unitCost > 0 ? formatCurrency(m.unitCost) : '—'}
                           </td>
                           <td className="px-6 py-4 text-right whitespace-nowrap font-medium text-coffee-800">
                             {formatCurrency(m.totalCost)}
                           </td>
                           <td className="px-6 py-4 text-right whitespace-nowrap font-semibold text-coffee-900">
-                            {m.stockAfter}
+                            {m.stockAfter > 0 ? m.stockAfter : '—'}
                           </td>
                         </tr>
                       );
@@ -398,7 +365,6 @@ const KardexPage: React.FC = () => {
           </div>
         )}
 
-        {/* Estado vacío — sin producto seleccionado */}
         {!selectedProductId && !isLoadingProducts && (
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm py-16 flex flex-col items-center justify-center text-coffee-500">
             <BookOpen className="h-12 w-12 mb-3 text-coffee-300" />

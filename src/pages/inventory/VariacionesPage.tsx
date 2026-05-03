@@ -7,15 +7,16 @@ import { Button, Input } from '../../components/ui';
 import { toast } from '../../components/ui/Toast';
 import { VariacionModal } from '../../components/modals/VariacionModal';
 import { gql } from '../../lib/graphql';
-import { api } from '../../lib/api';
-import { GET_ELABORADOS_VARIACIONES } from '../../lib/queries/elaborados.queries';
-import { GET_ALL_INSUMOS } from '../../lib/queries/insumos.queries';
+import { api, ApiError } from '../../lib/api';
+import { GET_VARIACIONES_DATA } from '../../lib/queries/elaborados.queries';
 import { mapInsumo } from '../../lib/mappers/insumos.mappers';
-import type { InsumosResponse } from '../../types/graphql';
+import { formatCurrency } from '../../utils';
+import type { Product, VariacionAtributo, Insumo } from '../../types';
 
 interface ElaboradoVariacionNode {
   id_Producto: number;
   unidad_medida: string;
+  producible: boolean;
   producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string };
   receta: { id: number; detalles: { id_insumo: number }[] } | null;
   variaciones: {
@@ -27,11 +28,22 @@ interface ElaboradoVariacionNode {
   }[];
 }
 
-interface ElaboradosVariacionesResponse {
-  elaborados: { nodes: ElaboradoVariacionNode[] };
+interface InsumoNode {
+  id: number;
+  nombre: string;
+  categoria: string;
+  unidad_min_uso: string;
+  unidad_compra: string;
+  factor_conversion: number;
+  costo: number;
+  stock_actual: number;
+  stock_min: number;
 }
-import { formatCurrency } from '../../utils';
-import type { Product, VariacionAtributo, Insumo } from '../../types';
+
+interface VariacionesDataResponse {
+  elaborados: { nodes: ElaboradoVariacionNode[] };
+  insumos: { nodes: InsumoNode[] };
+}
 
 // KPI card
 interface KpiCardProps {
@@ -230,12 +242,9 @@ const VariacionesPage: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [elaboradosData, insumosData] = await Promise.all([
-        gql<ElaboradosVariacionesResponse>(GET_ELABORADOS_VARIACIONES),
-        gql<InsumosResponse>(GET_ALL_INSUMOS),
-      ]);
+      const data = await gql<VariacionesDataResponse>(GET_VARIACIONES_DATA);
 
-      const nodes = elaboradosData.elaborados.nodes;
+      const nodes = data.elaborados.nodes;
 
       const mappedProducts: Product[] = nodes.map((node) => ({
         id: String(node.id_Producto),
@@ -255,6 +264,7 @@ const VariacionesPage: React.FC = () => {
         variations: [],
         hasVariations: node.variaciones.length > 0,
         isActive: true,
+        producible: node.producible,
         createdAt: new Date(),
         updatedAt: new Date(),
       }));
@@ -299,7 +309,7 @@ const VariacionesPage: React.FC = () => {
       setProducts(mappedProducts);
       setAtributos(mappedAtributos);
       setRecetaInsumoIdsByProduct(recetaMap);
-      setInsumos(insumosData.insumos.nodes.map(mapInsumo));
+      setInsumos(data.insumos.nodes.map(mapInsumo));
     } catch (error) {
       console.error('Error loading variaciones data:', error);
     } finally {
@@ -334,10 +344,10 @@ const VariacionesPage: React.FC = () => {
         updatedAt: new Date(),
       };
       setAtributos((prev) => [...prev, nuevo]);
-      toast.success('Grupo creado', `"${data.nombre}" fue creado.`);
       return nuevo;
-    } catch {
-      toast.error('Error', 'No se pudo crear el grupo de variación.');
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'No se pudo crear el grupo de variación.';
+      toast.error('Error', message);
       throw new Error('Failed to create atributo');
     }
   }, []);
@@ -357,8 +367,9 @@ const VariacionesPage: React.FC = () => {
       setAtributos((prev) =>
         prev.map((a) => a.id === atributoId ? { ...a, ...data, updatedAt: new Date() } : a)
       );
-    } catch {
-      toast.error('Error', 'No se pudo actualizar el grupo de variación.');
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'No se pudo actualizar el grupo de variación.';
+      toast.error('Error', message);
       throw new Error('Failed to update atributo');
     }
   }, [atributos]);
@@ -369,8 +380,9 @@ const VariacionesPage: React.FC = () => {
       setAtributos((prev) =>
         prev.map((a) => a.id === atributoId ? { ...a, isActive: false } : a)
       );
-    } catch {
-      toast.error('Error', 'No se pudo eliminar el grupo de variación.');
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'No se pudo eliminar el grupo de variación.';
+      toast.error('Error', message);
       throw new Error('Failed to delete atributo');
     }
   }, []);
@@ -398,15 +410,16 @@ const VariacionesPage: React.FC = () => {
       setIsRefreshing(true);
       await api.post('/Variacion/Opcion', {
         nombre: data.nombre,
-        ajuste_precio: data.precioAjuste,
+        ajustePrecio: data.precioAjuste,
         id_variacion: Number(atributoId),
         ajustes,
-        tipo_opcion: data.tipoOpcion,
-        valor_anterior: data.valorAnterior || null,
+        tipoOpcion: data.tipoOpcion,
+        valorAnterior: data.valorAnterior || null,
       });
       await fetchData();
-    } catch {
-      toast.error('Error', 'No se pudo crear la opción.');
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'No se pudo crear la opción.';
+      toast.error('Error', message);
       throw new Error('Failed to create opcion');
     } finally {
       setIsRefreshing(false);
@@ -437,15 +450,16 @@ const VariacionesPage: React.FC = () => {
       setIsRefreshing(true);
       await api.put(`/Variacion/Opcion/${opcionId}`, {
         nombre: data.nombre,
-        ajuste_precio: data.precioAjuste,
+        ajustePrecio: data.precioAjuste,
         id_variacion: Number(atributoId),
         ajustes,
-        tipo_opcion: data.tipoOpcion,
-        valor_anterior: data.valorAnterior || null,
+        tipoOpcion: data.tipoOpcion,
+        valorAnterior: data.valorAnterior || null,
       });
       await fetchData();
-    } catch {
-      toast.error('Error', 'No se pudo actualizar la opción.');
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'No se pudo actualizar la opción.';
+      toast.error('Error', message);
       throw new Error('Failed to update opcion');
     } finally {
       setIsRefreshing(false);
@@ -457,8 +471,9 @@ const VariacionesPage: React.FC = () => {
       setIsRefreshing(true);
       await api.delete(`/Variacion/Opcion/${opcionId}`);
       await fetchData();
-    } catch {
-      toast.error('Error', 'No se pudo eliminar la opción.');
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'No se pudo eliminar la opción.';
+      toast.error('Error', message);
       throw new Error('Failed to delete opcion');
     } finally {
       setIsRefreshing(false);
@@ -468,7 +483,7 @@ const VariacionesPage: React.FC = () => {
   // ── Computed ─────────────────────────────────────────────────────────────────
 
   const activeProducts = useMemo(
-    () => products.filter((p: Product) => p.isActive && p.tipo === 'elaborado'),
+    () => products.filter((p: Product) => p.isActive && p.tipo === 'elaborado' && !p.producible),
     [products]
   );
 
@@ -567,7 +582,8 @@ const VariacionesPage: React.FC = () => {
         <div className="flex items-start gap-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
           <Info className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-amber-800">
-            <span className="font-semibold">Las variaciones solo están habilitadas para productos elaborados.</span>{' '}
+            <span className="font-semibold">Las variaciones solo están habilitadas para productos elaborados al momento.</span>{' '}
+            No aplica para productos producibles en lote (ej: tortas...).
             Si necesitas variaciones para un producto comprado, conviértelo a elaborado primero o usa el módulo de Combos para agrupar presentaciones.
           </p>
         </div>

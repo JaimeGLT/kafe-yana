@@ -6,7 +6,7 @@ import { Button, Badge, ConfirmModal } from '../../components/ui';
 import { toast } from '../../components/ui/Toast';
 import { CategoryModal } from '../../components/modals/CategoryModal';
 import { gql } from '../../lib/graphql';
-import { api } from '../../lib/api';
+import { api, ApiError } from '../../lib/api';
 import type { Category, CategoryInput } from '../../types';
 
 interface CategoriaNode {
@@ -29,7 +29,7 @@ const CategoriesPage: React.FC = () => {
   const loadCategories = useCallback(async () => {
     const data = await gql<CategoriasGqlResponse>(`
       query {
-        categorias {
+        categorias(order: [{ nombre: ASC }]) {
           nodes { id nombre descripcion estado color productos { id } }
         }
       }
@@ -79,8 +79,9 @@ const CategoriesPage: React.FC = () => {
       toast.success('Categoría eliminada', `"${deletingCategory.name}" fue eliminada correctamente.`);
       setCategories((prev) => prev.filter((c) => c.id !== deletingCategory.id));
       setDeletingCategory(null);
-    } catch {
-      toast.error('Error', 'No se pudo eliminar la categoría. Intente nuevamente.');
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'No se pudo eliminar la categoría. Intente nuevamente.';
+      toast.error('Error', message);
     } finally {
       setIsDeleting(false);
     }
@@ -88,23 +89,29 @@ const CategoriesPage: React.FC = () => {
 
 
   const handleSave = async (input: CategoryInput, isEdit: boolean, categoryId?: string) => {
-    if (isEdit && categoryId) {
-      await api.put(`/Categoria/${categoryId}`, {
-        nombre: input.name,
-        descripcion: input.description ?? '',
-        color: input.color,
-        estado: input.isActive,
-      });
-      
-      toast.success('Categoría actualizada', `"${input.name}" fue actualizada correctamente.`);
-    } else {
-      await api.post('/Categoria', {
-        nombre: input.name,
-        descripcion: input.description ?? '',
-        color: input.color,
-        estado: input.isActive,
-      });
-      toast.success('Categoría creada', `"${input.name}" fue creada correctamente.`);
+    try {
+      if (isEdit && categoryId) {
+        await api.put(`/Categoria/${categoryId}`, {
+          nombre: input.name,
+          descripcion: input.description ?? '',
+          color: input.color,
+          estado: input.isActive,
+        });
+
+        toast.success('Categoría actualizada', `"${input.name}" fue actualizada correctamente.`);
+      } else {
+        await api.post('/Categoria', {
+          nombre: input.name,
+          descripcion: input.description ?? '',
+          color: input.color,
+          estado: input.isActive,
+        });
+        toast.success('Categoría creada', `"${input.name}" fue creada correctamente.`);
+      }
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'No se pudo guardar la categoría. Intente nuevamente.';
+      toast.error('Error', message);
+      throw err;
     }
   };
 

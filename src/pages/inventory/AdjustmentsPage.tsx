@@ -8,22 +8,14 @@ import { PageHeader, PageContainer } from '../../components/layout';
 import { Button, Badge, SkeletonStatCard, SkeletonAjusteRow } from '../../components/ui';
 import { StockAdjustmentModal } from '../../components/modals/StockAdjustmentModal';
 import { gql } from '../../lib/graphql';
-import {
-  GET_AJUSTES,
-  GET_COMPRADOS_AJUSTES,
-  GET_INSUMOS_AJUSTES,
-  GET_ELABORADOS_AJUSTES,
-} from '../../lib/queries/ajustes.queries';
+import { GET_ADJUSTMENTS_DATA } from '../../lib/queries/ajustes.queries';
 import { formatCurrency } from '../../utils';
 import type {
+  AdjustmentsDataResponse,
   AjusteNode,
-  AjustesResponse,
   CompradoNode,
   InsumoNode,
   ElaboradoAjusteNode,
-  CompradosResponse,
-  InsumosResponse,
-  ElaboradosAjusteResponse,
 } from '../../types/graphql';
 
 const TIPO_ICON: Record<string, React.ReactNode> = {
@@ -90,18 +82,13 @@ const AdjustmentsPage: React.FC = () => {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [ajustesData, compradosData, insumosData, elaboradosData] = await Promise.all([
-        gql<AjustesResponse>(GET_AJUSTES),
-        gql<CompradosResponse>(GET_COMPRADOS_AJUSTES),
-        gql<InsumosResponse>(GET_INSUMOS_AJUSTES),
-        gql<ElaboradosAjusteResponse>(GET_ELABORADOS_AJUSTES),
-      ]);
+      const data = await gql<AdjustmentsDataResponse>(GET_ADJUSTMENTS_DATA);
 
-      setAjustes(ajustesData.ajustes?.nodes ?? []);
-      setComprados(compradosData.comprados?.nodes ?? []);
-      setInsumos(insumosData.insumos?.nodes ?? []);
+      setAjustes(data.ajustes?.nodes ?? []);
+      setComprados(data.comprados?.nodes ?? []);
+      setInsumos(data.insumos?.nodes ?? []);
       setElaborados(
-        (elaboradosData.elaborados?.nodes ?? [])
+        (data.elaborados?.nodes ?? [])
           .filter((e) => e.receta !== null)
           .map((e) => ({
             ...e,

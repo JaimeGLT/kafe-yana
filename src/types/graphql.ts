@@ -228,6 +228,61 @@ export interface AjustesResponse {
   ajustes: { nodes: AjusteNode[] };
 }
 
+export interface AdjustmentsDataResponse {
+  ajustes: { nodes: AjusteNode[] };
+  comprados: { nodes: CompradoNode[] };
+  insumos: { nodes: InsumoNode[] };
+  elaborados: { nodes: ElaboradoAjusteNode[] };
+}
+
+export interface KardexProductNode {
+  id: string;
+  name: string;
+  tipo: 'comprado' | 'elaborado';
+  stock: number;
+  unit: string;
+}
+
+export interface KardexProductsResponse {
+  comprados: { nodes: { producto: { id: number; nombre: string }; stock_actual: number }[] };
+  elaborados: { nodes: { id_Producto: number; producto: { id: number; nombre: string }; stock_actual: number }[] };
+}
+
+export interface KardexRawAjuste {
+  fecha: string;
+  id: number;
+  nombre: string;
+  tipo: string;
+  ajuste: number;
+  stockAnterior: number;
+  stockNuevo: number;
+  perdida: number;
+  motivo: string;
+  nota: string;
+  usuario: string;
+}
+
+export interface KardexVentaDetalle {
+  cantidad: number;
+  nombre: string;
+  precio: number;
+  total: number;
+}
+
+export interface KardexRawVenta {
+  fecha: string;
+  id: number;
+  codigo: string;
+  estado: string;
+  total: number;
+  detalles: KardexVentaDetalle[];
+}
+
+export interface KardexMovementsResponse {
+  ajustes: { nodes: KardexRawAjuste[] };
+  ventas: { nodes: KardexRawVenta[] };
+}
+
 interface SimpleProductNode {
   id: number;
   nombre: string;

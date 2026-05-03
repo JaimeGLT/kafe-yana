@@ -91,6 +91,12 @@ const PAYMENT_METHODS: { type: PaymentMethodType; label: string; icon: React.Rea
   { type: 'transfer', label: 'QR', icon: <Smartphone className="h-5 w-5" /> },
 ];
 
+const TIPO_PAGO_MAP: Record<string, number> = {
+  cash: 1,
+  transfer: 2,
+  card: 3,
+};
+
 /* ═══════════════════════════════════════════════════════════════════════════
    HELPERS
 ═══════════════════════════════════════════════════════════════════════════*/
@@ -810,7 +816,7 @@ export const POSPage: React.FC = () => {
   }, [getOrCreateProfile, rewards]);
 
   /* ── Mesa state ── */
-  const { mesas: backendMesas, loading: loadingMesas, createMesa: apiCreateMesa, updateMesa: apiUpdateMesa, deleteMesa: apiDeleteMesa, ocuparMesa: apiOcuparMesa, liberarMesa: apiLiberarMesa, crearRonda: apiCrearRonda } = useMesas();
+  const { mesas: backendMesas, loading: loadingMesas, createMesa: apiCreateMesa, updateMesa: apiUpdateMesa, deleteMesa: apiDeleteMesa, ocuparMesa: apiOcuparMesa, liberarMesa: apiLiberarMesa, crearRonda: apiCrearRonda, cobrarMesa: apiCobrarMesa, getActivePedidoId } = useMesas();
 
   const [mesas, setMesas] = useState<Mesa[]>([...initMesas([]), PARA_LLEVAR_MESA]);
   const [activeMesaId, setActiveMesaId] = useState<string | null>(null);
@@ -1192,37 +1198,56 @@ export const POSPage: React.FC = () => {
     if (!activeMesa) return;
     setIsProcessing(true);
     try {
-      const saleInput: SaleInput = {
-        customerId: activeMesa.customerId,
-        items: activeMesa.order.map((i: CartItem) => ({ productId: i.product.id, quantity: i.quantity, discount: 0 })),
-        discount: 0,
-        taxPercentage: 18,
-        paymentMethods: [{ type: paymentMethod, amount: mesaTotal }],
-      };
-      const newSale = await addSale(saleInput);
+      const isMesa = activeMesa.tipo === 'mesa';
+      const pedidoId = isMesa ? getActivePedidoId(activeMesa.id) : null;
 
-      // Update stock locally
-      setProducts(prev => prev.map((p: Product) => {
-        const item = activeMesa.order.find((i: CartItem) => i.product.id === p.id);
-        if (item) {
-          return { ...p, stock: p.stock - item.quantity };
-        }
-        return p;
-      }));
+      if (isMesa && pedidoId) {
+        const tipoPago = TIPO_PAGO_MAP[paymentMethod] ?? 1;
+        const efectivoRecibido = paymentMethod === 'cash' ? cashNum : 0;
+        const idCliente = activeMesa.customerId ? parseInt(activeMesa.customerId, 10) : null;
 
-      let earnedPoints: PointsCalculation | null = null;
-      let newBalance = 0;
-      if (activeMesa.customerId && newSale) {
-        // canjear todas las recompensas incluidas en el order
-        for (const item of activeMesa.order) {
-          if (item.redeemRewardId) redeemReward(activeMesa.customerId, item.redeemRewardId);
+        const success = await apiCobrarMesa(activeMesa.id, {
+          id_Pedido: pedidoId,
+          id_Cliente: idCliente,
+          tipoPago,
+          efectivoRecibido,
+        });
+
+        if (success) {
+          setLastSaleResult({ code: `MESA-${activeMesa.id}`, points: null, newBalance: 0 });
+          setModalView('success');
         }
-        earnedPoints = awardPointsForSale(activeMesa.customerId, newSale.id, mesaTotal, hasCombo);
-        const profile = getOrCreateProfile(activeMesa.customerId);
-        newBalance = profile?.points ?? 0;
+      } else {
+        const saleInput: SaleInput = {
+          customerId: activeMesa.customerId,
+          items: activeMesa.order.map((i: CartItem) => ({ productId: i.product.id, quantity: i.quantity, discount: 0 })),
+          discount: 0,
+          taxPercentage: 18,
+          paymentMethods: [{ type: paymentMethod, amount: mesaTotal }],
+        };
+        const newSale = await addSale(saleInput);
+
+        setProducts(prev => prev.map((p: Product) => {
+          const item = activeMesa.order.find((i: CartItem) => i.product.id === p.id);
+          if (item) {
+            return { ...p, stock: p.stock - item.quantity };
+          }
+          return p;
+        }));
+
+        let earnedPoints: PointsCalculation | null = null;
+        let newBalance = 0;
+        if (activeMesa.customerId && newSale) {
+          for (const item of activeMesa.order) {
+            if (item.redeemRewardId) redeemReward(activeMesa.customerId, item.redeemRewardId);
+          }
+          earnedPoints = awardPointsForSale(activeMesa.customerId, newSale.id, mesaTotal, hasCombo);
+          const profile = getOrCreateProfile(activeMesa.customerId);
+          newBalance = profile?.points ?? 0;
+        }
+        setLastSaleResult({ code: newSale.code, points: earnedPoints, newBalance });
+        setModalView('success');
       }
-      setLastSaleResult({ code: newSale.code, points: earnedPoints, newBalance });
-      setModalView('success');
     } catch {
       toast.error('Error', 'No se pudo registrar la venta.');
     } finally {

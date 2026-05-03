@@ -89,6 +89,7 @@ interface UseMesasReturn {
   ocuparMesa: (id: string, clienteId: number | null) => Promise<number | null>;
   liberarMesa: (id: string) => Promise<boolean>;
   crearRonda: (mesaId: string, detalles: { id_Producto: number; ids_Opcion: number[]; cantidad: number }[]) => Promise<boolean>;
+  cobrarMesa: (mesaId: string, data: { id_Pedido: number; id_Cliente: number | null; tipoPago: number; efectivoRecibido: number }) => Promise<boolean>;
   getActivePedidoId: (mesaId: string) => number | null;
   refreshMesas: () => Promise<void>;
 }
@@ -218,6 +219,21 @@ export function useMesas(): UseMesasReturn {
     }
   }, [pedidoPorMesa, refreshMesas]);
 
+  const cobrarMesa = useCallback(async (
+    mesaId: string,
+    data: { id_Pedido: number; id_Cliente: number | null; tipoPago: number; efectivoRecibido: number }
+  ): Promise<boolean> => {
+    try {
+      await api.post(`/Mesa/cobrar/${mesaId}`, data);
+      await refreshMesas();
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo cobrar la mesa.';
+      toast.error('Error', message);
+      return false;
+    }
+  }, [refreshMesas]);
+
   return {
     mesas,
     loading,
@@ -228,6 +244,7 @@ export function useMesas(): UseMesasReturn {
     ocuparMesa,
     liberarMesa,
     crearRonda,
+    cobrarMesa,
     getActivePedidoId: (mesaId: string) => pedidoPorMesa[mesaId] ?? null,
     refreshMesas,
   };
