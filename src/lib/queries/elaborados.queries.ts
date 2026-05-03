@@ -290,23 +290,6 @@ export const GET_ELABORADOS_PAGE = `
             }
           }
         }
-        variaciones {
-          id
-          nombre
-          requerido
-          opciones {
-            id
-            nombre
-            ajustePrecio
-            id_variacion
-            ajustes {
-              tipoAjuste
-              cantidad
-              insumoBase { id nombre }
-              insumoNuevo { id nombre }
-            }
-          }
-        }
       }
     }
     insumos {

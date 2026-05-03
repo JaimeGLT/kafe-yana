@@ -42,17 +42,6 @@ interface ElaboradoNode {
       };
     }>;
   } | null;
-  variaciones: Array<{
-    id: number;
-    nombre: string;
-    requerido: boolean;
-    opciones: Array<{
-      id: number;
-      nombre: string;
-      ajustePrecio: number;
-      id_variacion: number;
-    }>;
-  }>;
 }
 
 interface InsumoNode {
@@ -147,18 +136,8 @@ export function useElaboradosPage(options: UseElaboradosPageOptions): UseElabora
           barcode: '',
           locationId: rawUbicacion || undefined,
           destino,
-          variations: n.variaciones.map((v) => ({
-            id: String(v.id),
-            name: v.nombre,
-            requerido: v.requerido,
-            opciones: v.opciones.map((o) => ({
-              id: String(o.id),
-              nombre: o.nombre,
-              ajustePrecio: o.ajustePrecio,
-              id_variacion: String(o.id_variacion),
-            })),
-          })),
-          hasVariations: n.producible && n.variaciones.length > 0,
+          variations: [],
+          hasVariations: false,
           isActive: Boolean(n.producible),
           createdAt: new Date(),
           updatedAt: new Date(),
