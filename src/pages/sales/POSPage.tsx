@@ -593,160 +593,156 @@ export const POSPage: React.FC = () => {
   const [rewards, _setRewards] = useState<Reward[]>([]);
   const [milestones, _setMilestones] = useState<MilestoneReward[]>([]);
   const [_loading, setLoading] = useState(true);
+  const [productsLoaded, setProductsLoaded] = useState(false);
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const data = await gql<{
-          elaborados: { nodes: Array<{
-            id_Producto: number; unidad_medida: string;
-            producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string;
-              categoria: { id: number; nombre: string; descripcion: string; estado: boolean; color: string } | null };
-            variaciones: Array<{ id: number; nombre: string; requerido: boolean;
-              opciones: Array<{ id: number; nombre: string; ajustePrecio: number; id_variacion: number;
-                ajustes: Array<{ tipoAjuste: string; cantidad: number; insumoBase: { id: number; nombre: string } | null; insumoNuevo: { id: number; nombre: string } | null }> }> }>;
-            receta: { detalles: Array<{ cantidad: number; insumo: { nombre: string; unidad_min_uso: string } | null }> } | null;
-          }> };
-          comprados: { nodes: Array<{
-            costo_compra: number; stock_actual: number; disponible: boolean;
-            producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string;
-              categoria: { id: number; nombre: string; descripcion: string; estado: boolean; color: string } | null };
-          }> };
-          combos: { nodes: Array<{
-            cantidadProducible: number;
-            producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string };
-            detalles: Array<{ producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string }; cantidad: number; opcional: boolean }>;
-          }> };
-          categorias: { nodes: Array<{ id: number; nombre: string; descripcion: string; color: string; estado: boolean }> };
-        }>(GET_POS_DATA);
+  const loadProducts = useCallback(async () => {
+    if (productsLoaded) return;
+    try {
+      const data = await gql<{
+        elaborados: { nodes: Array<{
+          id_Producto: number; unidad_medida: string;
+          producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string;
+            categoria: { id: number; nombre: string; descripcion: string; estado: boolean; color: string } | null };
+          variaciones: Array<{ id: number; nombre: string; requerido: boolean;
+            opciones: Array<{ id: number; nombre: string; ajustePrecio: number; id_variacion: number;
+              ajustes: Array<{ tipoAjuste: string; cantidad: number; insumoBase: { id: number; nombre: string } | null; insumoNuevo: { id: number; nombre: string } | null }> }> }>;
+          receta: { detalles: Array<{ cantidad: number; insumo: { nombre: string; unidad_min_uso: string } | null }> } | null;
+        }> };
+        comprados: { nodes: Array<{
+          costo_compra: number; stock_actual: number; disponible: boolean;
+          producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string;
+            categoria: { id: number; nombre: string; descripcion: string; estado: boolean; color: string } | null };
+        }> };
+        combos: { nodes: Array<{
+          cantidadProducible: number;
+          producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string };
+          detalles: Array<{ producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string }; cantidad: number; opcional: boolean }>;
+        }> };
+        categorias: { nodes: Array<{ id: number; nombre: string; descripcion: string; color: string; estado: boolean }> };
+      }>(GET_POS_DATA);
 
-        // Build category map from backend — keyed by string ID
-        const catMap = new Map<string, Category>();
-        data.categorias.nodes.forEach(n => {
-          catMap.set(String(n.id), {
-            id: String(n.id), name: n.nombre, description: n.descripcion,
-            color: n.color || '#92400e', sortOrder: 0, isActive: n.estado,
+      // Build category map from backend — keyed by string ID
+      const catMap = new Map<string, Category>();
+      data.categorias.nodes.forEach(n => {
+        catMap.set(String(n.id), {
+          id: String(n.id), name: n.nombre, description: n.descripcion,
+          color: n.color || '#92400e', sortOrder: 0, isActive: n.estado,
+          createdAt: new Date(), updatedAt: new Date(),
+        });
+      });
+
+      const elaboradoProducts: Product[] = [];
+      const mappedAtributos: VariacionAtributo[] = [];
+
+      for (const n of data.elaborados.nodes) {
+        const productId = String(n.id_Producto);
+        const cat = n.producto.categoria;
+        if (cat && !catMap.has(String(cat.id))) {
+          catMap.set(String(cat.id), {
+            id: String(cat.id), name: cat.nombre, description: cat.descripcion ?? '',
+            color: cat.color || '#92400e', sortOrder: 0, isActive: true,
             createdAt: new Date(), updatedAt: new Date(),
           });
+        }
+        elaboradoProducts.push({
+          id: productId, code: productId,
+          name: n.producto.nombre, description: n.producto.descripcion ?? '',
+          tipo: 'elaborado', categoryId: cat ? String(cat.id) : '',
+          unit: n.unidad_medida ?? 'unidad', costPrice: 0,
+          salePrice: n.producto.precio, stock: 999,
+          minStock: 0, maxStock: 0, variations: [], isActive: true,
+          hasVariations: n.variaciones.length > 0,
+          createdAt: new Date(), updatedAt: new Date(),
         });
+        for (const v of n.variaciones) {
+          mappedAtributos.push({
+            id: String(v.id), productId,
+            nombre: v.nombre, esRequerido: v.requerido, isActive: true,
+            createdAt: new Date(), updatedAt: new Date(),
+            opciones: v.opciones.map(o => {
+              const ajuste = o.ajustes?.[0];
+              return {
+                id: String(o.id), atributoId: String(v.id),
+                nombre: o.nombre, precioAjuste: o.ajustePrecio, isActive: true,
+                tipoAjuste: ajuste?.tipoAjuste,
+                ajusteCantidad: ajuste?.cantidad,
+                insumoBaseNombre: ajuste?.insumoBase?.nombre,
+                insumoNuevoNombre: ajuste?.insumoNuevo?.nombre,
+              };
+            }),
+          });
+        }
+      }
 
-        const elaboradoProducts: Product[] = [];
-        const mappedAtributos: VariacionAtributo[] = [];
-
-        for (const n of data.elaborados.nodes) {
-          const productId = String(n.id_Producto);
+      const compradoProducts: Product[] = data.comprados.nodes
+        .filter(n => n.disponible)
+        .map(n => {
           const cat = n.producto.categoria;
-          // Ensure the category is registered
           if (cat && !catMap.has(String(cat.id))) {
             catMap.set(String(cat.id), {
               id: String(cat.id), name: cat.nombre, description: cat.descripcion ?? '',
-              color: cat.color || '#92400e', sortOrder: 0, isActive: true,
+              color: cat.color || '#64748b', sortOrder: 0, isActive: true,
               createdAt: new Date(), updatedAt: new Date(),
             });
           }
-          elaboradoProducts.push({
-            id: productId, code: productId,
+          return {
+            id: String(n.producto.id), code: String(n.producto.id),
             name: n.producto.nombre, description: n.producto.descripcion ?? '',
-            tipo: 'elaborado', categoryId: cat ? String(cat.id) : '',
-            unit: n.unidad_medida ?? 'unidad', costPrice: 0,
-            salePrice: n.producto.precio, stock: 999,
-            minStock: 0, maxStock: 0, variations: [], isActive: true,
-            hasVariations: n.variaciones.length > 0,
-            createdAt: new Date(), updatedAt: new Date(),
-          });
-          for (const v of n.variaciones) {
-            mappedAtributos.push({
-              id: String(v.id), productId,
-              nombre: v.nombre, esRequerido: v.requerido, isActive: true,
-              createdAt: new Date(), updatedAt: new Date(),
-              opciones: v.opciones.map(o => {
-                const ajuste = o.ajustes?.[0];
-                return {
-                  id: String(o.id), atributoId: String(v.id),
-                  nombre: o.nombre, precioAjuste: o.ajustePrecio, isActive: true,
-                  tipoAjuste: ajuste?.tipoAjuste,
-                  ajusteCantidad: ajuste?.cantidad,
-                  insumoBaseNombre: ajuste?.insumoBase?.nombre,
-                  insumoNuevoNombre: ajuste?.insumoNuevo?.nombre,
-                };
-              }),
-            });
-          }
-        }
-
-        const compradoProducts: Product[] = data.comprados.nodes
-          .filter(n => n.disponible)
-          .map(n => {
-            const cat = n.producto.categoria;
-            // Ensure comprado categories are registered even if not in categorias.nodes
-            if (cat && !catMap.has(String(cat.id))) {
-              catMap.set(String(cat.id), {
-                id: String(cat.id), name: cat.nombre, description: cat.descripcion ?? '',
-                color: cat.color || '#64748b', sortOrder: 0, isActive: true,
-                createdAt: new Date(), updatedAt: new Date(),
-              });
-            }
-            return {
-              id: String(n.producto.id), code: String(n.producto.id),
-              name: n.producto.nombre, description: n.producto.descripcion ?? '',
-              tipo: 'comprado' as const,
-              categoryId: cat ? String(cat.id) : '',
-              unit: 'unidad', costPrice: n.costo_compra,
-              salePrice: n.producto.precio, stock: n.stock_actual,
-              minStock: 0, maxStock: 0, variations: [], isActive: true,
-              hasVariations: false, createdAt: new Date(), updatedAt: new Date(),
-            };
-          });
-
-        // Find existing combo category from backend, or create synthetic one
-        const existingComboCat = [...catMap.values()].find(c =>
-          c.name.toLowerCase().includes('combo')
-        );
-        const COMBO_CAT_ID = existingComboCat?.id ?? '__combos__';
-        if (!existingComboCat) {
-          catMap.set(COMBO_CAT_ID, {
-            id: COMBO_CAT_ID, name: 'Combos', color: '#15803d',
-            sortOrder: 99, isActive: true, createdAt: new Date(), updatedAt: new Date(),
-          });
-        }
-
-        const comboProducts: Product[] = [];
-        const newComboDetails: Record<string, ComboDetailItem[]> = {};
-
-        for (const n of data.combos.nodes) {
-          const id = String(n.producto.id);
-          comboProducts.push({
-            id, code: id,
-            name: n.producto.nombre, description: n.producto.descripcion ?? '',
-            tipo: 'combo', categoryId: COMBO_CAT_ID,
-            unit: 'unidad', costPrice: 0,
-            salePrice: n.producto.precio, stock: n.cantidadProducible,
+            tipo: 'comprado' as const,
+            categoryId: cat ? String(cat.id) : '',
+            unit: 'unidad', costPrice: n.costo_compra,
+            salePrice: n.producto.precio, stock: n.stock_actual,
             minStock: 0, maxStock: 0, variations: [], isActive: true,
             hasVariations: false, createdAt: new Date(), updatedAt: new Date(),
-          });
-          newComboDetails[id] = n.detalles.map(d => ({
-            name: d.producto.nombre, quantity: d.cantidad, emoji: '•',
-          }));
-        }
+          };
+        });
 
-        const cats = [...catMap.values()].filter(c => c.isActive);
-
-        setCategories(cats);
-        setProducts([...elaboradoProducts, ...compradoProducts, ...comboProducts]);
-        setAtributos(mappedAtributos);
-        setComboDetails(newComboDetails);
-
-        const clientesData = await gql<{ clientes: { nodes: Customer[] } }>(GET_CLIENTES);
-        setCustomers(clientesData.clientes.nodes);
-      } catch {
-        toast.error('Error', 'No se pudieron cargar los productos.');
-      } finally {
-        setLoading(false);
+      const existingComboCat = [...catMap.values()].find(c =>
+        c.name.toLowerCase().includes('combo')
+      );
+      const COMBO_CAT_ID = existingComboCat?.id ?? '__combos__';
+      if (!existingComboCat) {
+        catMap.set(COMBO_CAT_ID, {
+          id: COMBO_CAT_ID, name: 'Combos', color: '#15803d',
+          sortOrder: 99, isActive: true, createdAt: new Date(), updatedAt: new Date(),
+        });
       }
-    };
 
-    loadData();
-  }, []);
+      const comboProducts: Product[] = [];
+      const newComboDetails: Record<string, ComboDetailItem[]> = {};
+
+      for (const n of data.combos.nodes) {
+        const id = String(n.producto.id);
+        comboProducts.push({
+          id, code: id,
+          name: n.producto.nombre, description: n.producto.descripcion ?? '',
+          tipo: 'combo', categoryId: COMBO_CAT_ID,
+          unit: 'unidad', costPrice: 0,
+          salePrice: n.producto.precio, stock: n.cantidadProducible,
+          minStock: 0, maxStock: 0, variations: [], isActive: true,
+          hasVariations: false, createdAt: new Date(), updatedAt: new Date(),
+        });
+        newComboDetails[id] = n.detalles.map(d => ({
+          name: d.producto.nombre, quantity: d.cantidad, emoji: '•',
+        }));
+      }
+
+      const cats = [...catMap.values()].filter(c => c.isActive);
+
+      setCategories(cats);
+      setProducts([...elaboradoProducts, ...compradoProducts, ...comboProducts]);
+      setAtributos(mappedAtributos);
+      setComboDetails(newComboDetails);
+
+      const clientesData = await gql<{ clientes: { nodes: Customer[] } }>(GET_CLIENTES);
+      setCustomers(clientesData.clientes.nodes);
+      setProductsLoaded(true);
+    } catch {
+      toast.error('Error', 'No se pudieron cargar los productos.');
+    } finally {
+      setLoading(false);
+    }
+  }, [productsLoaded]);
 
   const getAtributosByProductId = useCallback((productId: string): VariacionAtributo[] => {
     return atributos.filter((a: VariacionAtributo) => a.productId === productId);
@@ -916,6 +912,9 @@ export const POSPage: React.FC = () => {
   const openModal = (mesaId: string, view: ModalView) => {
     setActiveMesaId(mesaId);
     setModalView(view);
+    if (!productsLoaded && view === 'detalle') {
+      loadProducts();
+    }
   };
   const closeAll = () => {
     setActiveMesaId(null);
@@ -977,9 +976,12 @@ export const POSPage: React.FC = () => {
         currentRound: 1,
         roundsSent: [],
       });
-      setActiveMesaId(mesaId);
-      setModalView('detalle');
-      setDetalleView('none');
+      closeAll();
+      setActiveMesaId(null);
+      setModalView('none');
+      if (!productsLoaded) {
+        loadProducts();
+      }
     }
   };
 

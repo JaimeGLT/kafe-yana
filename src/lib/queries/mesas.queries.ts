@@ -59,7 +59,20 @@ export const GET_MESAS = `
       }
     }
   }
-`;
+`
+
+export const GET_MESAS_SIMPLE = `
+  query GetMesasSimple {
+    mesas {
+      nodes {
+        id
+        nombre
+        disponible
+        id_Pedido
+      }
+    }
+  }
+`
 
 export const GET_MESA_BY_ID = `
   query GetMesaById($id: Int!) {
@@ -122,4 +135,4 @@ export const GET_MESA_BY_ID = `
       }
     }
   }
-`;
+`

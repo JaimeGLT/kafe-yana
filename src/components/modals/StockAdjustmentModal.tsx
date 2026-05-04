@@ -126,11 +126,10 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   // Incluye merma para que coincida exactamente con lo que se descontará en la explosión
   const recetaPreview = useMemo(() => {
     if (productType !== 'elaborado' || !selectedElaborado?.receta) return [];
-    const { porciones, detalles } = selectedElaborado.receta;
+    const { detalles } = selectedElaborado.receta;
     return detalles.map((d) => {
       const insumo = insumos.find((i) => i.id === d.id_insumo);
-      const cantidadPorUnidad = porciones > 0 ? d.cantidad / porciones : d.cantidad;
-      const cantidadConMerma = cantidadPorUnidad * (1 + d.merma / 100);
+      const cantidadConMerma = d.cantidad * (1 + d.merma / 100);
       return {
         id_insumo: d.id_insumo,
         nombre: insumo?.nombre ?? `Insumo #${d.id_insumo}`,
@@ -182,12 +181,11 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
     if (productType !== 'elaborado' || !selectedElaborado?.receta) return [];
     const units = parseInt(quantityStr, 10);
     if (isNaN(units) || units <= 0) return [];
-    const { porciones, detalles } = selectedElaborado.receta;
+    const { detalles } = selectedElaborado.receta;
     return detalles.map((detalle) => {
       const insumo = insumos.find((i) => i.id === detalle.id_insumo);
-      const cantidadPorUnidad = porciones > 0 ? detalle.cantidad / porciones : detalle.cantidad;
-      const cantidadConMerma = cantidadPorUnidad * (1 + detalle.merma / 100);
-      const cantidadADescontar = cantidadConMerma * units;
+      const cantidadPorUnidad = detalle.cantidad * (1 + detalle.merma / 100);
+      const cantidadADescontar = cantidadPorUnidad * units;
       const costoUnitario =
         insumo && insumo.factor_conversion > 0
           ? insumo.costo / insumo.factor_conversion
@@ -323,10 +321,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
         const fecha = fechaProduccion
           ? new Date(fechaProduccion).toISOString()
           : new Date().toISOString();
-        const cantidad =
-          isEntrada && selectedElaborado?.receta?.porciones
-            ? cantidadIngresada * selectedElaborado.receta.porciones
-            : cantidadIngresada;
+        const cantidad = cantidadIngresada;
         await api.post(`/AjusteStock/Elaborado?entrada=${isEntrada}`, {
           id_elaborado: id,
           cantidad,
