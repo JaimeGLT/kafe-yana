@@ -16,7 +16,7 @@ import { usePOSCart } from '../../hooks/usePOSCart';
 import { usePOSLoyalty } from '../../hooks/usePOSLoyalty';
 import { formatCurrency } from '../../utils';
 import { formatOpcionLabel, formatOpcionLabelString } from '../../utils/opcionUtils';
-import { SkeletonMesaGrid, SkeletonCategoryTabs, SkeletonProductScroll, Overlay } from '../../components/ui';
+import { SkeletonMesaGrid, SkeletonCategoryTabs, SkeletonProductScroll, Overlay, ConfirmModal } from '../../components/ui';
 import { MesaCard } from '../../components/pos/MesaCard';
 import { NuevaMesaModal } from '../../components/pos/NuevaMesaModal';
 import { IniciarMesaModal } from '../../components/pos/IniciarMesaModal';
@@ -344,6 +344,8 @@ export const POSPage: React.FC = () => {
   const [reviewShowNewCustomerForm, setReviewShowNewCustomerForm] = useState(false);
   const [reviewNewCustomerName, setReviewNewCustomerName] = useState('');
   const [reviewNewCustomerPhone, setReviewNewCustomerPhone] = useState('');
+  const [confirmDeleteMesaId, setConfirmDeleteMesaId] = useState<string | null>(null);
+  const [mesaToDeleteName, setMesaToDeleteName] = useState('');
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('cash');
   const [cashReceived, setCashReceived] = useState('');
@@ -664,8 +666,8 @@ export const POSPage: React.FC = () => {
                 formatCurrency={formatCurrency}
                 mesaOrderTotal={mesaOrderTotal}
                 onOpen={openModal}
-                onEdit={openEditMesa}
-                onDelete={handleDeleteMesa}
+                onEdit={(mesa, e) => { openEditMesa(mesa, e); setModalView('nueva_mesa'); }}
+                onDelete={(mesaId, _e) => { const m = mesas.find(x => x.id === mesaId); setMesaToDeleteName(m?.name ?? ''); setConfirmDeleteMesaId(mesaId); }}
                 isDeletingMesa={isDeletingMesa}
               />
             ))}
@@ -1325,6 +1327,18 @@ export const POSPage: React.FC = () => {
               addRedeemToTempCart(redeemQtyState.product, redeemQtyState.reward.id, undefined, qty);
               toast.success('¡Canje agregado!', `${qty > 1 ? `${qty}× ` : ''}${redeemQtyState.reward.name} añadido al pedido.`);
             }}
+          />
+        )}
+
+        {confirmDeleteMesaId && (
+          <ConfirmModal
+            isOpen
+            onClose={() => setConfirmDeleteMesaId(null)}
+            onConfirm={() => { handleDeleteMesa(confirmDeleteMesaId, { stopPropagation: () => {} } as any); setConfirmDeleteMesaId(null); }}
+            title="Eliminar mesa"
+            message={`¿Eliminar la mesa "${mesaToDeleteName}"? Esta acción no se puede deshacer.`}
+            confirmText="Eliminar"
+            variant="danger"
           />
         )}
       </div>
