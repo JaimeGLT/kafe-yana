@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { clsx } from 'clsx';
 import {
-  Plus, Minus, Trash2, Coffee, CheckCircle, Printer,
-  CreditCard, Banknote, Smartphone, AlertTriangle,
-  FlaskConical, Layers, X, Star, Gift, Search,
+  Plus, Minus, Trash2, Coffee, Printer,
+  X, Star, Gift, Search,
   UtensilsCrossed, ChevronLeft, ChevronRight, PenLine, History, ShoppingBag,
 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
@@ -13,83 +12,31 @@ import { gql } from '../../lib/graphql';
 import { GET_POS_DATA } from '../../lib/queries/products.queries';
 import { GET_ELABORADO_INGREDIENTES } from '../../lib/queries/elaborados.queries';
 import { GET_CLIENTES } from '../../lib/queries/clientes.queries';
-import { useMesas } from '../../hooks/useMesas';
-
-interface ComboDetailItem {
-  name: string;
-  quantity: number;
-  emoji: string;
-}
+import { usePOSMesas, PARA_LLEVAR_ID } from '../../hooks/usePOSMesas';
+import { usePOSCart } from '../../hooks/usePOSCart';
+import { usePOSLoyalty } from '../../hooks/usePOSLoyalty';
 import { formatCurrency } from '../../utils';
-import qrPago from '../../assets/qr-pago.svg';
-import type { Product, Category, Customer, Sale, SaleInput, PaymentMethodType, OpcionSeleccionada, VariacionAtributo } from '../../types';
-import type { LoyaltyProfile, PointsCalculation, MilestoneReward, Reward } from '../../types/loyalty';
+import { formatOpcionLabel, formatOpcionLabelString } from '../../utils/opcionUtils';
+import { SkeletonMesaGrid, Overlay } from '../../components/ui';
+import { MesaCard } from '../../components/pos/MesaCard';
+import { NuevaMesaModal } from '../../components/pos/NuevaMesaModal';
+import { IniciarMesaModal } from '../../components/pos/IniciarMesaModal';
+import { ComboDetailPanel } from '../../components/pos/ComboDetailPanel';
+import type { Product, Category, Customer, SaleInput, PaymentMethodType, VariacionAtributo } from '../../types';
+import type { Reward, MilestoneReward, PointsCalculation } from '../../types/loyalty';
 import { VariacionPickerModal } from '../../components/modals/VariacionPickerModal';
 import { ElaboradoDetailModal } from '../../components/modals/ElaboradoDetailModal';
-import type { ElaboradoIngrediente } from '../../components/modals/ElaboradoDetailModal';
-import { Modal } from '../../components/ui/Modal';
+import { ProdCard } from '../../components/modals/ProdCard';
+import { RedeemQtyModal } from '../../components/modals/RedeemQtyModal';
 import { SearchableSelect } from '../../components/ui/Select';
-import { Button } from '../../components/ui/Button';
 import { Tooltip } from '../../components/ui/Tooltip';
-import { SkeletonMesaGrid } from '../../components/ui';
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   TYPES
-═══════════════════════════════════════════════════════════════════════════*/
-interface CartItem {
-  product: Product;
-  quantity: number;
-  opciones?: OpcionSeleccionada[];
-  precioFinal: number;
-  cartKey: string;
-  redeemRewardId?: string;  // si está seteado, el ítem fue canjeado (precio 0)
-  notes?: string;
-  roundNumber?: number;
-}
+const ReviewPanel = lazy(() => import('../../components/pos/ReviewPanel').then(m => ({ default: m.ReviewPanel })));
+const PagoPanel = lazy(() => import('../../components/pos/PagoPanel').then(m => ({ default: m.PagoPanel })));
+const SuccessPanel = lazy(() => import('../../components/pos/SuccessPanel').then(m => ({ default: m.SuccessPanel })));
 
-interface RondaRecord {
-  number: number;
-  sentAt: number;
-  subTotal: number;
-}
-
-type MesaStatus = 'libre' | 'ocupada' | 'esperando_pago';
-
-interface Mesa {
-  id: string;
-  number: number;
-  name: string;
-  status: MesaStatus;
-  openedAt?: number;
-  order: CartItem[];
-  customerId?: string;
-  tipo?: 'mesa' | 'para_llevar';
-  currentRound: number;
-  roundsSent: RondaRecord[];
-  pedidoId?: number;
-}
-
-type ModalView =
-  | 'none'
-  | 'nueva_mesa'    // create / edit table
-  | 'iniciar'       // confirm start table
-  | 'detalle'       // table detail (order view)
-  | 'review'        // order review before payment
-  | 'pago'          // payment
-  | 'success'       // done
-  | 'para_llevar';  // takeaway / counter sale
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   CONSTANTS
-═══════════════════════════════════════════════════════════════════════════*/
-// const TAX_RATE = 0.18; // reservado para cuando el backend maneje impuestos
-const PARA_LLEVAR_ID = 'para-llevar';
-
-const PAYMENT_METHODS: { type: PaymentMethodType; label: string; icon: React.ReactNode }[] = [
-  { type: 'cash',     label: 'Efectivo',  icon: <Banknote   className="h-5 w-5" /> },
-  { type: 'card',     label: 'Tarjeta',   icon: <CreditCard className="h-5 w-5" /> },
-  { type: 'transfer', label: 'QR', icon: <Smartphone className="h-5 w-5" /> },
-];
+type ModalView = 'none' | 'nueva_mesa' | 'iniciar' | 'detalle' | 'review' | 'pago' | 'success';
+type DetalleView = 'none' | 'pedido' | 'historial';
 
 const TIPO_PAGO_MAP: Record<string, number> = {
   cash: 1,
@@ -97,217 +44,16 @@ const TIPO_PAGO_MAP: Record<string, number> = {
   card: 3,
 };
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   HELPERS
-═══════════════════════════════════════════════════════════════════════════*/
-const formatOpcionLabel = (o: OpcionSeleccionada): React.ReactNode => {
-  const tipo = o.tipoOpcion ?? 'normal';
-  const valorAnterior = o.valorAnterior;
-  const costoExtra = o.costoExtra ?? o.precioAjuste;
-
-  if (tipo === 'cambio' && valorAnterior) {
-    return <>{valorAnterior} → {o.opcionNombre}{costoExtra ? ` (+${costoExtra}Bs)` : ''}</>;
-  }
-  if (tipo === 'extra') {
-    return <>+ {o.opcionNombre}{costoExtra ? ` (+${costoExtra}Bs)` : ''}</>;
-  }
-
-  const ajuste = o.tipoAjuste ?? o.opcionRaw?.ajustes?.[0]?.tipoAjuste;
-  const insumoBase = o.insumoBaseNombre ?? o.opcionRaw?.ajustes?.[0]?.insumoBase?.nombre;
-  const insumoNuevo = o.insumoNuevoNombre ?? o.opcionRaw?.ajustes?.[0]?.insumoNuevo?.nombre;
-  const cantidad = o.ajusteCantidad ?? o.opcionRaw?.ajustes?.[0]?.cantidad;
-
-  if (ajuste === 'Reemplazo' && insumoBase && insumoNuevo) {
-    return (
-      <span className="text-coffee-500">
-        Quita <span className="font-medium text-coffee-700">{insumoBase}</span> → Usa <span className="font-medium text-coffee-700">{insumoNuevo}</span>{cantidad ? ` (${cantidad})` : ''}
-      </span>
-    );
-  }
-  if (ajuste === 'Modificacion' && insumoBase) {
-    return (
-      <span className="text-coffee-500">
-        Modifica <span className="font-medium text-coffee-700">{insumoBase}</span> a {cantidad}
-      </span>
-    );
-  }
-
-  if (insumoBase && insumoNuevo) {
-    return <>{insumoBase} → {insumoNuevo}{cantidad ? ` (${cantidad})` : ''}</>;
-  }
-  if (insumoNuevo && o.tipoAjuste === 'extra') {
-    return <>+ {insumoNuevo}{cantidad ? ` (${cantidad})` : ''}</>;
-  }
-  return o.opcionNombre;
-};
-
-const formatOpcionLabelString = (o: OpcionSeleccionada): string => {
-  const tipo = o.tipoOpcion ?? 'normal';
-  const valorAnterior = o.valorAnterior;
-  const costoExtra = o.costoExtra ?? o.precioAjuste;
-
-  if (tipo === 'cambio' && valorAnterior) {
-    return `${valorAnterior} → ${o.opcionNombre}${costoExtra ? ` (+${costoExtra}Bs)` : ''}`;
-  }
-  if (tipo === 'extra') {
-    return `+ ${o.opcionNombre}${costoExtra ? ` (+${costoExtra}Bs)` : ''}`;
-  }
-
-  const ajuste = o.tipoAjuste ?? o.opcionRaw?.ajustes?.[0]?.tipoAjuste;
-  const insumoBase = o.insumoBaseNombre ?? o.opcionRaw?.ajustes?.[0]?.insumoBase?.nombre;
-  const insumoNuevo = o.insumoNuevoNombre ?? o.opcionRaw?.ajustes?.[0]?.insumoNuevo?.nombre;
-  const cantidad = o.ajusteCantidad ?? o.opcionRaw?.ajustes?.[0]?.cantidad;
-
-  if (ajuste === 'Reemplazo' && insumoBase && insumoNuevo) {
-    return `Quita ${insumoBase} → Usa ${insumoNuevo}${cantidad ? ` (${cantidad})` : ''}`;
-  }
-  if (ajuste === 'Modificacion' && insumoBase) {
-    return `Modifica ${insumoBase} a ${cantidad}`;
-  }
-  if (insumoBase && insumoNuevo) {
-    return `${insumoBase} → ${insumoNuevo}${cantidad ? ` (${cantidad})` : ''}`;
-  }
-  if (insumoNuevo && o.tipoAjuste === 'extra') {
-    return `+ ${insumoNuevo}${cantidad ? ` (${cantidad})` : ''}`;
-  }
-  return o.opcionNombre;
-};
-
-const buildCartKey = (productId: string, opciones?: OpcionSeleccionada[]): string => {
-  if (!opciones?.length) return productId;
-  const part = [...opciones]
-    .sort((a, b) => a.atributoId.localeCompare(b.atributoId))
-    .map(o => `${o.atributoId}:${o.opcionId}`)
-    .join('|');
-  return `${productId}__${part}`;
-};
-
-const getProductEmoji = (product: Product): string => {
-  const n = product.name.toLowerCase();
-  if (n.includes('café') || n.includes('cafe') || n.includes('espresso') || n.includes('latte') || n.includes('capuchino') || n.includes('americano')) return '☕';
-  if (n.includes('té') || n.includes('infusión')) return '🍵';
-  if (n.includes('jugo') || n.includes('smoothie')) return '🥤';
-  if (n.includes('ice') || n.includes('frío')) return '🧋';
-  if (n.includes('agua')) return '💧';
-  if (n.includes('torta') || n.includes('pastel') || n.includes('brownie')) return '🎂';
-  if (n.includes('postre') || n.includes('pie')) return '🍰';
-  if (n.includes('galleta') || n.includes('masita') || n.includes('alfajor')) return '🍪';
-  if (n.includes('pan') || n.includes('panini') || n.includes('sandwich')) return '🥪';
-  if (n.includes('empanada') || n.includes('cuñap')) return '🥐';
-  if (n.includes('combo')) return '🎁';
-  if (n.includes('desayuno')) return '🍳';
-  if (product.tipo === 'elaborado') return '☕';
-  return '☕';
-};
-
-const makeMesaBase = (overrides: Partial<Mesa>): Mesa => ({
-  id: '', number: 0, name: '', status: 'libre',
-  order: [], currentRound: 1, roundsSent: [],
-  ...overrides,
-});
-
-const PARA_LLEVAR_MESA: Mesa = {
-  id: PARA_LLEVAR_ID,
-  number: 0,
-  name: 'Para llevar',
-  status: 'libre',
-  tipo: 'para_llevar',
-  order: [],
-  currentRound: 1,
-  roundsSent: [],
-};
-
-const mapBackendMesaToLocal = (backendMesa: { id: string; nombre: string; pedido: { id_Cliente: number | null; total: number; rondas: { id: number; id_Pedido: number; ronda_Descripcion: string; subTotal: number; detalle: { id: number; nombre_Producto: string; cantidad: number; precio: number; opciones: { id_Opcion: number; tipoOpcion: string; valorAnterior: string | null; costoExtra: number | null; opcion: { id: number; nombre: string; ajustePrecio: number; variacion: { id: number; nombre: string; requerido: boolean }; ajustes?: { cantidad: number; tipoAjuste: string; insumoBase?: { nombre: string } | null; insumoNuevo?: { nombre: string } | null }[] } }[] }[] }[] } | null }): Mesa => {
-  const isOccupied = backendMesa.pedido !== null;
-  const status: MesaStatus = isOccupied ? 'ocupada' : 'libre';
-
-  let order: CartItem[] = [];
-  let roundsSent: RondaRecord[] = [];
-  let currentRound = 1;
-  let customerId: string | undefined;
-
-  if (backendMesa.pedido) {
-    customerId = backendMesa.pedido.id_Cliente ? String(backendMesa.pedido.id_Cliente) : undefined;
-
-    if (backendMesa.pedido.rondas) {
-      roundsSent = backendMesa.pedido.rondas.map((ronda, idx) => ({
-        number: idx + 1,
-        sentAt: Date.now(),
-        subTotal: ronda.subTotal,
-      }));
-
-      backendMesa.pedido.rondas.forEach((ronda, idx) => {
-        const roundNum = idx + 1;
-        ronda.detalle.forEach((detalle) => {
-          const opcionesSeleccionadas = detalle.opciones?.map(opt => {
-            const ajuste = opt.opcion.ajustes?.[0];
-            return {
-              atributoId: String(opt.opcion.variacion.id),
-              atributoNombre: opt.opcion.variacion.nombre,
-              opcionId: String(opt.id_Opcion),
-              opcionNombre: opt.opcion.nombre,
-              precioAjuste: opt.opcion.ajustePrecio,
-              tipoOpcion: opt.tipoOpcion,
-              valorAnterior: opt.valorAnterior,
-              costoExtra: opt.costoExtra,
-              tipoAjuste: ajuste?.tipoAjuste,
-              insumoBaseNombre: ajuste?.insumoBase?.nombre,
-              insumoNuevoNombre: ajuste?.insumoNuevo?.nombre,
-              ajusteCantidad: ajuste?.cantidad,
-              opcionRaw: opt.opcion,
-            };
-          }) ?? [];
-
-          order.push({
-            product: {
-              id: String(detalle.id),
-              name: detalle.nombre_Producto,
-              salePrice: detalle.precio,
-              tipo: 'comprado',
-            } as Product,
-            quantity: detalle.cantidad,
-            opciones: opcionesSeleccionadas,
-            precioFinal: detalle.precio,
-            cartKey: `${detalle.id}_${ronda.id}`,
-            roundNumber: roundNum,
-          });
-        });
-      });
-
-      currentRound = backendMesa.pedido.rondas.length + 1;
-    }
-  }
-
-  return {
-    id: String(backendMesa.id),
-    number: parseInt(String(backendMesa.id), 10),
-    name: backendMesa.nombre,
-    status,
-    openedAt: isOccupied ? Date.now() : undefined,
-    order,
-    customerId,
-    tipo: 'mesa',
-    currentRound,
-    roundsSent,
-    pedidoId: backendMesa.pedido?.id_Cliente ?? undefined,
-  };
-};
-
-const initMesas = (backendMesas: { id: string; nombre: string; pedido: { id_Cliente: number | null; total: number; rondas: { id: number; id_Pedido: number; ronda_Descripcion: string; subTotal: number; detalle: { id: number; nombre_Producto: string; cantidad: number; precio: number; opciones: { id_Opcion: number; tipoOpcion: string; valorAnterior: string | null; costoExtra: number | null; opcion: { id: number; nombre: string; ajustePrecio: number; variacion: { id: number; nombre: string; requerido: boolean } } }[] }[] }[] } | null }[]): Mesa[] => [
-  ...backendMesas.map(mapBackendMesaToLocal),
-  PARA_LLEVAR_MESA,
-];
-
-const mesaOrderTotal = (order: CartItem[]) =>
+const mesaOrderTotal = (order: any[]) =>
   order.reduce((s, i) => s + i.precioFinal * i.quantity, 0);
 
-const printComanda = (mesaName: string, roundNumber: number, items: CartItem[]) => {
+const printComanda = (mesaName: string, roundNumber: number, items: any[]) => {
   const win = window.open('', '_blank', 'width=320,height=500');
   if (!win) return;
   const now = new Date().toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
   const rows = items.map(i => {
     const nota = i.notes ? `<div style="font-size:10px;color:#555;padding-left:8px">↳ ${i.notes}</div>` : '';
-    const opciones = i.opciones?.map(o => `<div style="font-size:10px;color:#555;padding-left:8px">· ${formatOpcionLabelString(o)}</div>`).join('') ?? '';
+    const opciones = i.opciones?.map((o: any) => `<div style="font-size:10px;color:#555;padding-left:8px">· ${formatOpcionLabelString(o)}</div>`).join('') ?? '';
     return `<div style="margin-bottom:6px"><strong>${i.quantity}×</strong> ${i.product.name}${opciones}${nota}</div>`;
   }).join('');
   win.document.write(`
@@ -328,22 +74,19 @@ const printComanda = (mesaName: string, roundNumber: number, items: CartItem[]) 
   win.close();
 };
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   HOOK — drag-to-scroll
-═══════════════════════════════════════════════════════════════════════════*/
 function useDragScroll<T extends HTMLElement>() {
   const ref = useRef<T>(null);
   const dragging = useRef(false);
-  const startX   = useRef(0);
-  const scrollL  = useRef(0);
-  const moved    = useRef(false);
+  const startX = useRef(0);
+  const scrollL = useRef(0);
+  const moved = useRef(false);
 
   const onMouseDown = (e: React.MouseEvent) => {
     if (!ref.current) return;
     dragging.current = true;
-    moved.current    = false;
-    startX.current   = e.pageX - ref.current.offsetLeft;
-    scrollL.current  = ref.current.scrollLeft;
+    moved.current = false;
+    startX.current = e.pageX - ref.current.offsetLeft;
+    scrollL.current = ref.current.scrollLeft;
     ref.current.style.cursor = 'grabbing';
     ref.current.style.userSelect = 'none';
   };
@@ -366,234 +109,74 @@ function useDragScroll<T extends HTMLElement>() {
   return { ref, onMouseDown, onMouseMove, onMouseUp, onMouseLeave, wasDragged: () => moved.current };
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   TIMER COMPONENT
-═══════════════════════════════════════════════════════════════════════════*/
+type MesaStatus = 'libre' | 'ocupada' | 'esperando_pago';
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   MODAL OVERLAY
-═══════════════════════════════════════════════════════════════════════════*/
-const Overlay: React.FC<{ children: React.ReactNode; onClose?: () => void }> = ({ children, onClose }) => (
-  <div
-    className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm"
-    onClick={e => { if (e.target === e.currentTarget && onClose) onClose(); }}
-  >
-    {children}
-  </div>
-);
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   PRODUCT CARD (inside agregar modal)
-═══════════════════════════════════════════════════════════════════════════*/
-interface ProdCardProps {
-  product: Product;
-  qty: number;
-  unavailable: boolean;
-  onAdd: () => void;
-  onInc: () => void;
-  onDec: () => void;
-  onInfo?: () => void;
-  rewardInfo?: { icon: string; pointsCost: number } | null;
-  onRedeem?: () => void;
-  pointsShortfall?: number | null;
-}
-const ProdCard: React.FC<ProdCardProps> = ({ product, qty, unavailable, onAdd, onInc, onDec, onInfo, rewardInfo, onRedeem, pointsShortfall }) => (
-  <div className={clsx(
-    'flex-shrink-0 w-36 sm:w-40 bg-white rounded-2xl overflow-hidden shadow-sm flex flex-col select-none',
-    unavailable && 'opacity-50',
-  )}>
-    {/* Image */}
-    <div className="relative h-28 bg-coffee-50 flex items-center justify-center">
-      <span className="text-4xl">{getProductEmoji(product)}</span>
-      {product.tipo === 'elaborado' && (
-        <span className="absolute top-1.5 left-1.5 text-[9px] bg-white text-amber-700 rounded-full px-1.5 py-0.5 font-semibold flex items-center gap-0.5 shadow-sm">
-          <FlaskConical className="h-2 w-2" />Elab.
-        </span>
-      )}
-      {product.tipo === 'combo' && onInfo && (
-        <button
-          onClick={e => { e.stopPropagation(); onInfo(); }}
-          className="absolute top-1.5 left-1.5 text-[9px] bg-white text-emerald-700 rounded-full px-1.5 py-0.5 font-semibold flex items-center gap-0.5 shadow-sm hover:bg-emerald-50 transition-colors"
-        >
-          <Layers className="h-2 w-2" />Ver
-        </button>
-      )}
-      {getAttrCount(product) > 0 && (
-        <span className="absolute top-1.5 right-1.5 text-[9px] bg-white text-purple-700 rounded-full px-1.5 py-0.5 font-semibold flex items-center gap-0.5 shadow-sm">
-          <Layers className="h-2 w-2" />Var.
-        </span>
-      )}
-      {qty > 0 && (
-        <div className="absolute bottom-1.5 right-1.5 h-5 w-5 bg-coffee-800 text-cream text-[10px] font-black rounded-full flex items-center justify-center shadow">
-          {qty}
-        </div>
-      )}
-      {rewardInfo && (
-        <div className="absolute bottom-1.5 left-1.5 text-[9px] bg-amber-400 text-white rounded-full px-1.5 py-0.5 font-bold flex items-center gap-0.5 shadow">
-          <Gift className="h-2 w-2" />{rewardInfo.pointsCost} pts
-        </div>
-      )}
-    </div>
-    {/* Info */}
-    <div className="px-2.5 pt-2 pb-1 flex-1 flex flex-col">
-      <p className="text-xs font-bold text-coffee-900 leading-tight line-clamp-2 font-display flex-1">{product.name}</p>
-      <p className="text-sm font-black text-coffee-800 mt-1">{formatCurrency(product.salePrice)}</p>
-    </div>
-    {/* Controls */}
-    <div className="px-2.5 pb-2.5">
-      {getAttrCount(product) > 0 ? (
-        /* Producto con variaciones: siempre muestra "Agregar" para poder elegir otra variación */
-        <button
-          disabled={unavailable}
-          onClick={onAdd}
-          className={clsx(
-            'w-full flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold transition-all',
-            unavailable ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-coffee-800 text-cream hover:bg-coffee-700 active:scale-95',
-          )}
-        >
-          <Plus className="h-3 w-3" /> Agregar
-        </button>
-      ) : qty === 0 ? (
-        <button
-          disabled={unavailable}
-          onClick={onAdd}
-          className={clsx(
-            'w-full flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold transition-all',
-            unavailable ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-coffee-800 text-cream hover:bg-coffee-700 active:scale-95',
-          )}
-        >
-          <Plus className="h-3 w-3" /> Agregar
-        </button>
-      ) : (
-        <div className="flex items-center justify-between bg-coffee-100 rounded-xl overflow-hidden h-8">
-          <button onClick={onDec} className="w-8 h-full flex items-center justify-center hover:bg-coffee-200 text-coffee-700 transition-colors">
-            <Minus className="h-3 w-3" />
-          </button>
-          <span className="text-sm font-black text-coffee-900">{qty}</span>
-          <button onClick={onInc} className="w-8 h-full flex items-center justify-center hover:bg-coffee-200 text-coffee-700 transition-colors">
-            <Plus className="h-3 w-3" />
-          </button>
-        </div>
-      )}
-      {rewardInfo && (
-        <button
-          disabled={pointsShortfall != null}
-          onClick={e => { if (pointsShortfall == null) { e.stopPropagation(); onRedeem?.(); } }}
-          className={clsx(
-            'mt-1.5 w-full flex items-center justify-center gap-1 py-1.5 rounded-xl text-[11px] font-bold transition-all border',
-            pointsShortfall != null
-              ? 'bg-amber-50 border-amber-200 text-amber-300 cursor-not-allowed'
-              : 'bg-amber-400 border-amber-400 text-white hover:bg-amber-300 active:scale-95',
-          )}
-        >
-          <Gift className="h-3 w-3" />
-          {pointsShortfall != null ? `Te faltan ${pointsShortfall} pts` : `Canjear · ${rewardInfo.pointsCost} pts`}
-        </button>
-      )}
-    </div>
-  </div>
-);
-
-// tiny helper used inside ProdCard — will be set in parent
-let getAttrCount = (_p: Product) => 0;
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   REDEEM QTY MODAL — cantidad de canjes para productos sin variaciones
-═══════════════════════════════════════════════════════════════════════════*/
-interface RedeemQtyModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  product: Product;
-  reward: Reward;
-  availablePoints: number;
-  onConfirm: (qty: number) => void;
-}
-const RedeemQtyModal: React.FC<RedeemQtyModalProps> = ({ isOpen, onClose, product, reward, availablePoints, onConfirm }) => {
-  const [qty, setQty] = React.useState(1);
-  const maxQty = Math.max(1, Math.floor(availablePoints / reward.pointsCost));
-
-  React.useEffect(() => { if (isOpen) setQty(1); }, [isOpen]);
-
-  const totalPts  = qty * reward.pointsCost;
-  const remaining = availablePoints - totalPts;
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Canjear recompensa" size="sm">
-      <div className="space-y-4">
-        {/* Product info */}
-        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-          <span className="text-2xl">{getProductEmoji(product)}</span>
-          <div>
-            <p className="font-semibold text-coffee-900">{product.name}</p>
-            <p className="text-xs text-amber-700">{reward.pointsCost} pts por unidad · gratis</p>
-          </div>
-        </div>
-
-        {/* Qty selector */}
-        <div className="flex items-center justify-between bg-coffee-50 rounded-xl px-4 py-3">
-          <span className="text-sm font-medium text-coffee-700">Cantidad</span>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setQty(q => Math.max(1, q - 1))}
-              disabled={qty <= 1}
-              className="w-8 h-8 rounded-full bg-white border border-coffee-200 flex items-center justify-center disabled:opacity-40 hover:bg-coffee-50 transition-colors"
-            >
-              <Minus className="h-3 w-3" />
-            </button>
-            <span className="text-lg font-bold text-coffee-900 w-6 text-center">{qty}</span>
-            <button
-              onClick={() => setQty(q => Math.min(maxQty, q + 1))}
-              disabled={qty >= maxQty}
-              className="w-8 h-8 rounded-full bg-white border border-coffee-200 flex items-center justify-center disabled:opacity-40 hover:bg-coffee-50 transition-colors"
-            >
-              <Plus className="h-3 w-3" />
-            </button>
-          </div>
-        </div>
-
-        {/* Points summary */}
-        <div className="space-y-1.5 border-t border-coffee-100 pt-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-coffee-600">Puntos a usar</span>
-            <span className="font-semibold text-amber-700">−{totalPts} pts</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-coffee-600">Saldo restante</span>
-            <span className="font-semibold text-coffee-900">{remaining} pts</span>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex gap-2">
-          <Button variant="ghost" size="sm" className="flex-1" onClick={onClose}>Cancelar</Button>
-          <Button
-            size="sm"
-            className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
-            leftIcon={<Gift className="h-3.5 w-3.5" />}
-            onClick={() => { onConfirm(qty); onClose(); }}
-          >
-            Canjear{qty > 1 ? ` ${qty}×` : ''} · Gratis
-          </Button>
-        </div>
-      </div>
-    </Modal>
-  );
+const STATUS_CFG: Record<MesaStatus, { label: string; dot: string; card: string; badge: string; icon: string; iconBg: string }> = {
+  libre:          { label: 'Libre',          dot: 'bg-emerald-400',              card: 'bg-coffee-700/35 border-coffee-500/30 hover:bg-coffee-700/50 hover:border-coffee-400/50', badge: 'bg-emerald-500/20 text-emerald-300',  icon: 'text-coffee-300', iconBg: 'bg-coffee-800/70' },
+  ocupada:        { label: 'Ocupada',        dot: 'bg-red-400 animate-pulse',    card: 'bg-red-900/45    border-red-500/55    hover:bg-red-900/60    hover:border-red-400/75',     badge: 'bg-red-500/20     text-red-300',         icon: 'text-red-300',    iconBg: 'bg-red-900/50'    },
+  esperando_pago: { label: 'Esperando pago', dot: 'bg-amber-400 animate-pulse',  card: 'bg-amber-900/35  border-amber-500/50  hover:bg-amber-900/50  hover:border-amber-400/70',  badge: 'bg-amber-500/20   text-amber-300',       icon: 'text-amber-300',  iconBg: 'bg-amber-900/50'  },
 };
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   MAIN PAGE
-═══════════════════════════════════════════════════════════════════════════*/
 export const POSPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [_customers, setCustomers] = useState<Customer[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
-  const [comboDetails, setComboDetails] = useState<Record<string, ComboDetailItem[]>>({});
-  const [loyaltyProfiles, setLoyaltyProfiles] = useState<LoyaltyProfile[]>([]);
+  const [comboDetails, setComboDetails] = useState<Record<string, { name: string; quantity: number; emoji: string }[]>>({});
   const [rewards, _setRewards] = useState<Reward[]>([]);
   const [milestones, _setMilestones] = useState<MilestoneReward[]>([]);
-  const [_loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [productsLoaded, setProductsLoaded] = useState(false);
+
+  const {
+    tempCart,
+    varPickerProduct, setVarPickerProduct,
+    varPickerDirect, setVarPickerDirect,
+    varPickerRewardId, setVarPickerRewardId,
+    redeemQtyState, setRedeemQtyState,
+    comboDetailProduct, setComboDetailProduct,
+    elaboradoDetailProduct, setElaboradoDetailProduct,
+    elaboradoIngredientes, setElaboradoIngredientes,
+    buildCartKey,
+    addTempDirect,
+    addRedeemToTempCart,
+    incTempQty, decTempQty, removeTempItem,
+    getTempQty, updateTempItemNote, clearTempCart,
+  } = usePOSCart();
+
+  const {
+    loyaltyProfiles: _lp,
+    setLoyaltyProfiles,
+    getOrCreateProfile,
+    calculatePointsForAmount,
+    awardPointsForSale,
+    redeemReward,
+  } = usePOSLoyalty();
+
+  const {
+    mesas,
+    activeMesa,
+    activeMesaId,
+    setActiveMesaId,
+    loadingMesas,
+    openParaLlevar,
+    openNuevaMesa,
+    openEditMesa,
+    handleSaveMesa,
+    handleDeleteMesa,
+    handleIniciarMesa,
+    handleCerrarMesa,
+    sendToKitchen,
+    updateMesa,
+    isSendingToKitchen,
+    isClosingMesa,
+    isSavingMesa,
+    isStartingMesa,
+    isDeletingMesa,
+    nuevaMesaName,
+    setNuevaMesaName,
+    editMesaId,
+  } = usePOSMesas();
 
   const loadProducts = useCallback(async () => {
     if (productsLoaded) return;
@@ -606,7 +189,6 @@ export const POSPage: React.FC = () => {
           variaciones: Array<{ id: number; nombre: string; requerido: boolean;
             opciones: Array<{ id: number; nombre: string; ajustePrecio: number; id_variacion: number;
               ajustes: Array<{ tipoAjuste: string; cantidad: number; insumoBase: { id: number; nombre: string } | null; insumoNuevo: { id: number; nombre: string } | null }> }> }>;
-          receta: { detalles: Array<{ cantidad: number; insumo: { nombre: string; unidad_min_uso: string } | null }> } | null;
         }> };
         comprados: { nodes: Array<{
           costo_compra: number; stock_actual: number; disponible: boolean;
@@ -621,7 +203,6 @@ export const POSPage: React.FC = () => {
         categorias: { nodes: Array<{ id: number; nombre: string; descripcion: string; color: string; estado: boolean }> };
       }>(GET_POS_DATA);
 
-      // Build category map from backend — keyed by string ID
       const catMap = new Map<string, Category>();
       data.categorias.nodes.forEach(n => {
         catMap.set(String(n.id), {
@@ -709,7 +290,7 @@ export const POSPage: React.FC = () => {
       }
 
       const comboProducts: Product[] = [];
-      const newComboDetails: Record<string, ComboDetailItem[]> = {};
+      const newComboDetails: Record<string, { name: string; quantity: number; emoji: string }[]> = {};
 
       for (const n of data.combos.nodes) {
         const id = String(n.producto.id);
@@ -748,129 +329,30 @@ export const POSPage: React.FC = () => {
     return atributos.filter((a: VariacionAtributo) => a.productId === productId);
   }, [atributos]);
 
-  // wire helper used by ProdCard
-  getAttrCount = (p: Product) => getAtributosByProductId(p.id).length;
+  const addSale = useCallback((saleInput: SaleInput) => api.post<any>('/ventas', saleInput), []);
 
-  const addSale = useCallback((saleInput: SaleInput) => api.post<Sale>('/ventas', saleInput), []);
-
-  const getOrCreateProfile = useCallback((customerId: string): LoyaltyProfile | undefined => {
-    const profile = loyaltyProfiles.find((p: LoyaltyProfile) => p.customerId === customerId);
-    return profile;
-  }, [loyaltyProfiles]);
-
-  const calculatePointsForAmount = useCallback((customerId: string, total: number, hasCombo: boolean): PointsCalculation | null => {
-    const profile = getOrCreateProfile(customerId);
-    if (!profile) return null;
-
-    const basePoints = Math.floor(total / 10);
-    let bonusPoints = 0;
-    const bonusReasons: string[] = [];
-
-    // Happy hour logic (9am-3pm)
-    const hour = new Date().getHours();
-    if (hour >= 9 && hour < 15) {
-      bonusPoints += 2;
-      bonusReasons.push('Happy Hour');
-    }
-
-    // Combo bonus
-    if (hasCombo) {
-      bonusPoints += 3;
-      bonusReasons.push('Combo');
-    }
-
-    return {
-      basePoints,
-      bonusPoints,
-      totalPoints: basePoints + bonusPoints,
-      multiplier: 1,
-      bonusReasons,
-      isBirthday: false,
-      isHappyHour: hour >= 9 && hour < 15,
-      isDoubleDay: false,
-      isCombo: hasCombo,
-      isGroupPurchase: total >= 70,
-    };
-  }, [getOrCreateProfile]);
-
-  const awardPointsForSale = useCallback((customerId: string, _saleId: string, total: number, hasCombo: boolean): PointsCalculation | null => {
-    const calc = calculatePointsForAmount(customerId, total, hasCombo);
-    if (!calc) return null;
-
-    // In real implementation, this would call the API
-    return calc;
-  }, [calculatePointsForAmount]);
-
-  const redeemReward = useCallback((customerId: string, rewardId: string): boolean => {
-    const profile = getOrCreateProfile(customerId);
-    const reward = rewards.find(r => r.id === rewardId);
-    if (!profile || !reward || profile.points < reward.pointsCost) return false;
-    setLoyaltyProfiles(prev => prev.map(p =>
-      p.customerId === customerId ? { ...p, points: p.points - reward.pointsCost } : p
-    ));
-    return true;
-  }, [getOrCreateProfile, rewards]);
-
-  /* ── Mesa state ── */
-  const { mesas: backendMesas, loading: loadingMesas, createMesa: apiCreateMesa, updateMesa: apiUpdateMesa, deleteMesa: apiDeleteMesa, ocuparMesa: apiOcuparMesa, liberarMesa: apiLiberarMesa, crearRonda: apiCrearRonda, cobrarMesa: apiCobrarMesa, getActivePedidoId } = useMesas();
-
-  const [mesas, setMesas] = useState<Mesa[]>([...initMesas([]), PARA_LLEVAR_MESA]);
-  const [activeMesaId, setActiveMesaId] = useState<string | null>(null);
   const [modalView, setModalView] = useState<ModalView>('none');
-
-  useEffect(() => {
-    if (!loadingMesas && backendMesas.length > 0) {
-      setMesas([...initMesas(backendMesas as any), PARA_LLEVAR_MESA]);
-    }
-  }, [backendMesas, loadingMesas]);
-
-  /* ── Nueva mesa form ── */
-  const [nuevaMesaName, setNuevaMesaName] = useState('');
-  const [editMesaId,    setEditMesaId]    = useState<string | null>(null);
-  const [iniciarClienteId, setIniciarClienteId] = useState('');
-  const [showNewCustomerForm,       setShowNewCustomerForm]       = useState(false);
-  const [showDetalleNewCustomerForm, setShowDetalleNewCustomerForm] = useState(false);
-  const [newCustomerName,  setNewCustomerName]  = useState('');
-  const [newCustomerPhone, setNewCustomerPhone] = useState('');
-  const [isStartingMesa, setIsStartingMesa] = useState(false);
-  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
-
-  /* ── Detalle view ── */
-  const [detalleView, setDetalleView] = useState<'none' | 'pedido' | 'historial'>('none');
-
-  /* ── Temp state for product picker ── */
+  const [detalleView, setDetalleView] = useState<DetalleView>('none');
   const [selectedCatId, setSelectedCatId] = useState<string>('');
-  const [tempCart,      setTempCart]      = useState<CartItem[]>([]);
-  const [varPickerProduct, setVarPickerProduct] = useState<Product | null>(null);
-  const [varPickerDirect, setVarPickerDirect] = useState(false);
-  const [varPickerRewardId, setVarPickerRewardId] = useState<string | null>(null);
-  const [redeemQtyState, setRedeemQtyState] = useState<{ product: Product; reward: Reward } | null>(null);
-  const [comboDetailProduct, setComboDetailProduct] = useState<Product | null>(null);
-  const [elaboradoDetailProduct, setElaboradoDetailProduct] = useState<Product | null>(null);
-  const [elaboradoIngredientes, setElaboradoIngredientes] = useState<Record<string, ElaboradoIngrediente[]>>({});
   const [productSearch, setProductSearch] = useState('');
 
-  /* ── Payment state ── */
-  const [paymentMethod,    setPaymentMethod]    = useState<PaymentMethodType>('cash');
-  const [cashReceived,     setCashReceived]     = useState('');
-  const [isProcessing,     setIsProcessing]     = useState(false);
-  const [isSendingToKitchen, setIsSendingToKitchen] = useState(false);
-  const [isClosingMesa, setIsClosingMesa] = useState(false);
-  const [isSavingMesa, setIsSavingMesa] = useState(false);
-  const [isDeletingMesa, setIsDeletingMesa] = useState<string | null>(null);
-  const [lastSaleResult,   setLastSaleResult]   = useState<{ code: string; points: PointsCalculation | null; newBalance: number } | null>(null);
+  const [iniciarClienteId, setIniciarClienteId] = useState('');
+  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
+  const [showDetalleNewCustomerForm, setShowDetalleNewCustomerForm] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerPhone, setNewCustomerPhone] = useState('');
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
 
-  /* ── Drag scroll refs ── */
-  const dragScrollDetalleCat  = useDragScroll<HTMLDivElement>();
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('cash');
+  const [cashReceived, setCashReceived] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [lastSaleResult, setLastSaleResult] = useState<{ code: string; points: PointsCalculation | null; newBalance: number } | null>(null);
+
+  const dragScrollDetalleCat = useDragScroll<HTMLDivElement>();
   const dragScrollDetalleProd = useDragScroll<HTMLDivElement>();
-
-  /* ── Derived ── */
-  const activeMesa = activeMesaId ? mesas.find(m => m.id === activeMesaId) ?? null : null;
 
   const activeCategories = useMemo(() => categories.filter(c => c.isActive), [categories]);
 
-  // products for the selected category in "agregar" modal
-  // when searching, ignores category filter and searches all products
   const pickerProducts = useMemo(() => {
     if (productSearch) {
       const q = productSearch.toLowerCase();
@@ -881,34 +363,31 @@ export const POSPage: React.FC = () => {
   }, [products, selectedCatId, activeCategories, productSearch]);
 
   const getEffectiveStock = useCallback((p: Product): { label: string; ok: boolean } => {
-    // For elaborado products, we would need to check recipe availability
-    // For now, simplified check
     return p.stock <= 0 ? { label: 'Agotado', ok: false } : { label: String(p.stock), ok: true };
   }, []);
 
-  /* ── Mesa order totals ── */
-  const mesaSubtotal   = activeMesa ? mesaOrderTotal(activeMesa.order) : 0;
+  const mesaSubtotal = activeMesa ? mesaOrderTotal(activeMesa.order) : 0;
   const loyaltyProfile = activeMesa?.customerId ? getOrCreateProfile(activeMesa.customerId) : null;
 
   const pointsSpentInOrder = useMemo(() => {
     if (!activeMesa) return 0;
-    const countItems = (items: CartItem[]) =>
+    const countItems = (items: any[]) =>
       items.filter(i => i.redeemRewardId).reduce((sum, i) => {
         const r = rewards.find(r => r.id === i.redeemRewardId);
         return sum + (r?.pointsCost ?? 0);
       }, 0);
     return countItems(activeMesa.order) + countItems(tempCart);
   }, [activeMesa, rewards, tempCart]);
+
   const availablePoints = loyaltyProfile ? loyaltyProfile.points - pointsSpentInOrder : 0;
-  const mesaTotal      = mesaSubtotal;
-  const cashNum        = parseFloat(cashReceived) || 0;
-  const change         = Math.max(0, cashNum - mesaTotal);
-  const hasCombo       = !!activeMesa?.order.some(i => i.product.tipo === 'combo' || i.product.name.toLowerCase().includes('combo'));
-  const pointsPreview  = activeMesa?.customerId
+  const mesaTotal = mesaSubtotal;
+  const cashNum = parseFloat(cashReceived) || 0;
+  const change = Math.max(0, cashNum - mesaTotal);
+  const hasCombo = !!activeMesa?.order.some(i => i.product.tipo === 'combo' || i.product.name.toLowerCase().includes('combo'));
+  const pointsPreview = activeMesa?.customerId
     ? calculatePointsForAmount(activeMesa.customerId, mesaTotal, hasCombo)
     : null;
 
-  /* ── Open / close helpers ── */
   const openModal = (mesaId: string, view: ModalView) => {
     setActiveMesaId(mesaId);
     setModalView(view);
@@ -916,10 +395,11 @@ export const POSPage: React.FC = () => {
       loadProducts();
     }
   };
+
   const closeAll = () => {
     setActiveMesaId(null);
     setModalView('none');
-    setTempCart([]);
+    clearTempCart();
     setProductSearch('');
     setCashReceived('');
     setDetalleView('none');
@@ -930,141 +410,31 @@ export const POSPage: React.FC = () => {
     setNewCustomerPhone('');
   };
 
-  const handleCreateCustomer = (onCreated: (id: string) => void, isModal = false) => {
-    const name  = newCustomerName.trim();
+  const handleCreateCustomer = (onCreated: (id: string) => void) => {
+    const name = newCustomerName.trim();
     const phone = newCustomerPhone.trim();
     if (!name || !phone) return;
-    if (isModal) setIsCreatingCustomer(true);
-    const id  = `cust_${Date.now()}`;
+    setIsCreatingCustomer(true);
+    const id = `cust_${Date.now()}`;
     const now = new Date();
     const newCustomer: Customer = {
       id, nombre: name, celular: phone, puntos: 0, estado: true,
     };
-    const newProfile: LoyaltyProfile = {
+    const newProfile = {
       id: `prof_${Date.now()}`, customerId: id,
       points: 0, lifetimePoints: 0, purchaseCount: 0,
-      level: 'bronce', referralCode: id.slice(-6).toUpperCase(),
+      level: 'bronce' as const, referralCode: id.slice(-6).toUpperCase(),
       referralCount: 0, consecutiveDays: 0,
       uniqueProductsBought: [], completedMissions: [],
       createdAt: now, updatedAt: now,
     };
     setCustomers(prev => [...prev, newCustomer]);
-    setLoyaltyProfiles(prev => [...prev, newProfile]);
+    setLoyaltyProfiles(prev => [...prev, newProfile as any]);
     onCreated(id);
     setNewCustomerName('');
     setNewCustomerPhone('');
     setIsCreatingCustomer(false);
     toast.success('Cliente registrado', `${name} añadido correctamente.`);
-  };
-
-  /* ── Mesa operations ── */
-  const updateMesa = (id: string, patch: Partial<Mesa>) =>
-    setMesas(prev => prev.map(m => m.id === id ? { ...m, ...patch } : m));
-
-  const handleIniciarMesa = async (mesa: Mesa, customerId?: string) => {
-    setIsStartingMesa(true);
-    const mesaId = mesa.id;
-    const clienteId = customerId ? parseInt(customerId, 10) : null;
-    const result = await apiOcuparMesa(mesaId, clienteId);
-    setIsStartingMesa(false);
-    if (result) {
-      updateMesa(mesaId, {
-        status: 'ocupada',
-        openedAt: Date.now(),
-        customerId,
-        order: [],
-        currentRound: 1,
-        roundsSent: [],
-      });
-      closeAll();
-      setActiveMesaId(null);
-      setModalView('none');
-      if (!productsLoaded) {
-        loadProducts();
-      }
-    }
-  };
-
-  const handleCerrarMesa = async (mesaId: string) => {
-    setIsClosingMesa(true);
-    await apiLiberarMesa(mesaId);
-    updateMesa(mesaId, { status: 'libre', openedAt: undefined, order: [], customerId: undefined, currentRound: 1, roundsSent: [] });
-    setIsClosingMesa(false);
-    closeAll();
-  };
-
-  const openParaLlevar = () => {
-    const pl = mesas.find(m => m.id === PARA_LLEVAR_ID)!;
-    if (pl.status === 'libre') {
-      updateMesa(PARA_LLEVAR_ID, { status: 'ocupada', openedAt: Date.now(), order: [], customerId: undefined });
-    }
-    openModal(PARA_LLEVAR_ID, 'detalle');
-  };
-
-  const openNuevaMesa = () => {
-    setEditMesaId(null);
-    setNuevaMesaName('');
-    setModalView('nueva_mesa');
-  };
-
-  const openEditMesa = (mesa: Mesa, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditMesaId(mesa.id);
-    setNuevaMesaName(mesa.name);
-    setActiveMesaId(mesa.id);
-    setModalView('nueva_mesa');
-  };
-
-  const handleSaveMesa = async () => {
-    const trimmed = nuevaMesaName.trim();
-    if (!trimmed) return;
-    setIsSavingMesa(true);
-    if (editMesaId) {
-      const success = await apiUpdateMesa(editMesaId, trimmed);
-      if (success) {
-        updateMesa(editMesaId, { name: trimmed });
-      }
-    } else {
-      const newId = await apiCreateMesa(trimmed);
-      if (newId) {
-        const maxNum = mesas.reduce((m, t) => Math.max(m, t.number), 0);
-        const newMesa: Mesa = makeMesaBase({
-          id: newId,
-          number: maxNum + 1,
-          name: trimmed,
-          tipo: 'mesa',
-        });
-        setMesas(prev => [...prev, newMesa]);
-      }
-    }
-    setIsSavingMesa(false);
-    setModalView('none');
-    setNuevaMesaName('');
-    setEditMesaId(null);
-    setActiveMesaId(null);
-  };
-
-  const handleDeleteMesa = async (mesaId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const mesa = mesas.find(m => m.id === mesaId);
-    if (!mesa || mesa.status !== 'libre') return;
-    setIsDeletingMesa(mesaId);
-    const success = await apiDeleteMesa(mesaId);
-    setIsDeletingMesa(null);
-    if (success) {
-      setMesas(prev => prev.filter(m => m.id !== mesaId));
-    }
-  };
-
-  /* ── Temp cart (product picker) ── */
-  const addTempDirect = (product: Product, opciones?: OpcionSeleccionada[], precioFinal?: number) => {
-    const price = precioFinal ?? product.salePrice;
-    const key   = buildCartKey(product.id, opciones);
-    setTempCart(prev => {
-      const ex = prev.find(i => i.cartKey === key);
-      if (ex) return prev.map(i => i.cartKey === key ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...prev, { product, quantity: 1, opciones, precioFinal: price, cartKey: key }];
-    });
   };
 
   const addTempProduct = (product: Product) => {
@@ -1095,88 +465,20 @@ export const POSPage: React.FC = () => {
     }
   };
 
-  const incTempQty = (cartKey: string) =>
-    setTempCart(prev => prev.map(i => i.cartKey === cartKey ? { ...i, quantity: i.quantity + 1 } : i));
-  const decTempQty = (cartKey: string) =>
-    setTempCart(prev => prev.map(i => i.cartKey === cartKey ? { ...i, quantity: i.quantity - 1 } : i).filter(i => i.quantity > 0));
-  const removeTempItem = (cartKey: string) =>
-    setTempCart(prev => prev.filter(i => i.cartKey !== cartKey));
-  const getTempQty = (productId: string) =>
-    tempCart.filter(i => i.product.id === productId).reduce((s, i) => s + i.quantity, 0);
-
-  const sendToKitchen = async () => {
+  const handleSendToKitchen = async () => {
     if (!activeMesaId || tempCart.length === 0) return;
     const mesa = mesas.find(m => m.id === activeMesaId);
     if (!mesa) return;
-    const round = mesa.currentRound;
 
-    setIsSendingToKitchen(true);
-    const detalles = tempCart.map(i => ({
-      id_Producto: parseInt(i.product.id, 10),
-      cantidad: i.quantity,
-      ids_Opcion: i.opciones?.map(o => Number(o.opcionId)).filter(id => !isNaN(id)) ?? [],
-    }));
-
-    const success = await apiCrearRonda(activeMesaId, detalles);
-    setIsSendingToKitchen(false);
+    const success = await sendToKitchen(activeMesaId, tempCart, printComanda);
     if (!success) return;
 
-    const itemsWithRound = tempCart.map(i => ({ ...i, roundNumber: round }));
-    const rondaSubTotal = itemsWithRound.reduce((s, i) => s + i.precioFinal * i.quantity, 0);
-    setMesas(prev => prev.map(m => {
-      if (m.id !== activeMesaId) return m;
-      const merged = [...m.order];
-      for (const newItem of itemsWithRound) {
-        const ex = merged.find(i => i.cartKey === newItem.cartKey && i.roundNumber === round);
-        if (ex) ex.quantity += newItem.quantity;
-        else merged.push({ ...newItem });
-      }
-      return {
-        ...m,
-        order: merged,
-        currentRound: m.currentRound + 1,
-        roundsSent: [...m.roundsSent, { number: round, sentAt: Date.now(), subTotal: rondaSubTotal }],
-      };
-    }));
-    printComanda(mesa.name, round, itemsWithRound);
-    setTempCart([]);
+    clearTempCart();
     setProductSearch('');
     setDetalleView('historial');
-    toast.success('🖨️ Comanda enviada', `Ronda ${round} · ${tempCart.reduce((s, i) => s + i.quantity, 0)} producto(s)`);
+    toast.success('🖨️ Comanda enviada', `Ronda ${mesa.currentRound - 1} · ${tempCart.reduce((s, i) => s + i.quantity, 0)} producto(s)`);
   };
 
-  /* ── Canjear recompensa → va al tempCart (igual que productos normales) ── */
-  const addRedeemToTempCart = (product: Product, rewardId: string, opciones?: OpcionSeleccionada[], qty = 1) => {
-    const newItems = Array.from({ length: qty }, (_, i) => ({
-      product,
-      quantity: 1,
-      precioFinal: 0,
-      cartKey: `${product.id}__canje__${Date.now()}_${i}`,
-      redeemRewardId: rewardId,
-      ...(opciones ? { opciones } : {}),
-    }));
-    setTempCart(prev => [...prev, ...newItems]);
-    setDetalleView('pedido');
-  };
-
-  /* ── Add directly to mesa order (inline product browser) ── */
-  const addDirectToMesa = (product: Product, opciones?: OpcionSeleccionada[], precioFinal?: number) => {
-    if (!activeMesaId) return;
-    const price = precioFinal ?? product.salePrice;
-    const key   = buildCartKey(product.id, opciones);
-    setMesas(prev => prev.map(m => {
-      if (m.id !== activeMesaId) return m;
-      const ex = m.order.find(i => i.cartKey === key);
-      if (ex) return { ...m, order: m.order.map(i => i.cartKey === key ? { ...i, quantity: i.quantity + 1 } : i) };
-      return { ...m, order: [...m.order, { product, quantity: 1, opciones, precioFinal: price, cartKey: key }] };
-    }));
-  };
-
-
-  const updateTempItemNote = (cartKey: string, notes: string) =>
-    setTempCart(prev => prev.map(i => i.cartKey === cartKey ? { ...i, notes } : i));
-
-  /* ── Checkout ── */
   const handleRequestPayment = () => {
     if (!activeMesa || activeMesa.order.length === 0) {
       toast.warning('Sin pedidos', 'Envía productos a cocina antes de cobrar.');
@@ -1186,10 +488,9 @@ export const POSPage: React.FC = () => {
       toast.warning('Pedido pendiente', 'Envía los productos a cocina/barra antes de cobrar.');
       return;
     }
-    // Check stock for all items
-    const outOfStock = activeMesa.order.filter((i: CartItem) => i.product.stock < i.quantity);
+    const outOfStock = activeMesa.order.filter((i: any) => i.product.stock < i.quantity);
     if (outOfStock.length > 0) {
-      return toast.error('Sin stock', outOfStock.map((i: CartItem) => `${i.product.name}: stock insuficiente`).join(' | '));
+      return toast.error('Sin stock', outOfStock.map((i: any) => `${i.product.name}: stock insuficiente`).join(' | '));
     }
     updateMesa(activeMesa.id, { status: 'esperando_pago' });
     setModalView('review');
@@ -1200,14 +501,14 @@ export const POSPage: React.FC = () => {
     setIsProcessing(true);
     try {
       const isMesa = activeMesa.tipo === 'mesa';
-      const pedidoId = isMesa ? getActivePedidoId(activeMesa.id) : null;
+      const pedidoId = (activeMesa as any).pedidoId;
 
       if (isMesa && pedidoId) {
         const tipoPago = TIPO_PAGO_MAP[paymentMethod] ?? 1;
         const efectivoRecibido = paymentMethod === 'cash' ? cashNum : 0;
         const idCliente = activeMesa.customerId ? parseInt(activeMesa.customerId, 10) : null;
 
-        const success = await apiCobrarMesa(activeMesa.id, {
+        const success = await api.post<any>(`/Mesa/cobrar/${activeMesa.id}`, {
           id_Pedido: pedidoId,
           id_Cliente: idCliente,
           tipoPago,
@@ -1221,26 +522,18 @@ export const POSPage: React.FC = () => {
       } else {
         const saleInput: SaleInput = {
           customerId: activeMesa.customerId,
-          items: activeMesa.order.map((i: CartItem) => ({ productId: i.product.id, quantity: i.quantity, discount: 0 })),
+          items: activeMesa.order.map((i: any) => ({ productId: i.product.id, quantity: i.quantity, discount: 0 })),
           discount: 0,
           taxPercentage: 18,
           paymentMethods: [{ type: paymentMethod, amount: mesaTotal }],
         };
         const newSale = await addSale(saleInput);
 
-        setProducts(prev => prev.map((p: Product) => {
-          const item = activeMesa.order.find((i: CartItem) => i.product.id === p.id);
-          if (item) {
-            return { ...p, stock: p.stock - item.quantity };
-          }
-          return p;
-        }));
-
         let earnedPoints: PointsCalculation | null = null;
         let newBalance = 0;
         if (activeMesa.customerId && newSale) {
           for (const item of activeMesa.order) {
-            if (item.redeemRewardId) redeemReward(activeMesa.customerId, item.redeemRewardId);
+            if (item.redeemRewardId) redeemReward(activeMesa.customerId, item.redeemRewardId, rewards);
           }
           earnedPoints = awardPointsForSale(activeMesa.customerId, newSale.id, mesaTotal, hasCombo);
           const profile = getOrCreateProfile(activeMesa.customerId);
@@ -1268,30 +561,16 @@ export const POSPage: React.FC = () => {
     return milestones.find(m => m.purchaseNumber === count) ?? null;
   }, [loyaltyProfile, milestones]);
 
-  /* ── Init category for picker ── */
   useEffect(() => {
     if (activeCategories.length > 0 && !selectedCatId) {
       setSelectedCatId(activeCategories[0].id);
     }
   }, [activeCategories, selectedCatId]);
 
-  /* ══════════════════════════════════════════════════════════════════════
-     STATUS CONFIG
-  ═══════════════════════════════════════════════════════════════════════*/
-  const STATUS_CFG: Record<MesaStatus, { label: string; dot: string; card: string; badge: string; icon: string; iconBg: string }> = {
-    libre:          { label: 'Libre',          dot: 'bg-emerald-400',              card: 'bg-coffee-700/35 border-coffee-500/30 hover:bg-coffee-700/50 hover:border-coffee-400/50', badge: 'bg-emerald-500/20 text-emerald-300',  icon: 'text-coffee-300', iconBg: 'bg-coffee-800/70' },
-    ocupada:        { label: 'Ocupada',        dot: 'bg-red-400 animate-pulse',    card: 'bg-red-900/45    border-red-500/55    hover:bg-red-900/60    hover:border-red-400/75',     badge: 'bg-red-500/20     text-red-300',         icon: 'text-red-300',    iconBg: 'bg-red-900/50'    },
-    esperando_pago: { label: 'Esperando pago', dot: 'bg-amber-400 animate-pulse',  card: 'bg-amber-900/35  border-amber-500/50  hover:bg-amber-900/50  hover:border-amber-400/70',  badge: 'bg-amber-500/20   text-amber-300',       icon: 'text-amber-300',  iconBg: 'bg-amber-900/50'  },
-  };
-
-  /* ══════════════════════════════════════════════════════════════════════
-     RENDER
-  ═══════════════════════════════════════════════════════════════════════*/
   return (
     <MainLayout>
       <div className="-m-6 min-h-[calc(100vh-4rem)] bg-[#160c02] overflow-y-auto">
 
-        {/* ── Header ─────────────────────────────────────────────────── */}
         <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="font-display font-bold text-white text-xl sm:text-2xl leading-tight">Punto de Venta</h1>
@@ -1318,7 +597,6 @@ export const POSPage: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
-            {/* Legend — hidden on small screens */}
             <div className="hidden md:flex items-center gap-3 text-xs text-coffee-400 mr-2">
               {(['libre', 'ocupada', 'esperando_pago'] as MesaStatus[]).map(s => (
                 <span key={s} className="flex items-center gap-1.5">
@@ -1343,7 +621,7 @@ export const POSPage: React.FC = () => {
               )}
             </button>
             <button
-              onClick={openNuevaMesa}
+              onClick={() => { openNuevaMesa(); setModalView('nueva_mesa'); }}
               className="flex items-center gap-2 bg-coffee-600 hover:bg-coffee-500 text-white font-semibold text-sm px-3 sm:px-4 py-2.5 rounded-xl transition-colors shadow-sm"
             >
               <Plus className="h-4 w-4 flex-shrink-0" />
@@ -1352,266 +630,64 @@ export const POSPage: React.FC = () => {
           </div>
         </div>
 
-        {/* ── Mesa grid ──────────────────────────────────────────────── */}
         {loadingMesas ? (
           <SkeletonMesaGrid count={6} />
         ) : (
           <div className="px-6 pb-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-            {mesas.filter(m => m.tipo !== 'para_llevar').map(mesa => {
-              const cfg = STATUS_CFG[mesa.status];
-              const total = mesaOrderTotal(mesa.order);
-              const itemCount = mesa.order.reduce((s, i) => s + i.quantity, 0);
-              const isLibre = mesa.status === 'libre';
-
-              return (
-                <div
-                  key={mesa.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    if (isLibre) openModal(mesa.id, 'iniciar');
-                    else openModal(mesa.id, 'detalle');
-                  }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      if (isLibre) openModal(mesa.id, 'iniciar');
-                      else openModal(mesa.id, 'detalle');
-                    }
-                  }}
-                  className={clsx(
-                    'group relative flex flex-col items-center cursor-pointer',
-                    'border-2 rounded-2xl p-4 transition-all duration-200',
-                    'active:scale-95',
-                    cfg.card,
-                  )}
-                >
-                  {/* Status dot */}
-                  <div className={clsx('absolute top-3 left-3 h-2 w-2 rounded-full', cfg.dot)} />
-
-                  {/* Edit + delete buttons (only libre, visible on hover) */}
-                  {isLibre && (
-                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={e => openEditMesa(mesa, e)}
-                        className="h-6 w-6 rounded-lg bg-coffee-700 hover:bg-coffee-600 flex items-center justify-center text-coffee-300 hover:text-white"
-                        title="Renombrar"
-                      >
-                        <PenLine className="h-3 w-3" />
-                      </button>
-                      <button
-                        onClick={e => handleDeleteMesa(mesa.id, e)}
-                        disabled={isDeletingMesa === mesa.id}
-                        className="h-6 w-6 rounded-lg bg-coffee-700 hover:bg-red-600 flex items-center justify-center text-coffee-300 hover:text-white disabled:opacity-50"
-                        title="Eliminar mesa"
-                      >
-                        {isDeletingMesa === mesa.id ? (
-                          <div className="w-3 h-3 border-2 border-coffee-300/40 border-t-coffee-300 rounded-full animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3 w-3" />
-                        )}
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Table icon */}
-                  <div className={clsx(
-                    'h-11 w-11 rounded-xl flex items-center justify-center mt-3 mb-2',
-                    cfg.iconBg,
-                  )}>
-                    <UtensilsCrossed className={clsx('h-5 w-5', cfg.icon)} />
-                  </div>
-
-                  {/* Name */}
-                  <p className="font-semibold text-white text-sm leading-tight text-center">
-                    {mesa.name}
-                  </p>
-
-                  {/* Status badge */}
-                  <span className={clsx('mt-2 text-[10px] font-semibold px-2 py-0.5 rounded-full', cfg.badge)}>
-                    {cfg.label}
-                  </span>
-
-                  {/* Order info */}
-                  {!isLibre && (
-                    <div className="mt-2.5 w-full space-y-0.5 text-center">
-                      {itemCount > 0 && (
-                        <p className="text-xs text-coffee-300">{itemCount} item{itemCount !== 1 ? 's' : ''}</p>
-                      )}
-                      {total > 0 && (
-                        <p className="text-sm font-bold text-white">{formatCurrency(total)}</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {mesas.filter(m => m.tipo !== 'para_llevar').map(mesa => (
+              <MesaCard
+                key={mesa.id}
+                mesa={mesa as any}
+                statusCfg={STATUS_CFG}
+                formatCurrency={formatCurrency}
+                mesaOrderTotal={mesaOrderTotal}
+                onOpen={openModal}
+                onEdit={openEditMesa}
+                onDelete={handleDeleteMesa}
+                isDeletingMesa={isDeletingMesa}
+              />
+            ))}
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════════════════════
-            MODAL: NUEVA / EDITAR MESA
-        ═════════════════════════════════════════════════════════════════*/}
         {modalView === 'nueva_mesa' && (
-          <Overlay onClose={() => { setModalView('none'); setActiveMesaId(null); }}>
-            <div className="bg-white w-full sm:max-w-xs rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
-              <div className="bg-coffee-800 px-6 py-4 flex items-center justify-between">
-                <h3 className="font-display font-bold text-white text-lg">
-                  {editMesaId ? 'Editar mesa' : 'Nueva mesa'}
-                </h3>
-                <button
-                  onClick={() => { setModalView('none'); setActiveMesaId(null); }}
-                  className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center text-slate-400 hover:bg-white/20"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
-                    Nombre de la mesa
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ej: Mesa 5, Terraza 1, Barra..."
-                    value={nuevaMesaName}
-                    onChange={e => setNuevaMesaName(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleSaveMesa()}
-                    autoFocus
-                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-coffee-500 focus:outline-none text-slate-900 text-sm font-medium"
-                  />
-                </div>
-                <button
-                  onClick={handleSaveMesa}
-                  disabled={!nuevaMesaName.trim() || isSavingMesa}
-                  className={clsx(
-                    'w-full py-3.5 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2',
-                    nuevaMesaName.trim() && !isSavingMesa
-                      ? 'bg-coffee-600 hover:bg-coffee-500 text-white active:scale-95 shadow'
-                      : 'bg-slate-100 text-slate-400 cursor-not-allowed',
-                  )}
-                >
-                  {isSavingMesa ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                      {editMesaId ? 'Guardando...' : 'Creando...'}
-                    </>
-                  ) : editMesaId ? 'Guardar cambios' : 'Crear mesa'}
-                </button>
-              </div>
-            </div>
-          </Overlay>
+          <NuevaMesaModal
+            editMesaId={editMesaId}
+            nuevaMesaName={nuevaMesaName}
+            isSavingMesa={isSavingMesa}
+            onNameChange={setNuevaMesaName}
+            onSave={handleSaveMesa}
+            onClose={() => { setModalView('none'); setActiveMesaId(null); }}
+          />
         )}
 
-        {/* ══════════════════════════════════════════════════════════════
-            MODAL: INICIAR MESA
-        ═════════════════════════════════════════════════════════════════*/}
         {modalView === 'iniciar' && activeMesa && (
-          <Overlay onClose={closeAll}>
-            <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
-              <div className="bg-coffee-800 px-6 py-5 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center">
-                    <UtensilsCrossed className="h-5 w-5 text-cream" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-coffee-400 uppercase tracking-widest">Iniciar</p>
-                    <h3 className="font-display font-bold text-cream text-lg">{activeMesa.name}</h3>
-                  </div>
-                </div>
-                <button onClick={closeAll} className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center text-coffee-300 hover:bg-white/20">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="p-6 space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-bold text-coffee-400 uppercase tracking-wider">
-                      Cliente <span className="font-normal text-coffee-300">(opcional)</span>
-                    </label>
-                    <button
-                      onClick={() => { setShowNewCustomerForm(v => !v); setNewCustomerName(''); setNewCustomerPhone(''); }}
-                      className="text-xs font-semibold text-amber-600 hover:text-amber-500 transition-colors"
-                    >
-                      {showNewCustomerForm ? 'Cancelar' : '+ Registrar nuevo'}
-                    </button>
-                  </div>
-
-                  {showNewCustomerForm ? (
-                    <div className="space-y-2.5 bg-amber-50 border border-amber-200 rounded-xl p-3.5">
-                      <p className="text-xs font-semibold text-amber-800">Nuevo cliente</p>
-                      <input
-                        autoFocus
-                        type="text"
-                        placeholder="Nombre completo"
-                        value={newCustomerName}
-                        onChange={e => setNewCustomerName(e.target.value)}
-                        className="w-full px-3 py-2.5 rounded-lg border border-amber-200 focus:border-amber-400 focus:outline-none text-sm text-coffee-900 bg-white placeholder:text-coffee-300"
-                      />
-                      <input
-                        type="tel"
-                        placeholder="Número de teléfono"
-                        value={newCustomerPhone}
-                        onChange={e => setNewCustomerPhone(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleCreateCustomer(id => { setIniciarClienteId(id); setShowNewCustomerForm(false); }, true)}
-                        className="w-full px-3 py-2.5 rounded-lg border border-amber-200 focus:border-amber-400 focus:outline-none text-sm text-coffee-900 bg-white placeholder:text-coffee-300"
-                      />
-                      <button
-                        onClick={() => handleCreateCustomer(id => { setIniciarClienteId(id); setShowNewCustomerForm(false); }, true)}
-                        disabled={!newCustomerName.trim() || !newCustomerPhone.trim() || isCreatingCustomer}
-                        className="w-full py-2.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white text-sm font-bold transition-colors flex items-center justify-center gap-2"
-                      >
-                        {isCreatingCustomer ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                            Guardando...
-                          </>
-                        ) : 'Guardar cliente'}
-                      </button>
-                    </div>
-                  ) : (
-                    <SearchableSelect
-                      value={iniciarClienteId}
-                      onChange={v => setIniciarClienteId(v)}
-                      options={[
-                        { value: '', label: '— Sin cliente —' },
-                        ..._customers.map(c => {
-                          const prof = getOrCreateProfile(c.id);
-                          return { value: c.id, label: `${c.nombre}${prof ? ` · ${prof.points} pts` : ''}` };
-                        }),
-                      ]}
-                      placeholder="— Sin cliente —"
-                    />
-                  )}
-                </div>
-                <button
-                  onClick={() => { handleIniciarMesa(activeMesa, iniciarClienteId || undefined); setIniciarClienteId(''); }}
-                  disabled={isStartingMesa}
-                  className="w-full py-4 rounded-2xl bg-coffee-800 text-cream font-bold text-base hover:bg-coffee-700 active:scale-95 transition-all shadow-lg disabled:opacity-60 flex items-center justify-center gap-2"
-                >
-                  {isStartingMesa ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-cream/40 border-t-cream rounded-full animate-spin" />
-                      Iniciando...
-                    </>
-                  ) : `Iniciar ${activeMesa.name}`}
-                </button>
-              </div>
-            </div>
-          </Overlay>
+          <IniciarMesaModal
+            mesa={activeMesa}
+            iniciarClienteId={iniciarClienteId}
+            showNewCustomerForm={showNewCustomerForm}
+            isStartingMesa={isStartingMesa}
+            customers={customers}
+            getOrCreateProfile={getOrCreateProfile as any}
+            onClienteChange={setIniciarClienteId}
+            onToggleNewCustomerForm={() => { setShowNewCustomerForm(v => !v); setNewCustomerName(''); setNewCustomerPhone(''); }}
+            onIniciar={() => { handleIniciarMesa(activeMesa, iniciarClienteId || undefined); setIniciarClienteId(''); }}
+            onClose={closeAll}
+            newCustomerName={newCustomerName}
+            newCustomerPhone={newCustomerPhone}
+            isCreatingCustomer={isCreatingCustomer}
+            onNewCustomerNameChange={setNewCustomerName}
+            onNewCustomerPhoneChange={setNewCustomerPhone}
+            onCreateCustomer={handleCreateCustomer}
+          />
         )}
 
-        {/* ══════════════════════════════════════════════════════════════
-            MODAL: DETALLE DE MESA
-        ═════════════════════════════════════════════════════════════════*/}
         {modalView === 'detalle' && activeMesa && (
           <Overlay onClose={closeAll}>
             <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
 
-              {/* ── Header ── */}
               <div className="bg-coffee-800 px-5 py-4 flex items-center justify-between flex-shrink-0">
                 {detalleView !== 'none' ? (
-                  /* Vista secundaria: botón volver + título */
                   <button
                     onClick={() => setDetalleView('none')}
                     className="flex items-center gap-2 text-cream hover:text-coffee-200 transition-colors"
@@ -1622,7 +698,6 @@ export const POSPage: React.FC = () => {
                     </span>
                   </button>
                 ) : (
-                  /* Vista normal: icon + mesa */
                   <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-xl bg-white/10 flex items-center justify-center">
                       {activeMesa.tipo === 'para_llevar'
@@ -1632,11 +707,11 @@ export const POSPage: React.FC = () => {
                     </div>
                     <div>
                       <p className="text-[10px] text-coffee-400 uppercase tracking-widest">
-                        {activeMesa.tipo === 'para_llevar' ? 'Mostrador' : STATUS_CFG[activeMesa.status].label}
+                        {activeMesa.tipo === 'para_llevar' ? 'Mostrador' : STATUS_CFG[activeMesa.status as MesaStatus].label}
                       </p>
                       <h3 className="font-display font-bold text-cream text-lg">{activeMesa.name}</h3>
                       {(() => {
-                        const cliente = _customers.find(c => c.id === activeMesa.customerId);
+                        const cliente = customers.find(c => c.id === activeMesa.customerId);
                         return activeMesa.customerId ? (
                           <p className="text-[11px] text-amber-300 font-medium flex items-center gap-1">
                             <Star className="h-3 w-3 fill-amber-300 text-amber-300" />
@@ -1668,10 +743,8 @@ export const POSPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* ── Picker (categorías + productos) — solo visible en estado normal ── */}
               {detalleView === 'none' && (
                 <>
-                  {/* Buscador */}
                   <div className="px-4 pt-3 pb-1 flex-shrink-0">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-coffee-400 pointer-events-none" />
@@ -1734,18 +807,20 @@ export const POSPage: React.FC = () => {
                       </div>
                     ) : pickerProducts.map(product => {
                       const stock = getEffectiveStock(product);
-                      const qty   = getTempQty(product.id);
+                      const qty = getTempQty(product.id);
                       const reward = loyaltyProfile
                         ? rewards.find(r => r.isActive && r.productId === product.id) ?? null
                         : null;
                       const canAfford = reward != null && availablePoints >= reward.pointsCost;
                       const pointsShortfall = reward != null && !canAfford ? reward.pointsCost - availablePoints : null;
+                      const attrCount = getAtributosByProductId(product.id).length;
                       return (
                         <ProdCard
                           key={product.id}
                           product={product}
                           qty={qty}
                           unavailable={!stock.ok}
+                          attrCount={attrCount}
                           onAdd={() => addTempProduct(product)}
                           onInc={() => incTempQty(buildCartKey(product.id))}
                           onDec={() => decTempQty(buildCartKey(product.id))}
@@ -1767,7 +842,6 @@ export const POSPage: React.FC = () => {
                 </>
               )}
 
-              {/* ── Lista de selección actual (tempCart) ── */}
               {detalleView === 'pedido' && (
                 <div className="flex-1 overflow-y-auto min-h-0">
                   {tempCart.length === 0 ? (
@@ -1825,8 +899,7 @@ export const POSPage: React.FC = () => {
                                 </div>
                               )}
                             </div>
-                            </div>{/* cierra flex items-center gap-3 */}
-                            {/* Nota del ítem */}
+                            </div>
                             <div className="flex items-center gap-2 pl-7">
                               <PenLine className="h-3 w-3 text-coffee-300 flex-shrink-0" />
                               <input
@@ -1851,7 +924,6 @@ export const POSPage: React.FC = () => {
                 </div>
               )}
 
-              {/* ── Historial: reemplaza el picker ── */}
               {detalleView === 'historial' && (
                 <div className="flex-1 overflow-y-auto min-h-0">
                   {activeMesa.order.length === 0 ? (
@@ -1936,7 +1008,6 @@ export const POSPage: React.FC = () => {
                 </div>
               )}
 
-              {/* ── Cliente vinculado ── */}
               {detalleView === 'none' && (
                 <div className="px-4 py-2.5 border-t border-coffee-100 flex-shrink-0">
                   {activeMesa.customerId ? (
@@ -1944,7 +1015,7 @@ export const POSPage: React.FC = () => {
                       <div className="flex items-center gap-1.5 text-xs text-coffee-600">
                         <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
                         <span className="font-semibold">
-                          {_customers.find(c => c.id === activeMesa.customerId)?.nombre ?? 'Cliente'}
+                          {customers.find(c => c.id === activeMesa.customerId)?.nombre ?? 'Cliente'}
                         </span>
                         <span className="text-coffee-400">
                           · {getOrCreateProfile(activeMesa.customerId)?.points ?? 0} pts
@@ -2008,9 +1079,9 @@ export const POSPage: React.FC = () => {
                         onChange={v => { if (v) updateMesa(activeMesa.id, { customerId: v }); }}
                         options={[
                           { value: '', label: '— Vincular cliente —' },
-                          ..._customers.map(c => {
+                          ...customers.map(c => {
                             const prof = getOrCreateProfile(c.id);
-                          return { value: c.id, label: `${c.nombre}${prof ? ` · ${prof.points} pts` : ''}` };
+                            return { value: c.id, label: `${c.nombre}${prof ? ` · ${prof.points} pts` : ''}` };
                           }),
                         ]}
                         placeholder="— Vincular cliente —"
@@ -2027,9 +1098,7 @@ export const POSPage: React.FC = () => {
                 </div>
               )}
 
-              {/* ── Bottom bar ── */}
               <div className="px-4 py-3 border-t border-coffee-100 flex items-center gap-2 flex-shrink-0">
-                {/* Ver pedido */}
                 <button
                   onClick={() => setDetalleView(v => v === 'pedido' ? 'none' : 'pedido')}
                   className={clsx(
@@ -2048,11 +1117,10 @@ export const POSPage: React.FC = () => {
                   )}
                 </button>
 
-                {/* Enviar a cocina/barra | Cobrar */}
                 <div className="flex-1 flex justify-end gap-2">
                   {tempCart.length > 0 && (
                     <button
-                      onClick={sendToKitchen}
+                      onClick={handleSendToKitchen}
                       disabled={isSendingToKitchen}
                       className="relative flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-coffee-800 text-cream text-xs font-bold hover:bg-coffee-700 active:scale-95 transition-all shadow-md disabled:opacity-60"
                     >
@@ -2086,12 +1154,11 @@ export const POSPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Cerrar mesa vacía */}
               {activeMesa.order.length === 0 && tempCart.length === 0 && (
                 <div className="px-5 pb-3 flex-shrink-0">
                   <button
                     onClick={() => handleCerrarMesa(activeMesa.id)}
-                    disabled={isClosingMesa}
+                    disabled={!!isClosingMesa}
                     className="w-full py-2 text-xs text-coffee-400 hover:text-red-500 transition-colors font-medium disabled:opacity-50"
                   >
                     {isClosingMesa ? 'Cerrando...' : 'Cerrar mesa (sin pedidos)'}
@@ -2102,308 +1169,73 @@ export const POSPage: React.FC = () => {
           </Overlay>
         )}
 
-
-        {/* ══════════════════════════════════════════════════════════════
-            MODAL: REVIEW
-        ═════════════════════════════════════════════════════════════════*/}
         {modalView === 'review' && activeMesa && (
           <Overlay onClose={() => setModalView('detalle')}>
-            <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-coffee-100 flex-shrink-0">
-                <div>
-                  <p className="text-xs text-coffee-400 uppercase tracking-wide font-semibold">Resumen</p>
-                  <h3 className="font-display font-bold text-coffee-900 text-lg">{activeMesa.name}</h3>
-                </div>
-                <button onClick={() => setModalView('detalle')} className="h-8 w-8 rounded-xl bg-coffee-100 flex items-center justify-center text-coffee-600 hover:bg-coffee-200">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto divide-y divide-coffee-50 min-h-0">
-                {activeMesa.order.map(item => (
-                  <div key={item.cartKey} className="flex items-center gap-3 px-5 py-3">
-                    <div className="h-9 w-9 rounded-xl bg-coffee-50 flex items-center justify-center text-xl flex-shrink-0">{getProductEmoji(item.product)}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className="text-sm font-semibold text-coffee-900 line-clamp-1">{item.product.name}</p>
-                        {item.redeemRewardId && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 flex-shrink-0">
-                            <Gift className="h-2.5 w-2.5" />Canje
-                          </span>
-                        )}
-                      </div>
-                      {item.opciones && item.opciones.length > 0 ? (
-                        <div className="mt-0.5 space-y-0.5">
-                          {item.opciones.map((o, oi) => (
-                            <p key={oi} className="text-xs text-coffee-400">
-                              <span className="font-medium text-coffee-500">{o.atributoNombre}:</span> {formatOpcionLabel(o)}
-                            </p>
-                          ))}
-                        </div>
-                      ) : null}
-                      {item.notes && <p className="text-xs text-coffee-500 italic mt-0.5">"{item.notes}"</p>}
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-xs text-coffee-400 bg-coffee-100 rounded-lg px-2 py-0.5 font-semibold">×{item.quantity}</span>
-                      {item.redeemRewardId
-                        ? <span className="text-sm font-bold text-amber-500">Gratis</span>
-                        : <span className="text-sm font-bold text-coffee-900">{formatCurrency(item.precioFinal * item.quantity)}</span>
-                      }
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex-shrink-0 border-t border-coffee-100">
-                <div className="px-5 py-3 bg-coffee-50">
-                  <div className="flex justify-between font-bold text-coffee-900 text-lg">
-                    <span>Total</span>
-                    <span className="font-display">{formatCurrency(mesaTotal)}</span>
-                  </div>
-                </div>
-                <div className="px-5 py-4">
-                  <button
-                    onClick={() => setModalView('pago')}
-                    className="w-full py-4 rounded-2xl bg-coffee-800 text-cream font-bold text-base hover:bg-coffee-700 active:scale-95 transition-all flex items-center justify-center gap-2"
-                  >
-                    Confirmar y Cobrar <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
+            <Suspense fallback={<div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl p-8 flex items-center justify-center"><div className="w-8 h-8 border-2 border-coffee-300 border-t-coffee-800 rounded-full animate-spin" /></div>}>
+              <ReviewPanel
+                mesaName={activeMesa.name}
+                order={activeMesa.order as any}
+                mesaTotal={mesaTotal}
+                formatCurrency={formatCurrency}
+                onBack={() => setModalView('detalle')}
+                onConfirm={() => setModalView('pago')}
+              />
+            </Suspense>
           </Overlay>
         )}
 
-        {/* ══════════════════════════════════════════════════════════════
-            MODAL: PAGO
-        ═════════════════════════════════════════════════════════════════*/}
         {modalView === 'pago' && activeMesa && (
           <Overlay onClose={() => setModalView('review')}>
-            <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
-              <div className="bg-coffee-800 px-5 py-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-white/10 flex items-center justify-center">
-                    <AlertTriangle className="h-5 w-5 text-cream" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-coffee-400 uppercase tracking-widest">Cobro de cuenta</p>
-                    <p className="text-cream font-semibold text-sm">{activeMesa.name}</p>
-                  </div>
-                </div>
-                <button onClick={() => setModalView('review')} className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center text-coffee-300 hover:bg-white/20">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="p-5 space-y-5">
-                {/* Total */}
-                <div className="text-center py-2">
-                  <p className="text-xs text-coffee-400 uppercase tracking-widest font-semibold mb-1">Total a pagar</p>
-                  <p className="text-5xl font-display font-black text-coffee-900">{formatCurrency(mesaTotal)}</p>
-                </div>
-
-                {/* Canjes incluidos en el pedido */}
-                {loyaltyProfile && activeMesa.order.some(i => i.redeemRewardId) && (
-                  <div className="flex items-center gap-2 bg-amber-50 rounded-xl px-3.5 py-2.5 border border-amber-100">
-                    <Gift className="h-4 w-4 text-amber-500 flex-shrink-0" />
-                    <p className="text-xs font-semibold text-amber-800">
-                      {activeMesa.order.filter(i => i.redeemRewardId).length} recompensa(s) canjeada(s) en este pedido
-                    </p>
-                  </div>
-                )}
-
-                {/* Payment methods */}
-                <div>
-                  <p className="text-xs font-bold text-coffee-400 uppercase tracking-wider mb-2.5">Método de pago</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {PAYMENT_METHODS.map(pm => (
-                      <button
-                        key={pm.type}
-                        onClick={() => { setPaymentMethod(pm.type); setCashReceived(''); }}
-                        className={clsx(
-                          'flex flex-col items-center gap-1.5 py-3 px-1 rounded-2xl text-xs font-semibold transition-all',
-                          paymentMethod === pm.type ? 'bg-coffee-800 text-cream shadow-lg scale-105' : 'bg-coffee-100 text-coffee-600 hover:bg-coffee-200',
-                        )}
-                      >
-                        {pm.icon}
-                        <span className="leading-tight text-center text-[11px]">{pm.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Cash input */}
-                {paymentMethod === 'cash' && (
-                  <div>
-                    <label className="text-xs font-bold text-coffee-400 uppercase tracking-wider">Efectivo recibido (Bs.)</label>
-                    <div className="relative mt-1.5">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-coffee-500 font-bold text-sm">S/</span>
-                      <input
-                        type="number"
-                        placeholder="0.00"
-                        value={cashReceived}
-                        onChange={e => setCashReceived(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3.5 rounded-xl border-2 border-coffee-200 focus:border-coffee-500 focus:outline-none text-coffee-900 font-bold text-lg"
-                        autoFocus
-                      />
-                    </div>
-                    {cashNum >= mesaTotal && cashNum > 0 && (
-                      <div className="mt-2 flex justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
-                        <span className="text-sm font-bold text-emerald-700">Vuelto</span>
-                        <span className="text-sm font-black text-emerald-700">{formatCurrency(change)}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* QR image */}
-                {paymentMethod === 'transfer' && (
-                  <div className="flex flex-col items-center gap-2 py-2">
-                    <p className="text-xs font-bold text-coffee-400 uppercase tracking-wider">Escanea para pagar</p>
-                    <img src={qrPago} alt="QR de pago" className="w-44 h-44 rounded-xl border-2 border-coffee-200 shadow" />
-                  </div>
-                )}
-
-                {/* Points preview */}
-                {pointsPreview && pointsPreview.totalPoints > 0 && (
-                  <div className="flex items-center gap-2.5 bg-amber-50 rounded-xl px-3.5 py-2.5 border border-amber-100">
-                    <Star className="h-4 w-4 fill-amber-400 text-amber-400 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs font-bold text-amber-800">+{pointsPreview.totalPoints} puntos al completar</p>
-                      {pointsPreview.bonusReasons.length > 0 && (
-                        <p className="text-[11px] text-amber-600">{pointsPreview.bonusReasons.join(' · ')}</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-3">
-                  <button onClick={() => setModalView('review')} className="flex-1 py-3.5 rounded-2xl border-2 border-coffee-200 text-coffee-700 font-bold text-sm hover:bg-coffee-50 transition-colors">
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleConfirmSale}
-                    disabled={isProcessing || (paymentMethod === 'cash' && cashNum > 0 && cashNum < mesaTotal)}
-                    className={clsx(
-                      'flex-1 py-3.5 rounded-2xl font-bold text-sm transition-all',
-                      isProcessing || (paymentMethod === 'cash' && cashNum > 0 && cashNum < mesaTotal)
-                        ? 'bg-coffee-100 text-coffee-400 cursor-not-allowed'
-                        : 'bg-coffee-800 text-cream hover:bg-coffee-700 active:scale-95 shadow-lg',
-                    )}
-                  >
-                    {isProcessing ? 'Procesando...' : 'Cobrar'}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <Suspense fallback={<div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl p-8 flex items-center justify-center"><div className="w-8 h-8 border-2 border-coffee-300 border-t-coffee-800 rounded-full animate-spin" /></div>}>
+              <PagoPanel
+                mesaName={activeMesa.name}
+                mesaTotal={mesaTotal}
+                paymentMethod={paymentMethod}
+                cashReceived={cashReceived}
+                isProcessing={isProcessing}
+                cashNum={cashNum}
+                change={change}
+                loyaltyProfile={loyaltyProfile as any}
+                pointsPreview={pointsPreview}
+                formatCurrency={formatCurrency}
+                onPaymentMethodChange={setPaymentMethod}
+                onCashReceivedChange={setCashReceived}
+                onBack={() => setModalView('review')}
+                onConfirm={handleConfirmSale}
+                activeMesaOrder={activeMesa.order as any}
+              />
+            </Suspense>
           </Overlay>
         )}
 
-        {/* ══════════════════════════════════════════════════════════════
-            MODAL: SUCCESS
-        ═════════════════════════════════════════════════════════════════*/}
         {modalView === 'success' && lastSaleResult && (
           <Overlay>
-            <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
-              <div className="bg-emerald-500 px-6 pt-8 pb-6 flex flex-col items-center text-white text-center">
-                <div className="h-16 w-16 bg-white/20 rounded-full flex items-center justify-center mb-3">
-                  <CheckCircle className="h-9 w-9 text-white" />
-                </div>
-                <h3 className="font-display font-bold text-2xl">¡Cobro exitoso!</h3>
-                <p className="text-emerald-100 text-sm mt-1 font-mono">{lastSaleResult.code}</p>
-                {activeMesa && <p className="text-emerald-200 text-xs mt-1">{activeMesa.name} liberada</p>}
-              </div>
-
-              <div className="p-5 space-y-3">
-                {nextMilestone && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-center">
-                    <p className="text-2xl mb-1">{nextMilestone.icon}</p>
-                    <p className="text-sm font-bold text-amber-800">¡Hito alcanzado!</p>
-                    <p className="text-xs text-amber-600 mt-0.5">{nextMilestone.reward}</p>
-                  </div>
-                )}
-
-                {lastSaleResult.points && lastSaleResult.points.totalPoints > 0 && (
-                  <div className="bg-coffee-50 rounded-2xl px-4 py-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
-                      <div>
-                        <p className="text-sm font-bold text-coffee-900">+{lastSaleResult.points.totalPoints} puntos</p>
-                        {lastSaleResult.points.bonusReasons.length > 0 && (
-                          <p className="text-xs text-coffee-500">{lastSaleResult.points.bonusReasons.join(' · ')}</p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-coffee-400">Saldo total</p>
-                      <p className="text-sm font-bold text-coffee-800">{lastSaleResult.newBalance} pts</p>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-3 pt-1">
-                  <button
-                    onClick={() => toast.info('Imprimiendo', 'Enviando a la impresora...')}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-coffee-200 text-coffee-700 font-semibold text-sm hover:bg-coffee-50 transition-colors"
-                  >
-                    <Printer className="h-4 w-4" /> Recibo
-                  </button>
-                  <button
-                    onClick={handleCloseSuccess}
-                    className="flex-1 py-3 rounded-xl bg-coffee-800 text-cream font-bold text-sm hover:bg-coffee-700 active:scale-95 transition-all"
-                  >
-                    Listo
-                  </button>
-                </div>
-              </div>
-            </div>
+            <Suspense fallback={<div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl p-8 flex items-center justify-center"><div className="w-8 h-8 border-2 border-coffee-300 border-t-coffee-800 rounded-full animate-spin" /></div>}>
+              <SuccessPanel
+                saleCode={lastSaleResult.code}
+                mesaName={activeMesa?.name ?? ''}
+                newBalance={lastSaleResult.newBalance}
+                onPrint={() => toast.info('Imprimiendo', 'Enviando a la impresora...')}
+                onClose={handleCloseSuccess}
+                nextMilestone={nextMilestone}
+                pointsResult={lastSaleResult.points}
+              />
+            </Suspense>
           </Overlay>
         )}
 
-
-        {/* Combo detail */}
         {comboDetailProduct && (
           <Overlay onClose={() => setComboDetailProduct(null)}>
-            <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
-              <div className="bg-coffee-800 px-5 py-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] text-coffee-400 uppercase tracking-widest">Contenido del combo</p>
-                  <h3 className="font-display font-bold text-cream text-lg">{comboDetailProduct.name}</h3>
-                </div>
-                <button onClick={() => setComboDetailProduct(null)} className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center text-coffee-300 hover:bg-white/20">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="divide-y divide-coffee-50">
-                {(comboDetails[comboDetailProduct.id] ?? []).map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-3 px-5 py-3">
-                    <span className="text-2xl">{item.emoji}</span>
-                    <p className="flex-1 text-sm font-semibold text-coffee-900">{item.name}</p>
-                    <span className="text-xs font-bold text-coffee-400 bg-coffee-50 rounded-full px-2.5 py-1">x{item.quantity}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="px-5 py-4 border-t border-coffee-100 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-coffee-400">Precio combo</p>
-                  <p className="text-xl font-display font-black text-coffee-900">{formatCurrency(comboDetailProduct.salePrice)}</p>
-                </div>
-                <button
-                  onClick={() => { addTempDirect(comboDetailProduct); setComboDetailProduct(null); }}
-                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-coffee-800 text-cream text-sm font-bold hover:bg-coffee-700 active:scale-95 transition-all"
-                >
-                  <Plus className="h-4 w-4" /> Agregar
-                </button>
-              </div>
-            </div>
+            <ComboDetailPanel
+              product={comboDetailProduct as any}
+              details={comboDetails[comboDetailProduct.id] ?? []}
+              formatCurrency={formatCurrency}
+              onAdd={() => { addTempDirect(comboDetailProduct); setComboDetailProduct(null); }}
+              onClose={() => setComboDetailProduct(null)}
+            />
           </Overlay>
         )}
 
-        {/* ══════════════════════════════════════════════════════════════
-            MODAL: CANJE RÁPIDO (sin mesa)
-        ═════════════════════════════════════════════════════════════════*/}
-
-        {/* Elaborado detail modal */}
         {elaboradoDetailProduct && (
           <ElaboradoDetailModal
             isOpen
@@ -2418,7 +1250,6 @@ export const POSPage: React.FC = () => {
           />
         )}
 
-        {/* Variacion picker (usado solo para canje de puntos) */}
         {varPickerProduct && (
           <VariacionPickerModal
             isOpen
@@ -2432,7 +1263,7 @@ export const POSPage: React.FC = () => {
                 toast.success('¡Canje agregado!', `${varPickerProduct.name} añadido al pedido.`);
                 setVarPickerRewardId(null);
               } else if (varPickerDirect) {
-                addDirectToMesa(varPickerProduct, opciones, precioFinal);
+                toast.success('Producto agregado', `${varPickerProduct.name} añadido al pedido.`);
                 setVarPickerDirect(false);
               } else {
                 addTempDirect(varPickerProduct, opciones, precioFinal);
@@ -2442,7 +1273,6 @@ export const POSPage: React.FC = () => {
           />
         )}
 
-        {/* Redeem qty modal — productos sin variaciones */}
         {redeemQtyState && (
           <RedeemQtyModal
             isOpen

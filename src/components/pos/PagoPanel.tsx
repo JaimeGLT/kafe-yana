@@ -1,0 +1,153 @@
+import React from 'react';
+import { clsx } from 'clsx';
+import { AlertTriangle, X, Star, Gift } from 'lucide-react';
+import type { PaymentMethodType } from '../../types';
+
+const PAYMENT_METHODS: { type: PaymentMethodType; label: string; icon: React.ReactNode }[] = [
+  { type: 'cash',     label: 'Efectivo',  icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
+  { type: 'card',     label: 'Tarjeta',   icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg> },
+  { type: 'transfer', label: 'QR', icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg> },
+];
+
+interface PointsPreview { totalPoints: number; bonusReasons: string[] }
+
+interface PagoPanelProps {
+  mesaName: string;
+  mesaTotal: number;
+  paymentMethod: PaymentMethodType;
+  cashReceived: string;
+  isProcessing: boolean;
+  cashNum: number;
+  change: number;
+  loyaltyProfile: { points: number } | null;
+  pointsPreview: PointsPreview | null;
+  formatCurrency: (n: number) => string;
+  onPaymentMethodChange: (m: PaymentMethodType) => void;
+  onCashReceivedChange: (v: string) => void;
+  onBack: () => void;
+  onConfirm: () => void;
+  activeMesaOrder: Array<{ redeemRewardId?: string }>;
+}
+
+export const PagoPanel: React.FC<PagoPanelProps> = ({
+  mesaName,
+  mesaTotal,
+  paymentMethod,
+  cashReceived,
+  isProcessing,
+  cashNum,
+  change,
+  loyaltyProfile,
+  pointsPreview,
+  formatCurrency,
+  onPaymentMethodChange,
+  onCashReceivedChange,
+  onBack,
+  onConfirm,
+  activeMesaOrder,
+}) => (
+  <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
+    <div className="bg-coffee-800 px-5 py-4 flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <div className="h-9 w-9 rounded-xl bg-white/10 flex items-center justify-center">
+          <AlertTriangle className="h-5 w-5 text-cream" />
+        </div>
+        <div>
+          <p className="text-[10px] text-coffee-400 uppercase tracking-widest">Cobro de cuenta</p>
+          <p className="text-cream font-semibold text-sm">{mesaName}</p>
+        </div>
+      </div>
+      <button onClick={onBack} className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center text-coffee-300 hover:bg-white/20">
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+
+    <div className="p-5 space-y-5">
+      <div className="text-center py-2">
+        <p className="text-xs text-coffee-400 uppercase tracking-widest font-semibold mb-1">Total a pagar</p>
+        <p className="text-5xl font-display font-black text-coffee-900">{formatCurrency(mesaTotal)}</p>
+      </div>
+
+      {loyaltyProfile && activeMesaOrder.some(i => i.redeemRewardId) && (
+        <div className="flex items-center gap-2 bg-amber-50 rounded-xl px-3.5 py-2.5 border border-amber-100">
+          <Gift className="h-4 w-4 text-amber-500 flex-shrink-0" />
+          <p className="text-xs font-semibold text-amber-800">
+            {activeMesaOrder.filter(i => i.redeemRewardId).length} recompensa(s) canjeada(s) en este pedido
+          </p>
+        </div>
+      )}
+
+      <div>
+        <p className="text-xs font-bold text-coffee-400 uppercase tracking-wider mb-2.5">Método de pago</p>
+        <div className="grid grid-cols-3 gap-2">
+          {PAYMENT_METHODS.map(pm => (
+            <button
+              key={pm.type}
+              onClick={() => { onPaymentMethodChange(pm.type); onCashReceivedChange(''); }}
+              className={clsx(
+                'flex flex-col items-center gap-1.5 py-3 px-1 rounded-2xl text-xs font-semibold transition-all',
+                paymentMethod === pm.type ? 'bg-coffee-800 text-cream shadow-lg scale-105' : 'bg-coffee-100 text-coffee-600 hover:bg-coffee-200',
+              )}
+            >
+              {pm.icon}
+              <span className="leading-tight text-center text-[11px]">{pm.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {paymentMethod === 'cash' && (
+        <div>
+          <label className="text-xs font-bold text-coffee-400 uppercase tracking-wider">Efectivo recibido (Bs.)</label>
+          <div className="relative mt-1.5">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-coffee-500 font-bold text-sm">S/</span>
+            <input
+              type="number"
+              placeholder="0.00"
+              value={cashReceived}
+              onChange={e => onCashReceivedChange(e.target.value)}
+              className="w-full pl-10 pr-4 py-3.5 rounded-xl border-2 border-coffee-200 focus:border-coffee-500 focus:outline-none text-coffee-900 font-bold text-lg"
+              autoFocus
+            />
+          </div>
+          {cashNum >= mesaTotal && cashNum > 0 && (
+            <div className="mt-2 flex justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
+              <span className="text-sm font-bold text-emerald-700">Vuelto</span>
+              <span className="text-sm font-black text-emerald-700">{formatCurrency(change)}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {pointsPreview && pointsPreview.totalPoints > 0 && (
+        <div className="flex items-center gap-2.5 bg-amber-50 rounded-xl px-3.5 py-2.5 border border-amber-100">
+          <Star className="h-4 w-4 fill-amber-400 text-amber-400 flex-shrink-0" />
+          <div>
+            <p className="text-xs font-bold text-amber-800">+{pointsPreview.totalPoints} puntos al completar</p>
+            {pointsPreview.bonusReasons.length > 0 && (
+              <p className="text-[11px] text-amber-600">{pointsPreview.bonusReasons.join(' · ')}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-3">
+        <button onClick={onBack} className="flex-1 py-3.5 rounded-2xl border-2 border-coffee-200 text-coffee-700 font-bold text-sm hover:bg-coffee-50 transition-colors">
+          Cancelar
+        </button>
+        <button
+          onClick={onConfirm}
+          disabled={isProcessing || (paymentMethod === 'cash' && cashNum > 0 && cashNum < mesaTotal)}
+          className={clsx(
+            'flex-1 py-3.5 rounded-2xl font-bold text-sm transition-all',
+            isProcessing || (paymentMethod === 'cash' && cashNum > 0 && cashNum < mesaTotal)
+              ? 'bg-coffee-100 text-coffee-400 cursor-not-allowed'
+              : 'bg-coffee-800 text-cream hover:bg-coffee-700 active:scale-95 shadow-lg',
+          )}
+        >
+          {isProcessing ? 'Procesando...' : 'Cobrar'}
+        </button>
+      </div>
+    </div>
+  </div>
+);
