@@ -1,6 +1,6 @@
 export const GET_MESAS = `
   query GetMesas {
-    mesas {
+    mesas(order: [{ nombre: ASC }]) {
       nodes {
         id
         nombre
@@ -63,7 +63,7 @@ export const GET_MESAS = `
 
 export const GET_MESAS_SIMPLE = `
   query GetMesasSimple {
-    mesas {
+    mesas(order: [{ nombre: ASC }]) {
       nodes {
         id
         nombre

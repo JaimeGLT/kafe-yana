@@ -11,13 +11,12 @@ import { api } from '../../lib/api';
 import { gql } from '../../lib/graphql';
 import { GET_POS_DATA } from '../../lib/queries/products.queries';
 import { GET_ELABORADO_INGREDIENTES } from '../../lib/queries/elaborados.queries';
-import { GET_CLIENTES } from '../../lib/queries/clientes.queries';
 import { usePOSMesas, PARA_LLEVAR_ID } from '../../hooks/usePOSMesas';
 import { usePOSCart } from '../../hooks/usePOSCart';
 import { usePOSLoyalty } from '../../hooks/usePOSLoyalty';
 import { formatCurrency } from '../../utils';
 import { formatOpcionLabel, formatOpcionLabelString } from '../../utils/opcionUtils';
-import { SkeletonMesaGrid, Overlay } from '../../components/ui';
+import { SkeletonMesaGrid, SkeletonCategoryTabs, SkeletonProductScroll, Overlay } from '../../components/ui';
 import { MesaCard } from '../../components/pos/MesaCard';
 import { NuevaMesaModal } from '../../components/pos/NuevaMesaModal';
 import { IniciarMesaModal } from '../../components/pos/IniciarMesaModal';
@@ -201,6 +200,7 @@ export const POSPage: React.FC = () => {
           detalles: Array<{ producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string }; cantidad: number; opcional: boolean }>;
         }> };
         categorias: { nodes: Array<{ id: number; nombre: string; descripcion: string; color: string; estado: boolean }> };
+        clientes: { nodes: Array<{ dni: string; nombre: string; celular: string; correo: string; fecha_nacimiento: string; direccion: string; puntos: number; estado: boolean; id: string }> };
       }>(GET_POS_DATA);
 
       const catMap = new Map<string, Category>();
@@ -314,9 +314,7 @@ export const POSPage: React.FC = () => {
       setProducts([...elaboradoProducts, ...compradoProducts, ...comboProducts]);
       setAtributos(mappedAtributos);
       setComboDetails(newComboDetails);
-
-      const clientesData = await gql<{ clientes: { nodes: Customer[] } }>(GET_CLIENTES);
-      setCustomers(clientesData.clientes.nodes);
+      setCustomers(data.clientes.nodes as Customer[]);
       setProductsLoaded(true);
     } catch {
       toast.error('Error', 'No se pudieron cargar los productos.');
@@ -391,7 +389,7 @@ export const POSPage: React.FC = () => {
   const openModal = (mesaId: string, view: ModalView) => {
     setActiveMesaId(mesaId);
     setModalView(view);
-    if (!productsLoaded && view === 'detalle') {
+    if (!productsLoaded && view !== 'none') {
       loadProducts();
     }
   };
@@ -671,7 +669,7 @@ export const POSPage: React.FC = () => {
             getOrCreateProfile={getOrCreateProfile as any}
             onClienteChange={setIniciarClienteId}
             onToggleNewCustomerForm={() => { setShowNewCustomerForm(v => !v); setNewCustomerName(''); setNewCustomerPhone(''); }}
-            onIniciar={() => { handleIniciarMesa(activeMesa, iniciarClienteId || undefined); setIniciarClienteId(''); }}
+            onIniciar={() => { setModalView('none'); handleIniciarMesa(activeMesa, iniciarClienteId || undefined); setIniciarClienteId(''); }}
             onClose={closeAll}
             newCustomerName={newCustomerName}
             newCustomerPhone={newCustomerPhone}
@@ -711,7 +709,7 @@ export const POSPage: React.FC = () => {
                       </p>
                       <h3 className="font-display font-bold text-cream text-lg">{activeMesa.name}</h3>
                       {(() => {
-                        const cliente = customers.find(c => c.id === activeMesa.customerId);
+                        const cliente = customers.find(c => String(c.id) === activeMesa.customerId);
                         return activeMesa.customerId ? (
                           <p className="text-[11px] text-amber-300 font-medium flex items-center gap-1">
                             <Star className="h-3 w-3 fill-amber-300 text-amber-300" />
@@ -766,79 +764,88 @@ export const POSPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div
-                    ref={dragScrollDetalleCat.ref}
-                    onMouseDown={dragScrollDetalleCat.onMouseDown}
-                    onMouseMove={dragScrollDetalleCat.onMouseMove}
-                    onMouseUp={dragScrollDetalleCat.onMouseUp}
-                    onMouseLeave={dragScrollDetalleCat.onMouseLeave}
-                    className="px-4 pt-3 pb-2 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-shrink-0 cursor-grab active:cursor-grabbing select-none"
-                    style={{ WebkitOverflowScrolling: 'touch' }}
-                  >
-                    {activeCategories.map(cat => (
-                      <button
-                        key={cat.id}
-                        onClick={() => setSelectedCatId(cat.id)}
-                        className={clsx(
-                          'flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all',
-                          (selectedCatId || activeCategories[0]?.id) === cat.id
-                            ? 'bg-coffee-800 text-cream shadow-md'
-                            : 'bg-coffee-100 text-coffee-600 hover:bg-coffee-200',
-                        )}
+                  {!productsLoaded ? (
+                    <>
+                      <SkeletonCategoryTabs />
+                      <SkeletonProductScroll />
+                    </>
+                  ) : (
+                    <>
+                      <div
+                        ref={dragScrollDetalleCat.ref}
+                        onMouseDown={dragScrollDetalleCat.onMouseDown}
+                        onMouseMove={dragScrollDetalleCat.onMouseMove}
+                        onMouseUp={dragScrollDetalleCat.onMouseUp}
+                        onMouseLeave={dragScrollDetalleCat.onMouseLeave}
+                        className="px-4 pt-3 pb-2 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-shrink-0 cursor-grab active:cursor-grabbing select-none"
+                        style={{ WebkitOverflowScrolling: 'touch' }}
                       >
-                        {cat.name}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div
-                    ref={dragScrollDetalleProd.ref}
-                    onMouseDown={dragScrollDetalleProd.onMouseDown}
-                    onMouseMove={dragScrollDetalleProd.onMouseMove}
-                    onMouseUp={dragScrollDetalleProd.onMouseUp}
-                    onMouseLeave={dragScrollDetalleProd.onMouseLeave}
-                    className="flex gap-2.5 overflow-x-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-shrink-0 cursor-grab active:cursor-grabbing select-none border-b border-coffee-100"
-                    style={{ WebkitOverflowScrolling: 'touch' }}
-                  >
-                    {pickerProducts.length === 0 ? (
-                      <div className="flex items-center gap-2 text-coffee-300 h-24 w-full justify-center">
-                        <Coffee className="h-5 w-5 opacity-40" />
-                        <p className="text-xs">Sin productos en esta categoría</p>
+                        {activeCategories.map(cat => (
+                          <button
+                            key={cat.id}
+                            onClick={() => setSelectedCatId(cat.id)}
+                            className={clsx(
+                              'flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all',
+                              (selectedCatId || activeCategories[0]?.id) === cat.id
+                                ? 'bg-coffee-800 text-cream shadow-md'
+                                : 'bg-coffee-100 text-coffee-600 hover:bg-coffee-200',
+                            )}
+                          >
+                            {cat.name}
+                          </button>
+                        ))}
                       </div>
-                    ) : pickerProducts.map(product => {
-                      const stock = getEffectiveStock(product);
-                      const qty = getTempQty(product.id);
-                      const reward = loyaltyProfile
-                        ? rewards.find(r => r.isActive && r.productId === product.id) ?? null
-                        : null;
-                      const canAfford = reward != null && availablePoints >= reward.pointsCost;
-                      const pointsShortfall = reward != null && !canAfford ? reward.pointsCost - availablePoints : null;
-                      const attrCount = getAtributosByProductId(product.id).length;
-                      return (
-                        <ProdCard
-                          key={product.id}
-                          product={product}
-                          qty={qty}
-                          unavailable={!stock.ok}
-                          attrCount={attrCount}
-                          onAdd={() => addTempProduct(product)}
-                          onInc={() => incTempQty(buildCartKey(product.id))}
-                          onDec={() => decTempQty(buildCartKey(product.id))}
-                          rewardInfo={reward ? { icon: reward.icon, pointsCost: reward.pointsCost } : null}
-                          onRedeem={canAfford ? () => {
-                            const attrs = getAtributosByProductId(product.id);
-                            if (attrs.length > 0) {
-                              setVarPickerProduct(product);
-                              setVarPickerRewardId(reward!.id);
-                            } else {
-                              setRedeemQtyState({ product, reward: reward! });
-                            }
-                          } : undefined}
-                          pointsShortfall={pointsShortfall}
-                        />
-                      );
-                    })}
-                  </div>
+
+                      <div
+                        ref={dragScrollDetalleProd.ref}
+                        onMouseDown={dragScrollDetalleProd.onMouseDown}
+                        onMouseMove={dragScrollDetalleProd.onMouseMove}
+                        onMouseUp={dragScrollDetalleProd.onMouseUp}
+                        onMouseLeave={dragScrollDetalleProd.onMouseLeave}
+                        className="flex gap-2.5 overflow-x-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-shrink-0 cursor-grab active:cursor-grabbing select-none border-b border-coffee-100"
+                        style={{ WebkitOverflowScrolling: 'touch' }}
+                      >
+                        {pickerProducts.length === 0 ? (
+                          <div className="flex items-center gap-2 text-coffee-300 h-24 w-full justify-center">
+                            <Coffee className="h-5 w-5 opacity-40" />
+                            <p className="text-xs">Sin productos en esta categoría</p>
+                          </div>
+                        ) : pickerProducts.map(product => {
+                          const stock = getEffectiveStock(product);
+                          const qty = getTempQty(product.id);
+                          const reward = loyaltyProfile
+                            ? rewards.find(r => r.isActive && r.productId === product.id) ?? null
+                            : null;
+                          const canAfford = reward != null && availablePoints >= reward.pointsCost;
+                          const pointsShortfall = reward != null && !canAfford ? reward.pointsCost - availablePoints : null;
+                          const attrCount = getAtributosByProductId(product.id).length;
+                          return (
+                            <ProdCard
+                              key={product.id}
+                              product={product}
+                              qty={qty}
+                              unavailable={!stock.ok}
+                              attrCount={attrCount}
+                              onAdd={() => addTempProduct(product)}
+                              onInc={() => incTempQty(buildCartKey(product.id))}
+                              onDec={() => decTempQty(buildCartKey(product.id))}
+                              rewardInfo={reward ? { icon: reward.icon, pointsCost: reward.pointsCost } : null}
+                              onRedeem={canAfford ? () => {
+                                const attrs = getAtributosByProductId(product.id);
+                                if (attrs.length > 0) {
+                                  setVarPickerProduct(product);
+                                  setVarPickerRewardId(reward!.id);
+                                } else {
+                                  setRedeemQtyState({ product, reward: reward! });
+                                }
+                              } : undefined}
+                              pointsShortfall={pointsShortfall}
+                            />
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                 </>
               )}
 

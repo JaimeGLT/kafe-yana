@@ -369,13 +369,13 @@ const VariacionesPage: React.FC = () => {
     data: { nombre: string; esRequerido: boolean }
   ): Promise<VariacionAtributo> => {
     try {
-      const res = await api.post<{ id: number }>('/Variacion/Variacion', {
+      const res = await api.post<{ Id: number; Nombre: string; Requerido: boolean }>('/Variacion/Variacion', {
         nombre: data.nombre,
         requerido: data.esRequerido,
         id_Producto: Number(productId),
       });
       const nuevo: VariacionAtributo = {
-        id: String(res.id),
+        id: String(res.Id),
         productId,
         nombre: data.nombre,
         esRequerido: data.esRequerido,

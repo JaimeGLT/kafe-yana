@@ -3,10 +3,11 @@ import { clsx } from 'clsx';
 
 interface SkeletonProps {
   className?: string;
+  style?: React.CSSProperties;
 }
 
-export const Skeleton: React.FC<SkeletonProps> = ({ className }) => (
-  <div className={clsx('animate-pulse rounded bg-coffee-100', className)} />
+export const Skeleton: React.FC<SkeletonProps> = ({ className, style }) => (
+  <div className={clsx('animate-pulse rounded bg-coffee-100', className)} style={style} />
 );
 
 export const SkeletonRecetaCard: React.FC = () => (
@@ -169,5 +170,34 @@ export const SkeletonMesaCard: React.FC = () => (
 export const SkeletonMesaGrid: React.FC<{ count?: number }> = ({ count = 6 }) => (
   <div className="px-6 pb-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
     {Array.from({ length: count }).map((_, i) => <SkeletonMesaCard key={i} />)}
+  </div>
+);
+
+export const SkeletonProductCard: React.FC = () => (
+  <div className="flex-shrink-0 w-28 sm:w-32 bg-white rounded-xl border border-coffee-100 shadow-sm p-3 flex flex-col items-center gap-2">
+    <Skeleton className="h-10 w-10 rounded-full" />
+    <Skeleton className="h-3 w-20 rounded" />
+    <Skeleton className="h-4 w-16 rounded" />
+    <Skeleton className="h-6 w-full rounded-lg" />
+  </div>
+);
+
+export const SkeletonProductGrid: React.FC = () => (
+  <div className="px-4 pt-3 pb-1 flex-shrink-0">
+    <Skeleton className="h-8 w-full rounded-xl" />
+  </div>
+);
+
+export const SkeletonCategoryTabs: React.FC = () => (
+  <div className="px-4 pt-3 pb-2 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-shrink-0">
+    {[80, 100, 70, 90, 60].map((w, i) => (
+      <Skeleton key={i} className="h-8 flex-shrink-0 rounded-full" style={{ width: w }} />
+    ))}
+  </div>
+);
+
+export const SkeletonProductScroll: React.FC = () => (
+  <div className="flex gap-2.5 overflow-x-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-shrink-0 border-b border-coffee-100">
+    {Array.from({ length: 8 }).map((_, i) => <SkeletonProductCard key={i} />)}
   </div>
 );

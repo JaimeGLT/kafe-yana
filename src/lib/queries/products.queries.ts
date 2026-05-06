@@ -8,8 +8,25 @@ export const INITIAL_LOAD_QUERY = `
       id
       productos { productoId cantidad }
     }
-    categorias {
-      nodes { id nombre descripcion estado color cantidad }
+    categorias(
+      where: {
+        productos: { some: { id: { gt: 0 } } }
+      }
+    ) {
+      nodes { id nombre descripcion color estado }
+    }
+    clientes {
+      nodes {
+        dni
+        nombre
+        celular
+        correo
+        fecha_nacimiento
+        direccion
+        puntos
+        estado
+        id
+      }
     }
   }
 `;
@@ -146,8 +163,35 @@ export const GET_POS_DATA = `
         }
       }
     }
-    categorias {
-      nodes { id nombre descripcion color estado }
+    categorias(where: {
+      productos: {
+        some: {
+          id: {
+            gt: 0
+          }
+        }
+      }
+    }) {
+      nodes {
+        id
+        nombre
+        descripcion
+        color
+        estado
+      }
+    }
+    clientes {
+      nodes {
+        dni
+        nombre
+        celular
+        correo
+        fecha_nacimiento
+        direccion
+        puntos
+        estado
+        id
+      }
     }
   }
 `;
