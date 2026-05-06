@@ -14,6 +14,7 @@ interface LocalMesa {
   openedAt?: number;
   order: CartItem[];
   customerId?: string;
+  cliente?: { id: number; nombre: string; puntos: number; celular: string; estado: boolean };
   tipo?: 'mesa' | 'para_llevar';
   currentRound: number;
   roundsSent: RondaRecord[];
@@ -92,9 +93,19 @@ export function usePOSMesas(): UsePOSMesasReturn {
     let roundsSent: RondaRecord[] = [];
     let currentRound = 1;
     let customerId: string | undefined;
+    let cliente: LocalMesa['cliente'];
 
     if (bm.pedido) {
       customerId = bm.pedido.id_Cliente ? String(bm.pedido.id_Cliente) : undefined;
+      if (bm.pedido.cliente) {
+        cliente = {
+          id: bm.pedido.cliente.id,
+          nombre: bm.pedido.cliente.nombre,
+          puntos: bm.pedido.cliente.puntos,
+          celular: bm.pedido.cliente.celular,
+          estado: Boolean(bm.pedido.cliente.estado),
+        };
+      }
 
       if (bm.pedido.rondas) {
         roundsSent = bm.pedido.rondas.map((ronda, idx) => ({
@@ -166,6 +177,7 @@ export function usePOSMesas(): UsePOSMesasReturn {
       openedAt: isOccupied ? Date.now() : undefined,
       order,
       customerId,
+      cliente,
       tipo: 'mesa',
       currentRound,
       roundsSent,

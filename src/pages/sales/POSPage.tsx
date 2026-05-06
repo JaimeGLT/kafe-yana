@@ -340,6 +340,10 @@ export const POSPage: React.FC = () => {
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
+  const [reviewClienteId, setReviewClienteId] = useState<string | null>(null);
+  const [reviewShowNewCustomerForm, setReviewShowNewCustomerForm] = useState(false);
+  const [reviewNewCustomerName, setReviewNewCustomerName] = useState('');
+  const [reviewNewCustomerPhone, setReviewNewCustomerPhone] = useState('');
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('cash');
   const [cashReceived, setCashReceived] = useState('');
@@ -435,6 +439,29 @@ export const POSPage: React.FC = () => {
     toast.success('Cliente registrado', `${name} añadido correctamente.`);
   };
 
+  const handleCreateCustomerReview = (name: string, phone: string, onCreated: (id: string) => void) => {
+    if (!name || !phone) return;
+    setIsCreatingCustomer(true);
+    const id = `cust_${Date.now()}`;
+    const now = new Date();
+    const newCustomer: Customer = {
+      id, nombre: name, celular: phone, puntos: 0, estado: true,
+    };
+    const newProfile = {
+      id: `prof_${Date.now()}`, customerId: id,
+      points: 0, lifetimePoints: 0, purchaseCount: 0,
+      level: 'bronce' as const, referralCode: id.slice(-6).toUpperCase(),
+      referralCount: 0, consecutiveDays: 0,
+      uniqueProductsBought: [], completedMissions: [],
+      createdAt: now, updatedAt: now,
+    };
+    setCustomers(prev => [...prev, newCustomer]);
+    setLoyaltyProfiles(prev => [...prev, newProfile as any]);
+    onCreated(id);
+    setIsCreatingCustomer(false);
+    toast.success('Cliente registrado', `${name} añadido correctamente.`);
+  };
+
   const addTempProduct = (product: Product) => {
     if (product.tipo === 'combo') {
       setComboDetailProduct(product);
@@ -486,11 +513,8 @@ export const POSPage: React.FC = () => {
       toast.warning('Pedido pendiente', 'Envía los productos a cocina/barra antes de cobrar.');
       return;
     }
-    const outOfStock = activeMesa.order.filter((i: any) => i.product.stock < i.quantity);
-    if (outOfStock.length > 0) {
-      return toast.error('Sin stock', outOfStock.map((i: any) => `${i.product.name}: stock insuficiente`).join(' | '));
-    }
     updateMesa(activeMesa.id, { status: 'esperando_pago' });
+    setReviewClienteId(activeMesa.customerId ?? null);
     setModalView('review');
   };
 
@@ -504,7 +528,7 @@ export const POSPage: React.FC = () => {
       if (isMesa && pedidoId) {
         const tipoPago = TIPO_PAGO_MAP[paymentMethod] ?? 1;
         const efectivoRecibido = paymentMethod === 'cash' ? cashNum : 0;
-        const idCliente = activeMesa.customerId ? parseInt(activeMesa.customerId, 10) : null;
+        const idCliente = reviewClienteId ? parseInt(reviewClienteId, 10) : null;
 
         const success = await api.post<any>(`/Mesa/cobrar/${activeMesa.id}`, {
           id_Pedido: pedidoId,
@@ -709,11 +733,10 @@ export const POSPage: React.FC = () => {
                       </p>
                       <h3 className="font-display font-bold text-cream text-lg">{activeMesa.name}</h3>
                       {(() => {
-                        const cliente = customers.find(c => String(c.id) === activeMesa.customerId);
-                        return activeMesa.customerId ? (
+                        return activeMesa.cliente ? (
                           <p className="text-[11px] text-amber-300 font-medium flex items-center gap-1">
                             <Star className="h-3 w-3 fill-amber-300 text-amber-300" />
-                            {cliente?.nombre ?? 'Cliente vinculado'}
+                            {activeMesa.cliente.nombre}
                           </p>
                         ) : null;
                       })()}
@@ -1022,10 +1045,10 @@ export const POSPage: React.FC = () => {
                       <div className="flex items-center gap-1.5 text-xs text-coffee-600">
                         <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
                         <span className="font-semibold">
-                          {customers.find(c => c.id === activeMesa.customerId)?.nombre ?? 'Cliente'}
+                          {activeMesa.cliente?.nombre ?? 'Cliente'}
                         </span>
                         <span className="text-coffee-400">
-                          · {getOrCreateProfile(activeMesa.customerId)?.points ?? 0} pts
+                          · {activeMesa.cliente?.puntos ?? 0} pts
                         </span>
                       </div>
                       {activeMesa.order.some(i => i.redeemRewardId) ? (
@@ -1034,7 +1057,7 @@ export const POSPage: React.FC = () => {
                         </Tooltip>
                       ) : (
                         <button
-                          onClick={() => updateMesa(activeMesa.id, { customerId: undefined })}
+                          onClick={() => updateMesa(activeMesa.id, { customerId: undefined, cliente: undefined })}
                           className="text-[11px] text-coffee-400 hover:text-red-400 transition-colors"
                         >
                           Quitar
@@ -1210,6 +1233,17 @@ export const POSPage: React.FC = () => {
                 onBack={() => setModalView('review')}
                 onConfirm={handleConfirmSale}
                 activeMesaOrder={activeMesa.order as any}
+                reviewClienteId={reviewClienteId}
+                onReviewClienteChange={setReviewClienteId}
+                customers={customers}
+                onCreateCustomer={handleCreateCustomerReview}
+                isCreatingCustomer={isCreatingCustomer}
+                reviewShowNewCustomerForm={reviewShowNewCustomerForm}
+                onToggleReviewNewCustomerForm={() => { setReviewShowNewCustomerForm(v => !v); setReviewNewCustomerName(''); setReviewNewCustomerPhone(''); }}
+                reviewNewCustomerName={reviewNewCustomerName}
+                reviewNewCustomerPhone={reviewNewCustomerPhone}
+                onReviewNewCustomerNameChange={setReviewNewCustomerName}
+                onReviewNewCustomerPhoneChange={setReviewNewCustomerPhone}
               />
             </Suspense>
           </Overlay>
