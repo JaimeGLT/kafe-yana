@@ -172,7 +172,7 @@ export function useElaboradosPage(options: UseElaboradosPageOptions): UseElabora
             unidadMinima: d.insumo.unidad_min_uso,
             quantity: d.cantidad,
             merma: d.merma,
-            unitCost: d.insumo.costo,
+unitCost: d.insumo.factor_conversion > 0 ? d.insumo.costo / d.insumo.factor_conversion : 0,
             subtotal: d.subTotal,
           }));
           const costoTotal = ingredientes.reduce((sum, i) => sum + i.subtotal, 0);
@@ -241,7 +241,7 @@ export function mapRecetaFromNode(n: ElaboradoNode): Receta | null {
     unidadMinima: d.insumo.unidad_min_uso,
     quantity: d.cantidad,
     merma: d.merma,
-    unitCost: d.insumo.costo,
+    unitCost: d.insumo.factor_conversion > 0 ? d.insumo.costo / d.insumo.factor_conversion : 0,
     subtotal: d.subTotal,
   }));
   const costoTotal = ingredientes.reduce((sum, i) => sum + i.subtotal, 0);

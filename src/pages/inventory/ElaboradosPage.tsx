@@ -66,7 +66,7 @@ const ElaboradosPage: React.FC = () => {
     return elaborados.find((p) => p.id === productId)?.stock ?? 0;
   }, [elaborados]);
 
-  const addReceta = useCallback(async (recetaData: { productId: string; nombre: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string }, _productName: string) => {
+  const addReceta = useCallback(async (recetaData: { productId: string; nombre: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number; subTotal: number }[]; notas?: string }, _productName: string) => {
     try {
       await api.post('/Receta', {
         nombre: recetaData.nombre,
@@ -76,7 +76,7 @@ const ElaboradosPage: React.FC = () => {
         detalles: recetaData.ingredientes.map((ing) => ({
           cantidad: ing.quantity,
           merma: ing.merma,
-          subTotal: 0,
+          subTotal: ing.subTotal,
           id_insumo: Number(ing.insumoId),
         })),
       });

@@ -1072,7 +1072,6 @@ export const POSPage: React.FC = () => {
       setComboDetailProduct(product);
     } else if (product.tipo === 'elaborado') {
       setElaboradoDetailProduct(product);
-      // Carga lazy de ingredientes si aún no están en cache
       if (!elaboradoIngredientes[product.id]) {
         gql<{ elaborados: { nodes: Array<{ receta: { detalles: Array<{ cantidad: number; insumo: { nombre: string; unidad_min_uso: string } | null }> } | null }> } }>(
           GET_ELABORADO_INGREDIENTES,

@@ -134,7 +134,7 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
   const costoTotalReceta = useMemo(
     () =>
       ingredientes.reduce((sum, ing) => {
-        const insumo = localInsumos.find((i) => i.id === ing.insumoId);
+        const insumo = localInsumos.find(i => String(i.id) === String(ing.insumoId));
         if (!insumo || ing.quantity <= 0) return sum;
         return sum + insumo.costoUnitario * ing.quantity * (1 + ing.merma / 100);
       }, 0),
@@ -192,12 +192,18 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
         nota: notas.trim(),
         id_Elaborado: Number(productId),
         porciones: porcionesBase,
-        detalles: ingredientes.map((ing) => ({
-          cantidad: ing.quantity,
-          merma: ing.merma,
-          subTotal: 0,
-          id_insumo: Number(ing.insumoId),
-        })),
+        detalles: ingredientes.map((ing) => {
+          const insumo = localInsumos.find(i => String(i.id) === String(ing.insumoId));
+          const subTotal = insumo && ing.quantity > 0
+            ? insumo.costoUnitario * ing.quantity * (1 + ing.merma / 100)
+            : 0;
+          return {
+            cantidad: ing.quantity,
+            merma: ing.merma,
+            subTotal,
+            id_insumo: Number(ing.insumoId),
+          };
+        }),
       };
       if (receta) {
         await api.put(`/Receta/${receta.id}`, body);
@@ -289,7 +295,7 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
 
         <div className="space-y-2">
           {ingredientes.map((line, idx) => {
-            const insumo = localInsumos.find((i) => i.id === line.insumoId);
+            const insumo = localInsumos.find(i => String(i.id) === String(line.insumoId));
             const lineSubtotal = insumo && line.quantity > 0
               ? insumo.costoUnitario * line.quantity * (1 + line.merma / 100)
               : 0;

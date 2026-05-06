@@ -36,7 +36,7 @@ export function mapRecetaFromElaborado(n: ElaboradoNode): Receta | null {
     unidadMinima: d.insumo.unidad_min_uso,
     quantity: d.cantidad,
     merma: d.merma,
-    unitCost: d.insumo.costo,
+    unitCost: d.insumo.factor_conversion > 0 ? d.insumo.costo / d.insumo.factor_conversion : 0,
     subtotal: d.subTotal,
   }));
 

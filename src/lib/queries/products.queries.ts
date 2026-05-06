@@ -115,6 +115,9 @@ export const GET_POS_DATA = `
           id nombre descripcion precio tipo
           categoria { id nombre descripcion estado color }
         }
+        receta {
+          porciones
+        }
         variaciones {
           id nombre requerido
           opciones {

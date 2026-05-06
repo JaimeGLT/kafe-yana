@@ -23,7 +23,7 @@ interface WizardProps {
   categories: { value: string; label: string }[];
   insumos: Insumo[];
   recetas: Receta[];
-  onAddReceta: (receta: { productId: string; nombre: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string }, productName: string) => Promise<void>;
+  onAddReceta: (receta: { productId: string; nombre: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number; subTotal: number }[]; notas?: string }, productName: string) => Promise<void>;
 }
 
 export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCreated, categories, insumos, recetas, onAddReceta }) => {

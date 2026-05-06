@@ -113,6 +113,8 @@ export interface Product extends BaseEntity {
   hasVariations: boolean;
   destino?: ProductDestino;
   producible?: boolean;
+  /** Used for elaborados: how many portions the recipe produces */
+  porcionesBase?: number;
 }
 
 export interface ProductInput {

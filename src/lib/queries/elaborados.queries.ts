@@ -167,6 +167,7 @@ export const GET_ELABORADO_INGREDIENTES = `
     elaborados(where: { id_Producto: { eq: $id } }) {
       nodes {
         receta {
+          porciones
           detalles {
             cantidad
             insumo { nombre unidad_min_uso }

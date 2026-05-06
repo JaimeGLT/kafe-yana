@@ -21,7 +21,7 @@ interface RecetaStepTwoProps {
   onSkip: () => void;
   insumos: Insumo[];
   recetas: Receta[];
-  onAddReceta: (receta: { productId: string; nombre: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number }[]; notas?: string }, productName: string) => Promise<void>;
+  onAddReceta: (receta: { productId: string; nombre: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number; subTotal: number }[]; notas?: string }, productName: string) => Promise<void>;
 }
 
 export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, productName, productSalePrice, onDone, onSkip, insumos: insumosProp, recetas, onAddReceta }) => {
@@ -107,16 +107,26 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
       }
       setIsSaving(true);
       try {
+        console.log('DEBUG localInsumos:', localInsumos);
+        console.log('DEBUG ingredientes:', ingredientes);
         await onAddReceta(
           {
             productId,
             nombre: recetaBase.nombre ?? recetaBase.productName,
             porcionesBase: recetaBase.porcionesBase,
-            ingredientes: recetaBase.ingredientes.map((i) => ({
-              insumoId: i.insumoId,
-              quantity: i.quantity,
-              merma: i.merma,
-            })),
+            ingredientes: recetaBase.ingredientes.map((i) => {
+              const insumo = localInsumos.find(ins => String(ins.id) === String(i.insumoId));
+              console.log('DEBUG modo existente - i.insumoId:', i.insumoId, 'tipo:', typeof i.insumoId, 'encontrado:', insumo);
+              const subTotal = insumo
+                ? insumo.costoUnitario * i.quantity * (1 + i.merma / 100)
+                : (i.subtotal ?? 0);
+              return {
+                insumoId: i.insumoId,
+                quantity: i.quantity,
+                merma: i.merma,
+                subTotal,
+              };
+            }),
             notas: recetaBase.notas,
           },
           productName
@@ -134,7 +144,18 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({ productId, product
     if (!validate()) return;
     setIsSaving(true);
     try {
-      await onAddReceta({ productId, nombre: nombre.trim(), porcionesBase, ingredientes, notas }, productName);
+      console.log('DEBUG localInsumos para nueva:', localInsumos);
+      console.log('DEBUG ingredientes para nueva:', ingredientes);
+      const ingredientesConSubTotal = ingredientes.map(ing => {
+        const insumo = localInsumos.find(i => String(i.id) === String(ing.insumoId));
+        console.log('DEBUG nueva - ing.insumoId:', ing.insumoId, 'tipo:', typeof ing.insumoId, 'encontrado:', insumo);
+        const subTotal = insumo
+          ? insumo.costoUnitario * ing.quantity * (1 + ing.merma / 100)
+          : 0;
+        return { ...ing, subTotal };
+      });
+      console.log('DEBUG ingredientesConSubTotal:', ingredientesConSubTotal);
+      await onAddReceta({ productId, nombre: nombre.trim(), porcionesBase, ingredientes: ingredientesConSubTotal, notas }, productName);
       toast.success('Receta guardada', `"${productName}" — costo/porción: ${formatCurrency(costoPorPorcion)}`);
       onDone();
     } catch (error) {
