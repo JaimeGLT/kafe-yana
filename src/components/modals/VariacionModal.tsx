@@ -562,11 +562,8 @@ export const VariacionModal: React.FC<Props> = ({
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   const [showAddAtributo, setShowAddAtributo] = React.useState(false);
   const [newAtributoNombre, setNewAtributoNombre] = React.useState('');
-  const [newAtributoRequerido, setNewAtributoRequerido] = React.useState(false);
-
   const [editingAtributoId, setEditingAtributoId] = React.useState<string | null>(null);
   const [editAtributoNombre, setEditAtributoNombre] = React.useState('');
-  const [editAtributoRequerido, setEditAtributoRequerido] = React.useState(false);
 
   const [newOpcionForms, setNewOpcionForms] = React.useState<Record<string, OpcionFormState>>({});
 
@@ -600,10 +597,9 @@ export const VariacionModal: React.FC<Props> = ({
       toast.warning('Campo requerido', 'El nombre del grupo es obligatorio.');
       return;
     }
-    const nuevo = await onAddAtributo(productId, { nombre: newAtributoNombre.trim(), esRequerido: newAtributoRequerido });
+    const nuevo = await onAddAtributo(productId, { nombre: newAtributoNombre.trim(), esRequerido: false });
     setExpanded((prev) => new Set([...prev, nuevo.id]));
     setNewAtributoNombre('');
-    setNewAtributoRequerido(false);
     setShowAddAtributo(false);
     toast.success('Grupo creado', `"${nuevo.nombre}" añadido.`);
   };
@@ -611,7 +607,6 @@ export const VariacionModal: React.FC<Props> = ({
   const startEditAtributo = (a: VariacionAtributo) => {
     setEditingAtributoId(a.id);
     setEditAtributoNombre(a.nombre);
-    setEditAtributoRequerido(a.esRequerido);
   };
 
   const handleSaveAtributo = async (id: string) => {
@@ -619,7 +614,7 @@ export const VariacionModal: React.FC<Props> = ({
       toast.warning('Campo requerido', 'El nombre del grupo es obligatorio.');
       return;
     }
-    await onUpdateAtributo(id, { nombre: editAtributoNombre.trim(), esRequerido: editAtributoRequerido });
+    await onUpdateAtributo(id, { nombre: editAtributoNombre.trim(), esRequerido: false });
     setEditingAtributoId(null);
     toast.success('Grupo actualizado');
   };
@@ -771,15 +766,6 @@ export const VariacionModal: React.FC<Props> = ({
                         className="flex-1 rounded-lg border border-coffee-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-coffee-500"
                         autoFocus
                       />
-                      <label className="flex items-center gap-1 text-sm text-coffee-600 whitespace-nowrap">
-                        <input
-                          type="checkbox"
-                          checked={editAtributoRequerido}
-                          onChange={(e) => setEditAtributoRequerido(e.target.checked)}
-                          className="h-4 w-4 text-coffee-500 rounded"
-                        />
-                        Requerido
-                      </label>
                       <button onClick={() => handleSaveAtributo(atributo.id)} className="p-1 rounded bg-amber-100 hover:bg-amber-200 text-amber-700">
                         <Check className="h-4 w-4" />
                       </button>
@@ -870,24 +856,9 @@ export const VariacionModal: React.FC<Props> = ({
                   onChange={(e) => setNewAtributoNombre(e.target.value)}
                   autoFocus
                 />
-                <div className="flex flex-col justify-end">
-                  <div className="flex items-center gap-2 py-2.5">
-                    <input
-                      type="checkbox"
-                      id="nuevo-atributo-requerido"
-                      checked={newAtributoRequerido}
-                      onChange={(e) => setNewAtributoRequerido(e.target.checked)}
-                      className="h-4 w-4 text-coffee-500 rounded"
-                    />
-                    <label htmlFor="nuevo-atributo-requerido" className="text-sm font-medium text-coffee-700 flex items-center gap-1">
-                      El cliente debe elegir obligatoriamente
-                      <HelpTooltip text="Si está marcado, el cajero no podrá añadir este producto al carrito sin elegir una opción de este grupo. Ej: el tamaño siempre debe seleccionarse." />
-                    </label>
-                  </div>
-                </div>
               </div>
               <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={() => { setShowAddAtributo(false); setNewAtributoNombre(''); setNewAtributoRequerido(false); }}>
+                <Button variant="ghost" size="sm" onClick={() => { setShowAddAtributo(false); setNewAtributoNombre(''); }}>
                   Cancelar
                 </Button>
                 <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white" onClick={handleAddAtributo}>
