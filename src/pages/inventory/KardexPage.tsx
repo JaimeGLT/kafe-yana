@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { BookOpen, Package, FlaskConical, Layers, Cookie } from 'lucide-react';
 import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
@@ -100,18 +100,9 @@ const KardexPage: React.FC = () => {
   const [pageSize] = useState(DEFAULT_PAGE_SIZE);
   const [totalCount, setTotalCount] = useState(0);
 
-  const readCursors = () => {
-    try {
-      const raw = sessionStorage.getItem('kardex-movements-cursors');
-      return raw ? JSON.parse(raw) : {};
-    } catch { return {}; }
-  };
-
-  const [cursors, setCursors] = useState<Record<number, string>>(() => readCursors());
-
-  useEffect(() => {
-    try { sessionStorage.setItem('kardex-movements-cursors', JSON.stringify(cursors)); } catch {}
-  }, [cursors]);
+  const [cursors, setCursors] = useState<Record<number, string>>({});
+  const cursorsRef = useRef<Record<number, string>>({});
+  cursorsRef.current = cursors;
 
   useEffect(() => {
     setCursors({});
@@ -183,8 +174,8 @@ const KardexPage: React.FC = () => {
     setIsLoadingMovements(true);
     try {
       const variables: Record<string, unknown> = { id: parsed.id, first: pageSize };
-      if (currentPage > 1 && cursors[currentPage - 1]) {
-        variables.after = cursors[currentPage - 1];
+      if (currentPage > 1 && cursorsRef.current[currentPage - 1]) {
+        variables.after = cursorsRef.current[currentPage - 1];
       }
 
       let nodes: UnifiedMovement[] = [];
@@ -234,7 +225,7 @@ const KardexPage: React.FC = () => {
     } finally {
       setIsLoadingMovements(false);
     }
-  }, [pageSize, cursors]);
+  }, [pageSize]);
 
   useEffect(() => {
     if (!selectedItemId) {

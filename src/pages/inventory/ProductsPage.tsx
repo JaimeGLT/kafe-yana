@@ -14,10 +14,10 @@ import { ProductModal } from '../../components/modals/ProductModal';
 import { gql } from '../../lib/graphql';
 import { api } from '../../lib/api';
 import { GET_COMPRADOS_WITH_CATEGORIES_QUERY, GET_COMPRADO_DETAIL } from '../../lib/queries/products.queries';
-import { useFilters } from '../../hooks/useFilters';
-import type { Product, Category } from '../../types';
 import { formatCurrency } from '../../utils';
+import type { Product, Category } from '../../types';
 import type { ProductDestino } from '../../types';
+import type { CompradoFilterInput } from '../../types/graphql';
 
 const DESTINO_OPTIONS = [
   { value: 'sin_destino', label: 'Sin destino' },
@@ -32,6 +32,8 @@ const destinoBadge = (d: ProductDestino | undefined) => {
 };
 
 // ── Constantes ─────────────────────────────────────────────────────────────────
+
+const DEFAULT_PAGE_SIZE = 15;
 
 const calcMargin = (costPrice: number, salePrice: number): number | null =>
   costPrice > 0 && salePrice > 0
@@ -73,7 +75,7 @@ interface CompradoListNode {
 }
 
 interface CompradosWithCategoriesResponse {
-  comprados: { nodes: CompradoListNode[]; totalCount: number; pageInfo?: { endCursor?: string | null } };
+  comprados: { nodes: CompradoListNode[]; totalCount: number; pageInfo?: { endCursor?: string | null; hasNextPage?: boolean } };
   categorias: { nodes: CategoriaNode[] };
 }
 
@@ -138,7 +140,12 @@ function mapNode(node: CompradoListNode): Product {
 // ── Componente ─────────────────────────────────────────────────────────────────
 
 const ProductsPage: React.FC = () => {
-  const { filters, setSearch, setCategory, setPage, setPageSize } = useFilters('products-filters');
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [category, setCategory] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(DEFAULT_PAGE_SIZE);
+
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -151,36 +158,55 @@ const ProductsPage: React.FC = () => {
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [detailDestino, setDetailDestino] = useState<ProductDestino>('sin_destino');
   const [totalCount, setTotalCount] = useState(0);
-  const readCursors = () => {
-    try {
-      const raw = sessionStorage.getItem('products-cursors');
-      return raw ? JSON.parse(raw) : {};
-    } catch { return {}; }
-  };
 
-  const [cursors, setCursors] = useState<Record<number, string>>(() => readCursors());
+  const [cursors, setCursors] = useState<Record<number, string>>({});
+  const cursorsRef = useRef<Record<number, string>>({});
+  cursorsRef.current = cursors;
 
   useEffect(() => {
-    try { sessionStorage.setItem('products-cursors', JSON.stringify(cursors)); } catch {}
-  }, [cursors]);
-  const isRefreshing = useRef(false);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    setCursors({});
+    setPage(1);
+  }, [debouncedSearch, category]);
 
   // ── Carga de datos ─────────────────────────────────────────────────────────
 
   const loadData = useCallback(async () => {
-    if (isRefreshing.current) return;
-    isRefreshing.current = true;
     setIsLoading(true);
     try {
-      const variables: Record<string, unknown> = { first: filters.pageSize };
-      if (filters.page > 1 && cursors[filters.page - 1]) {
-        variables.after = cursors[filters.page - 1];
+      const variables: Record<string, unknown> = { first: pageSize };
+      if (page > 1 && cursorsRef.current[page - 1]) {
+        variables.after = cursorsRef.current[page - 1];
+      }
+
+      const whereConditions: CompradoFilterInput[] = [];
+      if (debouncedSearch) {
+        whereConditions.push({
+          producto: { nombre: { contains: debouncedSearch } }
+        } as CompradoFilterInput);
+        whereConditions.push({
+          producto: { descripcion: { contains: debouncedSearch } }
+        } as CompradoFilterInput);
+      }
+      if (category) {
+        whereConditions.push({
+          producto: { categoria: { nombre: { eq: category } } }
+        } as CompradoFilterInput);
+      }
+      if (whereConditions.length > 0) {
+        variables.where = { or: whereConditions } as CompradoFilterInput;
       }
 
       const data = await gql<CompradosWithCategoriesResponse>(GET_COMPRADOS_WITH_CATEGORIES_QUERY, variables);
       setTotalCount(data.comprados.totalCount);
       if (data.comprados.pageInfo?.endCursor) {
-        setCursors((prev) => ({ ...prev, [filters.page]: data.comprados.pageInfo!.endCursor as string }));
+        setCursors((prev) => ({ ...prev, [page]: data.comprados.pageInfo!.endCursor as string }));
       }
       setCategories(
         data.categorias.nodes.map((n) => ({
@@ -198,20 +224,15 @@ const ProductsPage: React.FC = () => {
       setProducts(data.comprados.nodes.map(mapNode));
     } catch (err) {
       console.error('Error loading comprados:', err);
-      toast.error('Error al cargar', 'No se konnten cargar los productos. Intenta de nuevo.');
+      toast.error('Error al cargar', 'No se pudieron cargar los productos. Intenta de nuevo.');
     } finally {
-      isRefreshing.current = false;
       setIsLoading(false);
     }
-  }, [filters.page, filters.pageSize]);
-
-  useEffect(() => {
-    setCursors({});
-  }, [filters.page]);
+  }, [page, pageSize, debouncedSearch, category]);
 
   useEffect(() => {
     loadData();
-  }, [loadData, filters.search, filters.category]);
+  }, [loadData]);
 
   // ── Filtros ────────────────────────────────────────────────────────────────
 
@@ -223,30 +244,17 @@ const ProductsPage: React.FC = () => {
     [categories],
   );
 
-  const filtered = useMemo(() => {
-    return products.filter((p) => {
-      const q = filters.search.toLowerCase();
-      const matchesSearch =
-        !filters.search ||
-        p.name.toLowerCase().includes(q) ||
-        p.code.toLowerCase().includes(q) ||
-        (p.barcode || '').toLowerCase().includes(q);
-      const matchesCategory = !filters.category || p.categoryName === filters.category;
-      return matchesSearch && matchesCategory;
-    });
-  }, [products, filters.search, filters.category]);
-
   const kpis = useMemo(() => {
-    const sinStock = filtered.filter((p) => p.stock <= 0).length;
-    const stockBajo = filtered.filter((p) => p.stock > 0 && p.stock <= p.minStock).length;
-    const margins = filtered
+    const sinStock = products.filter((p) => p.stock <= 0).length;
+    const stockBajo = products.filter((p) => p.stock > 0 && p.stock <= p.minStock).length;
+    const margins = products
       .map((p) => calcMargin(p.costPrice, p.salePrice))
       .filter((m): m is number => m !== null);
     const avgMargin = margins.length > 0
       ? margins.reduce((s, m) => s + m, 0) / margins.length
       : null;
     return { total: totalCount, sinStock, stockBajo, avgMargin };
-  }, [filtered, totalCount]);
+  }, [products, totalCount]);
 
   // ── Acciones ───────────────────────────────────────────────────────────────
 
@@ -301,9 +309,6 @@ const ProductsPage: React.FC = () => {
       setIsDeleting(false);
     }
   };
-
-  // ── Detalle (modal móvil) ──────────────────────────────────────────────────
-
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -382,16 +387,16 @@ const ProductsPage: React.FC = () => {
           <div className="flex-1">
             <Input
               placeholder="Buscar por nombre o código…"
-              value={filters.search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               leftIcon={<Search className="h-4 w-4" />}
             />
           </div>
           <div className="sm:w-52">
             <Select
               options={categoryOptions}
-              value={filters.category}
-              onChange={setCategory}
+              value={category}
+              onChange={(v) => { setCategory(v); setPage(1); }}
               placeholder="Todas las categorías"
             />
           </div>
@@ -440,14 +445,14 @@ const ProductsPage: React.FC = () => {
               </tbody>
             </table>
           </div>
-        ) : filtered.length === 0 ? (
+        ) : products.length === 0 ? (
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm py-16 flex flex-col items-center justify-center text-coffee-500">
             <ShoppingBag className="h-12 w-12 mb-3 text-coffee-300" />
             <p className="text-lg font-medium">Sin productos comprados</p>
             <p className="text-sm mt-1">
-              {filters.search || filters.category ? 'Prueba con otros filtros.' : 'Agrega tu primer producto para comenzar.'}
+              {search || category ? 'Prueba con otros filtros.' : 'Agrega tu primer producto para comenzar.'}
             </p>
-            {!filters.search && !filters.category && (
+            {!search && !category && (
               <Button variant="primary" className="mt-4" leftIcon={<Plus className="h-4 w-4" />} onClick={handleOpenCreate}>
                 Nuevo Producto
               </Button>
@@ -458,7 +463,7 @@ const ProductsPage: React.FC = () => {
 
             {/* ── Mobile: tarjetas ─────────────────────────────────────────── */}
             <div className="sm:hidden divide-y divide-coffee-50">
-              {filtered.map((p) => (
+              {products.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => { setDetailProduct(p); setDetailDestino(p.destino ?? 'sin_destino'); }}
@@ -566,10 +571,9 @@ const ProductsPage: React.FC = () => {
             {/* ── Pagination ───────────────────────────────────────────────── */}
             <Pagination
               totalCount={totalCount}
-              page={filters.page}
-              pageSize={filters.pageSize}
+              page={page}
+              pageSize={pageSize}
               onPageChange={setPage}
-              onPageSizeChange={setPageSize}
               isLoading={isLoading}
             />
           </div>
@@ -592,7 +596,7 @@ const ProductsPage: React.FC = () => {
         message={`¿Eliminar "${deletingProduct?.name}"? Esta acción no se puede deshacer.`}
         confirmText="Eliminar"
         variant="danger"
-isLoading={isDeleting}
+        isLoading={isDeleting}
       />
 
       {/* ── Modal de detalle ───────────────────────────────────────────────── */}

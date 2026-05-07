@@ -394,3 +394,79 @@ export interface KardexItemsResponse {
   combos: { nodes: KardexComboNode[] };
   insumos: { nodes: KardexInsumoNode[] };
 }
+
+// — Filter input types (from GraphQL schema) —
+
+export interface StringOperationFilterInput {
+  contains?: string;
+  eq?: string;
+  neq?: string;
+  in?: string[];
+  nin?: string[];
+  startsWith?: string;
+  endsWith?: string;
+}
+
+export interface IntOperationFilterInput {
+  eq?: number;
+  neq?: number;
+  in?: number[];
+  nin?: number[];
+  gt?: number;
+  gte?: number;
+  lt?: number;
+  lte?: number;
+}
+
+export interface ProductoFilterInput {
+  and?: ProductoFilterInput[];
+  or?: ProductoFilterInput[];
+  id?: IntOperationFilterInput;
+  nombre?: StringOperationFilterInput;
+  descripcion?: StringOperationFilterInput;
+  precio?: DecimalOperationFilterInput;
+  tipo?: StringOperationFilterInput;
+  categoria?: CategoriaFilterInput;
+}
+
+export interface CategoriaFilterInput {
+  and?: CategoriaFilterInput[];
+  or?: CategoriaFilterInput[];
+  id?: IntOperationFilterInput;
+  nombre?: StringOperationFilterInput;
+  descripcion?: StringOperationFilterInput;
+  estado?: BooleanOperationFilterInput;
+  color?: StringOperationFilterInput;
+}
+
+export interface DecimalOperationFilterInput {
+  eq?: number;
+  neq?: number;
+  in?: number[];
+  nin?: number[];
+  gt?: number;
+  gte?: number;
+  lt?: number;
+  lte?: number;
+}
+
+export interface BooleanOperationFilterInput {
+  eq?: boolean;
+  neq?: boolean;
+}
+
+export interface CompradoFilterInput {
+  and?: CompradoFilterInput[];
+  or?: CompradoFilterInput[];
+  codigo_barra?: StringOperationFilterInput;
+  unidad_medida?: StringOperationFilterInput;
+  marca?: StringOperationFilterInput;
+  ubicacion?: StringOperationFilterInput;
+  costo_compra?: DecimalOperationFilterInput;
+  stock_actual?: IntOperationFilterInput;
+  stock_minimo?: IntOperationFilterInput;
+  disponible?: BooleanOperationFilterInput;
+  id_Producto?: IntOperationFilterInput;
+  producto?: ProductoFilterInput;
+  id?: IntOperationFilterInput;
+}

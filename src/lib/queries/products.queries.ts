@@ -32,10 +32,15 @@ export const INITIAL_LOAD_QUERY = `
 `;
 
 export const GET_COMPRADOS_WITH_CATEGORIES_QUERY = `
-  query GetCompradosWithCategories($first: Int, $after: String) {
+  query GetCompradosWithCategories(
+    $first: Int
+    $after: String
+    $where: CompradoFilterInput
+  ) {
     comprados(
       first: $first
       after: $after
+      where: $where
       order: [{ producto: { nombre: ASC } }]
     ) {
       totalCount
