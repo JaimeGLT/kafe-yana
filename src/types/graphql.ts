@@ -313,3 +313,84 @@ export interface ProductsForComboResponse {
   comprados: { nodes: Array<{ costo_compra: number; stock_actual: number; producto: SimpleProductNode }> };
   elaborados: { nodes: Array<{ producto: SimpleProductNode }> };
 }
+
+// — Kardex movimientos —
+
+export interface MovimientoProductoNode {
+  cantidad: number;
+  costo_Unitario: number;
+  fecha: string;
+  id: number;
+  referencia: string;
+  stock_resultante: number;
+  tipo: string;
+  total: number;
+}
+
+export interface InsumoMovimientoNode {
+  cantidad: number;
+  costo_Unitario: number;
+  fecha: string;
+  id: number;
+  referencia: string;
+  stock_resultante: number;
+  tipo: string;
+  total: number;
+}
+
+export interface MovimientoProductoResponse {
+  movimientoProducto: {
+    nodes: MovimientoProductoNode[];
+    totalCount: number;
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  };
+}
+
+export interface InsumoMovimientosResponse {
+  insumoMovimientos: {
+    nodes: InsumoMovimientoNode[];
+    totalCount: number;
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  };
+}
+
+// — Kardex: items para selector —
+
+export interface KardexSelectorItem {
+  id: string;
+  name: string;
+  tipo: 'comprado' | 'elaborado' | 'combo' | 'insumo';
+  stock: number;
+  unit: string;
+  costo?: number;
+}
+
+export interface KardexCompradoNode {
+  producto: { id: number; nombre: string };
+  stock_actual: number;
+}
+
+export interface KardexElaboradoNode {
+  id_Producto: number;
+  producto: { id: number; nombre: string };
+  stock_actual: number;
+}
+
+export interface KardexComboNode {
+  producto: { id: number; nombre: string };
+  cantidadProducible: number;
+}
+
+export interface KardexInsumoNode {
+  id: number;
+  nombre: string;
+  stock_actual: number;
+  unidad_min_uso: string;
+}
+
+export interface KardexItemsResponse {
+  comprados: { nodes: KardexCompradoNode[] };
+  elaborados: { nodes: KardexElaboradoNode[] };
+  combos: { nodes: KardexComboNode[] };
+  insumos: { nodes: KardexInsumoNode[] };
+}

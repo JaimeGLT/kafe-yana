@@ -1,31 +1,36 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { BookOpen, Package, FlaskConical, Layers } from 'lucide-react';
+import { BookOpen, Package, FlaskConical, Layers, Cookie } from 'lucide-react';
 import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
 import { SearchableSelect, Badge } from '../../components/ui';
+import { Pagination } from '../../components/ui/Table';
 import { gql } from '../../lib/graphql';
-import { GET_KARDEX_PRODUCTS, GET_KARDEX_MOVEMENTS } from '../../lib/queries/ajustes.queries';
+import {
+  GET_KARDEX_ITEMS,
+  GET_PRODUCTO_MOVIMIENTOS,
+  GET_INSUMO_MOVIMIENTOS,
+} from '../../lib/queries/kardex.queries';
 import { formatCurrency, formatDateTime } from '../../utils';
-import type { KardexProductsResponse, KardexMovementsResponse } from '../../types/graphql';
+import type {
+  KardexSelectorItem,
+  KardexItemsResponse,
+  KardexCompradoNode,
+  KardexElaboradoNode,
+  KardexComboNode,
+  KardexInsumoNode,
+  MovimientoProductoNode,
+  MovimientoProductoResponse,
+  InsumoMovimientoNode,
+  InsumoMovimientosResponse,
+} from '../../types/graphql';
 
-type ProductTipo = 'comprado' | 'elaborado' | 'combo';
-
-interface KardexProduct {
-  id: string;
-  name: string;
-  tipo: ProductTipo;
-  categoryName: string;
-  salePrice: number;
-  costPrice: number;
-  stock: number;
-  unit: string;
-}
+type ItemTipo = 'comprado' | 'elaborado' | 'combo' | 'insumo';
 
 interface UnifiedMovement {
   id: string;
   date: Date;
-  type: 'adjustment' | 'sale';
+  type: 'adjustment' | 'sale' | 'recipe';
   reference: string;
   quantity: number;
   unitCost: number;
@@ -40,11 +45,13 @@ const TIPO_MOVEMENT_MAP: Record<string, UnifiedMovement['type']> = {
   Ajuste: 'adjustment',
   Transferencia: 'adjustment',
   Inicial: 'adjustment',
-  purchase: 'adjustment',
-  sale: 'sale',
-  adjustment: 'adjustment',
-  transfer: 'adjustment',
-  initial: 'adjustment',
+  Receta: 'recipe',
+  compra: 'adjustment',
+  venta: 'sale',
+  ajuste: 'adjustment',
+  transferencia: 'adjustment',
+  inicial: 'adjustment',
+  recipe: 'recipe',
 };
 
 const MOVEMENT_LABELS: Record<string, string> = {
@@ -53,6 +60,7 @@ const MOVEMENT_LABELS: Record<string, string> = {
   adjustment: 'Ajuste',
   transfer: 'Transferencia',
   initial: 'Stock inicial',
+  recipe: 'Receta',
 };
 
 const MOVEMENT_COLORS: Record<string, string> = {
@@ -61,178 +69,234 @@ const MOVEMENT_COLORS: Record<string, string> = {
   adjustment: 'warning',
   transfer: 'info',
   initial: 'default',
+  recipe: 'info',
 };
 
-const TipoIcon: React.FC<{ tipo: ProductTipo; className?: string }> = ({ tipo, className }) => {
+const TipoIcon: React.FC<{ tipo: ItemTipo; className?: string }> = ({ tipo, className }) => {
   if (tipo === 'elaborado') return <FlaskConical className={clsx('text-amber-500', className)} />;
   if (tipo === 'combo') return <Layers className={clsx('text-blue-500', className)} />;
+  if (tipo === 'insumo') return <Cookie className={clsx('text-orange-500', className)} />;
   return <Package className={clsx('text-coffee-400', className)} />;
 };
 
-const KardexPage: React.FC = () => {
-  const [allProducts, setAllProducts] = useState<KardexProduct[]>([]);
-  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+const TIPO_PREFIX: Record<ItemTipo, string> = {
+  comprado: '[C]',
+  elaborado: '[E]',
+  combo: '[K]',
+  insumo: '[I]',
+};
 
-  const [selectedProductId, setSelectedProductId] = useState('');
+const DEFAULT_PAGE_SIZE = 20;
+
+const KardexPage: React.FC = () => {
+  const [allItems, setAllItems] = useState<KardexSelectorItem[]>([]);
+  const [isLoadingItems, setIsLoadingItems] = useState(true);
+
+  const [selectedItemId, setSelectedItemId] = useState('');
   const [movements, setMovements] = useState<UnifiedMovement[]>([]);
   const [isLoadingMovements, setIsLoadingMovements] = useState(false);
 
-  const loadProducts = useCallback(async () => {
-    try {
-      const data = await gql<KardexProductsResponse>(GET_KARDEX_PRODUCTS);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [totalCount, setTotalCount] = useState(0);
 
-      const mapped: KardexProduct[] = [
-        ...data.comprados.nodes.map((c) => ({
-          id: String(c.producto.id),
+  const readCursors = () => {
+    try {
+      const raw = sessionStorage.getItem('kardex-movements-cursors');
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  };
+
+  const [cursors, setCursors] = useState<Record<number, string>>(() => readCursors());
+
+  useEffect(() => {
+    try { sessionStorage.setItem('kardex-movements-cursors', JSON.stringify(cursors)); } catch {}
+  }, [cursors]);
+
+  useEffect(() => {
+    setCursors({});
+    setPage(1);
+  }, [selectedItemId]);
+
+  const loadAllItems = useCallback(async () => {
+    setIsLoadingItems(true);
+    try {
+      const data = await gql<KardexItemsResponse>(GET_KARDEX_ITEMS);
+
+      const mapped: KardexSelectorItem[] = [
+        ...data.comprados.nodes.map((c: KardexCompradoNode) => ({
+          id: `comprado-${c.producto.id}`,
           name: c.producto.nombre,
           tipo: 'comprado' as const,
-          categoryName: '',
-          salePrice: 0,
-          costPrice: 0,
           stock: c.stock_actual,
           unit: 'unidad',
         })),
-        ...data.elaborados.nodes.map((e) => ({
-          id: String(e.id_Producto),
+        ...data.elaborados.nodes.map((e: KardexElaboradoNode) => ({
+          id: `elaborado-${e.id_Producto}`,
           name: e.producto.nombre,
           tipo: 'elaborado' as const,
-          categoryName: '',
-          salePrice: 0,
-          costPrice: 0,
           stock: e.stock_actual,
           unit: 'unidad',
         })),
+        ...data.combos.nodes.map((c: KardexComboNode) => ({
+          id: `combo-${c.producto.id}`,
+          name: c.producto.nombre,
+          tipo: 'combo' as const,
+          stock: c.cantidadProducible,
+          unit: 'unidad',
+        })),
+        ...data.insumos.nodes.map((i: KardexInsumoNode) => ({
+          id: `insumo-${i.id}`,
+          name: i.nombre,
+          tipo: 'insumo' as const,
+          stock: i.stock_actual,
+          unit: i.unidad_min_uso,
+        })),
       ];
 
-      setAllProducts(mapped);
+      setAllItems(mapped);
     } catch (error) {
-      console.error('Error loading kardex products:', error);
+      console.error('Error loading kardex items:', error);
     } finally {
-      setIsLoadingProducts(false);
+      setIsLoadingItems(false);
     }
   }, []);
 
   useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
+    loadAllItems();
+  }, [loadAllItems]);
 
-  const loadMovements = useCallback(async (productoId: string) => {
+  const parseItemId = (fullId: string): { tipo: ItemTipo; id: number } | null => {
+    const [tipo, idStr] = fullId.split('-');
+    const id = Number(idStr);
+    if (isNaN(id)) return null;
+    if (tipo === 'elaborado' || tipo === 'comprado' || tipo === 'combo' || tipo === 'insumo') {
+      return { tipo, id };
+    }
+    return null;
+  };
+
+  const loadMovements = useCallback(async (fullItemId: string, currentPage: number) => {
+    const parsed = parseItemId(fullItemId);
+    if (!parsed) return;
+
     setIsLoadingMovements(true);
     try {
-      const data = await gql<KardexMovementsResponse>(GET_KARDEX_MOVEMENTS, {
-        productoId: Number(productoId),
-      });
-
-      const unified: UnifiedMovement[] = [];
-
-      for (const ajuste of data.ajustes.nodes) {
-        unified.push({
-          id: String(ajuste.id),
-          date: new Date(ajuste.fecha),
-          type: TIPO_MOVEMENT_MAP[ajuste.tipo] ?? 'adjustment',
-          reference: ajuste.nombre,
-          quantity: ajuste.ajuste,
-          unitCost: 0,
-          totalCost: ajuste.perdida,
-          stockAfter: ajuste.stockNuevo,
-          notes: ajuste.nota,
-        });
+      const variables: Record<string, unknown> = { id: parsed.id, first: pageSize };
+      if (currentPage > 1 && cursors[currentPage - 1]) {
+        variables.after = cursors[currentPage - 1];
       }
 
-      for (const venta of data.ventas.nodes) {
-        for (const detalle of venta.detalles) {
-          unified.push({
-            id: `${venta.id}-${detalle.nombre}`,
-            date: new Date(venta.fecha),
-            type: 'sale',
-            reference: venta.codigo,
-            quantity: -detalle.cantidad,
-            unitCost: 0,
-            totalCost: detalle.total,
-            stockAfter: 0,
-            notes: undefined,
-          });
+      let nodes: UnifiedMovement[] = [];
+      let total = 0;
+
+      if (parsed.tipo === 'insumo') {
+        const data = await gql<InsumoMovimientosResponse>(GET_INSUMO_MOVIMIENTOS, variables);
+        total = data.insumoMovimientos.totalCount;
+        if (data.insumoMovimientos.pageInfo?.endCursor) {
+          setCursors((prev) => ({ ...prev, [currentPage]: data.insumoMovimientos.pageInfo!.endCursor as string }));
         }
+        nodes = data.insumoMovimientos.nodes.map((m: InsumoMovimientoNode) => ({
+          id: String(m.id),
+          date: new Date(m.fecha),
+          type: TIPO_MOVEMENT_MAP[m.tipo] ?? 'adjustment',
+          reference: m.referencia,
+          quantity: m.cantidad,
+          unitCost: m.costo_Unitario,
+          totalCost: m.total,
+          stockAfter: m.stock_resultante,
+        }));
+      } else {
+        const data = await gql<MovimientoProductoResponse>(GET_PRODUCTO_MOVIMIENTOS, variables);
+        total = data.movimientoProducto.totalCount;
+        if (data.movimientoProducto.pageInfo?.endCursor) {
+          setCursors((prev) => ({ ...prev, [currentPage]: data.movimientoProducto.pageInfo!.endCursor as string }));
+        }
+        nodes = data.movimientoProducto.nodes.map((m: MovimientoProductoNode) => ({
+          id: String(m.id),
+          date: new Date(m.fecha),
+          type: TIPO_MOVEMENT_MAP[m.tipo] ?? 'adjustment',
+          reference: m.referencia,
+          quantity: m.cantidad,
+          unitCost: m.costo_Unitario,
+          totalCost: m.total,
+          stockAfter: m.stock_resultante,
+        }));
       }
 
-      unified.sort((a, b) => b.date.getTime() - a.date.getTime());
-
-      setMovements(unified);
+      nodes.sort((a, b) => b.date.getTime() - a.date.getTime());
+      setMovements(nodes);
+      setTotalCount(total);
     } catch (error) {
       console.error('Error loading kardex movements:', error);
       setMovements([]);
+      setTotalCount(0);
     } finally {
       setIsLoadingMovements(false);
     }
-  }, []);
+  }, [pageSize, cursors]);
 
   useEffect(() => {
-    if (!selectedProductId) {
+    if (!selectedItemId) {
       setMovements([]);
+      setTotalCount(0);
       return;
     }
-    loadMovements(selectedProductId);
-  }, [selectedProductId, loadMovements]);
+    loadMovements(selectedItemId, page);
+  }, [selectedItemId, page, loadMovements]);
 
-  const TIPO_PREFIX: Record<ProductTipo, string> = {
-    comprado: '[C]',
-    elaborado: '[E]',
-    combo: '[K]',
-  };
-
-  const productOptions = useMemo(() => [
-    { value: '', label: 'Seleccionar un producto…' },
-    ...allProducts.map((p) => ({
-      value: p.id,
-      label: `${TIPO_PREFIX[p.tipo]} ${p.name}`,
+  const itemOptions = useMemo(() => [
+    { value: '', label: 'Seleccionar un producto o insumo…' },
+    ...allItems.map((item) => ({
+      value: item.id,
+      label: `${TIPO_PREFIX[item.tipo]} ${item.name}`,
     })),
-  ], [allProducts]);
+  ], [allItems]);
 
-  const selectedProduct = useMemo(
-    () => allProducts.find((p) => p.id === selectedProductId) ?? null,
-    [allProducts, selectedProductId]
+  const selectedItem = useMemo(
+    () => allItems.find((i) => i.id === selectedItemId) ?? null,
+    [allItems, selectedItemId]
   );
 
-  const totalValue = selectedProduct
-    ? selectedProduct.stock * selectedProduct.costPrice
+  const totalValue = selectedItem
+    ? selectedItem.stock * (selectedItem.costo ?? 0)
     : 0;
+
+  const totalPages = Math.ceil(totalCount / pageSize) || 1;
 
   return (
     <MainLayout>
       <PageContainer>
         <PageHeader
           title="Kardex"
-          subtitle="Historial de movimientos de stock por producto"
+          subtitle="Historial de movimientos de stock por producto o insumo"
         />
 
         <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4">
           <div className="max-w-lg">
-            {isLoadingProducts ? (
+            {isLoadingItems ? (
               <div className="h-10 bg-coffee-100 rounded-lg animate-pulse" />
             ) : (
               <SearchableSelect
-                options={productOptions}
-                value={selectedProductId}
-                onChange={setSelectedProductId}
-                placeholder="Seleccionar un producto…"
+                options={itemOptions}
+                value={selectedItemId}
+                onChange={setSelectedItemId}
+                placeholder="Seleccionar un producto o insumo…"
               />
             )}
           </div>
         </div>
 
-        {selectedProduct && (
+        {selectedItem && (
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-6">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-coffee-50 flex items-center justify-center flex-shrink-0">
-                <TipoIcon tipo={selectedProduct.tipo} className="h-6 w-6" />
+                <TipoIcon tipo={selectedItem.tipo} className="h-6 w-6" />
               </div>
               <div className="min-w-0">
-                <h3 className="font-semibold text-coffee-900 truncate">{selectedProduct.name}</h3>
+                <h3 className="font-semibold text-coffee-900 truncate">{selectedItem.name}</h3>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-xs text-coffee-400 capitalize">{selectedProduct.tipo}</span>
-                  {selectedProduct.categoryName && (
-                    <span className="text-xs text-coffee-400">· {selectedProduct.categoryName}</span>
-                  )}
+                  <span className="text-xs text-coffee-400 capitalize">{selectedItem.tipo}</span>
                 </div>
               </div>
             </div>
@@ -242,25 +306,17 @@ const KardexPage: React.FC = () => {
                 <p className="text-xs text-coffee-500 mb-1">Stock actual</p>
                 <p className={clsx(
                   'text-xl font-bold',
-                  selectedProduct.stock <= 0 ? 'text-red-600' : 'text-coffee-900',
+                  selectedItem.stock <= 0 ? 'text-red-600' : 'text-coffee-900',
                 )}>
-                  {selectedProduct.stock}
+                  {selectedItem.stock}
                 </p>
-                <p className="text-xs text-coffee-400">{selectedProduct.unit}</p>
+                <p className="text-xs text-coffee-400">{selectedItem.unit}</p>
               </div>
-              {selectedProduct.salePrice > 0 && (
-                <div>
-                  <p className="text-xs text-coffee-500 mb-1">Precio venta</p>
-                  <p className="text-xl font-bold text-coffee-900">
-                    {formatCurrency(selectedProduct.salePrice)}
-                  </p>
-                </div>
-              )}
-              {selectedProduct.costPrice > 0 && (
+              {selectedItem.costo && selectedItem.costo > 0 && (
                 <div>
                   <p className="text-xs text-coffee-500 mb-1">Costo unitario</p>
                   <p className="text-xl font-bold text-coffee-700">
-                    {formatCurrency(selectedProduct.costPrice)}
+                    {formatCurrency(selectedItem.costo)}
                   </p>
                 </div>
               )}
@@ -276,14 +332,14 @@ const KardexPage: React.FC = () => {
           </div>
         )}
 
-        {selectedProductId && (
+        {selectedItemId && (
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-coffee-100 flex items-center gap-2">
               <BookOpen className="h-5 w-5 text-coffee-500" />
               <h3 className="text-base font-semibold text-coffee-900">Movimientos de stock</h3>
               {!isLoadingMovements && movements.length > 0 && (
                 <span className="ml-auto text-sm text-coffee-400">
-                  {movements.length} movimiento{movements.length !== 1 ? 's' : ''}
+                  {movements.length} de {totalCount}
                 </span>
               )}
             </div>
@@ -308,69 +364,79 @@ const KardexPage: React.FC = () => {
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-coffee-100 text-sm">
-                  <thead className="bg-coffee-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Fecha</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Tipo</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Referencia</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Cantidad</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Costo unit.</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Total</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Stock resultante</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-coffee-50">
-                    {movements.map((m) => {
-                      const isPositive = m.quantity > 0;
-                      const badgeVariant = (MOVEMENT_COLORS[m.type] ?? 'default') as 'success' | 'danger' | 'warning' | 'info' | 'default';
-                      return (
-                        <tr key={m.id} className="hover:bg-coffee-50/50 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap text-coffee-600">
-                            {formatDateTime(m.date)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <Badge variant={badgeVariant} size="sm">
-                              {MOVEMENT_LABELS[m.type] ?? m.type}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="font-mono text-coffee-700">{m.reference}</span>
-                            {m.notes && (
-                              <p className="text-xs text-coffee-400 mt-0.5 truncate max-w-xs">{m.notes}</p>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 text-right whitespace-nowrap">
-                            <span className={clsx('font-semibold', isPositive ? 'text-emerald-600' : 'text-red-600')}>
-                              {isPositive ? '+' : ''}{m.quantity}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right whitespace-nowrap text-coffee-700">
-                            {m.unitCost > 0 ? formatCurrency(m.unitCost) : '—'}
-                          </td>
-                          <td className="px-6 py-4 text-right whitespace-nowrap font-medium text-coffee-800">
-                            {formatCurrency(m.totalCost)}
-                          </td>
-                          <td className="px-6 py-4 text-right whitespace-nowrap font-semibold text-coffee-900">
-                            {m.stockAfter > 0 ? m.stockAfter : '—'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-coffee-100 text-sm">
+                    <thead className="bg-coffee-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Fecha</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Tipo</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Referencia</th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Cantidad</th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Costo unit.</th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Total</th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Stock resultante</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-coffee-50">
+                      {movements.map((m) => {
+                        const isPositive = m.quantity > 0;
+                        const badgeVariant = (MOVEMENT_COLORS[m.type] ?? 'default') as 'success' | 'danger' | 'warning' | 'info' | 'default';
+                        return (
+                          <tr key={m.id} className="hover:bg-coffee-50/50 transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap text-coffee-600">
+                              {formatDateTime(m.date)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <Badge variant={badgeVariant} size="sm">
+                                {MOVEMENT_LABELS[m.type] ?? m.type}
+                              </Badge>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="font-mono text-coffee-700">{m.reference}</span>
+                              {m.notes && (
+                                <p className="text-xs text-coffee-400 mt-0.5 truncate max-w-xs">{m.notes}</p>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-right whitespace-nowrap">
+                              <span className={clsx('font-semibold', isPositive ? 'text-emerald-600' : 'text-red-600')}>
+                                {isPositive ? '+' : ''}{m.quantity}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right whitespace-nowrap text-coffee-700">
+                              {m.unitCost > 0 ? formatCurrency(m.unitCost) : '—'}
+                            </td>
+                            <td className="px-6 py-4 text-right whitespace-nowrap font-medium text-coffee-800">
+                              {formatCurrency(m.totalCost)}
+                            </td>
+                            <td className="px-6 py-4 text-right whitespace-nowrap font-semibold text-coffee-900">
+                              {m.stockAfter > 0 ? m.stockAfter : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <Pagination
+                  totalItems={totalCount}
+                  currentPage={page}
+                  itemsPerPage={pageSize}
+                  totalPages={totalPages}
+                  onPageChange={setPage}
+                />
+              </>
             )}
           </div>
         )}
 
-        {!selectedProductId && !isLoadingProducts && (
+        {!selectedItemId && !isLoadingItems && (
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm py-16 flex flex-col items-center justify-center text-coffee-500">
             <BookOpen className="h-12 w-12 mb-3 text-coffee-300" />
-            <p className="text-lg font-medium">Selecciona un producto</p>
+            <p className="text-lg font-medium">Selecciona un producto o insumo</p>
             <p className="text-sm mt-1 text-coffee-400">
-              Elige un producto del selector para ver su historial de movimientos.
+              Elige un elemento del selector para ver su historial de movimientos.
             </p>
           </div>
         )}
