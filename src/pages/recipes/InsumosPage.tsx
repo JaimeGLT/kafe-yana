@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Search, FlaskConical, AlertTriangle } from 'lucide-react';
 import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
@@ -13,39 +13,28 @@ import { GET_ALL_INSUMOS } from '../../lib/queries/insumos.queries';
 import { GET_ALL_RECETAS } from '../../lib/queries/recetas.queries';
 import { mapInsumo } from '../../lib/mappers/insumos.mappers';
 import { mapReceta } from '../../lib/mappers/recetas.mappers';
-import { useFilters } from '../../hooks/useFilters';
-import type { InsumosResponse, RecetasResponse } from '../../types/graphql';
+import { usePagination } from '../../hooks/usePagination';
+import type { InsumosResponse, RecetasResponse, InsumoFilterInput } from '../../types/graphql';
 import type { Insumo, Receta } from '../../types';
 import { formatCurrency } from '../../utils';
 
 const InsumosPage: React.FC = () => {
-  const { filters, setSearch, setPage, setPageSize } = useFilters('insumos-filters');
-
-  const readCursors = () => {
-    try {
-      const raw = sessionStorage.getItem('insumos-cursors');
-      return raw ? JSON.parse(raw) : {};
-    } catch { return {}; }
-  };
-
-  const [cursors, setCursors] = useState<Record<number, string>>(() => readCursors());
-
-  useEffect(() => {
-    try { sessionStorage.setItem('insumos-cursors', JSON.stringify(cursors)); } catch {}
-  }, [cursors]);
+  const { page, pageSize, search, debouncedSearch, cursors, setPage, setSearch, setCursors } = usePagination({ pageSize: 15 });
+  const [cursorsRef] = useState(() => ({ current: {} as Record<number, string> }));
 
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [recetas, setRecetas] = useState<Receta[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterCategoria, setFilterCategoria] = useState('');
-  const [filterStock, setFilterStock] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<Insumo | undefined>(undefined);
   const [deleting, setDeleting] = useState<Insumo | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
 
-  const prevEndCursor = useRef<string | null>(null);
+  useEffect(() => {
+    cursorsRef.current = cursors;
+  }, [cursors]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -53,16 +42,16 @@ const InsumosPage: React.FC = () => {
         setLoading(true);
         const [insumosData, recetasData] = await Promise.all([
           gql<InsumosResponse>(GET_ALL_INSUMOS, {
-            first: filters.pageSize,
-            after: filters.page > 1 ? cursors[filters.page - 1] : undefined,
+            first: pageSize,
+            after: page > 1 ? cursorsRef.current[page - 1] : undefined,
+            where: buildWhereConditions(),
           }),
           gql<RecetasResponse>(GET_ALL_RECETAS),
         ]);
         setInsumos(insumosData.insumos.nodes.map(mapInsumo));
         setTotalCount(insumosData.insumos.totalCount);
-        if (insumosData.insumos.pageInfo?.endCursor && insumosData.insumos.pageInfo.endCursor !== prevEndCursor.current) {
-          prevEndCursor.current = insumosData.insumos.pageInfo.endCursor;
-          setCursors((prev) => ({ ...prev, [filters.page]: insumosData.insumos.pageInfo.endCursor as string }));
+        if (insumosData.insumos.pageInfo?.endCursor) {
+          setCursors((prev) => ({ ...prev, [page]: insumosData.insumos.pageInfo.endCursor as string }));
         }
         setRecetas(recetasData.recetas.nodes.map(mapReceta).filter((r): r is Receta => r !== null));
       } catch (error) {
@@ -72,7 +61,20 @@ const InsumosPage: React.FC = () => {
       }
     };
     fetchData();
-  }, [filters.page, filters.pageSize]);
+  }, [page, pageSize, debouncedSearch, filterCategoria]);
+
+  const buildWhereConditions = (): InsumoFilterInput | undefined => {
+    const conditions: InsumoFilterInput[] = [];
+    if (debouncedSearch) {
+      conditions.push({ nombre: { contains: debouncedSearch } } as InsumoFilterInput);
+      conditions.push({ categoria: { contains: debouncedSearch } } as InsumoFilterInput);
+    }
+    if (filterCategoria) {
+      conditions.push({ categoria: { eq: filterCategoria } } as InsumoFilterInput);
+    }
+    if (conditions.length === 0) return undefined;
+    return { or: conditions } as InsumoFilterInput;
+  };
 
   // Category options derived from current insumos
   const categoriaOptions = useMemo(() => {
@@ -80,14 +82,8 @@ const InsumosPage: React.FC = () => {
     return [{ value: '', label: 'Todas las categorías' }, ...cats.map((c: string) => ({ value: c, label: c }))];
   }, [insumos]);
 
-  const stockFilterOptions = [
-    { value: '', label: 'Todo el stock' },
-    { value: 'low', label: 'Stock bajo' },
-    { value: 'ok', label: 'Stock OK' },
-  ];
-
   const filtered = useMemo(() => {
-    const q = filters.search.toLowerCase();
+    const q = debouncedSearch.toLowerCase();
     return insumos.filter((ins: Insumo) => {
       const matchSearch =
         !q ||
@@ -95,15 +91,9 @@ const InsumosPage: React.FC = () => {
         ins.categoriaInsumo.toLowerCase().includes(q) ||
         ins.code.toLowerCase().includes(q);
       const matchCat = !filterCategoria || ins.categoriaInsumo === filterCategoria;
-      const stockEnCompra = ins.factorConversion > 0 ? ins.stock / ins.factorConversion : ins.stock;
-      const isLowFilter = ins.stockMinimo > 0 && stockEnCompra <= ins.stockMinimo;
-      const matchStock =
-        !filterStock ||
-        (filterStock === 'low' && isLowFilter) ||
-        (filterStock === 'ok' && !isLowFilter);
-      return matchSearch && matchCat && matchStock;
+      return matchSearch && matchCat;
     });
-  }, [insumos, filters.search, filterCategoria, filterStock]);
+  }, [insumos, debouncedSearch, filterCategoria]);
 
   // Count how many recipes use each insumo
   const usageCount = useMemo(() => {
@@ -162,12 +152,6 @@ const InsumosPage: React.FC = () => {
             <p className="text-sm text-red-700 font-medium">
               {lowStockCount} insumo{lowStockCount !== 1 ? 's' : ''} con stock bajo o sin stock — revisa y registra una compra.
             </p>
-            <button
-              onClick={() => setFilterStock('low')}
-              className="ml-auto text-xs text-red-600 underline hover:text-red-800"
-            >
-              Ver solo esos
-            </button>
           </div>
         )}
 
@@ -178,7 +162,7 @@ const InsumosPage: React.FC = () => {
             <Input
               className="pl-9"
               placeholder="Buscar por nombre, categoría…"
-              value={filters.search}
+              value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
@@ -187,13 +171,6 @@ const InsumosPage: React.FC = () => {
               value={filterCategoria}
               onChange={setFilterCategoria}
               options={categoriaOptions}
-            />
-          </div>
-          <div className="w-40">
-            <Select
-              value={filterStock}
-              onChange={setFilterStock}
-              options={stockFilterOptions}
             />
           </div>
           <div className="flex items-center gap-2 text-sm text-coffee-500 bg-white border border-coffee-100 rounded-lg px-3 py-2">
@@ -214,11 +191,11 @@ const InsumosPage: React.FC = () => {
             <div className="flex flex-col items-center justify-center py-16 text-coffee-400">
               <FlaskConical className="h-10 w-10 mb-3 opacity-40" />
               <p className="font-medium">
-                {filters.search || filterCategoria || filterStock
+                {debouncedSearch || filterCategoria
                   ? 'Sin resultados para los filtros aplicados'
                   : 'Sin insumos registrados'}
               </p>
-              {!filters.search && !filterCategoria && !filterStock && (
+              {!debouncedSearch && !filterCategoria && (
                 <p className="text-sm mt-1">Crea tu primer insumo para empezar a armar recetas.</p>
               )}
             </div>
@@ -317,10 +294,9 @@ const InsumosPage: React.FC = () => {
 
         <Pagination
           totalCount={totalCount}
-          page={filters.page}
-          pageSize={filters.pageSize}
+          page={page}
+          pageSize={pageSize}
           onPageChange={setPage}
-          onPageSizeChange={setPageSize}
           isLoading={loading}
         />
       </PageContainer>
@@ -329,18 +305,9 @@ const InsumosPage: React.FC = () => {
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); setEditing(undefined); }}
         insumo={editing}
-        onSuccess={async () => {
+        onSuccess={() => {
           setIsModalOpen(false);
           setEditing(undefined);
-          try {
-            const data = await gql<InsumosResponse>(GET_ALL_INSUMOS, {
-              first: filters.pageSize,
-              after: filters.page > 1 ? cursors[filters.page - 1] : undefined,
-            });
-            setInsumos(data.insumos.nodes.map(mapInsumo));
-          } catch (error) {
-            console.error('Error reloading insumos:', error);
-          }
         }}
       />
 

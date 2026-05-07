@@ -470,3 +470,17 @@ export interface CompradoFilterInput {
   producto?: ProductoFilterInput;
   id?: IntOperationFilterInput;
 }
+
+export interface InsumoFilterInput {
+  and?: InsumoFilterInput[];
+  or?: InsumoFilterInput[];
+  id?: IntOperationFilterInput;
+  nombre?: StringOperationFilterInput;
+  categoria?: StringOperationFilterInput;
+  unidad_min_uso?: StringOperationFilterInput;
+  unidad_compra?: StringOperationFilterInput;
+  factor_conversion?: IntOperationFilterInput;
+  costo?: DecimalOperationFilterInput;
+  stock_actual?: IntOperationFilterInput;
+  stock_min?: IntOperationFilterInput;
+}

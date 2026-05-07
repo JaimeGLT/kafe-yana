@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Plus, TrendingUp, TrendingDown, Package, FlaskConical,
   ChefHat, ClipboardList, ArrowRight, AlertTriangle,
@@ -10,7 +10,7 @@ import { Pagination } from '../../components/ui/Pagination';
 import { StockAdjustmentModal } from '../../components/modals/StockAdjustmentModal';
 import { gql } from '../../lib/graphql';
 import { GET_ADJUSTMENTS_DATA } from '../../lib/queries/ajustes.queries';
-import { useFilters } from '../../hooks/useFilters';
+import { usePagination } from '../../hooks/usePagination';
 import { formatCurrency } from '../../utils';
 import type {
   AdjustmentsDataResponse,
@@ -74,22 +74,13 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, icon, accent = 'defau
 };
 
 const AdjustmentsPage: React.FC = () => {
-  const { filters, setPage, setPageSize } = useFilters('adjustments-filters');
+  const { page, pageSize, cursors, setPage, setCursors } = usePagination({ pageSize: 15 });
+  const [cursorsRef] = useState(() => ({ current: {} as Record<number, string> }));
 
-  const readCursors = () => {
-    try {
-      const raw = sessionStorage.getItem('adjustments-cursors');
-      return raw ? JSON.parse(raw) : {};
-    } catch { return {}; }
-  };
-
-  const [cursors, setCursors] = useState<Record<number, string>>(() => readCursors());
   const [totalCount, setTotalCount] = useState(0);
-  const cursorsRef = useRef<Record<number, string>>(cursors);
-  cursorsRef.current = cursors;
 
   useEffect(() => {
-    try { sessionStorage.setItem('adjustments-cursors', JSON.stringify(cursors)); } catch {}
+    cursorsRef.current = cursors;
   }, [cursors]);
 
   const [ajustes, setAjustes] = useState<AjusteNode[]>([]);
@@ -104,8 +95,8 @@ const AdjustmentsPage: React.FC = () => {
     let endCursor: string | null = null;
     try {
       const data = await gql<AdjustmentsDataResponse>(GET_ADJUSTMENTS_DATA, {
-        first: filters.pageSize,
-        after: filters.page > 1 ? cursorsRef.current[filters.page - 1] : undefined,
+        first: pageSize,
+        after: page > 1 ? cursorsRef.current[page - 1] : undefined,
       });
 
       setAjustes(data.ajustes?.nodes ?? []);
@@ -127,18 +118,16 @@ const AdjustmentsPage: React.FC = () => {
       setIsLoading(false);
     }
     return endCursor;
-  }, [filters.pageSize, filters.page]);
+  }, [pageSize, page]);
 
-  const prevEndCursor = useRef<string | null>(null);
   useEffect(() => {
     let mounted = true;
     loadData().then((endCursor) => {
-      if (mounted && endCursor && endCursor !== prevEndCursor.current) {
-        prevEndCursor.current = endCursor;
-        setCursors((prev) => ({ ...prev, [filters.page]: endCursor }));
+      if (mounted && endCursor) {
+        setCursors((prev) => ({ ...prev, [page]: endCursor }));
       }
     });
-  }, [filters.page, filters.pageSize]);
+  }, [page, pageSize]);
 
   const stats = useMemo(() => {
     const entradas = ajustes.filter((a) => a.ajuste > 0).length;
@@ -343,10 +332,9 @@ const AdjustmentsPage: React.FC = () => {
 
         <Pagination
           totalCount={totalCount}
-          page={filters.page}
-          pageSize={filters.pageSize}
+          page={page}
+          pageSize={pageSize}
           onPageChange={setPage}
-          onPageSizeChange={setPageSize}
           isLoading={isLoading}
         />
       </PageContainer>

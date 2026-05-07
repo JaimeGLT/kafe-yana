@@ -1,6 +1,6 @@
 export const GET_ALL_INSUMOS = `
-  query GetAllInsumos($first: Int, $after: String) {
-    insumos(first: $first, after: $after) {
+  query GetAllInsumos($first: Int, $after: String, $where: InsumoFilterInput) {
+    insumos(first: $first, after: $after, where: $where) {
       nodes {
         id
         nombre

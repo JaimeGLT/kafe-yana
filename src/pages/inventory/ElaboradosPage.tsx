@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { api } from '../../lib/api';
 import {
   Plus,
@@ -8,7 +8,6 @@ import {
   XCircle,
   Layers,
   TrendingUp,
-  Search,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
@@ -22,41 +21,31 @@ import { EditElaboradoModal } from '../../components/modals/EditElaboradoModal';
 import { ProductCard } from '../../components/elaborados/ProductCard';
 import { ElaboradoWizard } from '../../components/elaborados/ElaboradoWizard';
 import { useElaboradosPage } from '../../hooks/useElaboradosPage';
-import { useFilters } from '../../hooks/useFilters';
+import { usePagination } from '../../hooks/usePagination';
 import type { Product, Receta } from '../../types';
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const ElaboradosPage: React.FC = () => {
-  const { filters, setSearch, setPage, setPageSize } = useFilters('elaborados-filters');
-
-  const readCursors = () => {
-    try {
-      const raw = sessionStorage.getItem('elaborados-cursors');
-      return raw ? JSON.parse(raw) : {};
-    } catch { return {}; }
-  };
-
-  const [cursors, setCursors] = useState<Record<number, string>>(() => readCursors());
-
-  useEffect(() => {
-    try { sessionStorage.setItem('elaborados-cursors', JSON.stringify(cursors)); } catch {}
-  }, [cursors]);
+  const { page, pageSize, search, debouncedSearch, cursors, setPage, setSearch, setCursors } = usePagination({ pageSize: 15 });
+  const [cursorsRef] = useState(() => ({ current: {} as Record<number, string> }));
 
   const [filterStatus, setFilterStatus] = useState('');
   const { elaborados, recetas, insumos, categorias, totalCount, isLoading, refresh, endCursor } = useElaboradosPage({
-    page: filters.page,
-    pageSize: filters.pageSize,
-    afterCursor: filters.page > 1 ? cursors[filters.page - 1] : undefined,
+    page,
+    pageSize,
+    afterCursor: page > 1 ? cursors[page - 1] : undefined,
   });
 
-  const prevEndCursor = useRef<string | null>(null);
   useEffect(() => {
-    if (endCursor && endCursor !== prevEndCursor.current) {
-      prevEndCursor.current = endCursor;
-      setCursors((prev) => ({ ...prev, [filters.page]: endCursor }));
+    cursorsRef.current = cursors;
+  }, [cursors]);
+
+  useEffect(() => {
+    if (endCursor) {
+      setCursors((prev) => ({ ...prev, [page]: endCursor }));
     }
-  }, [endCursor, filters.page]);
+  }, [endCursor, page]);
 
   const getRecetaByProductId = useCallback((productId: string) => {
     return recetas.find((r: Receta) => r.productId === productId);
@@ -103,15 +92,15 @@ const ElaboradosPage: React.FC = () => {
 
   const filtered = useMemo(() => {
     let list = elaborados;
-    if (filters.search) {
-      const q = filters.search.toLowerCase();
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
       list = list.filter((p) => p.name.toLowerCase().includes(q) || p.categoryName?.toLowerCase().includes(q));
     }
     if (filterStatus === 'con_receta') list = list.filter((p) => !!getRecetaByProductId(p.id));
     if (filterStatus === 'sin_receta') list = list.filter((p) => !getRecetaByProductId(p.id));
     if (filterStatus === 'sin_stock') list = list.filter((p) => getElaboradoAvailability(p.id) === 0);
     return list;
-  }, [elaborados, filters.search, filterStatus, getRecetaByProductId, getElaboradoAvailability]);
+  }, [elaborados, debouncedSearch, filterStatus, getRecetaByProductId, getElaboradoAvailability]);
 
   // KPIs
   const sinReceta = elaborados.filter((p) => !getRecetaByProductId(p.id)).length;
@@ -227,9 +216,8 @@ const ElaboradosPage: React.FC = () => {
           <div className="flex-1">
             <Input
               placeholder="Buscar producto…"
-              value={filters.search}
+              value={search}
               onChange={(e) => setSearch(e.target.value)}
-              leftIcon={<Search className="h-4 w-4" />}
             />
           </div>
           <div className="sm:w-52">
@@ -307,10 +295,9 @@ const ElaboradosPage: React.FC = () => {
             </div>
             <Pagination
               totalCount={totalCount}
-              page={filters.page}
-              pageSize={filters.pageSize}
+              page={page}
+              pageSize={pageSize}
               onPageChange={setPage}
-              onPageSizeChange={setPageSize}
               isLoading={isLoading}
             />
           </>

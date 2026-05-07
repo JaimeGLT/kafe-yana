@@ -4,7 +4,7 @@ import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
 import { SearchableSelect, Badge } from '../../components/ui';
-import { Pagination } from '../../components/ui/Table';
+import { Pagination } from '../../components/ui/Pagination';
 import { gql } from '../../lib/graphql';
 import {
   GET_KARDEX_ITEMS,
@@ -253,8 +253,6 @@ const KardexPage: React.FC = () => {
     ? selectedItem.stock * (selectedItem.costo ?? 0)
     : 0;
 
-  const totalPages = Math.ceil(totalCount / pageSize) || 1;
-
   return (
     <MainLayout>
       <PageContainer>
@@ -411,11 +409,11 @@ const KardexPage: React.FC = () => {
                 </div>
 
                 <Pagination
-                  totalItems={totalCount}
-                  currentPage={page}
-                  itemsPerPage={pageSize}
-                  totalPages={totalPages}
+                  totalCount={totalCount}
+                  page={page}
+                  pageSize={pageSize}
                   onPageChange={setPage}
+                  isLoading={isLoadingMovements}
                 />
               </>
             )}
