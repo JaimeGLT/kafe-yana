@@ -7,9 +7,24 @@ import { formatCurrency } from '../../utils';
 import type { Product, VariacionAtributo, OpcionSeleccionada } from '../../types';
 
 export interface ElaboradoIngrediente {
+  id: string;
   nombre: string;
   cantidad: number;
   unidad: string;
+}
+
+export interface InsumoStock {
+  id: string;
+  nombre: string;
+  stock: number;
+}
+
+export interface OpcionStockInfo {
+  opcionId: string;
+  tipoAjuste: string;
+  cantidad: number;
+  insumoRequeridoId: string | null;
+  insumoReemplazoId: string | null;
 }
 
 interface Props {
@@ -18,6 +33,8 @@ interface Props {
   product: Product;
   atributos: VariacionAtributo[];
   ingredientes: ElaboradoIngrediente[];
+  insumosStock: InsumoStock[];
+  opcionesStockInfo: OpcionStockInfo[];
   onConfirm: (opciones: OpcionSeleccionada[], precioFinal: number) => void;
 }
 
@@ -27,6 +44,8 @@ export const ElaboradoDetailModal: React.FC<Props> = ({
   product,
   atributos,
   ingredientes,
+  insumosStock,
+  opcionesStockInfo,
   onConfirm,
 }) => {
   const [selecciones, setSelecciones] = React.useState<Record<string, string>>({});
@@ -40,6 +59,29 @@ export const ElaboradoDetailModal: React.FC<Props> = ({
   }, [isOpen]);
 
   const activeAtributos = atributos.filter((a) => a.isActive);
+
+  const stockMap = React.useMemo(() => {
+    const map = new Map<string, number>();
+    for (const i of insumosStock) map.set(i.id, i.stock);
+    return map;
+  }, [insumosStock]);
+
+  const opcionOutOfStock = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const info of opcionesStockInfo) {
+      if (info.tipoAjuste === 'Reemplazo' && info.insumoReemplazoId) {
+        const stock = stockMap.get(info.insumoReemplazoId) ?? 0;
+        if (stock < info.cantidad) set.add(info.opcionId);
+      } else if (info.tipoAjuste === 'Modificacion' && info.insumoRequeridoId) {
+        const stock = stockMap.get(info.insumoRequeridoId) ?? 0;
+        if (stock < info.cantidad) set.add(info.opcionId);
+      } else if ((info.tipoAjuste === 'Extra' || info.tipoAjuste === 'extra') && info.insumoRequeridoId) {
+        const stock = stockMap.get(info.insumoRequeridoId) ?? 0;
+        if (stock < info.cantidad) set.add(info.opcionId);
+      }
+    }
+    return set;
+  }, [opcionesStockInfo, stockMap]);
 
   const precioFinal = React.useMemo(() => {
     let total = product.salePrice;
@@ -128,15 +170,19 @@ export const ElaboradoDetailModal: React.FC<Props> = ({
             <div className="grid grid-cols-2 gap-2">
               {atributo.opciones.filter((o) => o.isActive).map((opcion) => {
                 const selected = selecciones[atributo.id] === opcion.id;
+                const outOfStock = opcionOutOfStock.has(opcion.id);
                 return (
                   <button
                     key={opcion.id}
-                    onClick={() => handleSelect(atributo.id, opcion.id)}
+                    onClick={() => !outOfStock && handleSelect(atributo.id, opcion.id)}
+                    disabled={outOfStock}
                     className={clsx(
                       'flex flex-col px-3 py-2.5 rounded-xl border text-left transition-all duration-150',
-                      selected
-                        ? 'border-amber-500 bg-amber-50 shadow-sm'
-                        : 'border-coffee-200 hover:border-coffee-300 hover:bg-coffee-50'
+                      outOfStock
+                        ? 'border-coffee-100 bg-coffee-50 opacity-60 cursor-not-allowed'
+                        : selected
+                          ? 'border-amber-500 bg-amber-50 shadow-sm'
+                          : 'border-coffee-200 hover:border-coffee-300 hover:bg-coffee-50'
                     )}
                   >
                     <div className="flex items-center justify-between w-full">
@@ -159,6 +205,9 @@ export const ElaboradoDetailModal: React.FC<Props> = ({
                       <span className="text-[10px] text-coffee-400 mt-0.5">
                         + {opcion.insumoNuevoNombre}{opcion.ajusteCantidad ? ` (${opcion.ajusteCantidad})` : ''}
                       </span>
+                    )}
+                    {outOfStock && (
+                      <span className="text-[10px] text-red-500 mt-0.5 font-medium">Sin stock</span>
                     )}
                   </button>
                 );

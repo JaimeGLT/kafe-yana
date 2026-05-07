@@ -69,7 +69,7 @@ export const MesaCard: React.FC<MesaCardProps> = ({
             <PenLine className="h-3 w-3" />
           </button>
           <button
-            onClick={e => onDelete(mesa.id, e)}
+            onClick={e => { e.stopPropagation(); onDelete(mesa.id, e); }}
             disabled={isDeletingMesa === mesa.id}
             className="h-6 w-6 rounded-lg bg-coffee-700 hover:bg-red-600 flex items-center justify-center text-coffee-300 hover:text-white disabled:opacity-50"
             title="Eliminar mesa"

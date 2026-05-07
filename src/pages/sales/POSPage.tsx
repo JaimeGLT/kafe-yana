@@ -126,6 +126,7 @@ export const POSPage: React.FC = () => {
   const [milestones, _setMilestones] = useState<MilestoneReward[]>([]);
   const [, setLoading] = useState(true);
   const [productsLoaded, setProductsLoaded] = useState(false);
+  const [elaboradoExtras, setElaboradoExtras] = useState<Record<string, { insumosStock: Array<{ id: string; nombre: string; stock: number }>; opcionesStockInfo: Array<{ opcionId: string; tipoAjuste: string; cantidad: number; insumoRequeridoId: string | null; insumoReemplazoId: string | null }> }>>({});
 
   const {
     tempCart,
@@ -470,22 +471,52 @@ export const POSPage: React.FC = () => {
     } else if (product.tipo === 'elaborado') {
       setElaboradoDetailProduct(product);
       if (!elaboradoIngredientes[product.id]) {
-        gql<{ elaborados: { nodes: Array<{ receta: { detalles: Array<{ cantidad: number; insumo: { nombre: string; unidad_min_uso: string } | null }> } | null }> } }>(
-          GET_ELABORADO_INGREDIENTES,
-          { id: parseInt(product.id, 10) }
-        ).then(data => {
-          const node = data.elaborados.nodes[0];
-          if (node?.receta?.detalles) {
-            const ings = node.receta.detalles
-              .filter(d => d.insumo)
-              .map(d => ({ nombre: d.insumo!.nombre, cantidad: d.cantidad, unidad: d.insumo!.unidad_min_uso }));
-            setElaboradoIngredientes(prev => ({ ...prev, [product.id]: ings }));
-          } else {
+        gql<any>(GET_ELABORADO_INGREDIENTES, { id: parseInt(product.id, 10) })
+          .then(data => {
+            const node = data.elaborados.nodes[0];
+            if (node?.receta?.detalles) {
+              const ings = node.receta.detalles
+                .filter((d: any) => d.insumo)
+                .map((d: any) => ({ id: String(d.insumo.id), nombre: d.insumo.nombre, cantidad: d.cantidad, unidad: d.insumo.unidad_min_uso }));
+              setElaboradoIngredientes(prev => ({ ...prev, [product.id]: ings }));
+            } else {
+              setElaboradoIngredientes(prev => ({ ...prev, [product.id]: [] }));
+            }
+
+            const opcionesStockInfo: Array<{ opcionId: string; tipoAjuste: string; cantidad: number; insumoRequeridoId: string | null; insumoReemplazoId: string | null }> = [];
+            const usedInsumoIds = new Set<string>();
+            if (node?.receta?.detalles) {
+              for (const det of node.receta.detalles) {
+                if (det.insumo?.id) usedInsumoIds.add(String(det.insumo.id));
+              }
+            }
+            if (node?.variaciones) {
+              for (const attr of node.variaciones) {
+                for (const opc of attr.opciones) {
+                  for (const aj of opc.ajustes ?? []) {
+                    opcionesStockInfo.push({
+                      opcionId: String(opc.id),
+                      tipoAjuste: aj.tipoAjuste,
+                      cantidad: aj.cantidad,
+                      insumoRequeridoId: aj.id_Insumo ? String(aj.id_Insumo) : null,
+                      insumoReemplazoId: aj.id_InsumoNuevo ? String(aj.id_InsumoNuevo) : null,
+                    });
+                    if (aj.id_Insumo) usedInsumoIds.add(String(aj.id_Insumo));
+                    if (aj.id_InsumoNuevo) usedInsumoIds.add(String(aj.id_InsumoNuevo));
+                  }
+                }
+              }
+            }
+
+            const insumosStock = (data.insumos?.nodes ?? [])
+              .filter((i: any) => usedInsumoIds.has(String(i.id)))
+              .map((i: any) => ({ id: String(i.id), nombre: i.nombre, stock: i.stock_actual ?? 0 }));
+
+            setElaboradoExtras(prev => ({ ...prev, [product.id]: { insumosStock, opcionesStockInfo } }));
+          }).catch(() => {
             setElaboradoIngredientes(prev => ({ ...prev, [product.id]: [] }));
-          }
-        }).catch(() => {
-          setElaboradoIngredientes(prev => ({ ...prev, [product.id]: [] }));
-        });
+            setElaboradoExtras(prev => ({ ...prev, [product.id]: { insumosStock: [], opcionesStockInfo: [] } }));
+          });
       }
     } else {
       addTempDirect(product);
@@ -1286,6 +1317,8 @@ export const POSPage: React.FC = () => {
             product={elaboradoDetailProduct}
             atributos={getAtributosByProductId(elaboradoDetailProduct.id)}
             ingredientes={elaboradoIngredientes[elaboradoDetailProduct.id] ?? []}
+            insumosStock={elaboradoExtras[elaboradoDetailProduct.id]?.insumosStock ?? []}
+            opcionesStockInfo={elaboradoExtras[elaboradoDetailProduct.id]?.opcionesStockInfo ?? []}
             onConfirm={(opciones, precioFinal) => {
               addTempDirect(elaboradoDetailProduct, opciones, precioFinal);
               setElaboradoDetailProduct(null);

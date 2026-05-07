@@ -233,26 +233,32 @@ export function usePOSMesas(): UsePOSMesasReturn {
     const trimmed = nuevaMesaName.trim();
     if (!trimmed) return;
     setIsSavingMesa(true);
-    if (editMesaId) {
-      const success = await apiUpdateMesa(editMesaId, trimmed);
-      if (success) {
-        updateMesa(editMesaId, { name: trimmed });
+    try {
+      if (editMesaId) {
+        const success = await apiUpdateMesa(editMesaId, trimmed);
+        if (success) {
+          updateMesa(editMesaId, { name: trimmed });
+          setNuevaMesaName('');
+          setEditMesaId(null);
+          setActiveMesaId(null);
+        }
+      } else {
+        const newId = await apiCreateMesa(trimmed);
+        if (newId) {
+          const maxNum = mesas.reduce((m, t) => Math.max(m, t.number), 0);
+          const newMesa: LocalMesa = {
+            id: newId, number: maxNum + 1, name: trimmed, tipo: 'mesa',
+            status: 'libre', order: [], currentRound: 1, roundsSent: [],
+          };
+          setMesas(prev => [...prev, newMesa]);
+          setNuevaMesaName('');
+          setEditMesaId(null);
+          setActiveMesaId(null);
+        }
       }
-    } else {
-      const newId = await apiCreateMesa(trimmed);
-      if (newId) {
-        const maxNum = mesas.reduce((m, t) => Math.max(m, t.number), 0);
-        const newMesa: LocalMesa = {
-          id: newId, number: maxNum + 1, name: trimmed, tipo: 'mesa',
-          status: 'libre', order: [], currentRound: 1, roundsSent: [],
-        };
-        setMesas(prev => [...prev, newMesa]);
-      }
+    } finally {
+      setIsSavingMesa(false);
     }
-    setIsSavingMesa(false);
-    setNuevaMesaName('');
-    setEditMesaId(null);
-    setActiveMesaId(null);
   }, [nuevaMesaName, editMesaId, mesas, apiCreateMesa, apiUpdateMesa, updateMesa]);
 
   const handleDeleteMesa = useCallback(async (mesaId: string, e: React.MouseEvent) => {

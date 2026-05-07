@@ -170,9 +170,32 @@ export const GET_ELABORADO_INGREDIENTES = `
           porciones
           detalles {
             cantidad
-            insumo { nombre unidad_min_uso }
+            insumo { id nombre unidad_min_uso stock_actual }
           }
         }
+        variaciones {
+          id
+          nombre
+          requerido
+          opciones {
+            id
+            nombre
+            ajustePrecio
+            ajustes {
+              tipoAjuste
+              cantidad
+              id_Insumo
+              id_InsumoNuevo
+            }
+          }
+        }
+      }
+    }
+    insumos {
+      nodes {
+        id
+        nombre
+        stock_actual
       }
     }
   }

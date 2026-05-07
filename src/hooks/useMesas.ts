@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { api } from '../lib/api';
+import { api, ApiError } from '../lib/api';
 import { gql } from '../lib/graphql';
 import { GET_MESAS } from '../lib/queries/mesas.queries';
 import { toast } from '../components/ui/Toast';
@@ -136,8 +136,9 @@ export function useMesas(): UseMesasReturn {
       await refreshMesas();
       toast.success('Mesa creada', `${nombre} se agregó correctamente.`);
       return String(result.id);
-    } catch {
-      toast.error('Error', 'No se pudo crear la mesa.');
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'No se pudo crear la mesa.';
+      toast.error('Error', msg);
       return null;
     }
   }, [refreshMesas]);
@@ -148,8 +149,9 @@ export function useMesas(): UseMesasReturn {
       await refreshMesas();
       toast.success('Mesa actualizada', `${nombre} se modificó correctamente.`);
       return true;
-    } catch {
-      toast.error('Error', 'No se pudo actualizar la mesa.');
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'No se pudo actualizar la mesa.';
+      toast.error('Error', msg);
       return false;
     }
   }, [refreshMesas]);
