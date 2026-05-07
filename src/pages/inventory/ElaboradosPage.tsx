@@ -12,7 +12,7 @@ import {
 import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
 import { PageContainer, PageHeader } from '../../components/layout';
-import { Button, Input, Select } from '../../components/ui';
+import { Button, Input, Select, SkeletonKpiCard } from '../../components/ui';
 import { ConfirmModal } from '../../components/ui/Modal';
 import { Pagination } from '../../components/ui/Pagination';
 import { toast } from '../../components/ui/Toast';
@@ -128,8 +128,8 @@ const ElaboradosPage: React.FC = () => {
       await refresh();
       toast.success('Producto eliminado', `"${deletingProduct.name}" fue eliminado correctamente.`);
       setDeletingProduct(null);
-    } catch {
-      toast.error('Error', 'No se pudo eliminar el producto. Intente nuevamente.');
+    } catch (err) {
+      toast.error('Error', err instanceof Error ? err.message : 'No se pudo eliminar el producto. Intente nuevamente.');
     } finally {
       setIsDeleting(false);
     }
@@ -154,52 +154,58 @@ const ElaboradosPage: React.FC = () => {
         />
 
         {/* KPI cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3" aria-busy={isLoading}>
-          <div className="bg-white rounded-xl border border-coffee-100 px-3 py-3 sm:p-4 flex items-center gap-2 sm:gap-3">
-            <div className="p-1.5 sm:p-2 rounded-lg bg-amber-50 flex-shrink-0">
-              <FlaskConical className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" />
+        {isLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => <SkeletonKpiCard key={i} />)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3" aria-busy={isLoading}>
+            <div className="bg-white rounded-xl border border-coffee-100 px-3 py-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+              <div className="p-1.5 sm:p-2 rounded-lg bg-amber-50 flex-shrink-0">
+                <FlaskConical className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-coffee-400 truncate">Total</p>
+                <p className="text-base sm:text-xl font-bold text-coffee-900">{elaborados.length}</p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-xs text-coffee-400 truncate">Total</p>
-              <p className="text-base sm:text-xl font-bold text-coffee-900">{elaborados.length}</p>
+            <div className="bg-white rounded-xl border border-coffee-100 px-3 py-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+              <div className={clsx('p-1.5 sm:p-2 rounded-lg flex-shrink-0', sinReceta > 0 ? 'bg-amber-50' : 'bg-emerald-50')}>
+                {sinReceta > 0
+                  ? <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" />
+                  : <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-coffee-400 truncate">Sin receta</p>
+                <p className={clsx('text-base sm:text-xl font-bold', sinReceta > 0 ? 'text-amber-700' : 'text-coffee-900')}>
+                  {sinReceta}
+                </p>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-coffee-100 px-3 py-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+              <div className="p-1.5 sm:p-2 rounded-lg bg-blue-50 flex-shrink-0">
+                <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-coffee-400 truncate">Margen prom.</p>
+                <p className={clsx('text-base sm:text-xl font-bold', avgMargen === null ? 'text-coffee-400' : avgMargen >= 30 ? 'text-emerald-700' : 'text-red-600')}>
+                  {avgMargen !== null ? `${avgMargen.toFixed(1)}%` : '—'}
+                </p>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-coffee-100 px-3 py-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+              <div className={clsx('p-1.5 sm:p-2 rounded-lg flex-shrink-0', sinStock > 0 ? 'bg-red-50' : 'bg-emerald-50')}>
+                <Layers className={clsx('h-4 w-4 sm:h-5 sm:w-5', sinStock > 0 ? 'text-red-600' : 'text-emerald-600')} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-coffee-400 truncate">Sin stock</p>
+                <p className={clsx('text-base sm:text-xl font-bold', sinStock > 0 ? 'text-red-700' : 'text-coffee-900')}>
+                  {sinStock}
+                </p>
+              </div>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-coffee-100 px-3 py-3 sm:p-4 flex items-center gap-2 sm:gap-3">
-            <div className={clsx('p-1.5 sm:p-2 rounded-lg flex-shrink-0', sinReceta > 0 ? 'bg-amber-50' : 'bg-emerald-50')}>
-              {sinReceta > 0
-                ? <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" />
-                : <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />}
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-coffee-400 truncate">Sin receta</p>
-              <p className={clsx('text-base sm:text-xl font-bold', sinReceta > 0 ? 'text-amber-700' : 'text-coffee-900')}>
-                {sinReceta}
-              </p>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-coffee-100 px-3 py-3 sm:p-4 flex items-center gap-2 sm:gap-3">
-            <div className="p-1.5 sm:p-2 rounded-lg bg-blue-50 flex-shrink-0">
-              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-coffee-400 truncate">Margen prom.</p>
-              <p className={clsx('text-base sm:text-xl font-bold', avgMargen === null ? 'text-coffee-400' : avgMargen >= 30 ? 'text-emerald-700' : 'text-red-600')}>
-                {avgMargen !== null ? `${avgMargen.toFixed(1)}%` : '—'}
-              </p>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-coffee-100 px-3 py-3 sm:p-4 flex items-center gap-2 sm:gap-3">
-            <div className={clsx('p-1.5 sm:p-2 rounded-lg flex-shrink-0', sinStock > 0 ? 'bg-red-50' : 'bg-emerald-50')}>
-              <Layers className={clsx('h-4 w-4 sm:h-5 sm:w-5', sinStock > 0 ? 'text-red-600' : 'text-emerald-600')} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-coffee-400 truncate">Sin stock</p>
-              <p className={clsx('text-base sm:text-xl font-bold', sinStock > 0 ? 'text-red-700' : 'text-coffee-900')}>
-                {sinStock}
-              </p>
-            </div>
-          </div>
-        </div>
+        )}
 
         {/* Warning banner */}
         {sinReceta > 0 && (

@@ -7,7 +7,7 @@ import {
 import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
-import { Button, Input, Select, ConfirmModal, Badge } from '../../components/ui';
+import { Button, Input, Select, ConfirmModal, Badge, SkeletonKpiCard } from '../../components/ui';
 import { Pagination } from '../../components/ui/Pagination';
 import { toast } from '../../components/ui/Toast';
 import { ProductModal } from '../../components/modals/ProductModal';
@@ -18,12 +18,6 @@ import { formatCurrency } from '../../utils';
 import type { Product, Category } from '../../types';
 import type { ProductDestino } from '../../types';
 import type { CompradoFilterInput } from '../../types/graphql';
-
-const DESTINO_OPTIONS = [
-  { value: 'sin_destino', label: 'Sin destino' },
-  { value: 'barra', label: 'Barra' },
-  { value: 'cocina', label: 'Cocina' },
-];
 
 const destinoBadge = (d: ProductDestino | undefined) => {
   if (d === 'barra') return { label: 'Barra', cls: 'bg-blue-100 text-blue-700' };
@@ -156,7 +150,6 @@ const ProductsPage: React.FC = () => {
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
-  const [detailDestino, setDetailDestino] = useState<ProductDestino>('sin_destino');
   const [totalCount, setTotalCount] = useState(0);
 
   const [cursors, setCursors] = useState<Record<number, string>>({});
@@ -303,8 +296,8 @@ const ProductsPage: React.FC = () => {
       toast.success('Producto eliminado', `"${deletingProduct.name}" fue eliminado.`);
       setDeletingProduct(null);
       await loadData();
-    } catch {
-      toast.error('Error', 'No se pudo eliminar el producto.');
+    } catch (err) {
+      toast.error('Error', err instanceof Error ? err.message : 'No se pudo eliminar el producto.');
     } finally {
       setIsDeleting(false);
     }
@@ -326,7 +319,11 @@ const ProductsPage: React.FC = () => {
         />
 
         {/* KPIs */}
-        {!isLoading && products.length > 0 && (
+        {isLoading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => <SkeletonKpiCard key={i} />)}
+          </div>
+        ) : products.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-white rounded-xl border border-coffee-100 shadow-sm px-3 py-3 sm:px-4 flex items-center gap-2 sm:gap-3">
               <div className="p-1.5 sm:p-2 rounded-lg bg-blue-50 flex-shrink-0">
@@ -466,7 +463,7 @@ const ProductsPage: React.FC = () => {
               {products.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => { setDetailProduct(p); setDetailDestino(p.destino ?? 'sin_destino'); }}
+                  onClick={() => setDetailProduct(p)}
                   className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-coffee-50/60 active:bg-coffee-100 transition-colors"
                 >
                   <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
@@ -491,8 +488,9 @@ const ProductsPage: React.FC = () => {
             </div>
 
             {/* ── Desktop: tabla ───────────────────────────────────────────── */}
-            <table className="hidden sm:table min-w-full divide-y divide-coffee-100 text-sm">
-              <thead className="bg-coffee-50">
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="min-w-full divide-y divide-coffee-100 text-sm">
+                <thead className="bg-coffee-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Producto</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Categoría</th>
@@ -567,6 +565,7 @@ const ProductsPage: React.FC = () => {
                 })}
               </tbody>
             </table>
+            </div>
 
             {/* ── Pagination ───────────────────────────────────────────────── */}
             <Pagination
@@ -675,11 +674,10 @@ const ProductsPage: React.FC = () => {
                 {/* Destino */}
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-coffee-400 mb-2">Destino</p>
-                  <Select
-                    options={DESTINO_OPTIONS}
-                    value={detailDestino}
-                    onChange={(v) => setDetailDestino(v as ProductDestino)}
-                  />
+                  {(() => {
+                    const d = destinoBadge(p.destino);
+                    return <span className={clsx('inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium', d.cls)}>{d.label}</span>;
+                  })()}
                 </div>
 
                 {/* Stock */}

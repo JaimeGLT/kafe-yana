@@ -266,8 +266,8 @@ const CombosPage: React.FC = () => {
       toast.success('Combo eliminado', `"${deleting.name}" fue eliminado.`);
       setDeleting(null);
       await refresh();
-    } catch {
-      toast.error('Error', 'No se pudo eliminar el combo.');
+    } catch (err) {
+      toast.error('Error', err instanceof Error ? err.message : 'No se pudo eliminar el combo.');
     } finally {
       setIsDeleting(false);
     }

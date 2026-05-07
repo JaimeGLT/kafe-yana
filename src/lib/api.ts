@@ -102,9 +102,10 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
         if (firstError) message = firstError;
       } else {
         message =
-          (body as { message?: string; detail?: string; error?: string }).message ??
+          (body as { message?: string; detail?: string; error?: string; mensaje?: string }).message ??
           (body as { detail?: string }).detail ??
           (body as { error?: string }).error ??
+          (body as { mensaje?: string }).mensaje ??
           message;
       }
     } catch {
