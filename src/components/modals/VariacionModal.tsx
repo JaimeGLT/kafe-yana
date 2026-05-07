@@ -848,15 +848,13 @@ export const VariacionModal: React.FC<Props> = ({
                   Un grupo agrupa opciones del mismo tipo. Ej: el grupo "Tamaño" contiene Pequeño, Mediano, Grande.
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Input
-                  label="Nombre del grupo"
-                  placeholder="Ej: Tamaño, Temperatura, Tipo de leche…"
-                  value={newAtributoNombre}
-                  onChange={(e) => setNewAtributoNombre(e.target.value)}
-                  autoFocus
-                />
-              </div>
+              <Input
+                label="Nombre del grupo"
+                placeholder="Ej: Tamaño, Temperatura, Tipo de leche…"
+                value={newAtributoNombre}
+                onChange={(e) => setNewAtributoNombre(e.target.value)}
+                autoFocus
+              />
               <div className="flex gap-2">
                 <Button variant="ghost" size="sm" onClick={() => { setShowAddAtributo(false); setNewAtributoNombre(''); }}>
                   Cancelar
