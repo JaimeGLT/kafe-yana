@@ -31,28 +31,6 @@ export const GET_MESAS = `
               nombre_Producto
               cantidad
               precio
-              opciones {
-                id_Opcion
-                tipoOpcion
-                valorAnterior
-                costoExtra
-                opcion {
-                  id
-                  nombre
-                  ajustePrecio
-                  variacion {
-                    id
-                    nombre
-                    requerido
-                  }
-                  ajustes {
-                    cantidad
-                    tipoAjuste
-                    insumoBase { nombre }
-                    insumoNuevo { nombre }
-                  }
-                }
-              }
             }
           }
         }
@@ -107,28 +85,6 @@ export const GET_MESA_BY_ID = `
               nombre_Producto
               cantidad
               precio
-              opciones {
-                id_Opcion
-                tipoOpcion
-                valorAnterior
-                costoExtra
-                opcion {
-                  id
-                  nombre
-                  ajustePrecio
-                  variacion {
-                    id
-                    nombre
-                    requerido
-                  }
-                  ajustes {
-                    cantidad
-                    tipoAjuste
-                    insumoBase { nombre }
-                    insumoNuevo { nombre }
-                  }
-                }
-              }
             }
           }
         }
