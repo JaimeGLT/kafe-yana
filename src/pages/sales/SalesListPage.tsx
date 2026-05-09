@@ -9,8 +9,9 @@ import type { RefundBlockedInfo } from '../../components/modals/SaleDetailModal'
 import { toast } from '../../components/ui/Toast';
 import { formatCurrency } from '../../utils';
 import type { Sale, RefundInput, Refund, RefundItem } from '../../types';
-// RefundBlockedInfo re-exported from modal
 import { useAuth } from '../../contexts/AuthContext';
+import { gql } from '../../lib/graphql';
+import { GET_VENTAS } from '../../lib/queries/ventas.queries';
 
 interface SaleStats {
   totalSalesToday: number;
@@ -18,12 +19,101 @@ interface SaleStats {
   averageTicket: number;
 }
 
+// ── Backend mapping ───────────────────────────────────────────────────────────
+
+type PagoType = '1' | '2' | '3' | string;
+
+const mapPagoToPaymentMethod = (pago: PagoType): { type: import('../../types').PaymentMethodType; name: string } => {
+  switch (pago) {
+    case '1': return { type: 'cash', name: 'Efectivo' };
+    case '2': return { type: 'card', name: 'Tarjeta' };
+    case '3': return { type: 'qr', name: 'QR' };
+    default: return { type: 'cash', name: pago };
+  }
+};
+
+const mapEstadoToStatus = (estado: string): Sale['status'] => {
+  switch (estado) {
+    case 'Finalizada': return 'completed';
+    case 'Reembolsada': return 'refunded';
+    case 'Parcialmente reembolsada': return 'partially_refunded';
+    default: return 'completed';
+  }
+};
+
+interface BackendVentaDetalle {
+  id_venta: number;
+  nombre: string;
+  cantidad: number;
+  precio: number;
+  total: number;
+  id: number;
+}
+
+interface BackendVenta {
+  detalles: BackendVentaDetalle[];
+  id: number;
+  codigo: string;
+  fecha: string;
+  cliente: string;
+  cajero: string;
+  productos: number;
+  pago: PagoType;
+  estado: string;
+  subtotal: number;
+  total: number;
+}
+
+interface BackendVentasResponse {
+  ventas: { nodes: BackendVenta[]; totalCount: number };
+}
+
+const mapBackendVentaToSale = (v: BackendVenta): Sale => {
+  const payment = mapPagoToPaymentMethod(v.pago);
+  return {
+    id: String(v.id),
+    code: v.codigo,
+    date: new Date(v.fecha),
+    customerId: undefined,
+    customerName: v.cliente || undefined,
+    cashierId: '',
+    cashierName: v.cajero,
+    branchId: '',
+    branchName: '',
+    status: mapEstadoToStatus(v.estado),
+    subtotal: Number(v.subtotal),
+    discount: 0,
+    tax: 0,
+    taxPercentage: 18,
+    total: Number(v.total),
+    paymentMethods: [{ id: String(v.id), type: payment.type, name: payment.name, amount: Number(v.total) }],
+    items: v.detalles.map(d => ({
+      id: String(d.id),
+      productId: '',
+      productName: d.nombre,
+      productCode: '',
+      quantity: d.cantidad,
+      unit: 'unidad',
+      unitPrice: Number(d.precio),
+      discount: 0,
+      subtotal: Number(d.total),
+      tax: 0,
+      total: Number(d.total),
+    })),
+    pointsEarned: undefined,
+    pointsRedeemed: undefined,
+    notes: undefined,
+    refunds: [],
+    createdAt: new Date(v.fecha),
+    updatedAt: new Date(v.fecha),
+  };
+};
 
 export const SalesListPage: React.FC = () => {
   const { user } = useAuth();
   const [sales, setSales] = useState<Sale[]>([]);
   const [stats, setStats] = useState<SaleStats>({ totalSalesToday: 0, totalSalesMonth: 0, averageTicket: 0 });
-  const [_isLoading, setIsLoading] = useState(false);
+  const [_isLoading, setIsLoading] = useState(true);
 
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -31,77 +121,48 @@ export const SalesListPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
 
-  // TODO: reemplazar con gql() cuando el backend esté listo:
-  //
-  //   gql<{ ventas: Sale[]; ventasStats: SaleStats }>(GET_VENTAS_QUERY).then(({ ventas, ventasStats }) => {
-  //     setSales(ventas); setStats(ventasStats);
-  //   })
-  //
+  // ── Load from backend ────────────────────────────────────────────────────────
+
   useEffect(() => {
-    const now = Date.now();
-    const MOCK_SALES: Sale[] = [
-      {
-        id: '2', code: 'VTA-00100',
-        date: new Date(now - 2 * 60 * 60 * 1000),
-        customerId: 'c2', customerName: 'Carlos Mendoza',
-        cashierId: 'u1', cashierName: 'Luis Quispe',
-        branchId: 'b1', branchName: 'Local Principal',
-        status: 'completed',
-        subtotal: 101.69, tax: 18.31, discount: 0, taxPercentage: 18, total: 120,
-        pointsEarned: 120, pointsRedeemed: 50,
-        paymentMethods: [{ id: 'pm2', type: 'card', name: 'Tarjeta', amount: 120 }],
-        items: [
-          { id: 'i2', productId: 'p2', productName: 'Latte con vainilla', productCode: 'LAT01', quantity: 1, unit: 'taza', unitPrice: 52, discount: 0, subtotal: 52, tax: 0, total: 52 },
-          { id: 'i3', productId: 'p3', productName: 'Croissant de mantequilla', productCode: 'CRO01', quantity: 1, unit: 'unidad', unitPrice: 18, discount: 0, subtotal: 18, tax: 0, total: 18, isRedeemed: true },
-          { id: 'i4', productId: 'p4', productName: 'Combo desayuno clásico', productCode: 'KIT01', quantity: 1, unit: 'combo', unitPrice: 50, discount: 0, subtotal: 50, tax: 0, total: 50 },
-        ],
-        createdAt: new Date(now - 2 * 60 * 60 * 1000), updatedAt: new Date(now - 2 * 60 * 60 * 1000),
-      },
-      {
-        id: '3', code: 'VTA-00099',
-        date: new Date(now - 5 * 60 * 60 * 1000),
-        cashierId: 'u2', cashierName: 'María Salas',
-        branchId: 'b1', branchName: 'Local Principal',
-        status: 'completed',
-        subtotal: 67.80, tax: 12.20, discount: 0, taxPercentage: 18, total: 80,
-        paymentMethods: [{ id: 'pm4', type: 'cash', name: 'Efectivo', amount: 80 }],
-        items: [
-          { id: 'i5', productId: 'p5', productName: 'Americano grande', productCode: 'AME01', quantity: 2, unit: 'taza', unitPrice: 35, discount: 0, subtotal: 70, tax: 0, total: 70 },
-          { id: 'i6', productId: 'p6', productName: 'Muffin de arándanos', productCode: 'MUF01', quantity: 1, unit: 'unidad', unitPrice: 10, discount: 0, subtotal: 10, tax: 0, total: 10 },
-        ],
-        createdAt: new Date(now - 5 * 60 * 60 * 1000), updatedAt: new Date(now - 5 * 60 * 60 * 1000),
-      },
-      {
-        id: '5', code: 'VTA-00097',
-        date: new Date(now - 2 * 24 * 60 * 60 * 1000),
-        customerId: 'c2', customerName: 'Carlos Mendoza',
-        cashierId: 'u2', cashierName: 'María Salas',
-        branchId: 'b1', branchName: 'Local Principal',
-        status: 'refunded',
-        subtotal: 101.69, tax: 18.31, discount: 0, taxPercentage: 18, total: 120,
-        pointsEarned: 120, pointsRedeemed: 0,
-        notes: 'Cliente insatisfecho con el pedido',
-        paymentMethods: [{ id: 'pm6', type: 'card', name: 'Tarjeta', amount: 120 }],
-        items: [
-          { id: 'i8', productId: 'p7', productName: 'Frappé caramelo', productCode: 'FRA01', quantity: 2, unit: 'vaso', unitPrice: 55, discount: 0, subtotal: 110, tax: 0, total: 110 },
-          { id: 'i9', productId: 'p6', productName: 'Muffin de arándanos', productCode: 'MUF01', quantity: 1, unit: 'unidad', unitPrice: 10, discount: 0, subtotal: 10, tax: 0, total: 10 },
-        ],
-        createdAt: new Date(now - 2 * 24 * 60 * 60 * 1000), updatedAt: new Date(now - 2 * 24 * 60 * 60 * 1000),
-      },
-    ];
+    let cancelled = false;
+    setIsLoading(true);
 
-    const MOCK_STATS: SaleStats = {
-      totalSalesToday: 290,
-      totalSalesMonth: 18450,
-      averageTicket: 87.5,
-    };
+    gql<BackendVentasResponse>(GET_VENTAS)
+      .then(data => {
+        if (cancelled) return;
+        setSales(data.ventas.nodes.map(mapBackendVentaToSale));
+        setIsLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setIsLoading(false);
+      });
 
-    setTimeout(() => {
-      setSales(MOCK_SALES);
-      setStats(MOCK_STATS);
-      setIsLoading(false);
-    }, 400);
+    return () => { cancelled = true; };
   }, []);
+
+  // ── Stats from real data ─────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (sales.length === 0) {
+      setStats({ totalSalesToday: 0, totalSalesMonth: 0, averageTicket: 0 });
+      return;
+    }
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const todayCompleted = sales.filter(s => s.status === 'completed' && new Date(s.date) >= startOfToday);
+    const monthCompleted = sales.filter(s => s.status === 'completed' && new Date(s.date) >= startOfMonth);
+
+    const totalSalesToday = todayCompleted.reduce((sum, s) => sum + s.total, 0);
+    const totalSalesMonth = monthCompleted.reduce((sum, s) => sum + s.total, 0);
+    const countCompleted = monthCompleted.length;
+    const averageTicket = countCompleted > 0 ? totalSalesMonth / countCompleted : 0;
+
+    setStats({ totalSalesToday, totalSalesMonth, averageTicket });
+  }, [sales]);
 
   // ── Reembolso ─────────────────────────────────────────────────────────────
   const handleRefund = useCallback(async (

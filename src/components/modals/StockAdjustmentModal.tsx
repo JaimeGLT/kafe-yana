@@ -312,9 +312,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
         });
       } else if (productType === 'insumo') {
         const isEntrada = direction === 'entrada';
-        const cantidad = isEntrada
-          ? (insumoAjuste?.diff ?? 0)
-          : -(insumoAjuste?.diff ?? 0);
+        const cantidad = (insumoAjuste?.diff ?? 0)
         await api.post(`/AjusteStock/Insumo?entrada=${isEntrada}`, {
           id,
           cantidad,

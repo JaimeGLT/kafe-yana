@@ -38,4 +38,32 @@ export const GET_PARA_LLEVAR = `
       totalCount
     }
   }
-`
+`;
+
+export const GET_VENTAS = `
+  query GetVentas {
+    ventas(first: 50, order: [{ fecha: DESC }]) {
+      nodes {
+        detalles {
+          id_venta
+          nombre
+          cantidad
+          precio
+          total
+          id
+        }
+        id
+        codigo
+        fecha
+        cliente
+        cajero
+        productos
+        pago
+        estado
+        subtotal
+        total
+      }
+      totalCount
+    }
+  }
+`;

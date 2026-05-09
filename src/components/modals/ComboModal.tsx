@@ -140,7 +140,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
         toast.success('Combo actualizado', `"${name}" fue actualizado.`);
       } else {
         await api.post('/Combo', body);
-        toast.success('Combo creado', `"${name}" — precio: ${formatCurrency(Number(price))}`);
+        toast.success('Combo creado', `"${name}" — precio: ${formatCurrency(Number(comboPrice))}`);
       }
       onSuccess();
       onClose();

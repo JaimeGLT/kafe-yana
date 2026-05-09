@@ -112,6 +112,7 @@ const mapParaLlevarToLocalMesa = (pl: ParaLlevarPedido): LocalMesa => {
             precioFinal: detalle.precio,
             cartKey: `${detalle.id}_${ronda.id}`,
             roundNumber: roundNum,
+            consumoInsumos: [] as import('./usePOSCart').ConsumoInsumo[],
           });
         });
       });
@@ -243,6 +244,7 @@ export function usePOSMesas(): UsePOSMesasReturn {
               precioFinal: detalle.precio,
               cartKey: `${detalle.id}_${ronda.id}`,
               roundNumber: roundNum,
+              consumoInsumos: [] as import('./usePOSCart').ConsumoInsumo[],
             });
           });
         });

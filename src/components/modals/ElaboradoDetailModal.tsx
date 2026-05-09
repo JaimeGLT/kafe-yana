@@ -1,10 +1,13 @@
 import React from 'react';
 import { clsx } from 'clsx';
-import { ShoppingCart, AlertCircle, FlaskConical } from 'lucide-react';
+import { ShoppingCart, AlertCircle, FlaskConical, Plus, Minus } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { formatCurrency } from '../../utils';
+import { toast } from '../ui/Toast';
 import type { Product, VariacionAtributo, OpcionSeleccionada } from '../../types';
+import type { ConsumoInsumo } from '../../hooks/usePOSCart';
+import { calcularConsumo } from '../../hooks/usePOSCart';
 
 export interface ElaboradoIngrediente {
   id: string;
@@ -27,6 +30,31 @@ export interface OpcionStockInfo {
   insumoReemplazoId: string | null;
 }
 
+interface RecetaDetalle {
+  insumo: { id: string; nombre: string };
+  cantidad: number;
+}
+
+interface RecetaInfo {
+  detalles: RecetaDetalle[];
+}
+
+interface AjusteRaw {
+  tipoAjuste: string;
+  cantidad: number;
+  insumoBase: { id: string };
+  insumoNuevo: { id: string } | null;
+}
+
+interface OpcionRaw {
+  id: string;
+  ajustes: AjusteRaw[];
+}
+
+interface VariacionRaw {
+  opciones: OpcionRaw[];
+}
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -35,7 +63,9 @@ interface Props {
   ingredientes: ElaboradoIngrediente[];
   insumosStock: InsumoStock[];
   opcionesStockInfo: OpcionStockInfo[];
-  onConfirm: (opciones: OpcionSeleccionada[], precioFinal: number) => void;
+  receta: RecetaInfo | null;
+  variaciones: VariacionRaw[];
+  onConfirm: (opciones: OpcionSeleccionada[], precioFinal: number, qty: number, consumoInsumos: ConsumoInsumo[]) => void;
 }
 
 export const ElaboradoDetailModal: React.FC<Props> = ({
@@ -46,15 +76,19 @@ export const ElaboradoDetailModal: React.FC<Props> = ({
   ingredientes,
   insumosStock,
   opcionesStockInfo,
+  receta,
+  variaciones,
   onConfirm,
 }) => {
   const [selecciones, setSelecciones] = React.useState<Record<string, string>>({});
   const [errors, setErrors] = React.useState<Record<string, string>>({});
+  const [qty, setQty] = React.useState(1);
 
   React.useEffect(() => {
     if (isOpen) {
       setSelecciones({});
       setErrors({});
+      setQty(1);
     }
   }, [isOpen]);
 
@@ -92,14 +126,41 @@ export const ElaboradoDetailModal: React.FC<Props> = ({
     return total;
   }, [selecciones, product.salePrice, activeAtributos]);
 
+  const maxProducible = React.useMemo(() => {
+    if (product.producible === true) return product.stock;
+
+    let max = product.cantidadProducible ?? 999;
+
+    for (const opcionId of Object.values(selecciones)) {
+      const stockInfo = opcionesStockInfo.find(o => o.opcionId === opcionId);
+      if (!stockInfo?.insumoRequeridoId || !stockInfo?.cantidad) continue;
+      const insumo = insumosStock.find(i => i.id === stockInfo.insumoRequeridoId);
+      if (!insumo) continue;
+      max = Math.min(max, insumo.stock / stockInfo.cantidad);
+    }
+
+    return Math.floor(max);
+  }, [product, selecciones, opcionesStockInfo, insumosStock]);
+
   const adjustmentTotal = precioFinal - product.salePrice;
 
   const handleSelect = (atributoId: string, opcionId: string) => {
-    setSelecciones((prev) => ({ ...prev, [atributoId]: opcionId }));
+    setSelecciones((prev) => {
+      if (prev[atributoId] === opcionId) {
+        const next = { ...prev };
+        delete next[atributoId];
+        return next;
+      }
+      return { ...prev, [atributoId]: opcionId };
+    });
     setErrors((prev) => { const next = { ...prev }; delete next[atributoId]; return next; });
   };
 
   const handleConfirm = () => {
+    if (qty > maxProducible) {
+      toast.error('Cantidad excede disponible', `Solo hay ${maxProducible} unidades disponibles.`);
+      return;
+    }
     const newErrors: Record<string, string> = {};
     for (const atributo of activeAtributos) {
       if (atributo.esRequerido && !selecciones[atributo.id]) {
@@ -124,16 +185,60 @@ export const ElaboradoDetailModal: React.FC<Props> = ({
         insumoBaseNombre: opcion.insumoBaseNombre,
         insumoNuevoNombre: opcion.insumoNuevoNombre,
         tipoAjuste: opcion.tipoAjuste,
-        ajusteCantidad: opcion.ajusteCantidad,
+ajusteCantidad: opcion.ajusteCantidad,
       });
     }
 
-    onConfirm(opciones, precioFinal);
+    const ajustesMap: Record<string, AjusteRaw[]> = {};
+    for (const attr of variaciones) {
+      for (const opc of attr.opciones) {
+        ajustesMap[opc.id] = opc.ajustes ?? [];
+      }
+    }
+
+    const consumoInsumos = receta?.detalles
+      ? calcularConsumo(receta.detalles, opciones, ajustesMap)
+      : [];
+
+    onConfirm(opciones, precioFinal, qty, consumoInsumos);
   };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={product.name} size="md">
       <div className="space-y-5">
+
+        {/* Info header: stock + precio + cantidad */}
+        <div className="flex items-center justify-between bg-coffee-50 rounded-xl px-4 py-3">
+          <div>
+            <p className="text-xs text-coffee-500 mb-0.5">
+              {product.producible === false ? 'Producible hoy' : 'Stock disponible'}
+            </p>
+            <p className={clsx('text-lg font-bold', qty > maxProducible ? 'text-red-600' : 'text-coffee-900')}>
+              {qty > maxProducible ? `Máximo: ${maxProducible}` : maxProducible} unidades
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center bg-white rounded-lg border border-coffee-200 overflow-hidden">
+              <button
+                onClick={() => setQty(q => Math.max(1, q - 1))}
+                className="px-3 py-2 text-coffee-600 hover:bg-coffee-100 transition-colors"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <span className={clsx('px-3 py-2 text-sm font-bold min-w-[2.5rem] text-center', qty > maxProducible ? 'text-red-600' : 'text-coffee-900')}>
+                {qty}
+              </span>
+              <button
+                onClick={() => setQty(q => Math.min(maxProducible, q + 1))}
+                disabled={qty >= maxProducible}
+                className="px-3 py-2 text-coffee-600 hover:bg-coffee-100 transition-colors disabled:opacity-40"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="text-lg font-black text-coffee-900">{formatCurrency(precioFinal * qty)}</p>
+          </div>
+        </div>
 
         {/* Ingredientes */}
         {ingredientes.length > 0 && (
@@ -203,7 +308,14 @@ export const ElaboradoDetailModal: React.FC<Props> = ({
                     )}
                     {!opcion.insumoBaseNombre && opcion.insumoNuevoNombre && opcion.tipoAjuste === 'extra' && (
                       <span className="text-[10px] text-coffee-400 mt-0.5">
-                        + {opcion.insumoNuevoNombre}{opcion.ajusteCantidad ? ` (${opcion.ajusteCantidad})` : ''}
+                        + {opcion.insumoNuevoNombre}
+                        {opcion.ajusteCantidad ? ` (${opcion.ajusteCantidad})` : ''}
+                      </span>
+                    )}
+                    {opcion.insumoBaseNombre && !opcion.insumoNuevoNombre && (
+                      <span className="text-[10px] text-coffee-400 mt-0.5">
+                        {opcion.insumoBaseNombre}
+                        {opcion.ajusteCantidad ? ` (+${opcion.ajusteCantidad})` : ''}
                       </span>
                     )}
                     {outOfStock && (

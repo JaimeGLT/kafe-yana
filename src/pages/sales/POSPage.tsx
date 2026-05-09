@@ -127,7 +127,14 @@ export const POSPage: React.FC = () => {
   const [milestones, _setMilestones] = useState<MilestoneReward[]>([]);
   const [, setLoading] = useState(true);
   const [productsLoaded, setProductsLoaded] = useState(false);
-  const [elaboradoExtras, setElaboradoExtras] = useState<Record<string, { insumosStock: Array<{ id: string; nombre: string; stock: number }>; opcionesStockInfo: Array<{ opcionId: string; tipoAjuste: string; cantidad: number; insumoRequeridoId: string | null; insumoReemplazoId: string | null }> }>>({});
+  const [elaboradoExtras, setElaboradoExtras] = useState<Record<string, {
+    insumosStock: Array<{ id: string; nombre: string; stock: number }>;
+    opcionesStockInfo: Array<{ opcionId: string; tipoAjuste: string; cantidad: number; insumoRequeridoId: string | null; insumoReemplazoId: string | null }>;
+    receta: { detalles: Array<{ insumo: { id: string; nombre: string }; cantidad: number }> } | null;
+    variaciones: Array<{ opciones: Array<{ id: string; ajustes: Array<{ tipoAjuste: string; cantidad: number; insumoBase: { id: string }; insumoNuevo: { id: string } | null }> }> }>;
+    stockInsumos: Record<string, number>;
+  }>>({});
+  const [stockInsumosGlobal, setStockInsumosGlobal] = useState<Record<string, number>>({});
 
   const {
     tempCart,
@@ -331,6 +338,27 @@ export const POSPage: React.FC = () => {
     }
   }, [productsLoaded]);
 
+  const refreshStock = useCallback(async () => {
+  try {
+    const data = await gql<any>(GET_POS_DATA);
+    setProducts(prev => prev.map(p => {
+      if (p.tipo === 'comprado') {
+        const found = data.comprados.nodes.find((n: any) => String(n.producto.id) === p.id);
+        return found ? { ...p, stock: found.stock_actual } : p;
+      }
+      if (p.tipo === 'elaborado') {
+        const found = data.elaborados.nodes.find((n: any) => String(n.id_Producto) === p.id);
+        return found ? { ...p, stock: found.stock_actual, cantidadProducible: found.receta?.cantidadProducible } : p;
+      }
+      return p;
+    }));
+    setElaboradoExtras({});
+    setStockInsumosGlobal({});
+  } catch {
+    // silencioso
+  }
+}, []);
+
   const getAtributosByProductId = useCallback((productId: string): VariacionAtributo[] => {
     return atributos.filter((a: VariacionAtributo) => a.productId === productId);
   }, [atributos]);
@@ -532,10 +560,35 @@ export const POSPage: React.FC = () => {
               .filter((i: any) => usedInsumoIds.has(String(i.id)))
               .map((i: any) => ({ id: String(i.id), nombre: i.nombre, stock: i.stock_actual ?? 0 }));
 
-            setElaboradoExtras(prev => ({ ...prev, [product.id]: { insumosStock, opcionesStockInfo } }));
+            const receta = node?.receta ? {
+              detalles: (node.receta.detalles ?? []).map((d: any) => ({
+                insumo: { id: String(d.insumo?.id ?? d.id_insumo), nombre: d.insumo?.nombre ?? d.insumo?.id ?? '' },
+                cantidad: d.cantidad,
+              })),
+            } : null;
+
+            const variaciones = (node?.variaciones ?? []).map((attr: any) => ({
+              opciones: (attr.opciones ?? []).map((opc: any) => ({
+                id: String(opc.id),
+                ajustes: (opc.ajustes ?? []).map((aj: any) => ({
+                  tipoAjuste: aj.tipoAjuste,
+                  cantidad: aj.cantidad,
+                  insumoBase: { id: aj.id_Insumo ? String(aj.id_Insumo) : '' },
+                  insumoNuevo: aj.id_InsumoNuevo ? { id: String(aj.id_InsumoNuevo) } : null,
+                })),
+              })),
+            }));
+
+            const stockInsumos: Record<string, number> = {};
+            for (const i of insumosStock) {
+              stockInsumos[i.id] = i.stock;
+            }
+
+            setElaboradoExtras(prev => ({ ...prev, [product.id]: { insumosStock, opcionesStockInfo, receta, variaciones, stockInsumos } }));
+            setStockInsumosGlobal(prev => ({ ...prev, ...stockInsumos }));
           }).catch(() => {
             setElaboradoIngredientes(prev => ({ ...prev, [product.id]: [] }));
-            setElaboradoExtras(prev => ({ ...prev, [product.id]: { insumosStock: [], opcionesStockInfo: [] } }));
+            setElaboradoExtras(prev => ({ ...prev, [product.id]: { insumosStock: [], opcionesStockInfo: [], receta: null, variaciones: [], stockInsumos: {} } }));
           });
       }
     } else {
@@ -554,6 +607,7 @@ export const POSPage: React.FC = () => {
     clearTempCart();
     setProductSearch('');
     setDetalleView('historial');
+    refreshStock();
     toast.success('🖨️ Comanda enviada', `Ronda ${mesa.currentRound - 1} · ${tempCart.reduce((s, i) => s + i.quantity, 0)} producto(s)`);
   };
 
@@ -925,7 +979,7 @@ export const POSPage: React.FC = () => {
                               unavailable={!stock.ok}
                               attrCount={attrCount}
                               onAdd={() => addTempProduct(product)}
-                              onInc={() => incTempQty(buildCartKey(product.id))}
+                              onInc={() => incTempQty(buildCartKey(product.id), stockInsumosGlobal)}
                               onDec={() => decTempQty(buildCartKey(product.id))}
                               rewardInfo={reward ? { icon: reward.icon, pointsCost: reward.pointsCost } : null}
                               onRedeem={canAfford ? () => {
@@ -999,7 +1053,7 @@ export const POSPage: React.FC = () => {
                                     <Minus className="h-3 w-3" />
                                   </button>
                                   <span className="w-5 text-center text-sm font-bold text-coffee-900">{item.quantity}</span>
-                                  <button onClick={() => incTempQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-800 hover:bg-coffee-700 flex items-center justify-center text-cream">
+                                  <button onClick={() => incTempQty(item.cartKey, stockInsumosGlobal)} className="h-6 w-6 rounded-md bg-coffee-800 hover:bg-coffee-700 flex items-center justify-center text-cream">
                                     <Plus className="h-3 w-3" />
                                   </button>
                                 </div>
@@ -1362,8 +1416,10 @@ export const POSPage: React.FC = () => {
             ingredientes={elaboradoIngredientes[elaboradoDetailProduct.id] ?? []}
             insumosStock={elaboradoExtras[elaboradoDetailProduct.id]?.insumosStock ?? []}
             opcionesStockInfo={elaboradoExtras[elaboradoDetailProduct.id]?.opcionesStockInfo ?? []}
-            onConfirm={(opciones, precioFinal) => {
-              addTempDirect(elaboradoDetailProduct, opciones, precioFinal);
+            receta={elaboradoExtras[elaboradoDetailProduct.id]?.receta ?? null}
+            variaciones={elaboradoExtras[elaboradoDetailProduct.id]?.variaciones ?? []}
+            onConfirm={(opciones, precioFinal, qty, consumoInsumos) => {
+              addTempDirect(elaboradoDetailProduct, opciones, precioFinal, qty, consumoInsumos);
               setElaboradoDetailProduct(null);
             }}
           />
