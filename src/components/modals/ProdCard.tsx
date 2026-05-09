@@ -17,11 +17,12 @@ interface ProdCardProps {
   rewardInfo?: { icon: string; pointsCost: number } | null;
   onRedeem?: () => void;
   pointsShortfall?: number | null;
+  stockLabel?: string;
 }
 
 export const ProdCard: React.FC<ProdCardProps> = ({
   product, qty, unavailable, attrCount,
-  onAdd, onInc, onDec, onInfo, rewardInfo, onRedeem, pointsShortfall,
+  onAdd, onInc, onDec, onInfo, rewardInfo, onRedeem, pointsShortfall, stockLabel,
 }) => (
   <div className={clsx(
     'flex-shrink-0 w-36 sm:w-40 bg-white rounded-2xl overflow-hidden shadow-sm flex flex-col select-none',
@@ -61,6 +62,9 @@ export const ProdCard: React.FC<ProdCardProps> = ({
     <div className="px-2.5 pt-2 pb-1 flex-1 flex flex-col">
       <p className="text-xs font-bold text-coffee-900 leading-tight line-clamp-2 font-display flex-1">{product.name}</p>
       <p className="text-sm font-black text-coffee-800 mt-1">{formatCurrency(product.salePrice)}</p>
+      {stockLabel && (
+        <p className={clsx('text-[10px] font-semibold mt-0.5', unavailable ? 'text-red-500' : 'text-coffee-500')}>{stockLabel}</p>
+      )}
     </div>
     <div className="px-2.5 pb-2.5">
       {attrCount > 0 ? (

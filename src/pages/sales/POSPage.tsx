@@ -187,8 +187,10 @@ export const POSPage: React.FC = () => {
       const data = await gql<{
         elaborados: { nodes: Array<{
           id_Producto: number; unidad_medida: string;
+          producible: boolean; stock_actual: number;
           producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string;
             categoria: { id: number; nombre: string; descripcion: string; estado: boolean; color: string } | null };
+          receta: { id: number; cantidadProducible: number };
           variaciones: Array<{ id: number; nombre: string; requerido: boolean;
             opciones: Array<{ id: number; nombre: string; ajustePrecio: number; id_variacion: number;
               ajustes: Array<{ tipoAjuste: string; cantidad: number; insumoBase: { id: number; nombre: string } | null; insumoNuevo: { id: number; nombre: string } | null }> }> }>;
@@ -234,9 +236,11 @@ export const POSPage: React.FC = () => {
           name: n.producto.nombre, description: n.producto.descripcion ?? '',
           tipo: 'elaborado', categoryId: cat ? String(cat.id) : '',
           unit: n.unidad_medida ?? 'unidad', costPrice: 0,
-          salePrice: n.producto.precio, stock: 999,
+          salePrice: n.producto.precio, stock: n.stock_actual ?? 999,
           minStock: 0, maxStock: 0, variations: [], isActive: true,
           hasVariations: n.variaciones.length > 0,
+          producible: n.producible,
+          cantidadProducible: n.receta?.cantidadProducible,
           createdAt: new Date(), updatedAt: new Date(),
         });
         for (const v of n.variaciones) {
@@ -371,6 +375,19 @@ export const POSPage: React.FC = () => {
   }, [products, selectedCatId, activeCategories, productSearch]);
 
   const getEffectiveStock = useCallback((p: Product): { label: string; ok: boolean } => {
+    if (p.tipo === 'comprado') {
+      return p.stock <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${p.stock}`, ok: true };
+    }
+    if (p.tipo === 'combo') {
+      return p.stock <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${p.stock}`, ok: true };
+    }
+    if (p.tipo === 'elaborado') {
+      if (p.producible) {
+        return p.stock <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${p.stock}`, ok: true };
+      }
+      const producible = p.cantidadProducible ?? 0;
+      return producible <= 0 ? { label: 'Agotado', ok: false } : { label: `Producible: ${producible}`, ok: true };
+    }
     return p.stock <= 0 ? { label: 'Agotado', ok: false } : { label: String(p.stock), ok: true };
   }, []);
 
@@ -921,6 +938,7 @@ export const POSPage: React.FC = () => {
                                 }
                               } : undefined}
                               pointsShortfall={pointsShortfall}
+                              stockLabel={stock.label}
                             />
                           );
                         })}

@@ -133,12 +133,16 @@ export const GET_POS_DATA = `
       nodes {
         id_Producto
         unidad_medida
+        producible
+        stock_actual
         producto {
           id nombre descripcion precio tipo
           categoria { id nombre descripcion estado color }
         }
         receta {
+          id
           porciones
+          cantidadProducible
         }
         variaciones {
           id nombre requerido
