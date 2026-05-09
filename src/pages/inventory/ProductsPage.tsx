@@ -216,8 +216,7 @@ const ProductsPage: React.FC = () => {
       );
       setProducts(data.comprados.nodes.map(mapNode));
     } catch (err) {
-      console.error('Error loading comprados:', err);
-      toast.error('Error al cargar', 'No se pudieron cargar los productos. Intenta de nuevo.');
+      toast.error('Error al cargar', err instanceof Error ? err.message : 'No se pudieron cargar los productos. Intenta de nuevo.');
     } finally {
       setIsLoading(false);
     }

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-// RecetaFormContent is exported for inline use (e.g. inside another modal tab)
 import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -17,18 +16,15 @@ import { mapInsumo } from '../../lib/mappers/insumos.mappers';
 
 interface IngredienteLine {
   insumoId: string;
-  quantity: number;
-  merma: number;
+  quantity: string;
+  merma: string;
 }
 
-// Profitability semaphore
 const getMarginLabel = (pct: number) => {
   if (pct >= 60) return { label: '🟢 Rentable', color: 'text-emerald-700 bg-emerald-50' };
   if (pct >= 30) return { label: '🟡 Aceptable', color: 'text-amber-700 bg-amber-50' };
   return { label: '🔴 Revisar precio', color: 'text-red-700 bg-red-50' };
 };
-
-// ── Shared props ──────────────────────────────────────────────────────────────
 
 export interface RecetaFormProps {
   onClose: () => void;
@@ -40,8 +36,6 @@ export interface RecetaFormProps {
   onSuccess: () => void;
   onRefreshInventory?: () => Promise<void>;
 }
-
-// ── Form content (reusable without Modal wrapper) ─────────────────────────────
 
 export const RecetaFormContent: React.FC<RecetaFormProps> = ({
   onClose,
@@ -67,34 +61,25 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
       const data = await gql<InsumosResponse>(GET_ALL_INSUMOS);
       setLocalInsumos(data.insumos.nodes.map(mapInsumo));
     } catch {
-      if (onRefreshInventory) {
-        await onRefreshInventory();
-      }
+      if (onRefreshInventory) await onRefreshInventory();
     }
   }, [onRefreshInventory]);
 
-  const openInsumoModalForRow = () => {
-    setInsumoModalOpen(true);
-  };
-
   const [productId, setProductId] = useState('');
   const [nombre, setNombre] = useState('');
-  const [porcionesBase, setPorcionesBase] = useState(1);
+  const [rawPorciones, setRawPorciones] = useState('1');
   const [ingredientes, setIngredientes] = useState<IngredienteLine[]>([
-    { insumoId: '', quantity: 0, merma: 0 },
+    { insumoId: '', quantity: '', merma: '' },
   ]);
   const [notas, setNotas] = useState('');
-  const [errors, setErrors] = useState<string[]>([]);
 
   const productOptions = useMemo(() => {
     const storeElaborados = products
       .filter((p) => p.isActive && p.tipo === 'elaborado')
       .map((p) => ({ value: p.id, label: p.name }));
-
     if (productOverride && !storeElaborados.find((p) => p.value === productOverride.id)) {
       storeElaborados.unshift({ value: productOverride.id, label: productOverride.name });
     }
-
     return [{ value: '', label: 'Seleccionar producto elaborado…' }, ...storeElaborados];
   }, [products, productOverride]);
 
@@ -112,36 +97,37 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
     if (receta) {
       setProductId(receta.productId);
       setNombre(receta.nombre ?? '');
-      setPorcionesBase(receta.porcionesBase);
+      setRawPorciones(String(receta.porcionesBase));
       setIngredientes(
         receta.ingredientes.map((ing) => ({
           insumoId: ing.insumoId,
-          quantity: ing.quantity,
-          merma: ing.merma,
+          quantity: String(ing.quantity),
+          merma: String(ing.merma),
         }))
       );
       setNotas(receta.notas ?? '');
     } else {
       setProductId(preselectedProductId ?? '');
       setNombre('');
-      setPorcionesBase(1);
-      setIngredientes([{ insumoId: '', quantity: 0, merma: 0 }]);
+      setRawPorciones('1');
+      setIngredientes([{ insumoId: '', quantity: '', merma: '' }]);
       setNotas('');
     }
-    setErrors([]);
   }, [receta, preselectedProductId]);
 
   const costoTotalReceta = useMemo(
     () =>
       ingredientes.reduce((sum, ing) => {
         const insumo = localInsumos.find(i => String(i.id) === String(ing.insumoId));
-        if (!insumo || ing.quantity <= 0) return sum;
-        return sum + insumo.costoUnitario * ing.quantity * (1 + ing.merma / 100);
+        const qty = parseFloat(ing.quantity);
+        const merma = parseFloat(ing.merma) || 0;
+        if (!insumo || !qty || qty <= 0) return sum;
+        return sum + insumo.costoUnitario * qty * (1 + merma / 100);
       }, 0),
     [ingredientes, localInsumos]
   );
 
-  const porciones = porcionesBase > 0 ? porcionesBase : 1;
+  const porciones = parseInt(rawPorciones) || 1;
   const costoPorPorcion = costoTotalReceta / porciones;
 
   const selectedProduct = useMemo(
@@ -157,28 +143,33 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
   const semaforo = margenPct !== null ? getMarginLabel(margenPct) : null;
 
   const addLine = () =>
-    setIngredientes((prev) => [...prev, { insumoId: '', quantity: 0, merma: 0 }]);
+    setIngredientes((prev) => [...prev, { insumoId: '', quantity: '', merma: '' }]);
 
   const removeLine = (idx: number) =>
     setIngredientes((prev) => prev.filter((_, i) => i !== idx));
 
-  const updateLine = (idx: number, field: keyof IngredienteLine, value: string | number) =>
+  const updateLine = (idx: number, field: keyof IngredienteLine, value: string) =>
     setIngredientes((prev) =>
       prev.map((line, i) => (i === idx ? { ...line, [field]: value } : line))
     );
 
   const validate = (): boolean => {
-    const errs: string[] = [];
-    if (!productId) errs.push('Selecciona un producto elaborado.');
-    if (!nombre.trim()) errs.push('El nombre de la receta es obligatorio.');
-    if (porcionesBase <= 0) errs.push('Las porciones deben ser ≥ 1.');
-    if (ingredientes.length === 0) errs.push('Agrega al menos un ingrediente.');
+    const msgs: string[] = [];
+    if (!productId) msgs.push('Selecciona un producto elaborado');
+    if (!nombre.trim()) msgs.push('El nombre de la receta es obligatorio');
+    const porcionesNum = Number(rawPorciones);
+    if (!Number.isInteger(porcionesNum) || porcionesNum < 1) msgs.push('Las porciones deben ser un número entero ≥ 1');
+    if (ingredientes.length === 0) msgs.push('Agrega al menos un ingrediente');
     ingredientes.forEach((ing, i) => {
-      if (!ing.insumoId) errs.push(`Fila ${i + 1}: selecciona un insumo.`);
-      if (ing.quantity <= 0) errs.push(`Fila ${i + 1}: la cantidad debe ser mayor a 0.`);
+      if (!ing.insumoId) msgs.push(`Fila ${i + 1}: selecciona un insumo`);
+      const qty = parseFloat(ing.quantity);
+      if (!qty || qty <= 0) msgs.push(`Fila ${i + 1}: cantidad debe ser mayor a 0`);
     });
-    setErrors(errs);
-    return errs.length === 0;
+    if (msgs.length > 0) {
+      toast.error('Campos requeridos', msgs.join(' · '));
+      return false;
+    }
+    return true;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -191,18 +182,15 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
         nombre: nombre.trim(),
         nota: notas.trim(),
         id_Elaborado: Number(productId),
-        porciones: porcionesBase,
+        porciones,
         detalles: ingredientes.map((ing) => {
           const insumo = localInsumos.find(i => String(i.id) === String(ing.insumoId));
-          const subTotal = insumo && ing.quantity > 0
-            ? insumo.costoUnitario * ing.quantity * (1 + ing.merma / 100)
+          const qty = parseFloat(ing.quantity) || 0;
+          const merma = parseFloat(ing.merma) || 0;
+          const subTotal = insumo && qty > 0
+            ? insumo.costoUnitario * qty * (1 + merma / 100)
             : 0;
-          return {
-            cantidad: ing.quantity,
-            merma: ing.merma,
-            subTotal,
-            id_insumo: Number(ing.insumoId),
-          };
+          return { cantidad: qty, merma, subTotal, id_insumo: Number(ing.insumoId) };
         }),
       };
       if (receta) {
@@ -215,8 +203,7 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
       onSuccess();
       onClose();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'No se pudo guardar la receta. Intente nuevamente.';
-      toast.error('Error', message);
+      toast.error('Error', error instanceof Error ? error.message : 'No se pudo guardar la receta. Intente nuevamente.');
     } finally {
       setIsLoading(false);
     }
@@ -224,216 +211,218 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
 
   return (
     <div>
-    <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Product + Porciones */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-coffee-700 mb-1">
-            Producto elaborado <span className="text-red-500">*</span>
-          </label>
-          <Select
-            value={productId}
-            onChange={(v) => setProductId(v)}
-            options={productOptions}
-            disabled={!!preselectedProductId}
-          />
+      <form onSubmit={handleSubmit} className="space-y-5">
+
+        {/* Producto + Porciones */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-coffee-700 mb-1">
+              Producto elaborado <span className="text-red-500">*</span>
+            </label>
+            <Select
+              value={productId}
+              onChange={(v) => setProductId(v)}
+              options={productOptions}
+              disabled={!!preselectedProductId}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-coffee-700 mb-1">
+              Porciones que produce <span className="text-red-500">*</span>
+            </label>
+            <Input
+              type="number"
+              min="1"
+              value={rawPorciones}
+              onChange={(e) => setRawPorciones(e.target.value)}
+            />
+            <p className="text-xs text-coffee-400 mt-1">Ej: 1 torta = 8 porciones</p>
+          </div>
         </div>
+
+        {/* Nombre */}
         <div>
           <label className="block text-sm font-medium text-coffee-700 mb-1">
-            Porciones que produce <span className="text-red-500">*</span>
+            Nombre de la receta <span className="text-red-500">*</span>
           </label>
           <Input
-            type="number"
-            min="1"
-            value={porcionesBase}
-            onChange={(e) => setPorcionesBase(parseInt(e.target.value) || 1)}
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Ej: Cappuccino clásico, Torta de chocolate 20cm…"
           />
-          <p className="text-xs text-coffee-400 mt-1">Ej: 1 torta = 8 porciones</p>
         </div>
-      </div>
 
-      {/* Nombre de la receta */}
-      <div>
-        <label className="block text-sm font-medium text-coffee-700 mb-1">
-          Nombre de la receta <span className="text-red-500">*</span>
-        </label>
-        <Input
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          placeholder="Ej: Cappuccino clásico, Torta de chocolate 20cm…"
-        />
-      </div>
+        {/* Tabla de ingredientes */}
+        <div>
+          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <label className="block text-sm font-medium text-coffee-700">
+              Ingredientes <span className="text-red-500">*</span>
+            </label>
+            <div className="flex flex-col gap-1.5 sm:flex-row sm:gap-2">
+              <Button
+                type="button" variant="ghost" size="sm"
+                leftIcon={<Plus className="h-4 w-4" />}
+                onClick={() => setInsumoModalOpen(true)}
+                title="Crear nuevo insumo"
+              >
+                Nuevo insumo
+              </Button>
+              <Button type="button" variant="ghost" size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={addLine}>
+                Agregar fila
+              </Button>
+            </div>
+          </div>
 
-      {/* Ingredients table */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="block text-sm font-medium text-coffee-700">
-            Ingredientes <span className="text-red-500">*</span>
-          </label>
-          <div className="flex gap-2">
-            <Button
-              type="button" variant="ghost" size="sm"
-              leftIcon={<Plus className="h-4 w-4" />}
-              onClick={() => { setInsumoModalOpen(true); }}
-              title="Crear nuevo insumo"
-            >
-              Nuevo insumo
-            </Button>
-            <Button type="button" variant="ghost" size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={addLine}>
-              Agregar fila
-            </Button>
+          {/* Cabecera desktop */}
+          <div className="hidden sm:grid grid-cols-[1fr_90px_70px_70px_20px] gap-2 text-xs text-coffee-400 font-medium mb-1 px-1">
+            <span>Insumo</span>
+            <span className="text-right">Cantidad</span>
+            <span className="text-right">Merma %</span>
+            <span className="text-right">Subtotal</span>
+            <span />
+          </div>
+
+          <div className="space-y-2">
+            {ingredientes.map((line, idx) => {
+              const insumo = localInsumos.find(i => String(i.id) === String(line.insumoId));
+              const lineSubtotal =
+                insumo && parseFloat(line.quantity) > 0
+                  ? insumo.costoUnitario * parseFloat(line.quantity) * (1 + (parseFloat(line.merma) || 0) / 100)
+                  : 0;
+
+              return (
+                <div
+                  key={idx}
+                  className="rounded-lg border border-coffee-100 bg-coffee-50/40 p-3 space-y-2 sm:space-y-0 sm:bg-transparent sm:border-0 sm:rounded-none sm:grid sm:grid-cols-[1fr_90px_70px_70px_20px] sm:gap-2 sm:items-center"
+                >
+                  {/* Insumo + botón nuevo */}
+                  <div className="flex gap-1">
+                    <div className="flex-1">
+                      <SearchableSelect
+                        value={line.insumoId}
+                        onChange={(v) => updateLine(idx, 'insumoId', v)}
+                        options={insumoOptions}
+                        placeholder="Seleccionar insumo…"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setInsumoModalOpen(true)}
+                      className="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-lg border border-coffee-200 text-coffee-500 hover:bg-coffee-50 hover:text-coffee-800 transition-colors"
+                      title="Crear nuevo insumo"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* Cantidad / Merma / Subtotal / Eliminar */}
+                  <div className="grid grid-cols-2 gap-2 sm:contents">
+                    <div className="sm:contents">
+                      <p className="sm:hidden text-xs text-coffee-400 mb-1">Cantidad</p>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.001"
+                        value={line.quantity}
+                        onChange={(e) => updateLine(idx, 'quantity', e.target.value)}
+                        placeholder={insumo?.unidadMinima ?? '0'}
+                        className="text-right"
+                      />
+                    </div>
+                    <div className="sm:contents">
+                      <p className="sm:hidden text-xs text-coffee-400 mb-1">Merma %</p>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.5"
+                        value={line.merma}
+                        onChange={(e) => updateLine(idx, 'merma', e.target.value)}
+                        placeholder="0"
+                        className="text-right"
+                      />
+                    </div>
+                    <div className="sm:contents col-span-2 sm:col-span-1">
+                      <p className="sm:hidden text-xs text-coffee-400 mb-1">Subtotal</p>
+                      <p className="text-right text-sm font-medium text-coffee-700 py-2 sm:py-0 tabular-nums">
+                        {lineSubtotal > 0 ? formatCurrency(lineSubtotal) : '—'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeLine(idx)}
+                      className="col-span-2 sm:col-span-1 flex sm:block justify-end text-red-400 hover:text-red-600 transition-colors self-center"
+                      disabled={ingredientes.length === 1}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        <div className="hidden sm:grid grid-cols-[1fr_90px_70px_70px_20px] gap-2 text-xs text-coffee-400 font-medium mb-1 px-1">
-          <span>Insumo</span>
-          <span className="text-right">Cantidad</span>
-          <span className="text-right">Merma %</span>
-          <span className="text-right">Subtotal</span>
-          <span />
+        {/* Notas */}
+        <div>
+          <label className="block text-sm font-medium text-coffee-700 mb-1">Notas internas (opcional)</label>
+          <Input
+            value={notas}
+            onChange={(e) => setNotas(e.target.value)}
+            placeholder="Temperatura, técnica, instrucciones para el barista…"
+          />
         </div>
 
-        <div className="space-y-2">
-          {ingredientes.map((line, idx) => {
-            const insumo = localInsumos.find(i => String(i.id) === String(line.insumoId));
-            const lineSubtotal = insumo && line.quantity > 0
-              ? insumo.costoUnitario * line.quantity * (1 + line.merma / 100)
-              : 0;
-
-            return (
-              <div key={idx} className="rounded-lg border border-coffee-100 bg-white p-2.5 sm:p-0 sm:border-0 sm:rounded-none sm:grid sm:grid-cols-[1fr_90px_70px_70px_20px] sm:gap-2 sm:items-center">
-                <div className="flex gap-1">
-                  <div className="flex-1">
-                    <SearchableSelect
-                      value={line.insumoId}
-                      onChange={(v) => updateLine(idx, 'insumoId', v)}
-                      options={insumoOptions}
-                      placeholder="Seleccionar insumo…"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => openInsumoModalForRow()}
-                    className="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-lg border border-coffee-200 text-coffee-500 hover:bg-coffee-50 hover:text-coffee-800 transition-colors"
-                    title="Crear nuevo insumo"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
+        {/* Resumen de costos */}
+        {costoTotalReceta > 0 && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 space-y-1.5">
+            <div className="flex justify-between text-sm">
+              <span className="text-coffee-600">Costo total ({porciones} porción{porciones !== 1 ? 'es' : ''})</span>
+              <span className="font-semibold text-coffee-900">{formatCurrency(costoTotalReceta)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-coffee-600 font-medium">Costo por porción</span>
+              <span className="font-bold text-coffee-900">{formatCurrency(costoPorPorcion)}</span>
+            </div>
+            {selectedProduct && (
+              <>
+                <div className="flex justify-between text-sm border-t border-amber-200 pt-1.5">
+                  <span className="text-coffee-600">Precio de venta</span>
+                  <span className="text-coffee-700">{formatCurrency(selectedProduct.salePrice)}</span>
                 </div>
-                <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 items-end mt-2 sm:mt-0 sm:contents">
-                  <div className="sm:contents">
-                    <p className="sm:hidden text-xs text-coffee-400 mb-0.5">Cantidad</p>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.001"
-                      value={line.quantity === 0 ? '' : line.quantity}
-                      onChange={(e) => updateLine(idx, 'quantity', parseFloat(e.target.value) || 0)}
-                      placeholder={insumo?.unidadMinima ?? '0'}
-                      className="text-right"
-                    />
-                  </div>
-                  <div className="sm:contents">
-                    <p className="sm:hidden text-xs text-coffee-400 mb-0.5">Merma %</p>
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.5"
-                      value={line.merma === 0 ? '' : line.merma}
-                      onChange={(e) => updateLine(idx, 'merma', parseFloat(e.target.value) || 0)}
-                      placeholder="0"
-                      className="text-right"
-                    />
-                  </div>
-                  <div className="sm:contents">
-                    <p className="sm:hidden text-xs text-coffee-400 mb-0.5">Subtotal</p>
-                    <p className="text-right text-sm font-medium text-coffee-700 py-2 sm:py-0 sm:font-normal tabular-nums">
-                      {lineSubtotal > 0 ? formatCurrency(lineSubtotal) : '—'}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeLine(idx)}
-                    className="text-red-400 hover:text-red-600 transition-colors shrink-0 self-center"
-                    disabled={ingredientes.length === 1}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                <div className="flex justify-between text-sm items-center">
+                  <span className="font-medium text-coffee-800">Margen ({margenPct?.toFixed(1)}%)</span>
+                  <span className={`font-bold ${margen! >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                    {formatCurrency(margen!)}
+                  </span>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Notas */}
-      <div>
-        <label className="block text-sm font-medium text-coffee-700 mb-1">Notas internas (opcional)</label>
-        <Input
-          value={notas}
-          onChange={(e) => setNotas(e.target.value)}
-          placeholder="Temperatura, técnica, instrucciones para el barista…"
-        />
-      </div>
-
-      {/* Live cost summary */}
-      {costoTotalReceta > 0 && (
-        <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 space-y-1.5">
-          <div className="flex justify-between text-sm">
-            <span className="text-coffee-600">Costo total receta ({porciones} porción{porciones !== 1 ? 'es' : ''})</span>
-            <span className="font-semibold text-coffee-900">{formatCurrency(costoTotalReceta)}</span>
+                {semaforo && (
+                  <div className={`text-xs font-semibold rounded px-2 py-1 text-center ${semaforo.color}`}>
+                    {semaforo.label}
+                  </div>
+                )}
+              </>
+            )}
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-coffee-600 font-medium">Costo por porción</span>
-            <span className="font-bold text-coffee-900">{formatCurrency(costoPorPorcion)}</span>
-          </div>
-          {selectedProduct && (
-            <>
-              <div className="flex justify-between text-sm border-t border-amber-200 pt-1.5">
-                <span className="text-coffee-600">Precio de venta</span>
-                <span className="text-coffee-700">{formatCurrency(selectedProduct.salePrice)}</span>
-              </div>
-              <div className="flex justify-between text-sm items-center">
-                <span className="font-medium text-coffee-800">Margen ({margenPct?.toFixed(1)}%)</span>
-                <span className={`font-bold ${margen! >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                  {formatCurrency(margen!)}
-                </span>
-              </div>
-              {semaforo && (
-                <div className={`text-xs font-semibold rounded px-2 py-1 text-center ${semaforo.color}`}>
-                  {semaforo.label}
-                </div>
-              )}
-            </>
-          )}
+        )}
+
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-1">
+          <Button variant="ghost" type="button" onClick={onClose} disabled={isLoading} className="w-full sm:w-auto">
+            Cancelar
+          </Button>
+          <Button variant="primary" type="submit" isLoading={isLoading} className="w-full sm:w-auto">
+            {receta ? 'Guardar cambios' : 'Crear receta'}
+          </Button>
         </div>
-      )}
+      </form>
 
-      {/* Errors */}
-      {errors.length > 0 && (
-        <ul className="text-red-500 text-xs space-y-0.5">
-          {errors.map((err, i) => <li key={i}>• {err}</li>)}
-        </ul>
-      )}
-
-      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-1">
-        <Button variant="ghost" type="button" onClick={onClose} disabled={isLoading} className="w-full sm:w-auto">
-          Cancelar
-        </Button>
-        <Button variant="primary" type="submit" isLoading={isLoading} className="w-full sm:w-auto">
-          {receta ? 'Guardar cambios' : 'Crear receta'}
-        </Button>
-      </div>
-    </form>
-
-    <InsumoModal
-      isOpen={insumoModalOpen}
-      onClose={() => setInsumoModalOpen(false)}
-      onSuccess={() => {}}
-onCreated={handleInsumoCreated}
-    />
-  </div>
+      <InsumoModal
+        isOpen={insumoModalOpen}
+        onClose={() => setInsumoModalOpen(false)}
+        onSuccess={() => {}}
+        onCreated={handleInsumoCreated}
+      />
+    </div>
   );
 };
 
@@ -443,7 +432,10 @@ interface RecetaModalProps extends RecetaFormProps {
   isOpen: boolean;
 }
 
-export const RecetaModal: React.FC<RecetaModalProps> = ({ isOpen, onClose, receta, preselectedProductId, productOverride, insumos, products, onSuccess }) => {
+export const RecetaModal: React.FC<RecetaModalProps> = ({
+  isOpen, onClose, receta, preselectedProductId, productOverride,
+  insumos, products, onSuccess,
+}) => {
   return (
     <Modal
       isOpen={isOpen}

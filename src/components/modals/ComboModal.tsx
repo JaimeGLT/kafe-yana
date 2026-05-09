@@ -36,9 +36,8 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [price, setPrice] = useState<number | ''>('');
+  const [rawPrice, setRawPrice] = useState('');
   const [items, setItems] = useState<ComboLine[]>([{ productId: '', quantity: 1 }]);
-  const [errors, setErrors] = useState<string[]>([]);
 
   // Products that can be in a combo (not another combo)
   const productOptions = useMemo(
@@ -58,7 +57,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
     if (combo) {
       setName(combo.name);
       setDescription(combo.description ?? '');
-      setPrice(combo.price);
+      setRawPrice(String(combo.price));
       setItems(
         combo.items.map((i) => ({
           productId: i.productId,
@@ -68,10 +67,9 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
     } else {
       setName('');
       setDescription('');
-      setPrice('');
+      setRawPrice('');
       setItems([{ productId: '', quantity: 1 }]);
     }
-    setErrors([]);
   }, [combo, isOpen]);
 
   // Live cost calculation
@@ -79,7 +77,6 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
     return items.reduce((sum, line) => {
       const prod = products.find((p) => p.id === line.productId);
       if (!prod || line.quantity <= 0) return sum;
-      // For elaborados: use recipe costoPorPorcion if available
       const receta = prod.tipo === 'elaborado' ? recetas.find((r) => r.productId === prod.id) : null;
       const unitCost = receta ? receta.costoPorPorcion : prod.costPrice;
       return sum + unitCost * line.quantity;
@@ -94,7 +91,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
     }, 0);
   }, [items, products]);
 
-  const comboPrice = price !== '' ? Number(price) : 0;
+  const comboPrice = parseFloat(rawPrice) || 0;
   const margenAbs = comboPrice - costoTotal;
   const margenPct = comboPrice > 0 ? (margenAbs / comboPrice) * 100 : null;
   const semaforo = margenPct !== null ? getMarginInfo(margenPct) : null;
@@ -108,7 +105,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
   const validate = (): boolean => {
     const errs: string[] = [];
     if (!name.trim()) errs.push('El nombre del combo es obligatorio.');
-    if (!price || Number(price) <= 0) errs.push('El precio del combo debe ser mayor a 0.');
+    if (comboPrice <= 0) errs.push('El precio del combo debe ser mayor a 0.');
     if (items.length === 0) errs.push('Agrega al menos un producto al combo.');
     items.forEach((line, i) => {
       if (!line.productId) errs.push(`Fila ${i + 1}: selecciona un producto.`);
@@ -116,8 +113,11 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
     });
     const ids = items.map((l) => l.productId).filter(Boolean);
     if (new Set(ids).size !== ids.length) errs.push('No puedes repetir el mismo producto en el combo.');
-    setErrors(errs);
-    return errs.length === 0;
+    if (errs.length > 0) {
+      toast.error('Campos requeridos', errs.join(' · '));
+      return false;
+    }
+    return true;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -128,7 +128,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
       const body = {
         nombre: name.trim(),
         descripcion: description.trim() || '',
-        precio: Number(price),
+        precio: comboPrice,
         productos: items.map((i) => ({
           productoId: Number(i.productId),
           cantidad: i.quantity,
@@ -144,8 +144,8 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
       }
       onSuccess();
       onClose();
-    } catch {
-      toast.error('Error', 'No se pudo guardar el combo. Intente nuevamente.');
+    } catch (err) {
+      toast.error('Error', err instanceof Error ? err.message : 'No se pudo guardar el combo. Intente nuevamente.');
     } finally {
       setIsLoading(false);
     }
@@ -180,8 +180,8 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
               type="number"
               min="0"
               step="0.01"
-              value={price}
-              onChange={(e) => setPrice(parseFloat(e.target.value) || '')}
+              value={rawPrice}
+              onChange={(e) => setRawPrice(e.target.value)}
               placeholder="0.00"
             />
           </div>
@@ -325,13 +325,6 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
               </>
             )}
           </div>
-        )}
-
-        {/* Errors */}
-        {errors.length > 0 && (
-          <ul className="text-red-500 text-xs space-y-0.5">
-            {errors.map((err, i) => <li key={i}>• {err}</li>)}
-          </ul>
         )}
 
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-1">

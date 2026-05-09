@@ -36,11 +36,10 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState('');
-  const [salePrice, setSalePrice] = useState<number | ''>('');
+  const [rawSalePrice, setRawSalePrice] = useState('');
   const [unit, setUnit] = useState('unidad');
   const [preparationType, setPreparationType] = useState<'al_momento' | 'en_lote'>('al_momento');
   const [destino, setDestino] = useState<ProductDestino>('sin_destino');
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [localCategories, setLocalCategories] = useState(categories);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
@@ -56,11 +55,10 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
     setName('');
     setDescription('');
     setCategoryId('');
-    setSalePrice('');
+    setRawSalePrice('');
     setUnit('unidad');
     setPreparationType('al_momento');
     setDestino('sin_destino');
-    setErrors({});
   };
 
   const handleSaveCategory = async (input: CategoryInput) => {
@@ -88,12 +86,16 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
   };
 
   const validateStep1 = () => {
-    const errs: Record<string, string> = {};
-    if (!name.trim()) errs.name = 'El nombre es obligatorio.';
-    if (!categoryId) errs.categoryId = 'Selecciona una categoría.';
-    if (!salePrice || salePrice <= 0) errs.salePrice = 'Ingresa un precio de venta válido.';
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
+    const msgs: string[] = [];
+    if (!name.trim()) msgs.push('El nombre es obligatorio');
+    if (!categoryId) msgs.push('Selecciona una categoría');
+    const price = parseFloat(rawSalePrice);
+    if (!rawSalePrice || isNaN(price) || price <= 0) msgs.push('Ingresa un precio de venta válido');
+    if (msgs.length > 0) {
+      toast.error('Campos requeridos', msgs.join(' · '));
+      return false;
+    }
+    return true;
   };
 
   const handleStep1Submit = async (e: React.FormEvent) => {
@@ -104,7 +106,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
       const res = await api.post<{ Id: number; Nombre: string; message?: string }>('/Elaborado', {
         nombre: name.trim(),
         descripcion: description.trim() || '',
-        precio: Number(salePrice),
+        precio: parseFloat(rawSalePrice),
         categoria_Id: Number(categoryId) || 0,
         unidad_medida: unit,
         producible: preparationType === 'en_lote',
@@ -113,7 +115,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
       const id = String(res.Id);
       setNewProductId(id);
       setNewProductName(name.trim());
-      setNewProductSalePrice(Number(salePrice));
+      setNewProductSalePrice(parseFloat(rawSalePrice));
       setStep(2);
       toast.success('Producto creado', `"${name}" fue agregado como producto elaborado.`);
       onCreated();
@@ -181,7 +183,6 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
                   placeholder="Ej: Cappuccino doble, Torta de chocolate…"
                   autoFocus
                 />
-                {errors.name && <p className="text-xs text-red-600 mt-1">{errors.name}</p>}
               </div>
 
               {/* Image */}
@@ -280,7 +281,6 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
                       <Plus className="h-4 w-4" />
                     </button>
                   </div>
-                  {errors.categoryId && <p className="text-xs text-red-600 mt-1">{errors.categoryId}</p>}
                 </div>
                 <div>
                   <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
@@ -312,11 +312,10 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
                   type="number"
                   min="0"
                   step="0.01"
-                  value={salePrice}
-                  onChange={(e) => setSalePrice(parseFloat(e.target.value) || '')}
+                  value={rawSalePrice}
+                  onChange={(e) => setRawSalePrice(e.target.value)}
                   placeholder="0.00"
                 />
-                {errors.salePrice && <p className="text-xs text-red-600 mt-1">{errors.salePrice}</p>}
               </div>
 
               {/* Destino */}

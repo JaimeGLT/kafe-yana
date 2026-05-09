@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input, Textarea } from '../ui/Input';
-import { FormField, Form, FormRow, FormActions } from '../forms/FormField';
+import { FormField, Form, FormRow } from '../forms/FormField';
 import { toast } from '../ui/Toast';
 import type { Category, CategoryInput } from '../../types';
 
@@ -144,14 +144,14 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
           </FormField>
         </FormRow>
 
-        <FormActions>
-          <Button type="button" variant="ghost" onClick={onClose} disabled={isLoading}>
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-4 border-t border-coffee-100">
+          <Button type="button" variant="ghost" onClick={onClose} disabled={isLoading} className="w-full sm:w-auto">
             Cancelar
           </Button>
-          <Button type="submit" variant="primary" isLoading={isLoading}>
+          <Button type="submit" variant="primary" isLoading={isLoading} className="w-full sm:w-auto">
             {category ? 'Guardar Cambios' : 'Crear Categoría'}
           </Button>
-        </FormActions>
+        </div>
       </Form>
     </Modal>
   );

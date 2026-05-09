@@ -83,7 +83,12 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     destino: product?.destino ?? 'sin_destino',
   });
 
-  const [errors, setErrors] = React.useState<Record<string, string>>({});
+  const [rawValues, setRawValues] = React.useState({
+    costPrice: String(product?.costPrice ?? 0),
+    salePrice: String(product?.salePrice ?? 0),
+    stock:     String(product?.stock ?? 0),
+    minStock:  String(product?.minStock ?? 5),
+  });
   const [localCategories, setLocalCategories] = React.useState<Category[]>(categories);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = React.useState(false);
 
@@ -125,19 +130,29 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
   const handleChange = (field: keyof ProductInput, value: unknown) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field as string]) {
-      setErrors(prev => ({ ...prev, [field as string]: '' }));
-    }
+  };
+
+  const handleNumberChange = (
+    field: 'costPrice' | 'salePrice' | 'stock' | 'minStock',
+    raw: string,
+  ) => {
+    setRawValues(prev => ({ ...prev, [field]: raw }));
+    const isDecimal = field === 'costPrice' || field === 'salePrice';
+    const parsed = isDecimal ? parseFloat(raw) : parseInt(raw, 10);
+    handleChange(field, isNaN(parsed) || parsed < 0 ? 0 : parsed);
   };
 
   const validate = (): boolean => {
-    const newErrors: Record<string, string> = {};
-    if (!formData.name.trim()) newErrors.name = 'El nombre es requerido';
-    if (!formData.categoryId) newErrors.categoryId = 'La categoría es requerida';
-    if (formData.salePrice <= 0) newErrors.salePrice = 'El precio de venta debe ser mayor a 0';
-    if (isComprado && formData.costPrice <= 0) newErrors.costPrice = 'El costo de compra debe ser mayor a 0';
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const msgs: string[] = [];
+    if (!formData.name.trim()) msgs.push('El nombre es requerido');
+    if (!formData.categoryId) msgs.push('La categoría es requerida');
+    if (formData.salePrice <= 0) msgs.push('El precio de venta debe ser mayor a 0');
+    if (isComprado && formData.costPrice <= 0) msgs.push('El costo de compra debe ser mayor a 0');
+    if (msgs.length > 0) {
+      toast.error('Campos requeridos', msgs.join(' · '));
+      return false;
+    }
+    return true;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -197,7 +212,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
         {/* Name + Barcode (barcode only for comprado) */}
         <FormRow>
-          <FormField label="Nombre" required error={errors.name}>
+          <FormField label="Nombre" required>
             <Input
               value={formData.name}
               onChange={(e) => handleChange('name', e.target.value)}
@@ -226,7 +241,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
         {/* Category + Unit */}
         <FormRow>
-          <FormField label="Categoría" required error={errors.categoryId}>
+          <FormField label="Categoría" required>
             <div className="flex gap-2">
               <div className="flex-1">
                 <SearchableSelect
@@ -234,8 +249,6 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                   onChange={(value) => handleChange('categoryId', value)}
                   options={localCategories.filter(c => c.isActive).map(c => ({ value: c.id, label: c.name }))}
                   placeholder="Seleccionar categoría"
-                  error={errors.categoryId}
-                  showMessage={false}
                 />
               </div>
               <button
@@ -288,23 +301,23 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         {/* Prices */}
         <FormRow>
           {isComprado && (
-            <FormField label="Costo de compra (Bs.)" error={errors.costPrice}>
+            <FormField label="Costo de compra (Bs.)">
               <Input
                 type="number"
                 step="0.01"
                 min="0"
-                value={formData.costPrice}
-                onChange={(e) => handleChange('costPrice', parseFloat(e.target.value) || 0)}
+                value={rawValues.costPrice}
+                onChange={(e) => handleNumberChange('costPrice', e.target.value)}
               />
             </FormField>
           )}
-          <FormField label="Precio de venta (Bs.)" required error={errors.salePrice}>
+          <FormField label="Precio de venta (Bs.)" required>
             <Input
               type="number"
               step="0.01"
               min="0"
-              value={formData.salePrice}
-              onChange={(e) => handleChange('salePrice', parseFloat(e.target.value) || 0)}
+              value={rawValues.salePrice}
+              onChange={(e) => handleNumberChange('salePrice', e.target.value)}
             />
           </FormField>
         </FormRow>
@@ -326,16 +339,16 @@ export const ProductForm: React.FC<ProductFormProps> = ({
               <Input
                 type="number"
                 min="0"
-                value={formData.stock}
-                onChange={(e) => handleChange('stock', parseInt(e.target.value) || 0)}
+                value={rawValues.stock}
+                onChange={(e) => handleNumberChange('stock', e.target.value)}
               />
             </FormField>
             <FormField label="Stock mínimo (alerta)">
               <Input
                 type="number"
                 min="0"
-                value={formData.minStock}
-                onChange={(e) => handleChange('minStock', parseInt(e.target.value) || 0)}
+                value={rawValues.minStock}
+                onChange={(e) => handleNumberChange('minStock', e.target.value)}
               />
             </FormField>
           </FormRow>

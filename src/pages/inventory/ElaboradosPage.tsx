@@ -52,28 +52,26 @@ const ElaboradosPage: React.FC = () => {
   }, [recetas]);
 
   const getElaboradoAvailability = useCallback((productId: string) => {
-    return elaborados.find((p) => p.id === productId)?.stock ?? 0;
+    const p = elaborados.find((e) => e.id === productId);
+    if (!p) return 0;
+    // en lote (isActive=true): stock físico vendible; al momento: porciones producibles con insumos
+    return p.isActive ? p.stock : p.maxStock;
   }, [elaborados]);
 
   const addReceta = useCallback(async (recetaData: { productId: string; nombre: string; porcionesBase: number; ingredientes: { insumoId: string; quantity: number; merma: number; subTotal: number }[]; notas?: string }, _productName: string) => {
-    try {
-      await api.post('/Receta', {
-        nombre: recetaData.nombre,
-        nota: recetaData.notas ?? '',
-        porciones: recetaData.porcionesBase,
-        id_Elaborado: Number(recetaData.productId),
-        detalles: recetaData.ingredientes.map((ing) => ({
-          cantidad: ing.quantity,
-          merma: ing.merma,
-          subTotal: ing.subTotal,
-          id_insumo: Number(ing.insumoId),
-        })),
-      });
-      await refresh();
-    } catch (error) {
-      console.error('Error adding receta:', error);
-      throw error;
-    }
+    await api.post('/Receta', {
+      nombre: recetaData.nombre,
+      nota: recetaData.notas ?? '',
+      porciones: recetaData.porcionesBase,
+      id_Elaborado: Number(recetaData.productId),
+      detalles: recetaData.ingredientes.map((ing) => ({
+        cantidad: ing.quantity,
+        merma: ing.merma,
+        subTotal: ing.subTotal,
+        id_insumo: Number(ing.insumoId),
+      })),
+    });
+    await refresh();
   }, [refresh]);
 
   const [isWizardOpen, setIsWizardOpen] = useState(false);

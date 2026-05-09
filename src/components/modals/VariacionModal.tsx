@@ -96,30 +96,26 @@ const SustitucionFields: React.FC<SustitucionFieldsProps> = ({ form, setForm, re
   return (
     <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-3">
       {/* Toggle header */}
-      <label className="flex items-start gap-2.5 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={form.sustituye}
-          onChange={(e) => setForm({ ...form, sustituye: e.target.checked, insumoReemplazadoId: '', insumoExtraId: '', cantidadExtra: '', modificaCantidad: false, ajustesCantidad: [] })}
-          className="mt-0.5 h-4 w-4 rounded border-coffee-300 text-blue-600 focus:ring-blue-400"
-          disabled={!hasReceta}
-        />
-        <div>
-          <p className="text-sm font-semibold text-blue-800 flex items-center gap-1.5">
-            <Repeat2 className="h-3.5 w-3.5" />
+      <div className="space-y-0.5">
+        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={form.sustituye}
+            onChange={(e) => setForm({ ...form, sustituye: e.target.checked, insumoReemplazadoId: '', insumoExtraId: '', cantidadExtra: '', modificaCantidad: false, ajustesCantidad: [] })}
+            className="h-4 w-4 rounded border-coffee-300 text-blue-600 focus:ring-blue-400 shrink-0"
+            disabled={!hasReceta}
+          />
+          <p className="text-xs sm:text-sm font-semibold text-blue-800 flex items-center gap-1.5">
+            <Repeat2 className="h-3.5 w-3.5 shrink-0" />
             Esta opción sustituye un ingrediente
           </p>
-          {!hasReceta ? (
-            <p className="text-xs text-blue-600 mt-0.5">
-              Este producto no tiene receta configurada.
-            </p>
-          ) : (
-            <p className="text-xs text-blue-600 mt-0.5">
-              Solo para productos con receta. Ej: &quot;Leche de avena&quot; quita la leche normal de la receta y usa avena en su lugar.
-            </p>
-          )}
-        </div>
-      </label>
+        </label>
+        {!hasReceta ? (
+          <p className="text-[10px] text-blue-500">Este producto no tiene receta configurada.</p>
+        ) : (
+          <p className="text-[10px] text-blue-500">Solo para productos con receta. Ej: &quot;Leche de avena&quot; quita la leche normal y usa avena en su lugar.</p>
+        )}
+      </div>
 
       {/* Swap fields — only visible when toggle is on */}
       {form.sustituye && (
@@ -214,40 +210,37 @@ const ModificaCantidadFields: React.FC<ModificaCantidadFieldsProps> = ({ form, s
   return (
     <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 space-y-3">
       {/* Toggle header */}
-      <label className="flex items-start gap-2.5 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={form.modificaCantidad}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              modificaCantidad: e.target.checked,
-              ajustesCantidad: e.target.checked ? [{ insumoId: '', cantidad: '' }] : [],
-              // clear the other mode
-              sustituye: false,
-              insumoReemplazadoId: '',
-              insumoExtraId: '',
-              cantidadExtra: '',
-            })
-          }
-          className="mt-0.5 h-4 w-4 rounded border-coffee-300 text-emerald-600 focus:ring-emerald-400"
-        />
-        <div>
-          <p className="text-sm font-semibold text-emerald-800 flex items-center gap-1.5">
-            <SlidersHorizontal className="h-3.5 w-3.5" />
+      <div className="space-y-0.5">
+        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={form.modificaCantidad}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                modificaCantidad: e.target.checked,
+                ajustesCantidad: e.target.checked ? [{ insumoId: '', cantidad: '' }] : [],
+                sustituye: false,
+                insumoReemplazadoId: '',
+                insumoExtraId: '',
+                cantidadExtra: '',
+              })
+            }
+            className="h-4 w-4 rounded border-coffee-300 text-emerald-600 focus:ring-emerald-400 shrink-0"
+          />
+          <p className="text-xs sm:text-sm font-semibold text-emerald-800 flex items-center gap-1.5">
+            <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
             Esta opción modifica la cantidad de un ingrediente
           </p>
-          <p className="text-xs text-emerald-600 mt-0.5">
-            Solo para productos con receta. Ej: "Grande" usa 300 ml de leche en vez de 200 ml.
-          </p>
-        </div>
-      </label>
+        </label>
+        <p className="text-[10px] text-emerald-600">Solo para productos con receta. Ej: &quot;Grande&quot; usa 300 ml de leche en vez de 200 ml.</p>
+      </div>
 
       {/* Ingredient rows — only visible when toggle is on */}
       {form.modificaCantidad && (
         <div className="space-y-2 pt-1 border-t border-emerald-200">
           {form.ajustesCantidad.map((row, i) => (
-            <div key={i} className="flex items-end gap-2">
+            <div key={i} className="flex flex-col gap-2 sm:flex-row sm:items-end">
               <div className="flex-1">
                 {i === 0 && (
                   <span className={clsx(labelClass, 'text-emerald-700 block mb-1')}>
@@ -261,29 +254,31 @@ const ModificaCantidadFields: React.FC<ModificaCantidadFieldsProps> = ({ form, s
                   placeholder="— Seleccionar… —"
                 />
               </div>
-              <div className="w-28 shrink-0">
-                {i === 0 && (
-                  <span className={clsx(labelClass, 'block mb-1')}>Nueva cantidad</span>
+              <div className="flex items-end gap-2 sm:contents">
+                <div className="flex-1 sm:w-28 sm:shrink-0 sm:flex-none">
+                  {i === 0 && (
+                    <span className={clsx(labelClass, 'block mb-1')}>Nueva cantidad</span>
+                  )}
+                  <Input
+                    type="number"
+                    step="0.001"
+                    min="0"
+                    value={row.cantidad}
+                    onChange={(e) => updateRow(i, 'cantidad', e.target.value)}
+                    placeholder="Ej: 300"
+                    disabled={!row.insumoId}
+                  />
+                </div>
+                {form.ajustesCantidad.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeRow(i)}
+                    className="mb-0.5 p-1.5 rounded hover:bg-red-100 text-coffee-400 hover:text-red-500 transition-colors shrink-0"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 )}
-                <Input
-                  type="number"
-                  step="0.001"
-                  min="0"
-                  value={row.cantidad}
-                  onChange={(e) => updateRow(i, 'cantidad', e.target.value)}
-                  placeholder="Ej: 300"
-                  disabled={!row.insumoId}
-                />
               </div>
-              {form.ajustesCantidad.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeRow(i)}
-                  className="mb-0.5 p-1.5 rounded hover:bg-red-100 text-coffee-400 hover:text-red-500 transition-colors shrink-0"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
             </div>
           ))}
 
@@ -397,22 +392,22 @@ const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, recetaInsumoO
           {/* Swap summary */}
           {opcion.tipoOpcion === 'cambio' && opcion.valorAnterior && insumoUsarNombre && (
             <div className="space-y-0.5">
-              <p className="text-xs text-red-600 flex items-center gap-1">
-                <span className="font-semibold">Quita:</span> {opcion.valorAnterior}
+              <p className="text-xs text-red-600 flex items-baseline gap-1 flex-wrap">
+                <span className="font-semibold shrink-0">Quita:</span> <span>{opcion.valorAnterior}</span>
               </p>
-              <p className="text-xs text-emerald-600 flex items-center gap-1">
-                <span className="font-semibold">Usa:</span> {insumoUsarNombre}
+              <p className="text-xs text-emerald-600 flex items-baseline gap-1 flex-wrap">
+                <span className="font-semibold shrink-0">Usa:</span> <span>{insumoUsarNombre}</span>
                 {opcion.cantidadExtra && <span className="text-coffee-400">({opcion.cantidadExtra})</span>}
               </p>
             </div>
           )}
           {!(opcion.tipoOpcion === 'cambio') && insumoQuitarNombre && insumoUsarNombre && (
-            <p className="text-xs text-blue-600 flex items-center gap-1">
-              <Repeat2 className="h-3 w-3 shrink-0" />
-              Quita <strong>{insumoQuitarNombre}</strong>
-              <ArrowRight className="h-3 w-3 shrink-0" />
-              usa <strong>{insumoUsarNombre}</strong>
-              {opcion.cantidadExtra && ` (${opcion.cantidadExtra})`}
+            <p className="text-xs text-blue-600 flex items-baseline gap-1 flex-wrap">
+              <Repeat2 className="h-3 w-3 shrink-0 mt-0.5" />
+              <span>Quita <strong>{insumoQuitarNombre}</strong></span>
+              <ArrowRight className="h-3 w-3 shrink-0 mt-0.5" />
+              <span>usa <strong>{insumoUsarNombre}</strong></span>
+              {opcion.cantidadExtra && <span>{` (${opcion.cantidadExtra})`}</span>}
             </p>
           )}
           {/* Quantity-override summary */}
@@ -449,7 +444,7 @@ const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, recetaInsumoO
 
   return (
     <div className="border border-coffee-200 rounded-lg p-3 bg-coffee-50 space-y-3">
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <Input
           label="Nombre de la opción"
           value={form.nombre}
@@ -475,11 +470,11 @@ const OpcionRow: React.FC<OpcionRowProps> = ({ opcion, atributoId, recetaInsumoO
       <SustitucionFields form={form} setForm={setForm} recetaInsumoOptions={recetaInsumoOptions} allInsumoOptions={allInsumoOptions} />
       <ModificaCantidadFields form={form} setForm={setForm} recetaInsumoOptions={recetaInsumoOptions} />
 
-      <div className="flex gap-2 justify-end pt-1">
-        <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1">
+        <Button size="sm" variant="ghost" className="w-full sm:w-auto" onClick={() => setEditing(false)}>
           <X className="h-3.5 w-3.5 mr-1" /> Cancelar
         </Button>
-        <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white" onClick={handleSave}>
+        <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white w-full sm:w-auto" onClick={handleSave}>
           <Check className="h-3.5 w-3.5 mr-1" /> Guardar
         </Button>
       </div>
@@ -502,7 +497,7 @@ const NuevaOpcionForm: React.FC<NuevaOpcionFormProps> = ({ form, setForm, receta
   <div className="mt-3 border-t border-coffee-100 pt-3 space-y-3">
     <p className="text-xs font-semibold text-coffee-500 uppercase tracking-wider">+ Nueva opción</p>
 
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
       <Input
         placeholder="Nombre de la opción (Ej: Grande)"
         value={form.nombre}
@@ -724,13 +719,13 @@ export const VariacionModal: React.FC<Props> = ({
 
           {/* Concept explainer — always visible when not loading */}
           {!isLoading && (
-          <div className="rounded-lg bg-coffee-50 border border-coffee-200 px-4 py-3 text-sm text-coffee-700 space-y-1">
-            <p className="font-semibold text-coffee-800">¿Cómo funcionan las variaciones?</p>
+          <div className="rounded-lg bg-coffee-50 border border-coffee-200 px-4 py-3 text-xs sm:text-sm text-coffee-700 space-y-1">
+            <p className="font-semibold text-coffee-800 text-xs sm:text-sm">¿Cómo funcionan las variaciones?</p>
             <p>
               Un <strong>grupo</strong> es una categoría de personalización (Ej: <em>Tamaño</em>, <em>Temperatura</em>, <em>Tipo de leche</em>).
               Dentro de cada grupo defines las <strong>opciones</strong> (Ej: Pequeño / Mediano / Grande).
             </p>
-            <p>
+            <p className="hidden sm:block">
               Cada opción puede ajustar el precio y, si el producto tiene receta, puede <strong>sustituir un ingrediente</strong> por otro (Ej: leche normal → leche de avena).
             </p>
           </div>
@@ -748,33 +743,44 @@ export const VariacionModal: React.FC<Props> = ({
           {!isLoading && atributos.map((atributo) => (
             <div key={atributo.id} className="border border-coffee-200 rounded-xl overflow-hidden">
               {/* Atributo header */}
-              <div className="flex items-center gap-2 px-4 py-3 bg-coffee-50">
-                <button
-                  onClick={() => toggleExpand(atributo.id)}
-                  className="flex items-center gap-2 flex-1 min-w-0 text-left"
-                >
-                  {expanded.has(atributo.id)
-                    ? <ChevronDown className="h-4 w-4 text-coffee-500 shrink-0" />
-                    : <ChevronRight className="h-4 w-4 text-coffee-500 shrink-0" />}
-
-                  {editingAtributoId === atributo.id ? (
-                    <div className="flex items-center gap-2 flex-1" onClick={(e) => e.stopPropagation()}>
+              <div className="flex flex-wrap items-center gap-2 px-4 py-2 sm:py-3 bg-coffee-50">
+                {editingAtributoId === atributo.id ? (
+                  /* Editing: plain div, no nested buttons */
+                  <div className="flex items-start gap-2 w-full sm:flex-1 min-w-0">
+                    {expanded.has(atributo.id)
+                      ? <ChevronDown className="h-4 w-4 text-coffee-500 shrink-0 mt-2" />
+                      : <ChevronRight className="h-4 w-4 text-coffee-500 shrink-0 mt-2" />}
+                    <div className="flex-1 space-y-1.5">
                       <input
                         type="text"
                         value={editAtributoNombre}
                         onChange={(e) => setEditAtributoNombre(e.target.value)}
-                        className="flex-1 rounded-lg border border-coffee-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-coffee-500"
+                        className="w-full rounded-lg border border-coffee-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-coffee-500"
                         autoFocus
                       />
-                      <button onClick={() => handleSaveAtributo(atributo.id)} className="p-1 rounded bg-amber-100 hover:bg-amber-200 text-amber-700">
-                        <Check className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => setEditingAtributoId(null)} className="p-1 rounded hover:bg-coffee-200 text-coffee-500">
-                        <X className="h-4 w-4" />
-                      </button>
+                      <div className="flex gap-2 justify-end">
+                        <button onClick={() => setEditingAtributoId(null)} className="p-1.5 rounded hover:bg-coffee-200 text-coffee-500">
+                          <X className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => handleSaveAtributo(atributo.id)} className="p-1.5 rounded bg-amber-100 hover:bg-amber-200 text-amber-700">
+                          <Check className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                  </div>
+                ) : (
+                  /* Normal: toggle button with centered name on mobile */
+                  <button
+                    onClick={() => toggleExpand(atributo.id)}
+                    className="flex items-center gap-2 w-full sm:flex-1 sm:w-auto min-w-0 text-left relative"
+                  >
+                    {expanded.has(atributo.id)
+                      ? <ChevronDown className="h-4 w-4 text-coffee-500 shrink-0" />
+                      : <ChevronRight className="h-4 w-4 text-coffee-500 shrink-0" />}
+                    <span className="sm:hidden absolute inset-0 flex items-center justify-center font-semibold text-coffee-900 text-sm pointer-events-none">
+                      {atributo.nombre}
+                    </span>
+                    <div className="hidden sm:flex items-center gap-2 flex-1 min-w-0">
                       <span className="font-semibold text-coffee-900 text-sm">{atributo.nombre}</span>
                       {atributo.esRequerido ? (
                         <span className="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 font-medium">
@@ -789,11 +795,11 @@ export const VariacionModal: React.FC<Props> = ({
                         {atributo.opciones.length} opción{atributo.opciones.length !== 1 ? 'es' : ''}
                       </span>
                     </div>
-                  )}
-                </button>
+                  </button>
+                )}
 
                 {editingAtributoId !== atributo.id && (
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 ml-auto sm:ml-0">
                     <button onClick={() => startEditAtributo(atributo)} className="p-1.5 rounded-lg hover:bg-coffee-200 text-coffee-500 hover:text-coffee-700 transition-colors">
                       <Edit2 className="h-3.5 w-3.5" />
                     </button>
@@ -855,11 +861,11 @@ export const VariacionModal: React.FC<Props> = ({
                 onChange={(e) => setNewAtributoNombre(e.target.value)}
                 autoFocus
               />
-              <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={() => { setShowAddAtributo(false); setNewAtributoNombre(''); }}>
+              <div className="flex flex-col-reverse sm:flex-row gap-2">
+                <Button variant="ghost" size="sm" className="w-full sm:w-auto" onClick={() => { setShowAddAtributo(false); setNewAtributoNombre(''); }}>
                   Cancelar
                 </Button>
-                <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white" onClick={handleAddAtributo}>
+                <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white w-full sm:w-auto" onClick={handleAddAtributo}>
                   Crear grupo
                 </Button>
               </div>

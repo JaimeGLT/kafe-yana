@@ -360,7 +360,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
         {/* Tipo de producto */}
         <div className="space-y-1">
           <span className="block text-sm font-medium text-coffee-700">Tipo de producto</span>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-3 gap-2">
             {PRODUCT_TYPE_TABS.map(({ value, label, icon }) => (
               <button
                 key={value}
@@ -373,7 +373,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                 }`}
               >
                 {icon}
-                {label}
+                <span className="hidden sm:inline">{label}</span>
               </button>
             ))}
           </div>
@@ -383,7 +383,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
         {productType !== 'elaborado' && (
           <div className="space-y-1">
             <span className="block text-sm font-medium text-coffee-700">Tipo de ajuste</span>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => handleDirectionChange('entrada')}
@@ -394,7 +394,8 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                 }`}
               >
                 <TrendingUp className="h-4 w-4" />
-                Entrada (sumar stock)
+                <span className="hidden sm:inline">Entrada (sumar stock)</span>
+                <span className="sm:hidden">Entrada</span>
               </button>
               <button
                 type="button"
@@ -406,7 +407,8 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                 }`}
               >
                 <TrendingDown className="h-4 w-4" />
-                Salida (merma / pérdida)
+                <span className="hidden sm:inline">Salida (merma / pérdida)</span>
+                <span className="sm:hidden">Salida</span>
               </button>
             </div>
           </div>
@@ -414,11 +416,11 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
 
         {/* Elaborado al_momento: siempre salida merma */}
         {productType === 'elaborado' && (!selectedId || tipoElaborado === 'al_momento') && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs sm:text-sm text-amber-700">
+            <AlertTriangle className="h-4 w-4 shrink-0 hidden sm:inline" />
             {selectedId && tipoElaborado === 'al_momento'
-              ? <>Producto preparado <strong className="mx-1">al momento</strong>. Solo se puede registrar salida por merma — descuenta insumos automáticamente.</>
-              : <>Los ajustes de elaborados dependen del tipo de preparación del producto.</>}
+              ? <><strong className="font-semibold">Producto preparado al momento.</strong> Solo se puede registrar salida por merma — descuenta insumos automáticamente.</>
+              : <><strong className="font-semibold hidden sm:inline">Atención:</strong> Los ajustes de elaborados dependen del tipo de preparación del producto.</>}
           </div>
         )}
 
@@ -426,7 +428,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
         {productType === 'elaborado' && selectedId && tipoElaborado === 'en_lote' && (
           <div className="space-y-1">
             <span className="block text-sm font-medium text-coffee-700">Tipo de ajuste</span>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => handleElaboradoDirectionChange('entrada')}

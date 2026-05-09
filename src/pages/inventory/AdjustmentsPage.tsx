@@ -155,7 +155,7 @@ const AdjustmentsPage: React.FC = () => {
         />
 
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
           {isLoading ? (
             Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)
           ) : (
@@ -188,7 +188,7 @@ const AdjustmentsPage: React.FC = () => {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-x-auto">
           {!isLoading && ajustes.length === 0 ? (
             <div className="py-20 flex flex-col items-center justify-center text-coffee-500">
               <div className="h-16 w-16 rounded-2xl bg-coffee-50 flex items-center justify-center mb-4">

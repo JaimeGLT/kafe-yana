@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { gql } from '../lib/graphql';
 import { GET_COMBOS_WITH_PRODUCTS } from '../lib/queries/combos.queries';
+import { toast } from '../components/ui/Toast';
 import type { Combo, Product } from '../types';
 
 interface ComboNode {
@@ -36,7 +37,6 @@ export interface UseCombosPageReturn {
   products: Product[];
   totalCount: number;
   isLoading: boolean;
-  error: string | null;
   refresh: () => Promise<void>;
   endCursor: string | null;
 }
@@ -47,12 +47,10 @@ export function useCombosPage(options: UseCombosPageOptions): UseCombosPageRetur
   const [products, setProducts] = useState<Product[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [endCursor, setEndCursor] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
-    setError(null);
     try {
       const variables: Record<string, unknown> = { first: pageSize };
       if (page > 1 && afterCursor) {
@@ -138,8 +136,7 @@ export function useCombosPage(options: UseCombosPageOptions): UseCombosPageRetur
       setProducts(mappedProducts);
       setCombos(mappedCombos);
     } catch (e) {
-      console.error('Error loading combos page:', e);
-      setError('No se pudieron cargar los combos.');
+      toast.error('Error al cargar', e instanceof Error ? e.message : 'No se pudieron cargar los combos.');
     } finally {
       setIsLoading(false);
     }
@@ -153,5 +150,5 @@ export function useCombosPage(options: UseCombosPageOptions): UseCombosPageRetur
     await loadData();
   }, [loadData]);
 
-  return { combos, products, totalCount, isLoading, error, refresh, endCursor };
+  return { combos, products, totalCount, isLoading, refresh, endCursor };
 }

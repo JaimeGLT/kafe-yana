@@ -151,11 +151,11 @@ const ProductRow: React.FC<ProductRowProps> = ({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-semibold text-coffee-900 text-sm">{product.name}</span>
-              <TipoBadge tipo={product.tipo} />
+              <span className="hidden sm:block"><TipoBadge tipo={product.tipo} /></span>
             </div>
             <div className="flex items-center gap-3 mt-0.5">
               <span className="text-xs text-coffee-500">{formatCurrency(product.salePrice)}</span>
-              <span className="text-xs text-coffee-400">
+              <span className="hidden sm:inline text-xs text-coffee-400">
                 {productAtributos.length} atributo(s) · {totalOpciones} opción(es)
               </span>
             </div>
@@ -167,7 +167,7 @@ const ProductRow: React.FC<ProductRowProps> = ({
             leftIcon={<Layers className="h-3.5 w-3.5" />}
             onClick={(e) => { e.stopPropagation(); setModalOpen(true); }}
           >
-            Gestionar
+            <span className="hidden sm:inline">Gestionar</span>
           </Button>
         </div>
 

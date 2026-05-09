@@ -291,41 +291,40 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
-                    Categoría
-                    <HelpTooltip text="Agrupa productos para filtrar y reportar ventas por categoría." />
-                  </label>
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <SearchableSelect
-                        value={categoryId}
-                        onChange={(v) => setCategoryId(v)}
-                        options={[{ value: '', label: 'Sin categoría' }, ...localCategoryOptions]}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsCategoryModalOpen(true)}
-                      className="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-lg border border-coffee-200 text-coffee-500 hover:bg-coffee-50 hover:text-coffee-800 transition-colors"
-                      title="Nueva categoría"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
+              <div>
+                <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
+                  Categoría
+                  <HelpTooltip text="Agrupa productos para filtrar y reportar ventas por categoría." />
+                </label>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <SearchableSelect
+                      value={categoryId}
+                      onChange={(v) => setCategoryId(v)}
+                      options={[{ value: '', label: 'Sin categoría' }, ...localCategoryOptions]}
+                    />
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryModalOpen(true)}
+                    className="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-lg border border-coffee-200 text-coffee-500 hover:bg-coffee-50 hover:text-coffee-800 transition-colors"
+                    title="Nueva categoría"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
                 </div>
-                <div>
-                  <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
-                    Unidad de venta
-                    <HelpTooltip text="Cómo se vende al cliente. Ej: unidad (una taza), porción (un trozo)." />
-                  </label>
-                  <SearchableSelect
-                    value={unit}
-                    onChange={(v) => setUnit(v)}
-                    options={UNIT_OPTIONS}
-                  />
-                </div>
+              </div>
+
+              <div>
+                <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
+                  Unidad de venta
+                  <HelpTooltip text="Cómo se vende al cliente. Ej: unidad (una taza), porción (un trozo)." />
+                </label>
+                <SearchableSelect
+                  value={unit}
+                  onChange={(v) => setUnit(v)}
+                  options={UNIT_OPTIONS}
+                />
               </div>
 
               <div>

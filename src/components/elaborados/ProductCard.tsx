@@ -73,23 +73,34 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               </div>
             )}
             {/* Availability */}
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-coffee-500">
-                {tipoPreparacion === 'en_lote' ? 'En stock' : 'Producible'}
-              </span>
-              <span className={clsx(
-                'font-semibold',
-                tipoPreparacion === 'en_lote'
-                  ? (portionsAvailable === 0 ? 'text-red-600' : portionsAvailable <= 5 ? 'text-amber-600' : 'text-emerald-600')
-                  : 'text-coffee-600'
-              )}>
-                {tipoPreparacion === 'en_lote'
-                  ? (portionsAvailable === 0
-                      ? '⚠ Sin stock'
-                      : `${portionsAvailable} ${product.unit ?? 'unidades'}`)
-                  : (portionsAvailable === 0 ? '⚠ Sin insumos' : `${portionsAvailable} ${product.unit ?? 'unidades'}`)}
-              </span>
-            </div>
+            {tipoPreparacion === 'en_lote' ? (
+              <>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-coffee-500">En stock (para vender)</span>
+                  <span className={clsx(
+                    'font-semibold',
+                    portionsAvailable === 0 ? 'text-red-600'
+                    : portionsAvailable <= 5 ? 'text-amber-600'
+                    : 'text-emerald-600'
+                  )}>
+                    {portionsAvailable === 0 ? '⚠ Sin stock' : `${portionsAvailable} ${product.unit ?? 'unidades'}`}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-coffee-500">Producible con insumos</span>
+                  <span className="font-medium text-coffee-600">
+                    {product.maxStock > 0 ? `${product.maxStock} ${product.unit ?? 'unidades'}` : '—'}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-coffee-500">Producible</span>
+                <span className="font-semibold text-coffee-600">
+                  {portionsAvailable === 0 ? '⚠ Sin insumos' : `${portionsAvailable} ${product.unit ?? 'unidades'}`}
+                </span>
+              </div>
+            )}
             {/* Recipe badge */}
             <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 rounded px-2 py-1 w-fit">
               <CheckCircle2 className="h-3.5 w-3.5" />
