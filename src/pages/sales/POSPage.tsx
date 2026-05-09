@@ -11,7 +11,8 @@ import { api } from '../../lib/api';
 import { gql } from '../../lib/graphql';
 import { GET_POS_DATA } from '../../lib/queries/products.queries';
 import { GET_ELABORADO_INGREDIENTES } from '../../lib/queries/elaborados.queries';
-import { usePOSMesas, PARA_LLEVAR_ID } from '../../hooks/usePOSMesas';
+import { usePOSMesas } from '../../hooks/usePOSMesas';
+import { useVenta } from '../../hooks/useVenta';
 import { usePOSCart } from '../../hooks/usePOSCart';
 import { usePOSLoyalty } from '../../hooks/usePOSLoyalty';
 import { formatCurrency } from '../../utils';
@@ -177,6 +178,8 @@ export const POSPage: React.FC = () => {
     setNuevaMesaName,
     editMesaId,
   } = usePOSMesas();
+
+  const { cobrarParaLlevar } = useVenta();
 
   const loadProducts = useCallback(async () => {
     if (productsLoaded) return;
@@ -556,22 +559,28 @@ export const POSPage: React.FC = () => {
     setIsProcessing(true);
     try {
       const isMesa = activeMesa.tipo === 'mesa';
+      const isParaLlevar = activeMesa.tipo === 'para_llevar';
       const pedidoId = (activeMesa as any).pedidoId;
 
-      if (isMesa && pedidoId) {
+      if ((isMesa || isParaLlevar) && pedidoId) {
         const tipoPago = TIPO_PAGO_MAP[paymentMethod] ?? 1;
         const efectivoRecibido = paymentMethod === 'cash' ? cashNum : 0;
         const idCliente = reviewClienteId ? parseInt(reviewClienteId, 10) : null;
 
-        const success = await api.post<any>(`/Mesa/cobrar/${activeMesa.id}`, {
-          id_Pedido: pedidoId,
-          id_Cliente: idCliente,
-          tipoPago,
-          efectivoRecibido,
-        });
+        let success = false;
+        if (isParaLlevar) {
+          success = await cobrarParaLlevar(pedidoId, idCliente, tipoPago, efectivoRecibido);
+        } else {
+          success = await api.post<any>(`/Mesa/cobrar/${activeMesa.id}`, {
+            id_Pedido: pedidoId,
+            id_Cliente: idCliente,
+            tipoPago,
+            efectivoRecibido,
+          });
+        }
 
         if (success) {
-          setLastSaleResult({ code: `MESA-${activeMesa.id}`, points: null, newBalance: 0 });
+          setLastSaleResult({ code: isParaLlevar ? `PL-${pedidoId}` : `MESA-${activeMesa.id}`, points: null, newBalance: 0 });
           setModalView('success');
         }
       } else {
@@ -661,17 +670,25 @@ export const POSPage: React.FC = () => {
               ))}
             </div>
             <button
-              onClick={openParaLlevar}
+              onClick={async () => {
+                const mesaId = await openParaLlevar();
+                if (mesaId) {
+                  setModalView('detalle');
+                  if (!productsLoaded) {
+                    loadProducts();
+                  }
+                }
+              }}
               className={clsx(
                 'flex items-center gap-2 text-white font-semibold text-sm px-3 sm:px-4 py-2.5 rounded-xl transition-colors shadow-sm',
-                mesas.find(m => m.id === PARA_LLEVAR_ID)?.status !== 'libre'
+                mesas.find(m => m.tipo === 'para_llevar' && m.status !== 'libre')?.status !== 'libre'
                   ? 'bg-amber-600 hover:bg-amber-500 ring-2 ring-amber-400/50'
                   : 'bg-coffee-600 hover:bg-coffee-500',
               )}
             >
               <ShoppingBag className="h-4 w-4 flex-shrink-0" />
               <span className="hidden sm:inline">Para llevar</span>
-              {mesas.find(m => m.id === PARA_LLEVAR_ID)?.status !== 'libre' && (
+              {mesas.find(m => m.tipo === 'para_llevar' && m.status !== 'libre')?.status !== 'libre' && (
                 <span className="h-2 w-2 rounded-full bg-amber-300 animate-pulse flex-shrink-0" />
               )}
             </button>
