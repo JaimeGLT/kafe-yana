@@ -291,7 +291,12 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
+    const frontendErrors = validate();
+    if (Object.keys(frontendErrors).length > 0) {
+      const firstError = Object.values(frontendErrors).flat()[0];
+      toast.error('Error de validación', firstError);
+      return;
+    }
     setIsLoading(true);
     try {
       const id = parseInt(selectedId);
@@ -307,7 +312,9 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
         });
       } else if (productType === 'insumo') {
         const isEntrada = direction === 'entrada';
-        const cantidad = isEntrada ? (insumoAjuste?.diff ?? 0) : (insumoAjuste?.diff ?? 0);
+        const cantidad = isEntrada
+          ? (insumoAjuste?.diff ?? 0)
+          : -(insumoAjuste?.diff ?? 0);
         await api.post(`/AjusteStock/Insumo?entrada=${isEntrada}`, {
           id,
           cantidad,
@@ -315,7 +322,6 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
           nota: notes,
         });
       } else {
-        // elaborado
         const isEntrada = tipoElaborado === 'en_lote' && elaboradoDirection === 'entrada';
         const cantidadIngresada = parseInt(quantityStr, 10);
         const fecha = fechaProduccion
@@ -348,7 +354,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
       onClose();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'No se pudo registrar el ajuste.';
-      toast.error('Error', msg);
+      toast.error('Error del servidor', msg);
     } finally {
       setIsLoading(false);
     }
@@ -473,7 +479,6 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
               : 'Producto Comprado'
           }
           required
-          error={errors.product}
         >
           <SearchableSelect
             value={selectedId}
@@ -481,7 +486,6 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
               setSelectedId(v);
               setQuantityStr('');
               setStockFisicoStr('');
-              setErrors((p) => ({ ...p, product: '' }));
             }}
             options={
               productType === 'comprado'
@@ -549,16 +553,14 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
           <>
             {/* Comprado/insumo entrada: cantidad directa */}
             {productType !== 'elaborado' && direction === 'entrada' && (
-              <FormField label={`Cantidad a agregar (${selectedInsumo?.unidad_compra ?? 'unidades'})`} required error={errors.quantity}>
+              <FormField label={`Cantidad a agregar (${selectedInsumo?.unidad_compra ?? 'unidades'})`} required>
                 <Input
                   type="number"
                   min="1"
                   step="1"
                   value={quantityStr}
-                  onChange={(e) => { setQuantityStr(e.target.value); setErrors((p) => ({ ...p, quantity: '' })); }}
+                  onChange={(e) => { setQuantityStr(e.target.value); }}
                   placeholder="0"
-                  error={errors.quantity}
-                  showMessage={false}
                 />
                 {selectedInsumo && (
                   <p className="text-xs text-coffee-500 mt-1">
@@ -577,17 +579,14 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                     : selectedInsumo?.unidad_min_uso ?? 'unidades'
                 })`}
                 required
-                error={errors.stockFisico}
               >
                 <Input
                   type="number"
                   min="0"
                   step={productType === 'insumo' ? '0.001' : '1'}
                   value={stockFisicoStr}
-                  onChange={(e) => { setStockFisicoStr(e.target.value); setErrors((p) => ({ ...p, stockFisico: '' })); }}
+                  onChange={(e) => { setStockFisicoStr(e.target.value); }}
                   placeholder="0"
-                  error={errors.stockFisico}
-                  showMessage={false}
                 />
                 <p className="text-xs text-coffee-500 mt-1">El sistema calcula la diferencia automáticamente.</p>
               </FormField>
@@ -595,16 +594,14 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
 
             {/* Elaborado al_momento: siempre cantidad de merma */}
             {productType === 'elaborado' && tipoElaborado === 'al_momento' && (
-              <FormField label="Unidades perdidas / dadas de baja" required error={errors.quantity}>
+              <FormField label="Unidades perdidas / dadas de baja" required>
                 <Input
                   type="number"
                   min="1"
                   step="1"
                   value={quantityStr}
-                  onChange={(e) => { setQuantityStr(e.target.value); setErrors((p) => ({ ...p, quantity: '' })); }}
+                  onChange={(e) => { setQuantityStr(e.target.value); }}
                   placeholder="0"
-                  error={errors.quantity}
-                  showMessage={false}
                 />
               </FormField>
             )}
@@ -612,16 +609,14 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
             {/* Elaborado en_lote ENTRADA: cantidad producida + fecha */}
             {productType === 'elaborado' && tipoElaborado === 'en_lote' && elaboradoDirection === 'entrada' && (
               <>
-                <FormField label="Cantidad a producir" required error={errors.quantity}>
+                <FormField label="Cantidad a producir" required>
                   <Input
                     type="number"
                     min="1"
                     step="1"
                     value={quantityStr}
-                    onChange={(e) => { setQuantityStr(e.target.value); setErrors((p) => ({ ...p, quantity: '' })); }}
+                    onChange={(e) => { setQuantityStr(e.target.value); }}
                     placeholder="0"
-                    error={errors.quantity}
-                    showMessage={false}
                   />
                 </FormField>
                 <FormField label="Fecha de producción">
@@ -636,16 +631,14 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
 
             {/* Elaborado en_lote SALIDA: cantidad a dar de baja */}
             {productType === 'elaborado' && tipoElaborado === 'en_lote' && elaboradoDirection === 'salida' && (
-              <FormField label={`Cantidad a dar de baja (${selectedElaborado?.unidad_medida ?? 'unidades'})`} required error={errors.quantity}>
+              <FormField label={`Cantidad a dar de baja (${selectedElaborado?.unidad_medida ?? 'unidades'})`} required>
                 <Input
                   type="number"
                   min="1"
                   step="1"
                   value={quantityStr}
-                  onChange={(e) => { setQuantityStr(e.target.value); setErrors((p) => ({ ...p, quantity: '' })); }}
+                  onChange={(e) => { setQuantityStr(e.target.value); }}
                   placeholder="0"
-                  error={errors.quantity}
-                  showMessage={false}
                 />
                 {/* Preview de stock en lote salida */}
                 {(() => {
@@ -794,17 +787,12 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
 
         {/* Motivo — oculto para en_lote ENTRADA */}
         {!(productType === 'elaborado' && tipoElaborado === 'en_lote' && elaboradoDirection === 'entrada') && (
-          <FormField label="Motivo" required error={errors.reason}>
+          <FormField label="Motivo" required>
             <Select
               value={reason}
-              onChange={(v) => {
-                setReason(v);
-                setErrors((p) => ({ ...p, reason: '' }));
-              }}
+              onChange={setReason}
               options={motivoOptions}
               placeholder="Seleccionar motivo..."
-              error={errors.reason}
-              showMessage={false}
             />
           </FormField>
         )}

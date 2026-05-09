@@ -121,7 +121,7 @@ const AdjustmentsPage: React.FC = () => {
   }, [pageSize, page]);
 
   useEffect(() => {
-    let mounted = true;
+    const mounted = true;
     loadData().then((endCursor) => {
       if (mounted && endCursor) {
         setCursors((prev) => ({ ...prev, [page]: endCursor }));

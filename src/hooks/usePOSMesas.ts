@@ -59,7 +59,7 @@ const mapParaLlevarToLocalMesa = (pl: ParaLlevarPedido): LocalMesa => {
   const isOccupied = pl.pedido !== null;
   const status: MesaStatus = isOccupied ? 'ocupada' : 'libre';
 
-  let order: CartItem[] = [];
+  const order: CartItem[] = [];
   let roundsSent: RondaRecord[] = [];
   let currentRound = 1;
   let customerId: string | undefined;
@@ -171,7 +171,7 @@ export function usePOSMesas(): UsePOSMesasReturn {
     const isOccupied = bm.pedido !== null;
     const status: MesaStatus = isOccupied ? 'ocupada' : 'libre';
 
-    let order: CartItem[] = [];
+    const order: CartItem[] = [];
     let roundsSent: RondaRecord[] = [];
     let currentRound = 1;
     let customerId: string | undefined;

@@ -792,7 +792,7 @@ export const FidelizacionPage: React.FC = () => {
           .filter(t => t.customerId === selectedCustomerId)
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       : [],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [selectedCustomerId, transactions],
   );
 

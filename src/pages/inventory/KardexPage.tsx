@@ -347,8 +347,8 @@ const KardexPage: React.FC = () => {
             ) : movements.length === 0 ? (
               <div className="py-16 flex flex-col items-center justify-center text-coffee-500">
                 <BookOpen className="h-10 w-10 mb-3 text-coffee-300" />
-                <p className="font-medium">Sin movimientos registrados</p>
-                <p className="text-sm mt-1 text-coffee-400">
+                <p className="font-medium text-center">Sin movimientos registrados</p>
+                <p className="text-sm mt-1 text-coffee-400 text-center">
                   Los movimientos aparecerán aquí al realizar ventas, compras o ajustes.
                 </p>
               </div>
@@ -423,8 +423,8 @@ const KardexPage: React.FC = () => {
         {!selectedItemId && !isLoadingItems && (
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm py-16 flex flex-col items-center justify-center text-coffee-500">
             <BookOpen className="h-12 w-12 mb-3 text-coffee-300" />
-            <p className="text-lg font-medium">Selecciona un producto o insumo</p>
-            <p className="text-sm mt-1 text-coffee-400">
+            <p className="text-lg font-medium text-center">Selecciona un producto o insumo</p>
+            <p className="text-sm mt-1 text-coffee-400 text-center">
               Elige un elemento del selector para ver su historial de movimientos.
             </p>
           </div>
