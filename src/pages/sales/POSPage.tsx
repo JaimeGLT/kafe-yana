@@ -549,6 +549,10 @@ export const POSPage: React.FC = () => {
       toast.warning('Pedido pendiente', 'Envía los productos a cocina/barra antes de cobrar.');
       return;
     }
+    if (activeMesa.tipo === 'para_llevar' && !activeMesa.customerId) {
+      toast.warning('Cliente requerido', 'Selecciona un cliente antes de cobrar.');
+      return;
+    }
     updateMesa(activeMesa.id, { status: 'esperando_pago' });
     setReviewClienteId(activeMesa.customerId ?? null);
     setModalView('review');
@@ -556,6 +560,10 @@ export const POSPage: React.FC = () => {
 
   const handleConfirmSale = async () => {
     if (!activeMesa) return;
+    if (activeMesa.tipo === 'para_llevar' && !activeMesa.customerId && !reviewClienteId) {
+      toast.warning('Cliente requerido', 'Selecciona un cliente antes de cobrar.');
+      return;
+    }
     setIsProcessing(true);
     try {
       const isMesa = activeMesa.tipo === 'mesa';
@@ -614,7 +622,7 @@ export const POSPage: React.FC = () => {
   };
 
   const handleCloseSuccess = () => {
-    if (activeMesaId) handleCerrarMesa(activeMesaId);
+    if (activeMesaId) handleCerrarMesa(activeMesaId, true);
     setLastSaleResult(null);
     closeAll();
   };

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { clsx } from 'clsx';
 import {
   Wallet, TrendingUp, TrendingDown, DollarSign,
@@ -8,22 +8,27 @@ import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
 import { Button, Badge, Modal } from '../../components/ui';
 import { CashMovementModal } from '../../components/modals';
-import { toast } from '../../components/ui/Toast';
-import { cashStore, MOCK_CASH_CATEGORIES } from '../../lib/mockCashStore';
+import { useCaja } from '../../hooks/useCaja';
 import { formatCurrency, formatDateTime } from '../../utils';
-import type { CashRegister, CashMovementInput } from '../../types';
+import type { CashMovementInput } from '../../types';
 
 interface CloseRegisterFormState {
   actualBalance: string;
   notes: string;
 }
 
-const delay = (ms = 300) => new Promise((r) => setTimeout(r, ms));
-
 export const CashRegisterPage: React.FC = () => {
-  const [register, setRegister] = useState<CashRegister | null>(cashStore.getRegister());
-  const [search, setSearch] = useState('');
+  const {
+    caja,
+    movimientos,
+    loading,
+    syncCaja,
+    abrirCaja,
+    cerrarCaja,
+    agregarMovimiento,
+  } = useCaja();
 
+  const [search, setSearch] = useState('');
   const [openingBalance, setOpeningBalance] = useState('');
   const [openingError, setOpeningError] = useState('');
   const [isOpening, setIsOpening] = useState(false);
@@ -35,10 +40,9 @@ export const CashRegisterPage: React.FC = () => {
   const [closeForm, setCloseForm] = useState<CloseRegisterFormState>({ actualBalance: '', notes: '' });
   const [isClosing, setIsClosing] = useState(false);
 
-  const syncRegister = useCallback(() => {
-    const r = cashStore.getRegister();
-    setRegister(r ? { ...r, movements: [...r.movements] } : null);
-  }, []);
+  useEffect(() => {
+    syncCaja();
+  }, [syncCaja]);
 
   const handleOpenRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,31 +52,38 @@ export const CashRegisterPage: React.FC = () => {
       return;
     }
     setIsOpening(true);
-    await delay();
-    cashStore.openRegister(balance);
-    syncRegister();
-    toast.success('Caja abierta', `Caja iniciada con ${formatCurrency(balance)}.`);
-    setOpeningBalance('');
-    setOpeningError('');
+    const success = await abrirCaja(balance);
+    if (success) {
+      setOpeningBalance('');
+      setOpeningError('');
+    }
     setIsOpening(false);
   };
 
-  const handleSaveMovement = (input: CashMovementInput) => {
-    cashStore.addMovement({ ...input, date: new Date() });
-    syncRegister();
+  const handleSaveMovement = async (input: CashMovementInput) => {
+    const success = await agregarMovimiento({
+      cantidad: input.amount,
+      categoria: input.category,
+      concepto: input.concept,
+      referencia: input.reference,
+      nota: input.notes,
+      entrada: input.type === 'income',
+    });
+    if (success) {
+      setIsMovementOpen(false);
+    }
   };
 
   const handleCloseRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!register) return;
+    if (!caja) return;
     const balance = parseFloat(closeForm.actualBalance);
     if (isNaN(balance) || balance < 0) return;
     setIsClosing(true);
-    await delay();
-    cashStore.closeRegister();
-    syncRegister();
-    toast.success('Caja cerrada', 'La caja fue cerrada exitosamente.');
-    setIsCloseOpen(false);
+    const success = await cerrarCaja(balance, closeForm.notes);
+    if (success) {
+      setIsCloseOpen(false);
+    }
     setIsClosing(false);
   };
 
@@ -82,24 +93,39 @@ export const CashRegisterPage: React.FC = () => {
   };
 
   const actualBalance = parseFloat(closeForm.actualBalance);
-  const difference = !isNaN(actualBalance) && register ? actualBalance - register.expectedBalance : null;
+  const difference = !isNaN(actualBalance) && caja ? actualBalance - caja.saldoEsperado : null;
 
-  const filteredMovements = register
-    ? [...register.movements]
+  const filteredMovements = movimientos
+    ? [...movimientos]
         .reverse()
         .filter((m) => {
           const q = search.toLowerCase();
           return (
             !q ||
-            m.concept.toLowerCase().includes(q) ||
-            m.category.toLowerCase().includes(q) ||
-            (m.reference || '').toLowerCase().includes(q)
+            m.descripcion.toLowerCase().includes(q) ||
+            m.categoria.toLowerCase().includes(q) ||
+            (m.referencia || '').toLowerCase().includes(q)
           );
         })
     : [];
 
+  const cajaCerrada = !caja || !caja.abierta;
+
+  if (loading && !caja) {
+    return (
+      <MainLayout>
+        <PageContainer>
+          <PageHeader title="Caja" subtitle="Control de apertura y cierre de caja" />
+          <div className="flex items-center justify-center py-20">
+            <div className="w-8 h-8 border-2 border-coffee-300 border-t-coffee-800 rounded-full animate-spin" />
+          </div>
+        </PageContainer>
+      </MainLayout>
+    );
+  }
+
   /* ── Caja cerrada ── */
-  if (!register) {
+  if (cajaCerrada) {
     return (
       <MainLayout>
         <PageContainer>
@@ -148,12 +174,12 @@ export const CashRegisterPage: React.FC = () => {
         <div className="flex items-start justify-between mb-6">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-2xl font-display font-bold text-coffee-900">{register.code}</h1>
+              <h1 className="text-2xl font-display font-bold text-coffee-900">{caja.nombre}</h1>
               <Badge variant="success" dot>Abierta</Badge>
             </div>
             <p className="text-sm text-coffee-500 flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5" />
-              Abierta el {formatDateTime(register.openedAt)}
+              Abierta el {caja.fechaApertura ? formatDateTime(new Date(caja.fechaApertura)) : '-'}
             </p>
           </div>
           <div className="flex gap-3">
@@ -163,7 +189,7 @@ export const CashRegisterPage: React.FC = () => {
             <Button variant="outline" className="border-red-400 text-red-600 hover:bg-red-50" leftIcon={<Minus className="h-4 w-4" />} onClick={() => openMovementModal('expense')}>
               Agregar Egreso
             </Button>
-            <Button variant="danger" leftIcon={<Lock className="h-4 w-4" />} onClick={() => { setCloseForm({ actualBalance: String(register.expectedBalance.toFixed(2)), notes: '' }); setIsCloseOpen(true); }}>
+            <Button variant="danger" leftIcon={<Lock className="h-4 w-4" />} onClick={() => { setCloseForm({ actualBalance: String(caja.saldoEsperado.toFixed(2)), notes: '' }); setIsCloseOpen(true); }}>
               Cerrar Caja
             </Button>
           </div>
@@ -172,11 +198,11 @@ export const CashRegisterPage: React.FC = () => {
         {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           {[
-            { label: 'Saldo Inicial',  value: formatCurrency(register.openingBalance),  icon: <Wallet className="h-5 w-5 text-coffee-500" />,  bg: 'bg-coffee-100', highlight: false },
-            { label: 'Total Ventas',   value: formatCurrency(register.totalSales),       icon: <DollarSign className="h-5 w-5 text-blue-500" />, bg: 'bg-blue-100',   highlight: false },
-            { label: 'Ingresos',       value: formatCurrency(register.totalIncome),      icon: <TrendingUp className="h-5 w-5 text-green-500" />,bg: 'bg-green-100',  highlight: false },
-            { label: 'Egresos',        value: formatCurrency(register.totalExpense),     icon: <TrendingDown className="h-5 w-5 text-red-500" />,bg: 'bg-red-100',    highlight: false },
-            { label: 'Saldo Esperado', value: formatCurrency(register.expectedBalance),  icon: <Wallet className="h-5 w-5 text-coffee-700" />,  bg: 'bg-coffee-200', highlight: true  },
+            { label: 'Saldo Inicial',  value: formatCurrency(caja.saldoInicial),     icon: <Wallet className="h-5 w-5 text-coffee-500" />,  bg: 'bg-coffee-100', highlight: false },
+            { label: 'Total Ventas',   value: formatCurrency(caja.totalVentas),      icon: <DollarSign className="h-5 w-5 text-blue-500" />, bg: 'bg-blue-100',   highlight: false },
+            { label: 'Ingresos',       value: formatCurrency(caja.totalIngresos),    icon: <TrendingUp className="h-5 w-5 text-green-500" />,bg: 'bg-green-100',  highlight: false },
+            { label: 'Egresos',        value: formatCurrency(caja.totalEgresos),     icon: <TrendingDown className="h-5 w-5 text-red-500" />,bg: 'bg-red-100',    highlight: false },
+            { label: 'Saldo Esperado', value: formatCurrency(caja.saldoEsperado),     icon: <Wallet className="h-5 w-5 text-coffee-700" />,  bg: 'bg-coffee-200', highlight: true  },
           ].map((kpi) => (
             <div key={kpi.label} className={clsx('bg-white rounded-xl border border-coffee-100 shadow-sm p-4', kpi.highlight && 'ring-2 ring-coffee-300')}>
               <div className={clsx('h-9 w-9 rounded-lg flex items-center justify-center mb-3', kpi.bg)}>{kpi.icon}</div>
@@ -220,20 +246,20 @@ export const CashRegisterPage: React.FC = () => {
                 ) : (
                   filteredMovements.map((mov) => (
                     <tr key={mov.id} className="hover:bg-coffee-50 transition-colors">
-                      <td className="px-6 py-3 whitespace-nowrap text-sm text-coffee-700">{formatDateTime(mov.date)}</td>
+                      <td className="px-6 py-3 whitespace-nowrap text-sm text-coffee-700">{formatDateTime(new Date(mov.fecha))}</td>
                       <td className="px-6 py-3 whitespace-nowrap">
-                        <Badge variant={mov.type === 'income' ? 'success' : 'danger'} size="sm">
-                          {mov.type === 'income' ? 'Ingreso' : 'Egreso'}
+                        <Badge variant={mov.tipo === 'ingreso' ? 'success' : 'danger'} size="sm">
+                          {mov.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}
                         </Badge>
                       </td>
-                      <td className="px-6 py-3 whitespace-nowrap text-sm text-coffee-700">{mov.category}</td>
-                      <td className="px-6 py-3 text-sm text-coffee-900">{mov.concept}</td>
+                      <td className="px-6 py-3 whitespace-nowrap text-sm text-coffee-700">{mov.categoria}</td>
+                      <td className="px-6 py-3 text-sm text-coffee-900">{mov.descripcion}</td>
                       <td className="px-6 py-3 whitespace-nowrap text-sm text-coffee-500">
-                        {mov.reference || <span className="text-coffee-300">—</span>}
+                        {mov.referencia || <span className="text-coffee-300">—</span>}
                       </td>
                       <td className="px-6 py-3 whitespace-nowrap">
-                        <span className={clsx('font-semibold', mov.type === 'income' ? 'text-green-600' : 'text-red-600')}>
-                          {mov.type === 'income' ? '+' : '-'}{formatCurrency(mov.amount)}
+                        <span className={clsx('font-semibold', mov.tipo === 'ingreso' ? 'text-green-600' : 'text-red-600')}>
+                          {mov.tipo === 'ingreso' ? '+' : '-'}{formatCurrency(mov.monto)}
                         </span>
                       </td>
                     </tr>
@@ -248,7 +274,7 @@ export const CashRegisterPage: React.FC = () => {
           isOpen={isMovementOpen}
           onClose={() => setIsMovementOpen(false)}
           type={movementType}
-          categories={MOCK_CASH_CATEGORIES}
+          categories={[]} 
           onSave={handleSaveMovement}
           onSuccess={() => setIsMovementOpen(false)}
         />
@@ -259,23 +285,23 @@ export const CashRegisterPage: React.FC = () => {
             <div className="bg-coffee-50 rounded-xl p-4 text-sm space-y-2">
               <div className="flex justify-between text-coffee-700">
                 <span>Saldo Inicial:</span>
-                <span className="font-medium">{formatCurrency(register.openingBalance)}</span>
+                <span className="font-medium">{formatCurrency(caja.saldoInicial)}</span>
               </div>
               <div className="flex justify-between text-coffee-700">
                 <span>Ventas:</span>
-                <span className="font-medium text-blue-600">+{formatCurrency(register.totalSales)}</span>
+                <span className="font-medium text-blue-600">+{formatCurrency(caja.totalVentas)}</span>
               </div>
               <div className="flex justify-between text-coffee-700">
                 <span>Ingresos:</span>
-                <span className="font-medium text-green-600">+{formatCurrency(register.totalIncome)}</span>
+                <span className="font-medium text-green-600">+{formatCurrency(caja.totalIngresos)}</span>
               </div>
               <div className="flex justify-between text-coffee-700">
                 <span>Egresos:</span>
-                <span className="font-medium text-red-600">-{formatCurrency(register.totalExpense)}</span>
+                <span className="font-medium text-red-600">-{formatCurrency(caja.totalEgresos)}</span>
               </div>
               <div className="flex justify-between font-bold text-coffee-900 border-t border-coffee-200 pt-2">
                 <span>Saldo Esperado:</span>
-                <span>{formatCurrency(register.expectedBalance)}</span>
+                <span>{formatCurrency(caja.saldoEsperado)}</span>
               </div>
             </div>
 

@@ -18,6 +18,17 @@ interface CashMovementModalProps {
   onSave?: (input: CashMovementInput) => void;
 }
 
+const DEFAULT_INCOME_CATEGORIES = [
+  { id: 'otros-ingresos', name: 'Otros ingresos', type: 'income' as const, isActive: true },
+];
+
+const DEFAULT_EXPENSE_CATEGORIES = [
+  { id: 'gastos-operativos', name: 'Gastos operativos', type: 'expense' as const, isActive: true },
+  { id: 'proveedores', name: 'Proveedores', type: 'expense' as const, isActive: true },
+  { id: 'personal', name: 'Personal', type: 'expense' as const, isActive: true },
+  { id: 'mantenimiento', name: 'Mantenimiento', type: 'expense' as const, isActive: true },
+];
+
 interface MovementFormData {
   type: 'income' | 'expense';
   categoryId: string;
@@ -62,9 +73,11 @@ export const CashMovementModal: React.FC<CashMovementModalProps> = ({
     }
   }, [isOpen, initialType]);
 
-  const filteredCategories = categories.filter(
-    (c) => c.isActive && c.type === formData.type
-  );
+  const filteredCategories = (() => {
+    const passed = categories.filter((c) => c.isActive && c.type === formData.type);
+    if (passed.length > 0) return passed;
+    return formData.type === 'income' ? DEFAULT_INCOME_CATEGORIES : DEFAULT_EXPENSE_CATEGORIES;
+  })();
 
   const handleChange = <K extends keyof MovementFormData>(
     field: K,
@@ -107,8 +120,12 @@ export const CashMovementModal: React.FC<CashMovementModalProps> = ({
 
     setIsLoading(true);
     try {
-      const categoryName =
-        categories.find((c) => c.id === formData.categoryId)?.name || formData.categoryId;
+      const categoryName = (() => {
+        const allCats = [...DEFAULT_INCOME_CATEGORIES, ...DEFAULT_EXPENSE_CATEGORIES];
+        return categories.find((c) => c.id === formData.categoryId)?.name
+          || allCats.find((c) => c.id === formData.categoryId)?.name
+          || formData.categoryId;
+      })();
 
       const input: CashMovementInput = {
         type: formData.type,

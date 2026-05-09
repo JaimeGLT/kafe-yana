@@ -36,7 +36,8 @@
       "Bash(do)",
       "Bash(done)",
       "Bash(claude plugin *)",
-      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")"
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
+      "Bash(Get-ChildItem *)"
     ]
   }
 }

@@ -34,7 +34,7 @@ interface UsePOSMesasReturn {
   handleSaveMesa: () => Promise<void>;
   handleDeleteMesa: (mesaId: string, e: React.MouseEvent) => void;
   handleIniciarMesa: (mesa: LocalMesa, customerId?: string) => Promise<void>;
-  handleCerrarMesa: (mesaId: string) => Promise<void>;
+  handleCerrarMesa: (mesaId: string, autoReleased?: boolean) => Promise<void>;
   sendToKitchen: (
     mesaId: string,
     tempCart: CartItem[],
@@ -307,6 +307,7 @@ export function usePOSMesas(): UsePOSMesasReturn {
   const paraLlevarCount = paraLlevarOrders.filter(pl => pl.status !== 'libre').length;
 
   const openParaLlevar = useCallback(async (): Promise<string | null> => {
+    await syncParaLlevar();
     const availableOrder = paraLlevarOrders.find(pl => pl.status === 'ocupada');
     if (availableOrder) {
       setActiveMesaId(availableOrder.id);
@@ -332,7 +333,7 @@ export function usePOSMesas(): UsePOSMesasReturn {
       return newId;
     }
     return null;
-  }, [paraLlevarOrders, createPedidoParaLlevar]);
+  }, [syncParaLlevar, paraLlevarOrders, createPedidoParaLlevar]);
 
   const openNuevaMesa = useCallback(() => {
     setEditMesaId(null);
@@ -410,14 +411,18 @@ export function usePOSMesas(): UsePOSMesasReturn {
     }
   }, [apiOcuparMesa, updateMesa]);
 
-  const handleCerrarMesa = useCallback(async (mesaId: string) => {
+  const handleCerrarMesa = useCallback(async (mesaId: string, autoReleased = false) => {
     setIsClosingMesa(mesaId);
     const isParaLlevar = mesaId.startsWith('pl_');
     if (isParaLlevar) {
-      await liberarPedido();
+      if (!autoReleased) {
+        await liberarPedido();
+      }
       setParaLlevarOrders(prev => prev.filter(m => m.id !== mesaId));
     } else {
-      await apiLiberarMesa(mesaId);
+      if (!autoReleased) {
+        await apiLiberarMesa(mesaId);
+      }
       updateMesa(mesaId, { status: 'libre', openedAt: undefined, order: [], customerId: undefined, currentRound: 1, roundsSent: [] });
     }
     setIsClosingMesa(null);
