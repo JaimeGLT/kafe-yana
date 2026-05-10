@@ -786,6 +786,23 @@ export const POSPage: React.FC = () => {
 
         {loadingMesas ? (
           <SkeletonMesaGrid count={6} />
+        ) : mesas.filter(m => m.tipo !== 'para_llevar').length === 0 ? (
+          <div className="flex flex-col items-center justify-center flex-1 py-24 gap-5 select-none">
+            <div className="h-20 w-20 rounded-3xl bg-coffee-800/60 flex items-center justify-center">
+              <UtensilsCrossed className="h-10 w-10 text-coffee-500" />
+            </div>
+            <div className="text-center">
+              <p className="text-coffee-200 font-semibold text-lg">No hay mesas</p>
+              <p className="text-coffee-500 text-sm mt-1">Crea una mesa para empezar a tomar pedidos</p>
+            </div>
+            <button
+              onClick={() => { openNuevaMesa(); setModalView('nueva_mesa'); }}
+              className="flex items-center gap-2 bg-coffee-600 hover:bg-coffee-500 text-white font-semibold text-sm px-5 py-2.5 rounded-xl transition-colors shadow-sm"
+            >
+              <Plus className="h-4 w-4" />
+              Nueva Mesa
+            </button>
+          </div>
         ) : (
           <div className="px-6 pb-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
             {mesas.filter(m => m.tipo !== 'para_llevar').map(mesa => (
