@@ -246,7 +246,7 @@ const InsumosPage: React.FC = () => {
                               </span>
                               <p className="text-xs text-coffee-400">{Math.round(ins.stock)} {ins.unidadMinima}</p>
                               {ins.stockMinimo > 0 && (
-                                <p className="text-xs text-coffee-400">Mín: {ins.stockMinimo} {ins.unidadCompra}</p>
+                                <p className="text-xs text-coffee-400">Mín: {Math.ceil(ins.stockMinimo / ins.factorConversion)} {ins.unidadCompra}</p>
                               )}
                               {isEmpty && (
                                 <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-medium">Sin stock</span>
@@ -310,6 +310,7 @@ const InsumosPage: React.FC = () => {
         onSuccess={() => {
           setIsModalOpen(false);
           setEditing(undefined);
+          fetchData();
         }}
       />
 

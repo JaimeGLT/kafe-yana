@@ -67,8 +67,8 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onSucces
         factorConversion: insumo.factorConversion,
         costoCompra: Number(insumo.costoCompra.toFixed(2)),
         // El backend guarda stock en unidad mínima → convertir a unidad de compra para mostrar
-        stock: insumo.factorConversion > 0 ? insumo.stock / insumo.factorConversion : insumo.stock,
-        stockMinimo: insumo.stockMinimo,
+        stock: insumo.factorConversion > 0 ? Number((insumo.stock / insumo.factorConversion).toFixed(2)) : insumo.stock,
+        stockMinimo: insumo.factorConversion > 0 ? Math.ceil(insumo.stockMinimo / insumo.factorConversion) : insumo.stockMinimo,
         proveedorId: insumo.proveedorId,
         isActive: insumo.isActive,
       });
@@ -114,7 +114,7 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onSucces
           factor_conversion: form.factorConversion,
           costo: Number(form.costoCompra).toFixed(2),
           stock_actual: form.stock * form.factorConversion,
-          stock_min: form.stockMinimo,
+          stock_min: form.stockMinimo * form.factorConversion,
         });
         toast.success(
           'Insumo actualizado',
@@ -129,7 +129,7 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onSucces
           factor_conversion: form.factorConversion,
           costo: Number(form.costoCompra).toFixed(2),
           stock_actual: form.stock * form.factorConversion,
-          stock_min: form.stockMinimo,
+          stock_min: form.stockMinimo * form.factorConversion,
         });
         toast.success(
           'Insumo creado',
