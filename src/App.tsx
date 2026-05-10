@@ -101,8 +101,8 @@ function App() {
                 <Route path="/recipes/recetas"  element={<ProtectedRoute allowedRoles={[ADMIN]}><RecetasPage /></ProtectedRoute>} />
 
                 {/* Settings — solo admin */}
-                <Route path="/settings"   element={<ProtectedRoute allowedRoles={[ADMIN]}><SettingsPage /></ProtectedRoute>} />
-                <Route path="/settings/*" element={<ProtectedRoute allowedRoles={[ADMIN]}><SettingsPage /></ProtectedRoute>} />
+                {/* <Route path="/settings"   element={<ProtectedRoute allowedRoles={[ADMIN]}><SettingsPage /></ProtectedRoute>} /> */}
+                {/* <Route path="/settings/*" element={<ProtectedRoute allowedRoles={[ADMIN]}><SettingsPage /></ProtectedRoute>} /> */}
 
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />
