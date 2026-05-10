@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* Zolina — pon el archivo en public/fonts/Zolina.woff2 (o .ttf) */
+@font-face {
+  font-family: 'Zolina';
+  src: url('/fonts/Zolina.woff2') format('woff2'),
+       url('/fonts/Zolina.ttf')   format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
   /* Coffee color palette */
   --color-coffee-50: #FAF6F1;
@@ -25,7 +35,7 @@
   --color-cafe-sidebar: #3E2723;
 
   /* Fonts */
-  --font-display: "Playfair Display", serif;
+  --font-display: "Zolina", "Playfair Display", serif;
   --font-body: "DM Sans", sans-serif;
   --font-accent: "Caveat", cursive;
 

@@ -9,100 +9,134 @@ interface EmojiEntry {
 }
 
 const EMOJI_LIST: EmojiEntry[] = [
-  // Café y bebidas calientes
-  { emoji: '☕', keywords: 'café americano espresso cappuccino cortado' },
-  { emoji: '🍵', keywords: 'té infusión manzanilla hierba' },
-  { emoji: '🧋', keywords: 'frappé frappe bubble tea licuado frío batido' },
-  { emoji: '🫖', keywords: 'tetera té hervido infusión' },
-  { emoji: '🍶', keywords: 'sake bebida caliente vasito' },
-  // Bebidas frías y gaseosas
-  { emoji: '🥤', keywords: 'gaseosa refresco coca cola fanta bebida vaso' },
-  { emoji: '🧃', keywords: 'jugo zumo néctar upes caja' },
-  { emoji: '🍹', keywords: 'cóctel tropical bebida frutal' },
-  { emoji: '🍸', keywords: 'cocktail copa martini' },
-  { emoji: '🥂', keywords: 'copa champagne brindis vino' },
-  { emoji: '🍺', keywords: 'cerveza beer' },
-  { emoji: '🍻', keywords: 'cervezas brindis' },
-  { emoji: '🥛', keywords: 'leche lácteo vaso' },
-  { emoji: '💧', keywords: 'agua mineral pura' },
-  { emoji: '🧊', keywords: 'hielo frío' },
-  // Postres y dulces
-  { emoji: '🍰', keywords: 'torta pastel tarta postre rebanada' },
-  { emoji: '🎂', keywords: 'torta cumpleaños pastel' },
-  { emoji: '🧁', keywords: 'cupcake muffin postre' },
-  { emoji: '🍩', keywords: 'dona rosquilla postre' },
-  { emoji: '🍪', keywords: 'galleta cookie postre' },
-  { emoji: '🍫', keywords: 'chocolate barra postre dulce' },
-  { emoji: '🍬', keywords: 'caramelo dulce candy' },
-  { emoji: '🍭', keywords: 'chupete lollipop piruleta dulce' },
-  { emoji: '🍮', keywords: 'flan pudín postre' },
-  { emoji: '🍨', keywords: 'helado postre taza' },
-  { emoji: '🍦', keywords: 'helado cono postre suave' },
-  { emoji: '🍧', keywords: 'raspadilla granizado helado sorbete' },
-  // Panadería
+  // Masas y panadería
   { emoji: '🥐', keywords: 'croissant medialuna cuñape pan pastelería' },
-  { emoji: '🥖', keywords: 'baguette pan francés' },
-  { emoji: '🍞', keywords: 'pan sandwich molde' },
-  { emoji: '🧇', keywords: 'waffle gofre' },
-  { emoji: '🥞', keywords: 'pancake hotcake crepe' },
-  { emoji: '🫓', keywords: 'pan plano flatbread tostada' },
-  { emoji: '🥨', keywords: 'pretzel sal torcido' },
-  // Comida salada
+  { emoji: '🥖', keywords: 'pan baguette francés marraqueta' },
+  { emoji: '🍞', keywords: 'pan molde sandwich tostada' },
+  { emoji: '🥨', keywords: 'pretzel sal torcido snack' },
+  { emoji: '🧆', keywords: 'falafel bolita fritura masa' },
+  { emoji: '🥯', keywords: 'bagel rosca pan redondo' },
+  { emoji: '🫓', keywords: 'pan plano flatbread arepa tortilla' },
+  { emoji: '🧇', keywords: 'waffle gofre desayuno' },
+  { emoji: '🥞', keywords: 'pancake hotcake crepe desayuno' },
+  { emoji: '🍩', keywords: 'dona rosquilla buñuelo postre' },
+  { emoji: '🍪', keywords: 'galleta cookie postre dulce' },
+  { emoji: '🎂', keywords: 'torta cumpleaños pastel celebración' },
+  { emoji: '🍰', keywords: 'torta pastel tarta rebanada postre' },
+  { emoji: '🧁', keywords: 'cupcake muffin postre' },
+  { emoji: '🍮', keywords: 'flan pudín postre crema' },
+  { emoji: '🍫', keywords: 'chocolate barra cacao dulce' },
+  { emoji: '🥧', keywords: 'pie tarta relleno postre' },
+  { emoji: '🧋', keywords: 'bubble tea frappé batido frappe frío licuado' },
+  { emoji: '🫔', keywords: 'tamal tamale masa relleno' },
+  { emoji: '🍡', keywords: 'palito dulce postre bolita' },
+  { emoji: '🧈', keywords: 'mantequilla manteca butter' },
+  { emoji: '🍦', keywords: 'helado cono suave postre' },
+  { emoji: '🍧', keywords: 'raspadilla granizado sorbete helado' },
+  // Cafés y bebidas calientes
+  { emoji: '☕', keywords: 'café espresso americano cortado cappuccino latte macchiato' },
+  { emoji: '🍵', keywords: 'té infusión manzanilla hierba verde' },
+  { emoji: '🧉', keywords: 'mate yerba hierbas' },
+  { emoji: '🫖', keywords: 'tetera té hervido infusión jarra' },
+  { emoji: '🍶', keywords: 'vasito sake bebida caliente' },
+  { emoji: '🥛', keywords: 'leche lácteo vaso blanco' },
+  { emoji: '🫗', keywords: 'jarra sirve vierte bebida' },
+  { emoji: '🫙', keywords: 'frasco sirope almíbar conserva' },
+  { emoji: '🌡️', keywords: 'temperatura caliente tibio' },
+  { emoji: '💨', keywords: 'vapor humo caliente café' },
+  { emoji: '🍂', keywords: 'otoño especial temporada' },
+  // Bebidas frías y refrescos
+  { emoji: '🥤', keywords: 'gaseosa refresco coca cola vaso sorbete' },
+  { emoji: '🧃', keywords: 'jugo zumo néctar upes caja brick' },
+  { emoji: '🍹', keywords: 'cóctel tropical frutal mojito' },
+  { emoji: '🍊', keywords: 'naranja jugo cítrico mandarina' },
+  { emoji: '🍋', keywords: 'limón limonada cítrico' },
+  { emoji: '🧊', keywords: 'hielo frío cubos' },
+  { emoji: '💧', keywords: 'agua mineral pura hidratación' },
+  { emoji: '🍺', keywords: 'cerveza beer chopp' },
+  { emoji: '🫧', keywords: 'burbujas gaseosa espuma' },
+  { emoji: '🍈', keywords: 'melón jugo fruta suave' },
+  { emoji: '🍉', keywords: 'sandía jugo fruta fresca' },
+  { emoji: '🥂', keywords: 'copa champagne brindis festivo' },
+  // Comida elaborada
+  { emoji: '🌮', keywords: 'taco tortilla relleno' },
   { emoji: '🥙', keywords: 'empanada salteña wrap pita relleno' },
-  { emoji: '🥪', keywords: 'sandwich sándwich' },
-  { emoji: '🌮', keywords: 'taco tortilla' },
-  { emoji: '🌯', keywords: 'burrito wrap enrollado' },
-  { emoji: '🥗', keywords: 'ensalada salad vegetal' },
-  { emoji: '🍕', keywords: 'pizza' },
+  { emoji: '🥪', keywords: 'sandwich sándwich tostado' },
   { emoji: '🍔', keywords: 'hamburguesa burger' },
   { emoji: '🌭', keywords: 'hot dog salchicha perro caliente' },
+  { emoji: '🍕', keywords: 'pizza' },
+  { emoji: '🥗', keywords: 'ensalada salad vegetal fresco' },
+  { emoji: '🍲', keywords: 'olla guiso sopa estofado caliente' },
+  { emoji: '🍜', keywords: 'fideos sopa noodle caldo' },
+  { emoji: '🍳', keywords: 'huevo frito sartén desayuno' },
+  { emoji: '🥚', keywords: 'huevo egg duro tibio' },
+  { emoji: '🍗', keywords: 'pollo chicken alita pechuga' },
   { emoji: '🥩', keywords: 'carne bistec steak parrilla' },
-  { emoji: '🍗', keywords: 'pollo chicken alita' },
-  { emoji: '🍖', keywords: 'carne hueso pierna' },
-  { emoji: '🥚', keywords: 'huevo egg' },
-  { emoji: '🍳', keywords: 'huevo frito sartén' },
-  { emoji: '🧆', keywords: 'falafel bolita' },
-  { emoji: '🥓', keywords: 'tocino bacon' },
-  // Frutas
+  { emoji: '🐟', keywords: 'pescado fish filete' },
+  { emoji: '🦐', keywords: 'camarón gambas mariscos' },
+  { emoji: '🧀', keywords: 'queso cheese' },
+  { emoji: '🥓', keywords: 'tocino bacon panceta' },
+  { emoji: '🌯', keywords: 'burrito wrap enrollado' },
+  { emoji: '🥘', keywords: 'cazuela paella arroz plato' },
+  { emoji: '🌶️', keywords: 'picante ají chile jalapeño' },
+  { emoji: '🥫', keywords: 'lata conserva enlatado' },
+  { emoji: '🍱', keywords: 'bento caja plato combo' },
+  // Snacks y productos comprados
+  { emoji: '🍬', keywords: 'caramelo candy dulce' },
+  { emoji: '🍭', keywords: 'chupete piruleta lollipop dulce' },
+  { emoji: '🍿', keywords: 'palomitas popcorn pop cine' },
+  { emoji: '🥜', keywords: 'maní cacahuate nuez semilla' },
   { emoji: '🍎', keywords: 'manzana fruta roja' },
-  { emoji: '🍊', keywords: 'naranja mandarina fruta cítrico' },
-  { emoji: '🍋', keywords: 'limón limonada fruta' },
-  { emoji: '🍇', keywords: 'uva fruta racimo' },
-  { emoji: '🍓', keywords: 'frutilla fresa fruta' },
-  { emoji: '🫐', keywords: 'arándano fruta azul' },
-  { emoji: '🍒', keywords: 'cereza fruta' },
-  { emoji: '🍑', keywords: 'durazno melocotón fruta' },
-  { emoji: '🥭', keywords: 'mango fruta tropical' },
-  { emoji: '🍍', keywords: 'piña ananá fruta tropical' },
-  { emoji: '🥝', keywords: 'kiwi fruta verde' },
   { emoji: '🍌', keywords: 'banana plátano fruta' },
-  { emoji: '🍉', keywords: 'sandía melón fruta' },
-  // Otros / Especiales
+  { emoji: '🍇', keywords: 'uva fruta racimo' },
+  { emoji: '🍓', keywords: 'frutilla fresa fruta roja' },
+  { emoji: '🫐', keywords: 'arándano fruta azul blueberry' },
+  { emoji: '🥝', keywords: 'kiwi fruta verde' },
+  { emoji: '🫚', keywords: 'aceite condimento salsa' },
+  { emoji: '🍥', keywords: 'snack procesado producto' },
+  // Combos y sistema
+  { emoji: '🛒', keywords: 'carrito compra insumo tienda' },
+  { emoji: '🎁', keywords: 'regalo combo pack sorpresa' },
   { emoji: '⭐', keywords: 'estrella especial favorito destacado' },
-  { emoji: '❤️', keywords: 'corazón amor favorito especial' },
-  { emoji: '🔥', keywords: 'fuego picante caliente popular trending' },
-  { emoji: '🎁', keywords: 'regalo combo pack' },
-  { emoji: '🏆', keywords: 'trofeo mejor premium' },
-  { emoji: '👑', keywords: 'corona premium especial vip' },
-  { emoji: '🌿', keywords: 'planta hierba vegetal natural orgánico' },
-  { emoji: '🫘', keywords: 'granos café frijol legumbre' },
-  { emoji: '🌰', keywords: 'castaña nuez' },
-  { emoji: '🥜', keywords: 'maní cacahuate nuez' },
-  { emoji: '🧂', keywords: 'sal condimento' },
-  { emoji: '📦', keywords: 'caja paquete producto insumo' },
-  { emoji: '🛒', keywords: 'carrito compra insumo' },
-  { emoji: '💎', keywords: 'diamante premium lujo exclusivo' },
-  { emoji: '🎯', keywords: 'objetivo especial oferta' },
+  { emoji: '🏷️', keywords: 'etiqueta precio tag oferta' },
+  { emoji: '🧾', keywords: 'recibo factura ticket' },
+  { emoji: '⏱️', keywords: 'tiempo pedido rápido espera' },
+  { emoji: '🌿', keywords: 'natural orgánico hierba planta' },
+  { emoji: '⚠️', keywords: 'alerta advertencia cuidado' },
+  { emoji: '🔥', keywords: 'popular fuego picante trending' },
+  { emoji: '❄️', keywords: 'frío helado congelado' },
+  { emoji: '✨', keywords: 'especial nuevo brillante premium' },
+  { emoji: '💝', keywords: 'regalo corazón especial amor' },
+  { emoji: '🎯', keywords: 'objetivo oferta promo deal' },
+  { emoji: '🎪', keywords: 'festival especial evento' },
+  { emoji: '🌟', keywords: 'estrella premium especial destacado' },
 ];
 
 const EMOJI_GROUPS = [
-  { label: 'Café y bebidas calientes', emojis: ['☕', '🍵', '🧋', '🫖', '🍶'] },
-  { label: 'Bebidas frías y gaseosas', emojis: ['🥤', '🧃', '🍹', '🍸', '🥂', '🍺', '🍻', '🥛', '💧', '🧊'] },
-  { label: 'Postres y dulces', emojis: ['🍰', '🎂', '🧁', '🍩', '🍪', '🍫', '🍬', '🍭', '🍮', '🍨', '🍦', '🍧'] },
-  { label: 'Panadería', emojis: ['🥐', '🥖', '🍞', '🧇', '🥞', '🫓', '🥨'] },
-  { label: 'Comida salada', emojis: ['🥙', '🥪', '🌮', '🌯', '🥗', '🍕', '🍔', '🌭', '🥩', '🍗', '🍖', '🥚', '🍳', '🧆', '🥓'] },
-  { label: 'Frutas', emojis: ['🍎', '🍊', '🍋', '🍇', '🍓', '🫐', '🍒', '🍑', '🥭', '🍍', '🥝', '🍌', '🍉'] },
-  { label: 'Otros', emojis: ['⭐', '❤️', '🔥', '🎁', '🏆', '👑', '🌿', '🫘', '🌰', '🥜', '🧂', '📦', '🛒', '💎', '🎯'] },
+  {
+    label: 'Masas y panadería',
+    emojis: ['🥐', '🥖', '🍞', '🥨', '🧆', '🥯', '🫓', '🧇', '🥞', '🍩', '🍪', '🎂', '🍰', '🧁', '🍮', '🍫', '🥧', '🧋', '🫔', '🍡', '🧈', '🍦', '🍧'],
+  },
+  {
+    label: 'Cafés y bebidas calientes',
+    emojis: ['☕', '🍵', '🧉', '🫖', '🍶', '🥛', '🫗', '🍫', '🧋', '🫙', '🌡️', '💨', '🍂'],
+  },
+  {
+    label: 'Bebidas frías y refrescos',
+    emojis: ['🥤', '🧃', '🍹', '🍊', '🍋', '🫙', '🧊', '💧', '🍶', '🥛', '🍺', '🫧', '🍈', '🍉', '🥂'],
+  },
+  {
+    label: 'Comida elaborada',
+    emojis: ['🌮', '🥙', '🥪', '🍔', '🌭', '🍕', '🥗', '🍲', '🍜', '🍳', '🥚', '🍗', '🥩', '🐟', '🦐', '🧀', '🥓', '🌯', '🥘', '🌶️', '🥫', '🍱'],
+  },
+  {
+    label: 'Snacks y productos comprados',
+    emojis: ['🍫', '🍬', '🍭', '🍿', '🥜', '🍎', '🍌', '🍇', '🍓', '🫐', '🍊', '🥝', '🧀', '🥛', '🫙', '🍦', '🧆', '🥐', '🫚', '🍥'],
+  },
+  {
+    label: 'Combos y sistema',
+    emojis: ['🍱', '🛒', '🎁', '⭐', '🏷️', '🧾', '⏱️', '🌿', '⚠️', '🔥', '❄️', '✨', '💝', '🎯', '🎪', '🌟'],
+  },
 ];
 
 const KEYWORDS_MAP: Record<string, string> = Object.fromEntries(
@@ -158,7 +192,6 @@ export const IconPicker: React.FC<IconPickerProps> = ({ value, onChange }) => {
 
   return (
     <div>
-      {/* Toggle button */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -192,7 +225,6 @@ export const IconPicker: React.FC<IconPickerProps> = ({ value, onChange }) => {
         )}
       </button>
 
-      {/* Picker panel */}
       {open && (
         <div className="mt-1.5 rounded-xl border border-coffee-200 bg-white shadow-md overflow-hidden">
           <div className="p-2.5 border-b border-coffee-100">
@@ -202,7 +234,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({ value, onChange }) => {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar: café, torta, gaseosa, empanada…"
+                placeholder="Buscar: café, torta, empanada, combo…"
                 className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg bg-coffee-50 border border-coffee-100 focus:outline-none focus:ring-1 focus:ring-coffee-400 text-coffee-800 placeholder:text-coffee-400"
                 autoFocus
               />

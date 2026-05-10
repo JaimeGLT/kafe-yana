@@ -1,13 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { Coffee, Eye, EyeOff, AlertCircle, Wifi } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, Wifi } from 'lucide-react';
 import { useAuth, ApiError } from '../../contexts/AuthContext';
+import coffeeImg from '../../assets/img/Gemini_Generated_Image_hnrzfmhnrzfmhnrz.png';
 
-/**
- * Convierte un error de login en un mensaje amigable.
- * Los mensajes son intencionalmente genéricos para no revelar
- * si el usuario existe o si solo el password es incorrecto.
- */
 function resolveErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 0) return 'Sin conexión. Verifica tu red e intenta de nuevo.';
@@ -17,7 +13,6 @@ function resolveErrorMessage(error: unknown): string {
       return 'Demasiados intentos fallidos. Espera unos minutos antes de intentar de nuevo.';
     if (error.status >= 500)
       return 'Error del servidor. Intenta de nuevo en unos momentos.';
-    // Mensaje del backend si es explícito y el status no es sensible
     if (error.message) return error.message;
   }
   return 'Ocurrió un error inesperado. Intenta de nuevo.';
@@ -35,10 +30,8 @@ const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [networkError, setNetworkError] = useState(false);
 
-  // Destino al que redirigir tras el login exitoso
   const from = (location.state as { from?: Location })?.from?.pathname ?? '/';
 
-  // Si ya está autenticado, redirigir directamente
   if (!isCheckingSession && isAuthenticated) {
     return <Navigate to={from} replace />;
   }
@@ -47,21 +40,11 @@ const LoginPage: React.FC = () => {
     e.preventDefault();
     setError(null);
     setNetworkError(false);
-
-    // Validación básica antes de llamar al backend
-    if (!email.trim()) {
-      setError('Ingresa tu correo electrónico.');
-      return;
-    }
-    if (!password) {
-      setError('Ingresa tu contraseña.');
-      return;
-    }
-
+    if (!email.trim()) { setError('Ingresa tu correo electrónico.'); return; }
+    if (!password) { setError('Ingresa tu contraseña.'); return; }
     setIsLoading(true);
     try {
       await login(email.trim(), password);
-      // Redirigir a la ruta original o al dashboard
       navigate(from === '/login' ? '/' : from, { replace: true });
     } catch (err) {
       const msg = resolveErrorMessage(err);
@@ -83,51 +66,101 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-cafe-primary flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        {/* Logo / branding */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-cream rounded-2xl flex items-center justify-center shadow-lg mb-4">
-            <Coffee className="h-9 w-9 text-coffee-700" />
+    <div className="min-h-screen flex">
+
+      {/* ── Panel izquierdo — hero ─────────────────────────────────────────── */}
+      <div className="hidden lg:flex flex-col relative w-[58%] overflow-hidden bg-[#1a0902]">
+        {/* Gradiente radial cálido detrás de la imagen */}
+        <div
+          className="absolute inset-0 opacity-40"
+          style={{ background: 'radial-gradient(ellipse 60% 55% at 50% 52%, #7c3a10 0%, transparent 70%)' }}
+        />
+
+        {/* Contenido centrado */}
+        <div className="relative z-10 flex flex-col items-center justify-center flex-1 px-12">
+          {/* Imagen con glow cálido + blend para fundir con el fondo */}
+          <div className="relative mb-10">
+            {/* Glow detrás */}
+            <div
+              className="absolute inset-0 blur-3xl scale-110 opacity-60 rounded-full"
+              style={{ background: 'radial-gradient(circle, #b85c20 0%, transparent 65%)' }}
+            />
+            {/* mix-blend-mode: screen — el fondo oscuro de la imagen desaparece,
+                la taza blanca queda flotando sobre el panel */}
+            <img
+              src={coffeeImg}
+              alt="Kafe Yana"
+              className="relative w-64 h-64 object-contain select-none"
+              style={{ mixBlendMode: 'screen' }}
+              draggable={false}
+            />
           </div>
-          <h1 className="font-display text-2xl font-bold text-white tracking-tight">
-            Kafe-Yana
+
+          {/* Brand — usa Zolina (font-display) */}
+          <h1
+            className="text-white font-bold tracking-tight text-center leading-none font-display"
+            style={{ fontSize: '3.25rem', letterSpacing: '-0.02em' }}
+          >
+            Kafe<span style={{ color: '#d97c3a' }}>·</span>Yana
           </h1>
-          <p className="text-coffee-300 text-sm mt-1">Sistema de gestión</p>
+          <p className="mt-3 text-[#a07050] text-sm font-medium uppercase tracking-[0.2em]">
+            Sistema de gestión
+          </p>
+
+          {/* Línea decorativa */}
+          <div className="mt-8 flex items-center gap-3">
+            <div className="h-px w-16 bg-gradient-to-r from-transparent to-[#5a2e10]" />
+            <span className="text-[#4a2010] text-lg">☕</span>
+            <div className="h-px w-16 bg-gradient-to-l from-transparent to-[#5a2e10]" />
+          </div>
         </div>
 
-        {/* Card */}
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
-          <h2 className="text-xl font-semibold text-coffee-900 mb-1">Iniciar sesión</h2>
-          <p className="text-sm text-coffee-500 mb-6">Ingresa tus credenciales para continuar</p>
+        {/* Footer izquierdo */}
+        <p className="relative z-10 text-center text-[10px] text-[#3a1a08] pb-5 font-medium tracking-widest uppercase">
+          © {new Date().getFullYear()} Kafe-Yana
+        </p>
+      </div>
+
+      {/* ── Panel derecho — formulario ─────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col items-center justify-center bg-[#faf8f5] px-8 py-12">
+        {/* Logo mobile (solo visible en <lg) */}
+        <div className="lg:hidden flex flex-col items-center mb-10">
+          <img src={coffeeImg} alt="Kafe Yana" className="w-20 h-20 object-contain mb-3" />
+          <h1 className="text-coffee-900 font-bold text-2xl font-display">
+            Kafe<span className="text-amber-700">·</span>Yana
+          </h1>
+          <p className="text-coffee-400 text-xs tracking-widest uppercase mt-1">Sistema de gestión</p>
+        </div>
+
+        <div className="w-full max-w-sm">
+          {/* Heading */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-[#1a0902] font-display">
+              Bienvenido de vuelta
+            </h2>
+            <p className="text-[#9a7060] text-sm mt-1.5">
+              Ingresa tus credenciales para continuar
+            </p>
+          </div>
 
           {/* Error banner */}
           {error && (
             <div
               role="alert"
-              className="flex items-start gap-2.5 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-5 text-sm"
+              className="flex items-start gap-2.5 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-6 text-sm"
             >
-              {networkError ? (
-                <Wifi className="h-4 w-4 flex-shrink-0 mt-0.5" />
-              ) : (
-                <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-              )}
+              {networkError
+                ? <Wifi className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                : <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+              }
               <span>{error}</span>
             </div>
           )}
 
-          <form
-            onSubmit={handleSubmit}
-            noValidate
-            autoComplete="on"
-            className="space-y-4"
-          >
+          <form onSubmit={handleSubmit} noValidate autoComplete="on" className="space-y-5">
             {/* Email */}
             <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-coffee-700 mb-1.5"
-              >
+              <label htmlFor="email" className="block text-xs font-semibold text-[#5a3020] mb-2 uppercase tracking-wider">
                 Correo electrónico
               </label>
               <input
@@ -141,22 +174,13 @@ const LoginPage: React.FC = () => {
                 value={email}
                 onChange={handleEmailChange}
                 placeholder="correo@empresa.com"
-                className="
-                  w-full px-3 py-2.5 rounded-lg border border-coffee-200 bg-white
-                  text-coffee-900 placeholder-coffee-300 text-sm
-                  focus:outline-none focus:ring-2 focus:ring-coffee-500 focus:border-transparent
-                  disabled:bg-coffee-50 disabled:text-coffee-400 disabled:cursor-not-allowed
-                  transition-colors
-                "
+                className="w-full px-4 py-3 rounded-xl border border-[#e0d0c0] bg-white text-[#1a0902] placeholder-[#c0a890] text-sm focus:outline-none focus:ring-2 focus:ring-[#c07040] focus:border-transparent disabled:bg-[#f5f0ea] disabled:text-[#b09080] disabled:cursor-not-allowed transition-all"
               />
             </div>
 
             {/* Password */}
             <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-coffee-700 mb-1.5"
-              >
+              <label htmlFor="password" className="block text-xs font-semibold text-[#5a3020] mb-2 uppercase tracking-wider">
                 Contraseña
               </label>
               <div className="relative">
@@ -170,30 +194,16 @@ const LoginPage: React.FC = () => {
                   value={password}
                   onChange={handlePasswordChange}
                   placeholder="••••••••"
-                  className="
-                    w-full px-3 py-2.5 pr-10 rounded-lg border border-coffee-200 bg-white
-                    text-coffee-900 placeholder-coffee-300 text-sm
-                    focus:outline-none focus:ring-2 focus:ring-coffee-500 focus:border-transparent
-                    disabled:bg-coffee-50 disabled:text-coffee-400 disabled:cursor-not-allowed
-                    transition-colors
-                  "
+                  className="w-full px-4 py-3 pr-11 rounded-xl border border-[#e0d0c0] bg-white text-[#1a0902] placeholder-[#c0a890] text-sm focus:outline-none focus:ring-2 focus:ring-[#c07040] focus:border-transparent disabled:bg-[#f5f0ea] disabled:text-[#b09080] disabled:cursor-not-allowed transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   disabled={isLoading}
                   aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                  className="
-                    absolute right-3 top-1/2 -translate-y-1/2
-                    text-coffee-400 hover:text-coffee-600
-                    disabled:cursor-not-allowed transition-colors
-                  "
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#a07060] hover:text-[#6a3020] disabled:cursor-not-allowed transition-colors"
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
@@ -202,14 +212,8 @@ const LoginPage: React.FC = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="
-                w-full py-2.5 px-4 mt-2
-                bg-coffee-700 hover:bg-coffee-800 active:bg-coffee-900
-                text-white font-medium text-sm rounded-lg
-                focus:outline-none focus:ring-2 focus:ring-coffee-500 focus:ring-offset-2
-                disabled:opacity-60 disabled:cursor-not-allowed
-                transition-colors flex items-center justify-center gap-2
-              "
+              className="w-full py-3 px-4 mt-2 rounded-xl font-semibold text-sm text-white transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#c07040] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 shadow-lg shadow-[#c0704030]"
+              style={{ background: 'linear-gradient(135deg, #7c3a10 0%, #c07040 100%)' }}
             >
               {isLoading ? (
                 <>
@@ -221,12 +225,12 @@ const LoginPage: React.FC = () => {
               )}
             </button>
           </form>
-        </div>
 
-        {/* Footer */}
-        <p className="text-center text-xs text-coffee-400 mt-6">
-          © {new Date().getFullYear()} Kafe-Yana · Todos los derechos reservados
-        </p>
+          {/* Footer */}
+          <p className="text-center text-xs text-[#c0a890] mt-10">
+            © {new Date().getFullYear()} Kafe-Yana · Todos los derechos reservados
+          </p>
+        </div>
       </div>
     </div>
   );

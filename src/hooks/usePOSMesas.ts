@@ -309,12 +309,21 @@ export function usePOSMesas(): UsePOSMesasReturn {
   const paraLlevarCount = paraLlevarOrders.filter(pl => pl.status !== 'libre').length;
 
   const openParaLlevar = useCallback(async (): Promise<string | null> => {
-    await syncParaLlevar();
-    const availableOrder = paraLlevarOrders.find(pl => pl.status === 'ocupada');
-    if (availableOrder) {
-      setActiveMesaId(availableOrder.id);
-      return availableOrder.id;
+    // Fetch fresh data and sync state immediately (avoids stale-closure on paraLlevarOrders)
+    const freshData = await syncParaLlevar();
+    const freshMapped = freshData
+      .filter(pl => pl.disponible || pl.pedido !== null)
+      .map(mapParaLlevarToLocalMesa);
+    setParaLlevarOrders(freshMapped);
+
+    // If there's an existing active para llevar order, resume it
+    const activeOrder = freshMapped.find(m => m.status === 'ocupada');
+    if (activeOrder) {
+      setActiveMesaId(activeOrder.id);
+      return activeOrder.id;
     }
+
+    // Create new pedido (backend will assign to a free para llevar slot)
     const newPedidoId = await createPedidoParaLlevar();
     if (newPedidoId) {
       const newId = `pl_${newPedidoId}`;
@@ -335,7 +344,7 @@ export function usePOSMesas(): UsePOSMesasReturn {
       return newId;
     }
     return null;
-  }, [syncParaLlevar, paraLlevarOrders, createPedidoParaLlevar]);
+  }, [syncParaLlevar, createPedidoParaLlevar]);
 
   const openNuevaMesa = useCallback(() => {
     setEditMesaId(null);
