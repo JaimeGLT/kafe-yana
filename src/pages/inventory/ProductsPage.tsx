@@ -63,6 +63,7 @@ interface CompradoListNode {
     descripcion: string;
     precio: number;
     tipo: string;
+    imagen?: string;
     categoria: CategoriaNode;
     detalles: { cantidad: number; opcional: boolean }[];
   };
@@ -123,6 +124,7 @@ function mapNode(node: CompradoListNode): Product {
     barcode: node.codigo_barra,
     locationId: rawUbicacion || undefined,
     destino,
+    image: node.producto.imagen ?? undefined,
     variations: [],
     hasVariations: false,
     isActive: node.disponible,
@@ -466,7 +468,7 @@ const ProductsPage: React.FC = () => {
                   className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-coffee-50/60 active:bg-coffee-100 transition-colors"
                 >
                   <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
-                    <ShoppingBag className="h-5 w-5 text-blue-400" />
+                    <span className="text-xl leading-none">{p.image || '🛒'}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-coffee-900 truncate text-sm">{p.name}</p>
@@ -509,7 +511,7 @@ const ProductsPage: React.FC = () => {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                            <ShoppingBag className="h-4 w-4 text-blue-400" />
+                            <span className="text-base leading-none">{p.image || '🛒'}</span>
                           </div>
                           <p className="font-medium text-coffee-900">{p.name}</p>
                         </div>
@@ -622,7 +624,7 @@ const ProductsPage: React.FC = () => {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
-                      <ShoppingBag className="h-5 w-5 text-blue-500" />
+                      <span className="text-xl leading-none">{p.image || '🛒'}</span>
                     </div>
                     <div className="min-w-0">
                       <h2 className="font-bold text-coffee-900 text-base leading-tight truncate">{p.name}</h2>

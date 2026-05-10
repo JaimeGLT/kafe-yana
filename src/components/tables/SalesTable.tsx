@@ -4,12 +4,13 @@ import type { Sale } from '../../types';
 import { StatusBadge, Badge } from '../ui';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Eye, FileText } from 'lucide-react';
+import { Eye, FileText, RotateCcw } from 'lucide-react';
 
 interface SalesTableProps {
   sales: Sale[];
   onView?: (sale: Sale) => void;
   onInvoice?: (sale: Sale) => void;
+  onRefund?: (sale: Sale) => void;
   isLoading?: boolean;
 }
 
@@ -17,6 +18,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
   sales,
   onView,
   onInvoice,
+  onRefund,
   isLoading = false,
 }) => {
   const formatCurrency = (amount: number) => {
@@ -111,13 +113,14 @@ export const SalesTable: React.FC<SalesTableProps> = ({
     {
       key: 'actions',
       header: '',
-      width: '80px',
+      width: '100px',
       render: (_: unknown, row: Sale) => (
         <div className="flex items-center justify-end gap-1">
           {onView && (
             <button
               className="p-1.5 rounded-lg hover:bg-coffee-100 text-coffee-500 hover:text-coffee-700"
               onClick={() => onView(row)}
+              title="Ver detalle"
             >
               <Eye className="h-4 w-4" />
             </button>
@@ -126,8 +129,18 @@ export const SalesTable: React.FC<SalesTableProps> = ({
             <button
               className="p-1.5 rounded-lg hover:bg-coffee-100 text-coffee-500 hover:text-coffee-700"
               onClick={() => onInvoice(row)}
+              title="Factura"
             >
               <FileText className="h-4 w-4" />
+            </button>
+          )}
+          {onRefund && row.status === 'completed' && (
+            <button
+              className="p-1.5 rounded-lg hover:bg-amber-50 text-coffee-400 hover:text-amber-600"
+              onClick={() => onRefund(row)}
+              title="Reembolso"
+            >
+              <RotateCcw className="h-4 w-4" />
             </button>
           )}
         </div>

@@ -135,6 +135,7 @@ export interface ProductInput {
   maxStock?: number;
   locationId?: string;
   barcode?: string;
+  imagen?: string;
   isActive?: boolean;
   variations?: unknown[];
   destino?: ProductDestino;

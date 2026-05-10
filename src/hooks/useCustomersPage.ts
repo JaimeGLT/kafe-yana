@@ -11,7 +11,7 @@ interface ClienteNode {
   fecha_nacimiento: string;
   direccion: string;
   puntos: number;
-  estado: string;
+  estado: boolean | string;
   id: number;
 }
 
@@ -66,7 +66,7 @@ export function useCustomersPage({
           fecha_nacimiento: n.fecha_nacimiento,
           direccion: n.direccion,
           puntos: n.puntos,
-          estado: n.estado === '1' || n.estado === 'true',
+          estado: n.estado === true || n.estado === '1' || n.estado === 'true',
         })),
       );
       setTotalCount(data.clientes.totalCount);

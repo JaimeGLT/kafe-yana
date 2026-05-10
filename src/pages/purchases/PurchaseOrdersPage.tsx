@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Plus, Search, PackageCheck, XCircle, ShoppingCart, Clock, CheckCircle2, TrendingUp } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
@@ -7,9 +7,119 @@ import { PurchasesTable } from '../../components/tables/PurchasesTable';
 import { PurchaseOrderModal } from '../../components/modals';
 import { toast } from '../../components/ui/Toast';
 import { formatCurrency, formatDate } from '../../utils';
-import { MOCK_PURCHASE_ORDERS, MOCK_SUPPLIERS, MOCK_PRODUCTS, MOCK_INSUMOS } from '../../data/reportsMocks';
-import type { PurchaseOrder, Supplier, Product, PurchaseOrderInput } from '../../types';
+import { MOCK_SUPPLIERS } from '../../data/reportsMocks';
+import { api } from '../../lib/api';
+import { gql } from '../../lib/graphql';
+import { GET_ORDENES_COMPRA } from '../../lib/queries/compras.queries';
+import { GET_PROVEEDORES } from '../../lib/queries/proveedores.queries';
+import { GET_COMPRADOS, GET_INSUMOS_QUERY } from '../../lib/queries/inventory.queries';
+import type { PurchaseOrder, Supplier, PurchaseOrderInput } from '../../types';
+import type { Product } from '../../types/inventory';
 import type { Insumo } from '../../types/recipes';
+
+// ── Backend types ─────────────────────────────────────────────────────────────
+
+interface BackendOrdenItem {
+  id: number;
+  id_Insumo: number;
+  id_Orden: number;
+  cantidad: number;
+  precio: number;
+  subtotal: number;
+  nombre: string;
+}
+
+interface BackendOrdenProducto {
+  id: number;
+  id_Producto: number;
+  id_Orden: number;
+  cantidad: number;
+  precio: number;
+  subtotal: number;
+  nombre: string;
+}
+
+interface BackendOrden {
+  id: number;
+  codigo: string;
+  fecha: string;
+  id_Proveedor: number;
+  nombre_Proveedor: string;
+  nota: string;
+  recibido: boolean;
+  total: number;
+  proveedor: {
+    id: number;
+    razon_Social: string;
+    dni: string;
+    telefono: string;
+    celular: string;
+    email: string;
+    direccion: string;
+  };
+  insumos: BackendOrdenItem[];
+  productos: BackendOrdenProducto[];
+}
+
+interface BackendOrdenesResponse {
+  ordenes: {
+    nodes: BackendOrden[];
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+    totalCount: number;
+  };
+}
+
+const mapBackendOrdenToPurchaseOrder = (o: BackendOrden): PurchaseOrder => {
+  const allItems = [
+    ...o.insumos.map(i => ({
+      id: String(i.id),
+      productId: '',
+      insumoId: String(i.id_Insumo),
+      productName: i.nombre,
+      productCode: '',
+      quantity: i.cantidad,
+      unit: 'unidad',
+      unitCost: Number(i.precio),
+      subtotal: Number(i.subtotal),
+      receivedQuantity: 0,
+      pendingQuantity: i.cantidad,
+    })),
+    ...o.productos.map(p => ({
+      id: String(p.id),
+      productId: String(p.id_Producto),
+      insumoId: '',
+      productName: p.nombre,
+      productCode: '',
+      quantity: p.cantidad,
+      unit: 'unidad',
+      unitCost: Number(p.precio),
+      subtotal: Number(p.subtotal),
+      receivedQuantity: 0,
+      pendingQuantity: p.cantidad,
+    })),
+  ];
+
+  return {
+    id: String(o.id),
+    code: o.codigo,
+    date: new Date(o.fecha),
+    supplierId: String(o.id_Proveedor),
+    supplierName: o.nombre_Proveedor,
+    items: allItems,
+    subtotal: Number(o.total),
+    tax: 0,
+    taxPercentage: 0,
+    total: Number(o.total),
+    status: o.recibido ? 'received' : 'pending',
+    notes: o.nota || undefined,
+    userId: '',
+    userName: '',
+    branchId: '',
+    branchName: '',
+    createdAt: new Date(o.fecha),
+    updatedAt: new Date(o.fecha),
+  };
+};
 
 const statusOptions = [
   { value: '', label: 'Todos los estados' },
@@ -28,11 +138,11 @@ const STATUS_PILL: Record<PurchaseOrder['status'], { label: string; cls: string 
 };
 
 export const PurchaseOrdersPage: React.FC = () => {
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(MOCK_PURCHASE_ORDERS);
-  const [isLoading, _setIsLoading] = useState(false);
-  const suppliers: Supplier[] = MOCK_SUPPLIERS;
-  const products: Product[] = MOCK_PRODUCTS;
-  const insumos: Insumo[] = MOCK_INSUMOS;
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [suppliers, setSuppliers] = useState<Supplier[]>(MOCK_SUPPLIERS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const [search, setSearch] = useState('');
@@ -41,6 +151,109 @@ export const PurchaseOrdersPage: React.FC = () => {
   const [viewingOrder, setViewingOrder] = useState<PurchaseOrder | null>(null);
   const [receivingOrder, setReceivingOrder] = useState<PurchaseOrder | null>(null);
   const [cancellingOrder, setCancellingOrder] = useState<PurchaseOrder | null>(null);
+
+  // ── Pagination ─────────────────────────────────────────────────────────────
+  const [afterCursor, setAfterCursor] = useState<string | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+
+  // ── Load ordenes from backend ───────────────────────────────────────────────
+
+  const loadOrdenes = useCallback((cursor: string | null, append: boolean) => {
+    if (cursor === null) setIsLoading(true);
+    else setIsLoadingMore(true);
+
+    gql<BackendOrdenesResponse>(GET_ORDENES_COMPRA, cursor ? { first: 50, after: cursor } : { first: 50 })
+      .then(data => {
+        const mapped = data.ordenes.nodes.map(mapBackendOrdenToPurchaseOrder);
+        if (append) setPurchaseOrders(prev => [...prev, ...mapped]);
+        else setPurchaseOrders(mapped);
+        setAfterCursor(data.ordenes.pageInfo.endCursor ?? null);
+        setHasNextPage(data.ordenes.pageInfo.hasNextPage ?? false);
+        setTotalCount(data.ordenes.totalCount ?? 0);
+      })
+      .finally(() => {
+        setIsLoading(false);
+        setIsLoadingMore(false);
+      });
+  }, []);
+
+  useEffect(() => {
+    loadOrdenes(null, false);
+  }, [loadOrdenes]);
+
+  // ── Load suppliers for modal ─────────────────────────────────────────────────
+
+  useEffect(() => {
+    gql<{ proveedores: { nodes: Supplier[] } }>(GET_PROVEEDORES, { first: 50 })
+      .then(data => setSuppliers(data.proveedores.nodes.map(n => ({
+        id: String(n.id),
+        code: String(n.id),
+        razon_Social: n.razon_Social,
+        telefono: n.telefono ?? '',
+        celular: n.celular ?? '',
+        email: n.email ?? '',
+        direccion: n.direccion ?? '',
+        dni: n.dni ?? '',
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }))))
+      .catch(() => {});
+  }, []);
+
+  // ── Load products (comprados only) ─────────────────────────────────────────
+  useEffect(() => {
+    gql<{ comprados: { nodes: Array<{ id_Producto: number; producto: { id: number; nombre: string; descripcion?: string; precio: number; tipo: string }; stock_actual: number; stock_minimo: number; unidad_medida?: string; costo_compra: number; disponible: boolean }> } }>(GET_COMPRADOS, { first: 50 })
+      .then(data => setProducts(data.comprados.nodes.map(n => ({
+        id: n.producto.id,
+        code: String(n.id_Producto),
+        name: n.producto.nombre,
+        description: n.producto.descripcion,
+        tipo: 'comprado' as const,
+        categoryId: 0,
+        categoryName: '',
+        unit: n.unidad_medida ?? 'unidad',
+        costPrice: n.costo_compra ?? 0,
+        salePrice: n.producto.precio ?? 0,
+        stock: n.stock_actual ?? 0,
+        minStock: n.stock_minimo ?? 0,
+        maxStock: 0,
+        isActive: n.disponible ?? true,
+        hasVariations: false,
+        variations: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }))))
+      .catch(() => {});
+  }, []);
+
+  // ── Load insumos ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    gql<{ insumos: { nodes: Array<{ id: number; nombre: string; categoria: string; stock_actual: number; stock_min: number; costo: number; unidad_min_uso: string; unidad_compra: string; factor_conversion: number }> } }>(GET_INSUMOS_QUERY, { first: 50 })
+      .then(data => setInsumos(data.insumos.nodes.map(n => ({
+        id: n.id,
+        code: String(n.id),
+        name: n.nombre,
+        categoriaInsumo: n.categoria,
+        unidadMinima: n.unidad_min_uso,
+        unidadCompra: n.unidad_compra,
+        factorConversion: n.factor_conversion,
+        costoCompra: n.costo,
+        costoUnitario: 0,
+        stock: n.stock_actual,
+        stockMinimo: n.stock_min,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }))))
+      .catch(() => {});
+  }, []);
+
+  const handleLoadMore = () => {
+    if (afterCursor && !isLoadingMore) loadOrdenes(afterCursor, true);
+  };
 
   const stats = useMemo(() => {
     const pending = purchaseOrders.filter((o) => o.status === 'pending').length;
@@ -66,66 +279,76 @@ export const PurchaseOrdersPage: React.FC = () => {
     });
   }, [purchaseOrders, search, statusFilter]);
 
-  const handleSaveOrder = (input: PurchaseOrderInput) => {
-    const id = `mock-${Date.now()}`;
-    const supplier = suppliers.find((s) => s.id === input.supplierId);
-    const subtotal = input.items.reduce((s, i) => s + i.quantity * i.unitCost, 0);
-    const newOrder: PurchaseOrder = {
-      id,
-      code: `OC-${String(purchaseOrders.length + 1).padStart(3, '0')}`,
-      date: new Date(),
-      expectedDate: input.expectedDate,
-      supplierId: input.supplierId,
-      supplierName: supplier?.razon_Social,
-      items: input.items.map((item, idx) => {
-        const product = products.find((p) => p.id === item.productId);
-        const insumo = insumos.find((i) => i.id === item.insumoId);
-        return {
-          id: `${id}-item-${idx}`,
-          productId: item.productId || item.insumoId || '',
-          productName: product?.name || insumo?.name || '',
-          productCode: product?.code || insumo?.code || '',
-          quantity: item.quantity,
-          unit: product?.unit || insumo?.unidadCompra || 'unidad',
-          unitCost: item.unitCost,
-          subtotal: item.quantity * item.unitCost,
-          receivedQuantity: 0,
-          pendingQuantity: item.quantity,
-        };
-      }),
-      subtotal, tax: 0, taxPercentage: 0, total: subtotal,
-      status: 'pending',
-      notes: input.notes,
-      userId: 'u1', userName: 'Jaime G.', branchId: 'b1',
-      createdAt: new Date(), updatedAt: new Date(),
+  const handleSaveOrder = async (input: PurchaseOrderInput) => {
+    const insumos = input.items
+      .filter(i => i.insumoId)
+      .map(i => ({
+        id_Insumo: Number(i.insumoId),
+        cantidad: i.quantity,
+        precio: i.unitCost,
+      }));
+
+    const productos = input.items
+      .filter(i => i.productId)
+      .map(i => ({
+        id_Producto: Number(i.productId),
+        cantidad: i.quantity,
+        precio: i.unitCost,
+      }));
+
+    const body = {
+      id_Proveedor: Number(input.supplierId),
+      fechaEntrega: new Date(input.expectedDate!).toISOString(),
+      nota: input.notes ?? '',
+      insumos,
+      productos,
     };
-    setPurchaseOrders((prev) => [newOrder, ...prev]);
+
+    try {
+      const result = await api.post<{ Id: number; Codigo: string } | undefined>('/OrdenCompra', body);
+      toast.success('Orden creada', result?.Codigo ? `Orden ${result.Codigo} creada exitosamente.` : 'Orden de compra creada exitosamente.');
+      loadOrdenes(null, false);
+    } catch {
+      toast.error('Error', 'No se pudo crear la orden de compra.');
+    }
   };
 
-  const handleReceive = () => {
+  const handleReceive = async () => {
     if (!receivingOrder) return;
     setIsProcessing(true);
-    setPurchaseOrders((prev) =>
-      prev.map((o) =>
-        o.id === receivingOrder.id
-          ? { ...o, status: 'received', items: o.items.map((i) => ({ ...i, receivedQuantity: i.quantity, pendingQuantity: 0 })) }
-          : o
-      )
-    );
-    toast.success('Orden recibida', `La orden ${receivingOrder.code} fue marcada como recibida.`);
-    setReceivingOrder(null);
-    setIsProcessing(false);
+    try {
+      await api.put(`/OrdenCompra/recibir/${receivingOrder.id}`);
+      setPurchaseOrders(prev =>
+        prev.map(o =>
+          o.id === receivingOrder.id
+            ? { ...o, status: 'received' as const, items: o.items.map(i => ({ ...i, receivedQuantity: i.quantity, pendingQuantity: 0 })) }
+            : o
+        )
+      );
+      toast.success('Orden recibida', `La orden ${receivingOrder.code} fue marcada como recibida.`);
+      setReceivingOrder(null);
+    } catch {
+      toast.error('Error', 'No se pudo marcar la orden como recibida.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (!cancellingOrder) return;
     setIsProcessing(true);
-    setPurchaseOrders((prev) =>
-      prev.map((o) => o.id === cancellingOrder.id ? { ...o, status: 'cancelled' } : o)
-    );
-    toast.success('Orden cancelada', `La orden ${cancellingOrder.code} fue cancelada.`);
-    setCancellingOrder(null);
-    setIsProcessing(false);
+    try {
+      await api.delete(`/OrdenCompra/${cancellingOrder.id}`);
+      setPurchaseOrders(prev =>
+        prev.map(o => o.id === cancellingOrder.id ? { ...o, status: 'cancelled' as const } : o)
+      );
+      toast.success('Orden cancelada', `La orden ${cancellingOrder.code} fue cancelada.`);
+      setCancellingOrder(null);
+    } catch {
+      toast.error('Error', 'No se pudo cancelar la orden.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const pill = (status: PurchaseOrder['status']) => {
@@ -214,12 +437,42 @@ export const PurchaseOrdersPage: React.FC = () => {
         </div>
 
         {/* Table */}
-        <PurchasesTable
-          orders={filteredOrders}
-          onView={(order) => setViewingOrder(order)}
-          onReceive={(order) => setReceivingOrder(order)}
-          onCancel={(order) => setCancellingOrder(order)}
-        />
+        {isLoading ? (
+          <div className="space-y-3">
+            <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4">
+              <div className="space-y-3">
+                {[1,2,3,4,5].map(i => <div key={i} className="h-12 bg-coffee-100 rounded animate-pulse" />)}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            <PurchasesTable
+              orders={filteredOrders}
+              onView={(order) => setViewingOrder(order)}
+              onReceive={(order) => setReceivingOrder(order)}
+              onCancel={(order) => setCancellingOrder(order)}
+            />
+            {hasNextPage && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  onClick={handleLoadMore}
+                  disabled={isLoadingMore}
+                  className="px-6 py-2.5 bg-coffee-100 hover:bg-coffee-200 text-coffee-700 font-semibold text-sm rounded-xl transition-colors disabled:opacity-60 flex items-center gap-2"
+                >
+                  {isLoadingMore ? (
+                    <>
+                      <div className="h-4 w-4 border-2 border-coffee-400 border-t-transparent rounded-full animate-spin" />
+                      Cargando más...
+                    </>
+                  ) : (
+                    <>Ver más ({purchaseOrders.length} de {totalCount})</>
+                  )}
+                </button>
+              </div>
+            )}
+          </>
+        )}
 
         {/* New Order Modal */}
         <PurchaseOrderModal

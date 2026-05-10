@@ -87,8 +87,8 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
     window.dispatchEvent(new CustomEvent('auth:unauthorized'));
   }
 
-  // 204 No Content — respuesta válida sin body
-  if (response.status === 204) {
+  // 204 No Content — respuesta válida sin body (también 201 Created)
+  if (response.status === 204 || response.status === 201) {
     return undefined as T;
   }
 

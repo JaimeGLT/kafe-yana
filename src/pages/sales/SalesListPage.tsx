@@ -2,10 +2,12 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { TrendingUp, ShoppingBag, Calendar } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
-import { Input, Select } from '../../components/ui';
+import { Input, Select, SkeletonSalesTable } from '../../components/ui';
 import { SalesTable } from '../../components/tables/SalesTable';
 import { SaleDetailModal } from '../../components/modals/SaleDetailModal';
 import type { RefundBlockedInfo } from '../../components/modals/SaleDetailModal';
+import { RefundModal } from '../../components/modals/RefundModal';
+import { api } from '../../lib/api';
 import { toast } from '../../components/ui/Toast';
 import { formatCurrency } from '../../utils';
 import type { Sale, RefundInput, Refund, RefundItem } from '../../types';
@@ -65,7 +67,11 @@ interface BackendVenta {
 }
 
 interface BackendVentasResponse {
-  ventas: { nodes: BackendVenta[]; totalCount: number };
+  ventas: {
+    nodes: BackendVenta[];
+    totalCount: number;
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  };
 }
 
 const mapBackendVentaToSale = (v: BackendVenta): Sale => {
@@ -120,26 +126,50 @@ export const SalesListPage: React.FC = () => {
   const [dateTo, setDateTo] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [refundingSale, setRefundingSale] = useState<Sale | null>(null);
+
+  // ── Pagination ────────────────────────────────────────────────────────────────
+  const [afterCursor, setAfterCursor] = useState<string | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
 
   // ── Load from backend ────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
+  const loadVentas = useCallback((cursor: string | null, append: boolean) => {
+    if (cursor === null) {
+      setIsLoading(true);
+    } else {
+      setIsLoadingMore(true);
+    }
 
-    gql<BackendVentasResponse>(GET_VENTAS)
+    gql<BackendVentasResponse>(GET_VENTAS, cursor ? { after: cursor } : {})
       .then(data => {
-        if (cancelled) return;
-        setSales(data.ventas.nodes.map(mapBackendVentaToSale));
-        setIsLoading(false);
+        const nodes = data.ventas.nodes.map(mapBackendVentaToSale);
+        if (append) {
+          setSales(prev => [...prev, ...nodes]);
+        } else {
+          setSales(nodes);
+        }
+        setAfterCursor(data.ventas.pageInfo.endCursor ?? null);
+        setHasNextPage(data.ventas.pageInfo.hasNextPage ?? false);
+        setTotalCount(data.ventas.totalCount ?? 0);
       })
-      .catch(() => {
-        if (cancelled) return;
+      .finally(() => {
         setIsLoading(false);
+        setIsLoadingMore(false);
       });
-
-    return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    loadVentas(null, false);
+  }, [loadVentas]);
+
+  const handleLoadMore = () => {
+    if (afterCursor && !isLoadingMore) {
+      loadVentas(afterCursor, true);
+    }
+  };
 
   // ── Stats from real data ─────────────────────────────────────────────────────
 
@@ -235,6 +265,22 @@ export const SalesListPage: React.FC = () => {
 
     toast.success('Reembolso registrado', `${input.type === 'total' ? 'Total' : 'Parcial'} — ${new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' }).format(refundAmount)}`);
   }, [sales, user]);
+
+  const handleSimpleRefund = async (amount: number, reason: string) => {
+    if (!refundingSale) return;
+    await api.post('/Caja/movimiento?entrada=false', {
+      cantidad: amount,
+      categoria: 'Reembolso',
+      concepto: `Reembolso venta ${refundingSale.code}`,
+      referencia: refundingSale.code,
+      nota: reason || '',
+    });
+    setSales(prev => prev.map(s =>
+      s.id === refundingSale.id ? { ...s, status: 'refunded' as const } : s
+    ));
+    toast.success('Reembolso registrado', `${formatCurrency(amount)} registrados como egreso.`);
+    setRefundingSale(null);
+  };
 
   // ── Filtros ────────────────────────────────────────────────────────────────
 
@@ -351,10 +397,35 @@ export const SalesListPage: React.FC = () => {
 
         {/* Tabla */}
         <PageSection>
-          <SalesTable
-            sales={filteredSales}
-            onView={(sale) => setSelectedSale(sale)}
-          />
+          {_isLoading ? (
+            <SkeletonSalesTable />
+          ) : (
+            <>
+              <SalesTable
+                sales={filteredSales}
+                onView={(sale) => setSelectedSale(sale)}
+                onRefund={(sale) => setRefundingSale(sale)}
+              />
+              {hasNextPage && (
+                <div className="mt-4 flex justify-center">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={isLoadingMore}
+                    className="px-6 py-2.5 bg-coffee-100 hover:bg-coffee-200 text-coffee-700 font-semibold text-sm rounded-xl transition-colors disabled:opacity-60 flex items-center gap-2"
+                  >
+                    {isLoadingMore ? (
+                      <>
+                        <div className="h-4 w-4 border-2 border-coffee-400 border-t-transparent rounded-full animate-spin" />
+                        Cargando más...
+                      </>
+                    ) : (
+                      <>Ver más ({sales.length} de {totalCount})</>
+                    )}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </PageSection>
 
         {/* Modal de detalle */}
@@ -362,6 +433,13 @@ export const SalesListPage: React.FC = () => {
           sale={selectedSale}
           onClose={() => setSelectedSale(null)}
           onRefund={handleRefund}
+        />
+
+        <RefundModal
+          isOpen={!!refundingSale}
+          onClose={() => setRefundingSale(null)}
+          sale={refundingSale}
+          onConfirm={handleSimpleRefund}
         />
       </PageContainer>
     </MainLayout>

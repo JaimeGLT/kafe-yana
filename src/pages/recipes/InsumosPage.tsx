@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Plus, Edit2, Trash2, Search, FlaskConical, AlertTriangle } from 'lucide-react';
 import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
@@ -36,33 +36,6 @@ const InsumosPage: React.FC = () => {
     cursorsRef.current = cursors;
   }, [cursors]);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [insumosData, recetasData] = await Promise.all([
-          gql<InsumosResponse>(GET_ALL_INSUMOS, {
-            first: pageSize,
-            after: page > 1 ? cursorsRef.current[page - 1] : undefined,
-            where: buildWhereConditions(),
-          }),
-          gql<RecetasResponse>(GET_ALL_RECETAS),
-        ]);
-        setInsumos(insumosData.insumos.nodes.map(mapInsumo));
-        setTotalCount(insumosData.insumos.totalCount);
-        if (insumosData.insumos.pageInfo?.endCursor) {
-          setCursors((prev) => ({ ...prev, [page]: insumosData.insumos.pageInfo.endCursor as string }));
-        }
-        setRecetas(recetasData.recetas.nodes.map(mapReceta).filter((r): r is Receta => r !== null));
-      } catch (error) {
-        console.error('Error loading insumos data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [page, pageSize, debouncedSearch, filterCategoria]);
-
   const buildWhereConditions = (): InsumoFilterInput | undefined => {
     const conditions: InsumoFilterInput[] = [];
     if (debouncedSearch) {
@@ -75,6 +48,34 @@ const InsumosPage: React.FC = () => {
     if (conditions.length === 0) return undefined;
     return { or: conditions } as InsumoFilterInput;
   };
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [insumosData, recetasData] = await Promise.all([
+        gql<InsumosResponse>(GET_ALL_INSUMOS, {
+          first: pageSize,
+          after: page > 1 ? cursorsRef.current[page - 1] : undefined,
+          where: buildWhereConditions(),
+        }),
+        gql<RecetasResponse>(GET_ALL_RECETAS),
+      ]);
+      setInsumos(insumosData.insumos.nodes.map(mapInsumo));
+      setTotalCount(insumosData.insumos.totalCount);
+      if (insumosData.insumos.pageInfo?.endCursor) {
+        setCursors((prev) => ({ ...prev, [page]: insumosData.insumos.pageInfo.endCursor as string }));
+      }
+      setRecetas(recetasData.recetas.nodes.map(mapReceta).filter((r): r is Receta => r !== null));
+    } catch (error) {
+      console.error('Error loading insumos data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, debouncedSearch, filterCategoria]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // Category options derived from current insumos
   const categoriaOptions = useMemo(() => {
@@ -241,9 +242,9 @@ const InsumosPage: React.FC = () => {
                           return (
                             <div>
                               <span className={clsx('font-semibold', isEmpty ? 'text-red-600' : isLow ? 'text-amber-600' : 'text-emerald-700')}>
-                                {stockEnCompra % 1 === 0 ? stockEnCompra : stockEnCompra.toFixed(2)} {ins.unidadCompra}
+                                {Math.round(stockEnCompra)} {ins.unidadCompra}
                               </span>
-                              <p className="text-xs text-coffee-400">{ins.stock} {ins.unidadMinima}</p>
+                              <p className="text-xs text-coffee-400">{Math.round(ins.stock)} {ins.unidadMinima}</p>
                               {ins.stockMinimo > 0 && (
                                 <p className="text-xs text-coffee-400">Mín: {ins.stockMinimo} {ins.unidadCompra}</p>
                               )}
@@ -305,6 +306,7 @@ const InsumosPage: React.FC = () => {
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); setEditing(undefined); }}
         insumo={editing}
+        onCreated={() => fetchData()}
         onSuccess={() => {
           setIsModalOpen(false);
           setEditing(undefined);

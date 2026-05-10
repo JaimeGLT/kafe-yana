@@ -79,11 +79,14 @@ const ComboCard: React.FC<ComboCardProps> = ({
       <div className="p-4 space-y-3 flex-1">
         {/* Header */}
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <h3 className="font-semibold text-coffee-900 truncate">{combo.name}</h3>
-            {combo.description && (
-              <p className="text-xs text-coffee-400 truncate mt-0.5">{combo.description}</p>
-            )}
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-base leading-none shrink-0">{combo.image || '🎁'}</span>
+            <div className="min-w-0">
+              <h3 className="font-semibold text-coffee-900 truncate">{combo.name}</h3>
+              {combo.description && (
+                <p className="text-xs text-coffee-400 truncate mt-0.5">{combo.description}</p>
+              )}
+            </div>
           </div>
           <span className="text-base font-bold text-coffee-800 shrink-0">
             {formatCurrency(combo.price)}

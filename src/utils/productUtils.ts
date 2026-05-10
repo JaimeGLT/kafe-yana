@@ -1,6 +1,7 @@
 import type { Product } from '../types';
 
 export const getProductEmoji = (product: Product): string => {
+  if (product.image) return product.image;
   const n = product.name.toLowerCase();
   if (n.includes('café') || n.includes('cafe') || n.includes('espresso') || n.includes('latte') || n.includes('capuchino') || n.includes('americano')) return '☕';
   if (n.includes('té') || n.includes('infusión')) return '🍵';

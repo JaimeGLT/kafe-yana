@@ -201,3 +201,35 @@ export const SkeletonProductScroll: React.FC = () => (
     {Array.from({ length: 8 }).map((_, i) => <SkeletonProductCard key={i} />)}
   </div>
 );
+
+export const SkeletonSalesRow: React.FC = () => (
+  <tr className="border-b border-coffee-50">
+    <td className="px-6 py-4"><Skeleton className="h-4 w-28" /></td>
+    <td className="px-6 py-4"><Skeleton className="h-4 w-36" /></td>
+    <td className="px-6 py-4"><Skeleton className="h-4 w-32" /></td>
+    <td className="px-6 py-4 text-center"><Skeleton className="h-5 w-16 rounded-full" /></td>
+    <td className="px-6 py-4"><Skeleton className="h-4 w-20 ml-auto" /></td>
+    <td className="px-6 py-4"><Skeleton className="h-4 w-16" /></td>
+    <td className="px-6 py-4"><Skeleton className="h-5 w-20 rounded-full" /></td>
+    <td className="px-6 py-4"><Skeleton className="h-6 w-8" /></td>
+  </tr>
+);
+
+export const SkeletonSalesTable: React.FC = () => (
+  <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
+    <table className="min-w-full divide-y divide-coffee-200">
+      <thead className="bg-coffee-50">
+        <tr>
+          {['Código', 'Fecha', 'Cliente', 'Productos', 'Total', 'Pago', 'Estado', ''].map((h, i) => (
+            <th key={i} className="px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">
+              {h}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody className="bg-white divide-y divide-coffee-100">
+        {Array.from({ length: 8 }).map((_, i) => <SkeletonSalesRow key={i} />)}
+      </tbody>
+    </table>
+  </div>
+);

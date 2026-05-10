@@ -93,6 +93,7 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
         await api.put(`/Proveedor/${supplier.id}`, input);
       } else {
         await api.post('/Proveedor', input);
+        toast.success('Proveedor creado', `${input.razon_Social} fue registrado.`);
       }
 
       onSuccess();

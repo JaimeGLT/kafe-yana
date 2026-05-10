@@ -6,7 +6,7 @@ import { gql } from '../../lib/graphql';
 import { toast } from '../ui/Toast';
 import { RecetaStepTwo } from './RecetaStepTwo';
 import { CategoryModal } from '../modals/CategoryModal';
-import { Button, Input, Select, ImageUploadField } from '../ui';
+import { Button, Input, Select, IconPicker } from '../ui';
 import { HelpTooltip } from '../ui/Tooltip';
 import type { Receta, Insumo, CategoryInput, ProductDestino } from '../../types';
 
@@ -40,6 +40,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
   const [unit, setUnit] = useState('unidad');
   const [preparationType, setPreparationType] = useState<'al_momento' | 'en_lote'>('al_momento');
   const [destino, setDestino] = useState<ProductDestino>('sin_destino');
+  const [icon, setIcon] = useState('');
   const [localCategories, setLocalCategories] = useState(categories);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
@@ -59,6 +60,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
     setUnit('unidad');
     setPreparationType('al_momento');
     setDestino('sin_destino');
+    setIcon('');
   };
 
   const handleSaveCategory = async (input: CategoryInput) => {
@@ -111,6 +113,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
         unidad_medida: unit,
         producible: preparationType === 'en_lote',
         ubicacion: destino === 'barra' ? 'Barra' : destino === 'cocina' ? 'Cocina' : '',
+        imagen: icon || '',
       });
       const id = String(res.Id);
       setNewProductId(id);
@@ -185,10 +188,14 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
                 />
               </div>
 
-              {/* Image */}
+              {/* Icon */}
               <div>
-                <label className="text-sm font-medium text-coffee-700 mb-1 block">Imagen del producto</label>
-                <ImageUploadField />
+                <label className="text-sm font-medium text-coffee-700 mb-1 block">Ícono del producto</label>
+                <IconPicker
+                  value={icon || undefined}
+                  onChange={(v) => setIcon(v ?? '')}
+                  tipo="elaborado"
+                />
               </div>
 
               {/* Preparation type */}

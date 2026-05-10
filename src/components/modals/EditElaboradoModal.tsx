@@ -4,7 +4,7 @@ import { FlaskConical, ArrowRight, CheckCircle2, Plus, Info } from 'lucide-react
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { SearchableSelect, Select } from '../ui/Select';
-import { ImageUploadField } from '../ui/ImageUpload';
+import { IconPicker } from '../ui/IconPicker';
 import { HelpTooltip } from '../ui/Tooltip';
 import { RecetaFormContent } from './RecetaModal';
 import { CategoryModal } from './CategoryModal';
@@ -68,6 +68,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
   const [categoryId, setCategoryId] = useState(product.categoryId || '');
   const [unit, setUnit] = useState(product.unit || 'unidad');
   const [destino, setDestino] = useState<ProductDestino>(product.destino ?? 'sin_destino');
+  const [icon, setIcon] = useState(product.image ?? '');
 
   useEffect(() => {
     if (isOpen) {
@@ -78,6 +79,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
       setCategoryId(product.categoryId || '');
       setUnit(product.unit || 'unidad');
       setDestino(product.destino ?? 'sin_destino');
+      setIcon(product.image ?? '');
       setErrors({});
       setLocalCategoryOptions(categoryOptions);
       setIsLoadingData(true);
@@ -131,6 +133,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
         categoria_Id: Number(categoryId) || 0,
         unidad_medida: unit,
         ubicacion: destino === 'barra' ? 'Barra' : destino === 'cocina' ? 'Cocina' : '',
+        imagen: icon || '',
       });
       const catName = categoryOptions.find((o) => o.value === categoryId)?.label ?? '';
       const updated = { ...product, name: name.trim(), description: description.trim(), salePrice: Number(salePrice), categoryId, categoryName: catName, unit };
@@ -260,10 +263,14 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
                 {errors.name && <p className="text-xs text-red-600 mt-1">{errors.name}</p>}
               </div>
 
-              {/* Image */}
+              {/* Ícono */}
               <div>
-                <label className="text-sm font-medium text-coffee-700 mb-1 block">Imagen del producto</label>
-                <ImageUploadField existingUrl={product.image} />
+                <label className="text-sm font-medium text-coffee-700 mb-1 block">Ícono del producto</label>
+                <IconPicker
+                  value={icon || undefined}
+                  onChange={(v) => setIcon(v ?? '')}
+                  tipo="elaborado"
+                />
               </div>
 
               {/* Preparation type */}

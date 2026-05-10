@@ -8,7 +8,7 @@ export const GET_COMBOS_WITH_PRODUCTS = `
       totalCount
       pageInfo { hasNextPage endCursor }
       nodes {
-        producto { id nombre descripcion precio tipo }
+        producto { id nombre descripcion precio tipo imagen }
         detalles {
           producto { id nombre descripcion precio tipo }
           cantidad

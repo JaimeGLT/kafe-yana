@@ -41,8 +41,8 @@ export const GET_PARA_LLEVAR = `
 `;
 
 export const GET_VENTAS = `
-  query GetVentas {
-    ventas(first: 50, order: [{ fecha: DESC }]) {
+  query GetVentas($after: String) {
+    ventas(first: 50, after: $after, order: [{ fecha: DESC }]) {
       nodes {
         detalles {
           id_venta
@@ -62,6 +62,10 @@ export const GET_VENTAS = `
         estado
         subtotal
         total
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
       }
       totalCount
     }

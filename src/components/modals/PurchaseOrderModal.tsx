@@ -7,7 +7,8 @@ import { SearchableSelect } from '../ui/Select';
 import { FormField, Form, FormRow, FormActions } from '../forms/FormField';
 import { toast } from '../ui/Toast';
 import { SupplierModal } from './SupplierModal';
-import { api } from '../../lib/api';
+import { gql } from '../../lib/graphql';
+import { GET_PROVEEDORES } from '../../lib/queries/proveedores.queries';
 import type { Supplier, Product, PurchaseOrderInput } from '../../types';
 import type { Insumo } from '../../types/recipes';
 
@@ -67,18 +68,40 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
   }, [isOpen]);
 
   const activeSuppliers = localSuppliers.filter((s) => s.isActive);
-  const activeProducts = products.filter((p) => p.isActive);
+  const activeProducts = products.filter((p) => p.isActive && p.tipo === 'comprado');
   const activeInsumos = insumos.filter((i) => i.isActive);
 
-  const handleSupplierCreated = async () => {
-    setIsSupplierModalOpen(false);
-    try {
-      const updated = await api.get<Supplier[]>('/Supplier');
-      setLocalSuppliers(updated);
-    } catch {
-      // silently fail — user can pick manually
-    }
-  };
+  interface ProveedorNode {
+  id: number;
+  razon_Social: string;
+  telefono: string;
+  dni?: string;
+  celular?: string;
+  email?: string;
+  direccion?: string;
+}
+
+const handleSupplierCreated = async () => {
+  setIsSupplierModalOpen(false);
+  try {
+    const data = await gql<{ proveedores: { nodes: ProveedorNode[] } }>(GET_PROVEEDORES, { first: 50 });
+    setLocalSuppliers(data.proveedores.nodes.map(n => ({
+      id: String(n.id),
+      code: String(n.id),
+      razon_Social: n.razon_Social,
+      telefono: n.telefono,
+      dni: n.dni,
+      celular: n.celular,
+      email: n.email,
+      direccion: n.direccion,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })));
+  } catch (e) {
+    console.error('Error refetching suppliers:', e);
+  }
+};
 
   const handleItemChange = (index: number, field: keyof OrderItem, value: string) => {
     setItems((prev) => {
@@ -88,7 +111,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
       if (field === 'itemType') {
         updated[index] = { ...current, itemType: value as ItemType, productId: '', insumoId: '', unitCost: '' };
       } else if (field === 'insumoId') {
-        const insumo = activeInsumos.find((i) => i.id === value);
+        const insumo = activeInsumos.find((i) => Number(i.id) === Number(value));
         updated[index] = {
           ...current,
           insumoId: value,
@@ -118,6 +141,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
     const newErrors: Record<string, string> = {};
 
     if (!supplierId) newErrors.supplierId = 'Debe seleccionar un proveedor';
+    if (!expectedDate) newErrors.expectedDate = 'La fecha de entrega es requerida';
 
     const filledItems = items.filter((item) => item.productId || item.insumoId || item.quantity || item.unitCost);
     if (filledItems.length === 0) newErrors.items = 'Debe agregar al menos un ítem';
@@ -158,7 +182,6 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
       };
 
       onSave?.(input);
-      toast.success('Orden de compra creada', 'La orden de compra fue registrada correctamente.');
       onSuccess();
       onClose();
     } catch (error) {
@@ -201,11 +224,14 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
                 </button>
               </div>
             </FormField>
-            <FormField label="Fecha esperada de entrega">
+            <FormField label="Fecha esperada de entrega" required error={errors.expectedDate}>
               <Input
                 type="date"
                 value={expectedDate}
-                onChange={(e) => setExpectedDate(e.target.value)}
+                onChange={(e) => {
+                  setExpectedDate(e.target.value);
+                  if (errors.expectedDate) setErrors((prev) => ({ ...prev, expectedDate: '' }));
+                }}
                 min={new Date().toISOString().split('T')[0]}
               />
             </FormField>
@@ -234,7 +260,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
             <div className="space-y-2">
               {items.map((item, index) => {
                 const selectedInsumo = item.itemType === 'insumo'
-                  ? activeInsumos.find((i) => i.id === item.insumoId)
+                  ? activeInsumos.find((i) => Number(i.id) === Number(item.insumoId))
                   : undefined;
                 return (
                   <div

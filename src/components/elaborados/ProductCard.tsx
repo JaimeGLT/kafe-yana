@@ -43,11 +43,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       <div className="p-4 space-y-3">
         {/* Header */}
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <h3 className="font-semibold text-coffee-900 truncate">{product.name}</h3>
-            {product.categoryName && (
-              <p className="text-xs text-coffee-400 truncate">{product.categoryName}</p>
-            )}
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-base leading-none shrink-0">{product.image || '☕'}</span>
+            <div className="min-w-0">
+              <h3 className="font-semibold text-coffee-900 truncate">{product.name}</h3>
+              {product.categoryName && (
+                <p className="text-xs text-coffee-400 truncate">{product.categoryName}</p>
+              )}
+            </div>
           </div>
           <div className="flex flex-col items-end gap-1 shrink-0">
             <span className="text-base font-bold text-coffee-800">{formatCurrency(product.salePrice)}</span>

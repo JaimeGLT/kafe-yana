@@ -367,4 +367,44 @@ export const GET_HEADER_NOTIFICATIONS = `
       }
     }
   }
-`
+`;
+
+export const GET_COMPRADOS = `
+  query GetComprados($first: Int) {
+    comprados(first: $first) {
+      nodes {
+        id_Producto
+        producto {
+          id
+          nombre
+          descripcion
+          precio
+          tipo
+        }
+        stock_actual
+        stock_minimo
+        unidad_medida
+        costo_compra
+        disponible
+      }
+    }
+  }
+`;
+
+export const GET_INSUMOS_QUERY = `
+  query GetInsumos($first: Int) {
+    insumos(first: $first) {
+      nodes {
+        id
+        nombre
+        categoria
+        stock_actual
+        stock_min
+        costo
+        unidad_min_uso
+        unidad_compra
+        factor_conversion
+      }
+    }
+  }
+`;

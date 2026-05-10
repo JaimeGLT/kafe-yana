@@ -5,7 +5,7 @@ import { toast } from '../components/ui/Toast';
 import type { Combo, Product } from '../types';
 
 interface ComboNode {
-  producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string };
+  producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; imagen?: string };
   detalles: Array<{
     producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string };
     cantidad: number;
@@ -128,6 +128,7 @@ export function useCombosPage(options: UseCombosPageOptions): UseCombosPageRetur
         price: n.producto.precio,
         costoTotal: n.detalles.reduce((s, d) => s + d.producto.precio * d.cantidad, 0),
         availability: n.cantidadProducible,
+        image: n.producto.imagen ?? undefined,
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date(),

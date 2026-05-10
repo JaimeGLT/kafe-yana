@@ -2,7 +2,7 @@ import React from 'react';
 import type { Product, ProductInput, ProductTipo, ProductDestino, Category, Brand, Location, Receta, CategoryInput } from '../../types';
 import { Form, FormField, FormRow, FormActions } from './FormField';
 import { Input, Textarea, Select, SearchableSelect } from '../ui';
-import { Button, ImageUploadField } from '../ui';
+import { Button, IconPicker } from '../ui';
 import { AlertTriangle, BookOpen, Layers, Plus } from 'lucide-react';
 import { formatCurrency } from '../../utils';
 import { CategoryModal } from '../modals/CategoryModal';
@@ -78,6 +78,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     maxStock: product?.maxStock || 100,
     locationId: product?.locationId || undefined,
     barcode: product?.barcode || '',
+    imagen: product?.image || '',
     isActive: product?.isActive ?? true,
     variations: [],
     destino: product?.destino ?? 'sin_destino',
@@ -205,9 +206,13 @@ export const ProductForm: React.FC<ProductFormProps> = ({
           </div>
         )}
 
-        {/* Image */}
-        <FormField label="Imagen del producto">
-          <ImageUploadField existingUrl={product?.image} />
+        {/* Ícono */}
+        <FormField label="Ícono del producto">
+          <IconPicker
+            value={formData.imagen || undefined}
+            onChange={(v) => handleChange('imagen', v ?? '')}
+            tipo={formData.tipo as ProductTipo}
+          />
         </FormField>
 
         {/* Name + Barcode (barcode only for comprado) */}

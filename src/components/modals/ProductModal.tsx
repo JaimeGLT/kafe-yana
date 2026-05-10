@@ -43,6 +43,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           stock_actual: data.stock ?? 0,
           stock_minimo: data.minStock ?? 0,
           disponible: data.isActive ?? true,
+          imagen: data.imagen ?? '',
         });
         toast.success('Producto actualizado', `"${data.name}" fue actualizado correctamente.`);
       } else {
@@ -60,6 +61,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           stock_actual: data.stock ?? 0,
           stock_minimo: data.minStock ?? 0,
           disponible: data.isActive ?? true,
+          imagen: data.imagen ?? '',
         };
         await api.post('/Producto', payload);
         toast.success('Producto creado', `"${data.name}" fue agregado al inventario.`);
