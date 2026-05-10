@@ -207,12 +207,12 @@ export const PurchaseOrdersPage: React.FC = () => {
   useEffect(() => {
     gql<{ comprados: { nodes: Array<{ id_Producto: number; producto: { id: number; nombre: string; descripcion?: string; precio: number; tipo: string }; stock_actual: number; stock_minimo: number; unidad_medida?: string; costo_compra: number; disponible: boolean }> } }>(GET_COMPRADOS, { first: 50 })
       .then(data => setProducts(data.comprados.nodes.map(n => ({
-        id: n.producto.id,
+        id: String(n.producto.id),
         code: String(n.id_Producto),
         name: n.producto.nombre,
         description: n.producto.descripcion,
         tipo: 'comprado' as const,
-        categoryId: 0,
+        categoryId: '',
         categoryName: '',
         unit: n.unidad_medida ?? 'unidad',
         costPrice: n.costo_compra ?? 0,
@@ -233,7 +233,7 @@ export const PurchaseOrdersPage: React.FC = () => {
   useEffect(() => {
     gql<{ insumos: { nodes: Array<{ id: number; nombre: string; categoria: string; stock_actual: number; stock_min: number; costo: number; unidad_min_uso: string; unidad_compra: string; factor_conversion: number }> } }>(GET_INSUMOS_QUERY, { first: 50 })
       .then(data => setInsumos(data.insumos.nodes.map(n => ({
-        id: n.id,
+        id: String(n.id),
         code: String(n.id),
         name: n.nombre,
         categoriaInsumo: n.categoria,
