@@ -7,7 +7,7 @@ import {
   Truck,
   Wallet,
   BarChart3,
-  // Settings,
+  Settings,
   ChevronLeft,
   ChevronRight,
   Coffee,
@@ -121,13 +121,13 @@ const navItems: NavItem[] = [
       { id: 'recetas', label: 'Recetas', icon: null, path: '/recipes/recetas' },
     ],
   },
-  // {
-  //   id: 'settings',
-  //   label: 'Configuración',
-  //   icon: <Settings className="h-5 w-5" />,
-  //   path: '/settings',
-  //   allowedRoles: [ADMIN],
-  // },
+  {
+    id: 'settings',
+    label: 'Configuración',
+    icon: <Settings className="h-5 w-5" />,
+    path: '/settings',
+    allowedRoles: [ADMIN],
+  },
 ];
 
 function filterNavItems(items: NavItem[], userRole: string): NavItem[] {

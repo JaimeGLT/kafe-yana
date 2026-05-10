@@ -25,7 +25,7 @@ import SalesReportPage from './pages/reports/SalesReportPage';
 import InventoryReportPage from './pages/reports/InventoryReportPage';
 import PurchasesReportPage from './pages/reports/PurchasesReportPage';
 import CashReportPage from './pages/reports/CashReportPage';
-// import SettingsPage from './pages/settings/SettingsPage';
+import SettingsPage from './pages/settings/SettingsPage';
 import InsumosPage from './pages/recipes/InsumosPage';
 import RecetasPage from './pages/recipes/RecetasPage';
 import ElaboradosPage from './pages/inventory/ElaboradosPage';
@@ -101,8 +101,8 @@ function App() {
                 <Route path="/recipes/recetas"  element={<ProtectedRoute allowedRoles={[ADMIN]}><RecetasPage /></ProtectedRoute>} />
 
                 {/* Settings — solo admin */}
-                {/* <Route path="/settings"   element={<ProtectedRoute allowedRoles={[ADMIN]}><SettingsPage /></ProtectedRoute>} /> */}
-                {/* <Route path="/settings/*" element={<ProtectedRoute allowedRoles={[ADMIN]}><SettingsPage /></ProtectedRoute>} /> */}
+                <Route path="/settings"   element={<ProtectedRoute allowedRoles={[ADMIN]}><SettingsPage /></ProtectedRoute>} />
+                <Route path="/settings/*" element={<ProtectedRoute allowedRoles={[ADMIN]}><SettingsPage /></ProtectedRoute>} />
 
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,116 +1,196 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, Trash2, Lock, Unlock, KeyRound } from 'lucide-react';
 import { MainLayout, PageHeader, PageContainer } from '../../components/layout';
 import { Button, Input, Select, Modal, ConfirmModal, StatusBadge } from '../../components/ui';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import type { User } from '../../types';
+import { gql } from '../../lib/graphql';
+import { GET_USUARIOS } from '../../lib/queries/settings.queries';
+import type { User } from '../../types/user';
 
-interface UserForm {
+interface CreateUserForm {
   nombre: string;
+  apellido: string;
   email: string;
+  password: string;
+  numeroPhone: string;
   rol: string;
-  isActive: boolean;
+}
+
+interface ChangePwForm {
+  passwordActual: string;
+  passwordNueva: string;
+  confirmar: string;
 }
 
 const ROLES = [
-  { value: 'admin', label: 'Administrador' },
-  { value: 'cajero', label: 'Cajero' },
-  { value: 'mesero', label: 'Mesero' },
+  { value: '0', label: 'Administrador' },
+  { value: '1', label: 'Mesero' },
+  { value: '2', label: 'Cajero' },
 ];
 
+const ROL_LABEL: Record<string, string> = {
+  Admin: 'Administrador',
+  Mesero: 'Mesero',
+  Cajero: 'Cajero',
+};
+
+const emptyCreate: CreateUserForm = {
+  nombre: '',
+  apellido: '',
+  email: '',
+  password: '',
+  numeroPhone: '',
+  rol: '',
+};
+
+const emptyPw: ChangePwForm = {
+  passwordActual: '',
+  passwordNueva: '',
+  confirmar: '',
+};
+
 const SettingsPage: React.FC = () => {
-  const [users, setUsers] = useState<User[]>([]);
+  const [usuarios, setUsuarios] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const data = await api.get<User[]>('/settings/users');
-        setUsers(data);
-      } catch (error) {
-        console.error('Error loading users:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchUsers();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<CreateUserForm>(emptyCreate);
+  const [createErrors, setCreateErrors] = useState<Partial<Record<keyof CreateUserForm, string>>>({});
+  const [createLoading, setCreateLoading] = useState(false);
+
+  const [deleteEmail, setDeleteEmail] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pwForm, setPwForm] = useState<ChangePwForm>(emptyPw);
+  const [pwErrors, setPwErrors] = useState<Partial<ChangePwForm>>({});
+  const [pwLoading, setPwLoading] = useState(false);
+
+  const fetchUsuarios = useCallback(async () => {
+    try {
+      const data = await gql<{ usuarios: User[] }>(GET_USUARIOS);
+      setUsuarios(data.usuarios ?? []);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'No se pudo cargar los usuarios.';
+      toast.error('Error', msg);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const emptyForm: UserForm = { nombre: '', email: '', rol: '', isActive: true };
+  useEffect(() => {
+    fetchUsuarios();
+  }, [fetchUsuarios]);
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<UserForm>(emptyForm);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [errors, setErrors] = useState<Partial<UserForm>>({});
-
-  const validate = (): boolean => {
-    const e: Partial<UserForm> = {};
-    if (!form.nombre.trim()) e.nombre = 'Requerido';
-    if (!form.email.trim()) e.email = 'Requerido';
-    if (!form.rol) e.rol = 'Seleccione un rol';
-    setErrors(e);
+  const validateCreate = (): boolean => {
+    const e: Partial<Record<keyof CreateUserForm, string>> = {};
+    if (!createForm.nombre.trim()) e.nombre = 'Requerido';
+    if (!createForm.apellido.trim()) e.apellido = 'Requerido';
+    if (!createForm.email.trim()) e.email = 'Requerido';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(createForm.email)) e.email = 'Email inválido';
+    if (!createForm.password) e.password = 'Requerido';
+    else if (createForm.password.length < 6) e.password = 'Mínimo 6 caracteres';
+    if (!createForm.numeroPhone.trim()) e.numeroPhone = 'Requerido';
+    if (!createForm.rol) e.rol = 'Seleccione un rol';
+    setCreateErrors(e);
     return Object.keys(e).length === 0;
   };
 
-  const openCreate = () => {
-    setForm(emptyForm);
-    setEditingId(null);
-    setErrors({});
-    setModalOpen(true);
-  };
-
-  const openEdit = (userId: string) => {
-    const user = users.find((u: User) => u.id === userId);
-    if (!user) return;
-    const nombre = user.firstName || (user as any).nombre || '';
-    setForm({
-      nombre,
-      email: user.email,
-      rol: (user as any).rol || user.roleId || '',
-      isActive: user.isActive,
-    });
-    setEditingId(userId);
-    setErrors({});
-    setModalOpen(true);
-  };
-
-  const handleSubmit = async () => {
-    if (!validate()) return;
+  const handleCreate = async () => {
+    if (!validateCreate()) return;
+    setCreateLoading(true);
     try {
-      if (editingId) {
-        await api.put(`/settings/users/${editingId}`, form);
-        setUsers((prev) => prev.map((u: User) => u.id === editingId ? { ...u, ...form, firstName: form.nombre } as User : u));
-        toast.success('Usuario actualizado correctamente');
-      } else {
-        const newUser = await api.post<User>('/settings/users', form);
-        setUsers((prev) => [...prev, newUser]);
-        toast.success('Usuario creado correctamente');
-      }
-      setModalOpen(false);
+      await api.post('/Aunth/Registro', {
+        nombre: createForm.nombre.trim(),
+        apellido: createForm.apellido.trim(),
+        email: createForm.email.trim(),
+        password: createForm.password,
+        numeroPhone: createForm.numeroPhone.trim(),
+        rol: parseInt(createForm.rol, 10),
+      });
+      toast.success('Usuario creado correctamente');
+      setCreateOpen(false);
+      setCreateForm(emptyCreate);
+      await fetchUsuarios();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'No se pudo guardar el usuario. Intente nuevamente.';
-      toast.error('Error', message);
+      const msg = error instanceof Error ? error.message : 'No se pudo crear el usuario.';
+      toast.error('Error al crear', msg);
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
+  const handleBloquear = async (email: string) => {
+    try {
+      await api.put(`/Aunth/bloquear/${encodeURIComponent(email)}`);
+      setUsuarios((prev) =>
+        prev.map((u) => (u.email === email ? { ...u, estado: false } : u))
+      );
+      toast.success('Usuario bloqueado');
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'No se pudo bloquear el usuario.';
+      toast.error('Error', msg);
+    }
+  };
+
+  const handleDesbloquear = async (email: string) => {
+    try {
+      await api.put(`/Aunth/desbloquear/${encodeURIComponent(email)}`);
+      setUsuarios((prev) =>
+        prev.map((u) => (u.email === email ? { ...u, estado: true } : u))
+      );
+      toast.success('Usuario desbloqueado');
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'No se pudo desbloquear el usuario.';
+      toast.error('Error', msg);
     }
   };
 
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (!deleteEmail) return;
+    setDeleteLoading(true);
     try {
-      await api.delete(`/settings/users/${deleteId}`);
-      setUsers((prev) => prev.filter((u: User) => u.id !== deleteId));
-      setDeleteId(null);
+      await api.delete(`/Aunth/${encodeURIComponent(deleteEmail)}`);
+      setUsuarios((prev) => prev.filter((u) => u.email !== deleteEmail));
+      setDeleteEmail(null);
       toast.success('Usuario eliminado');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'No se pudo eliminar el usuario. Intente nuevamente.';
-      toast.error('Error', message);
+      const msg = error instanceof Error ? error.message : 'No se pudo eliminar el usuario.';
+      toast.error('Error', msg);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
-  const getRolLabel = (rol: string): string => {
-    const role = ROLES.find(r => r.value === rol);
-    return role ? role.label : rol;
+  const validatePw = (): boolean => {
+    const e: Partial<ChangePwForm> = {};
+    if (!pwForm.passwordActual) e.passwordActual = 'Requerido';
+    if (!pwForm.passwordNueva) e.passwordNueva = 'Requerido';
+    else if (pwForm.passwordNueva.length < 6) e.passwordNueva = 'Mínimo 6 caracteres';
+    if (!pwForm.confirmar) e.confirmar = 'Requerido';
+    else if (pwForm.confirmar !== pwForm.passwordNueva) e.confirmar = 'Las contraseñas no coinciden';
+    setPwErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleChangePw = async () => {
+    if (!validatePw()) return;
+    setPwLoading(true);
+    try {
+      await api.put('/Aunth/new-password', {
+        passwordActual: pwForm.passwordActual,
+        passwordNueva: pwForm.passwordNueva,
+      });
+      toast.success('Contraseña actualizada correctamente');
+      setPwOpen(false);
+      setPwForm(emptyPw);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'No se pudo cambiar la contraseña.';
+      toast.error('Error', msg);
+    } finally {
+      setPwLoading(false);
+    }
   };
 
   if (loading) {
@@ -132,10 +212,15 @@ const SettingsPage: React.FC = () => {
           breadcrumbs={[{ label: 'Configuración' }]}
         />
 
-        <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
+        {/* Usuarios */}
+        <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden mb-6">
           <div className="p-6">
             <div className="flex justify-end mb-6">
-              <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>
+              <Button
+                size="sm"
+                leftIcon={<Plus className="h-4 w-4" />}
+                onClick={() => { setCreateForm(emptyCreate); setCreateErrors({}); setCreateOpen(true); }}
+              >
                 Agregar Usuario
               </Button>
             </div>
@@ -145,37 +230,53 @@ const SettingsPage: React.FC = () => {
                 <thead>
                   <tr className="border-b border-coffee-100">
                     <th className="text-left py-3 px-4 font-semibold text-coffee-700">Nombre</th>
+                    <th className="text-left py-3 px-4 font-semibold text-coffee-700">Apellido</th>
                     <th className="text-left py-3 px-4 font-semibold text-coffee-700">Email</th>
                     <th className="text-left py-3 px-4 font-semibold text-coffee-700">Rol</th>
+                    <th className="text-left py-3 px-4 font-semibold text-coffee-700">Teléfono</th>
                     <th className="text-center py-3 px-4 font-semibold text-coffee-700">Estado</th>
                     <th className="text-center py-3 px-4 font-semibold text-coffee-700">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {users.length === 0 ? (
+                  {usuarios.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="text-center py-8 text-coffee-400">No hay usuarios registrados</td>
+                      <td colSpan={7} className="text-center py-8 text-coffee-400">
+                        No hay usuarios registrados
+                      </td>
                     </tr>
                   ) : (
-                    users.map(u => (
-                      <tr key={u.id} className="border-b border-coffee-50 hover:bg-coffee-50 transition-colors">
-                        <td className="py-3 px-4 font-medium text-coffee-900">{u.firstName || (u as any).nombre}</td>
+                    usuarios.map((u) => (
+                      <tr key={u.email} className="border-b border-coffee-50 hover:bg-coffee-50 transition-colors">
+                        <td className="py-3 px-4 font-medium text-coffee-900">{u.nombre}</td>
+                        <td className="py-3 px-4 text-coffee-600">{u.apellido}</td>
                         <td className="py-3 px-4 text-coffee-600">{u.email}</td>
-                        <td className="py-3 px-4 text-coffee-600">{getRolLabel((u as any).rol || u.roleId || '')}</td>
+                        <td className="py-3 px-4 text-coffee-600">{ROL_LABEL[u.rol] ?? u.rol}</td>
+                        <td className="py-3 px-4 text-coffee-600">{u.celular}</td>
                         <td className="py-3 px-4 text-center">
-                          <StatusBadge status={u.isActive ? 'active' : 'inactive'} />
+                          <StatusBadge status={u.estado ? 'active' : 'inactive'} />
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center justify-center gap-2">
+                            {u.estado ? (
+                              <button
+                                onClick={() => handleBloquear(u.email)}
+                                className="p-1.5 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded transition-colors"
+                                title="Bloquear"
+                              >
+                                <Lock className="h-4 w-4" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleDesbloquear(u.email)}
+                                className="p-1.5 text-green-500 hover:text-green-700 hover:bg-green-50 rounded transition-colors"
+                                title="Desbloquear"
+                              >
+                                <Unlock className="h-4 w-4" />
+                              </button>
+                            )}
                             <button
-                              onClick={() => openEdit(u.id)}
-                              className="p-1.5 text-coffee-500 hover:text-coffee-700 hover:bg-coffee-100 rounded transition-colors"
-                              title="Editar"
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteId(u.id)}
+                              onClick={() => setDeleteEmail(u.email)}
                               className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                               title="Eliminar"
                             >
@@ -192,63 +293,148 @@ const SettingsPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Cambiar mi contraseña */}
+        <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-semibold text-coffee-900 flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-coffee-500" />
+                Cambiar mi contraseña
+              </h3>
+              <p className="text-sm text-coffee-500 mt-0.5">Actualiza la contraseña de tu cuenta</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setPwForm(emptyPw); setPwErrors({}); setPwOpen(true); }}
+            >
+              Cambiar contraseña
+            </Button>
+          </div>
+        </div>
+
+        {/* Modal crear usuario */}
         <Modal
-          isOpen={modalOpen}
-          onClose={() => setModalOpen(false)}
-          title={editingId ? 'Editar Usuario' : 'Agregar Usuario'}
+          isOpen={createOpen}
+          onClose={() => setCreateOpen(false)}
+          title="Agregar Usuario"
           size="md"
           footer={
             <div className="flex justify-end gap-3">
-              <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
-              <Button onClick={handleSubmit}>{editingId ? 'Guardar Cambios' : 'Crear Usuario'}</Button>
+              <Button variant="ghost" onClick={() => setCreateOpen(false)} disabled={createLoading}>
+                Cancelar
+              </Button>
+              <Button onClick={handleCreate} disabled={createLoading}>
+                {createLoading ? 'Creando…' : 'Crear Usuario'}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Nombre"
+                value={createForm.nombre}
+                onChange={(e) => setCreateForm((f) => ({ ...f, nombre: e.target.value }))}
+                error={createErrors.nombre}
+                disabled={createLoading}
+              />
+              <Input
+                label="Apellido"
+                value={createForm.apellido}
+                onChange={(e) => setCreateForm((f) => ({ ...f, apellido: e.target.value }))}
+                error={createErrors.apellido}
+                disabled={createLoading}
+              />
+            </div>
+            <Input
+              label="Email"
+              type="email"
+              value={createForm.email}
+              onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
+              error={createErrors.email}
+              disabled={createLoading}
+            />
+            <Input
+              label="Contraseña"
+              type="password"
+              value={createForm.password}
+              onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
+              error={createErrors.password}
+              disabled={createLoading}
+            />
+            <Input
+              label="Teléfono"
+              type="tel"
+              value={createForm.numeroPhone}
+              onChange={(e) => setCreateForm((f) => ({ ...f, numeroPhone: e.target.value }))}
+              error={createErrors.numeroPhone}
+              disabled={createLoading}
+            />
+            <Select
+              label="Rol"
+              value={createForm.rol}
+              onChange={(v) => setCreateForm((f) => ({ ...f, rol: v }))}
+              options={ROLES}
+              error={createErrors.rol}
+              disabled={createLoading}
+            />
+          </div>
+        </Modal>
+
+        {/* Modal cambiar contraseña */}
+        <Modal
+          isOpen={pwOpen}
+          onClose={() => setPwOpen(false)}
+          title="Cambiar contraseña"
+          size="sm"
+          footer={
+            <div className="flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => setPwOpen(false)} disabled={pwLoading}>
+                Cancelar
+              </Button>
+              <Button onClick={handleChangePw} disabled={pwLoading}>
+                {pwLoading ? 'Guardando…' : 'Guardar'}
+              </Button>
             </div>
           }
         >
           <div className="space-y-4">
             <Input
-              label="Nombre"
-              value={form.nombre}
-              onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-              error={errors.nombre}
+              label="Contraseña actual"
+              type="password"
+              value={pwForm.passwordActual}
+              onChange={(e) => setPwForm((f) => ({ ...f, passwordActual: e.target.value }))}
+              error={pwErrors.passwordActual}
+              disabled={pwLoading}
             />
             <Input
-              label="Email"
-              type="email"
-              value={form.email}
-              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-              error={errors.email}
+              label="Nueva contraseña"
+              type="password"
+              value={pwForm.passwordNueva}
+              onChange={(e) => setPwForm((f) => ({ ...f, passwordNueva: e.target.value }))}
+              error={pwErrors.passwordNueva}
+              disabled={pwLoading}
             />
-            <Select
-              label="Rol"
-              value={form.rol}
-              onChange={v => setForm(f => ({ ...f, rol: v }))}
-              options={ROLES}
-              error={errors.rol}
+            <Input
+              label="Confirmar nueva contraseña"
+              type="password"
+              value={pwForm.confirmar}
+              onChange={(e) => setPwForm((f) => ({ ...f, confirmar: e.target.value }))}
+              error={pwErrors.confirmar}
+              disabled={pwLoading}
             />
-            <div className="flex items-center gap-3 pt-2">
-              <span className="text-sm text-coffee-700">Estado</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.isActive}
-                  onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-coffee-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-4 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cafe-500"></div>
-              </label>
-              <span className="text-sm text-coffee-600">{form.isActive ? 'Activo' : 'Inactivo (sin acceso)'}</span>
-            </div>
-            <p className="text-xs text-coffee-400">Si está inactivo, el usuario no podrá iniciar sesión.</p>
           </div>
         </Modal>
 
+        {/* Confirm eliminar */}
         <ConfirmModal
-          isOpen={!!deleteId}
-          onClose={() => setDeleteId(null)}
+          isOpen={!!deleteEmail}
+          onClose={() => setDeleteEmail(null)}
           onConfirm={handleDelete}
           title="Eliminar Usuario"
-          message="¿Está seguro de que desea eliminar este usuario? Esta acción no se puede deshacer."
-          confirmText="Eliminar"
+          message={`¿Está seguro de que desea eliminar al usuario ${deleteEmail}? Esta acción no se puede deshacer.`}
+          confirmText={deleteLoading ? 'Eliminando…' : 'Eliminar'}
           variant="danger"
         />
       </PageContainer>

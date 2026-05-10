@@ -5,7 +5,7 @@ export interface User {
   email: string;
   celular: string;
   estado: boolean;
-  roleName?: string;
+  rol: string;
 }
 
 export interface SessionUser {

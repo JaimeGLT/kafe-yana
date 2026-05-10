@@ -7,12 +7,6 @@ import coffeeImg from '../../assets/img/Gemini_Generated_Image_hnrzfmhnrzfmhnrz.
 function resolveErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 0) return 'Sin conexión. Verifica tu red e intenta de nuevo.';
-    if (error.status === 401 || error.status === 403)
-      return 'Credenciales incorrectas. Verifica tu usuario y contraseña.';
-    if (error.status === 429)
-      return 'Demasiados intentos fallidos. Espera unos minutos antes de intentar de nuevo.';
-    if (error.status >= 500)
-      return 'Error del servidor. Intenta de nuevo en unos momentos.';
     if (error.message) return error.message;
   }
   return 'Ocurrió un error inesperado. Intenta de nuevo.';
