@@ -13,7 +13,7 @@ import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { useCombosPage } from '../../hooks/useCombosPage';
 import { usePagination } from '../../hooks/usePagination';
-import type { Combo, Product, Receta } from '../../types';
+import type { Combo, Product } from '../../types';
 import { formatCurrency } from '../../utils';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -45,13 +45,12 @@ interface ComboCardProps {
   combo: Combo;
   availability: number;
   products: Product[];
-  recetas: Receta[];
   onEdit: (c: Combo) => void;
   onDelete: (c: Combo) => void;
 }
 
 const ComboCard: React.FC<ComboCardProps> = ({
-  combo, availability, products, recetas, onEdit, onDelete,
+  combo, availability, products, onEdit, onDelete,
 }) => {
   const [expanded, setExpanded] = useState(false);
   
@@ -68,9 +67,6 @@ const ComboCard: React.FC<ComboCardProps> = ({
 
   const requiredItems = combo.items.filter((i) => !i.esOpcional);
   const optionalItems = combo.items.filter((i) => i.esOpcional);
-
-  const getRecetaByProductId = (productId: string): Receta | undefined =>
-    recetas.find((r) => r.productId === productId);
 
   return (
     <div className="bg-white rounded-xl border border-coffee-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col">
@@ -108,7 +104,6 @@ const ComboCard: React.FC<ComboCardProps> = ({
             <ul className="mt-2 space-y-1">
               {combo.items.map((item) => {
                 const prod = products.find((p) => p.id === item.productId);
-                const receta = prod?.tipo === 'elaborado' ? getRecetaByProductId(prod.id) : null;
                 return (
                   <li key={item.id} className="flex items-center gap-2 text-xs text-coffee-600">
                     {prod?.tipo === 'elaborado'
@@ -119,7 +114,7 @@ const ComboCard: React.FC<ComboCardProps> = ({
                     {item.esOpcional && (
                       <span className="text-xs text-purple-600 bg-purple-50 px-1 rounded">opcional</span>
                     )}
-                    {prod?.tipo === 'elaborado' && !receta && (
+                    {prod?.tipo === 'elaborado' && !prod.recetaId && (
                       <AlertTriangle className="h-3 w-3 text-amber-500" />
                     )}
                   </li>
@@ -414,7 +409,6 @@ const CombosPage: React.FC = () => {
                   combo={combo}
                   availability={combo.availability}
                   products={allProducts}
-                  recetas={[]}
                   onEdit={openEdit}
                   onDelete={(c) => setDeleting(c)}
                 />
@@ -437,7 +431,6 @@ const CombosPage: React.FC = () => {
         combo={editing}
         products={allProducts}
         onSuccess={() => refresh()}
-        recetas={[]}
       />
 
       <ConfirmModal

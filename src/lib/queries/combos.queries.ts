@@ -27,6 +27,7 @@ export const GET_COMBOS_WITH_PRODUCTS = `
     elaborados {
       nodes {
         producto { id nombre descripcion precio tipo }
+        receta { id }
       }
     }
   }

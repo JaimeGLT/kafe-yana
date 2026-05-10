@@ -8,7 +8,7 @@ import { IconPicker } from '../ui/IconPicker';
 import { HelpTooltip } from '../ui/Tooltip';
 import { toast } from '../ui/Toast';
 import { api } from '../../lib/api';
-import type { Combo, Product, Receta } from '../../types';
+import type { Combo, Product } from '../../types';
 import { formatCurrency } from '../../utils';
 
 interface ComboLine {
@@ -21,7 +21,6 @@ interface Props {
   onClose: () => void;
   combo?: Combo;
   products: Product[];
-  recetas: Receta[];
   onSuccess: () => void;
 }
 
@@ -31,7 +30,7 @@ const getMarginInfo = (pct: number) => {
   return { label: '🔴 Revisar precio', color: 'text-red-700 bg-red-50' };
 };
 
-export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, recetas, onSuccess }) => {
+export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, onSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   const [name, setName] = useState('');
@@ -80,11 +79,11 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
     return items.reduce((sum, line) => {
       const prod = products.find((p) => p.id === line.productId);
       if (!prod || line.quantity <= 0) return sum;
-      const receta = prod.tipo === 'elaborado' ? recetas.find((r) => r.productId === prod.id) : null;
-      const unitCost = receta ? receta.costoPorPorcion : prod.costPrice;
+      const hasReceta = prod.tipo === 'elaborado' && !!prod.recetaId;
+      const unitCost = hasReceta ? prod.costPrice : prod.costPrice;
       return sum + unitCost * line.quantity;
     }, 0);
-  }, [items, products, recetas]);
+  }, [items, products]);
 
   const sumaIndividual = useMemo(() => {
     return items.reduce((sum, line) => {
@@ -237,8 +236,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
           <div className="space-y-2">
             {items.map((line, idx) => {
               const prod = products.find((p) => p.id === line.productId);
-              const receta = prod?.tipo === 'elaborado' ? recetas.find((r) => r.productId === prod.id) : null;
-              const unitCost = receta ? receta.costoPorPorcion : (prod?.costPrice ?? 0);
+              const unitCost = prod?.costPrice ?? 0;
               const subtotal = prod && line.quantity > 0 ? unitCost * line.quantity : 0;
 
               return (
@@ -254,7 +252,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
                     {prod && (
                       <p className="text-xs text-coffee-400 mt-0.5 pl-1">
                         Costo: {formatCurrency(unitCost)} · PVP: {formatCurrency(prod.salePrice)}
-                        {prod.tipo === 'elaborado' && (receta ? '' : ' · ⚠ sin receta')}
+                        {prod.tipo === 'elaborado' && !prod.recetaId && ' · ⚠ sin receta'}
                       </p>
                     )}
                   </div>

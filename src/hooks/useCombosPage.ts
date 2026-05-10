@@ -20,10 +20,17 @@ interface ProductsNode {
   producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string };
 }
 
+interface ElaboradoNode {
+  costo_compra: number;
+  stock_actual: number;
+  producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string };
+  receta?: { id: number };
+}
+
 interface CombosPageResponse {
   combos: { nodes: ComboNode[]; totalCount: number; pageInfo?: { endCursor?: string | null } };
   comprados: { nodes: ProductsNode[] };
-  elaborados: { nodes: ProductsNode[] };
+  elaborados: { nodes: ElaboradoNode[] };
 }
 
 interface UseCombosPageOptions {
@@ -101,6 +108,7 @@ export function useCombosPage(options: UseCombosPageOptions): UseCombosPageRetur
           variations: [],
           hasVariations: false,
           isActive: true,
+          recetaId: n.receta?.id ? String(n.receta.id) : undefined,
           createdAt: new Date(),
           updatedAt: new Date(),
         })),

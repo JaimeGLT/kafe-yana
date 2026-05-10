@@ -117,6 +117,8 @@ export interface Product extends BaseEntity {
   cantidadProducible?: number;
   /** Used for elaborados: how many portions the recipe produces */
   porcionesBase?: number;
+  /** For elaborados: ID of the associated recipe (recipeId) */
+  recetaId?: string;
 }
 
 export interface ProductInput {
