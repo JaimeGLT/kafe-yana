@@ -62,6 +62,9 @@ const SettingsPage: React.FC = () => {
   const [deleteEmail, setDeleteEmail] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  const [blockTarget, setBlockTarget] = useState<{ email: string; action: 'bloquear' | 'desbloquear' } | null>(null);
+  const [blockLoading, setBlockLoading] = useState(false);
+
   const [pwOpen, setPwOpen] = useState(false);
   const [pwForm, setPwForm] = useState<ChangePwForm>(emptyPw);
   const [pwErrors, setPwErrors] = useState<Partial<ChangePwForm>>({});
@@ -121,29 +124,22 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  const handleBloquear = async (email: string) => {
+  const handleConfirmBlock = async () => {
+    if (!blockTarget) return;
+    const { email, action } = blockTarget;
+    setBlockLoading(true);
     try {
-      await api.put(`/Aunth/bloquear/${encodeURIComponent(email)}`);
+      await api.put(`/Aunth/${action}/${encodeURIComponent(email)}`);
       setUsuarios((prev) =>
-        prev.map((u) => (u.email === email ? { ...u, estado: false } : u))
+        prev.map((u) => (u.email === email ? { ...u, estado: action === 'desbloquear' } : u))
       );
-      toast.success('Usuario bloqueado');
+      toast.success(action === 'bloquear' ? 'Usuario bloqueado' : 'Usuario desbloqueado');
+      setBlockTarget(null);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'No se pudo bloquear el usuario.';
+      const msg = error instanceof Error ? error.message : `No se pudo ${action} el usuario.`;
       toast.error('Error', msg);
-    }
-  };
-
-  const handleDesbloquear = async (email: string) => {
-    try {
-      await api.put(`/Aunth/desbloquear/${encodeURIComponent(email)}`);
-      setUsuarios((prev) =>
-        prev.map((u) => (u.email === email ? { ...u, estado: true } : u))
-      );
-      toast.success('Usuario desbloqueado');
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'No se pudo desbloquear el usuario.';
-      toast.error('Error', msg);
+    } finally {
+      setBlockLoading(false);
     }
   };
 
@@ -260,7 +256,7 @@ const SettingsPage: React.FC = () => {
                           <div className="flex items-center justify-center gap-2">
                             {u.estado ? (
                               <button
-                                onClick={() => handleBloquear(u.email)}
+                                onClick={() => setBlockTarget({ email: u.email, action: 'bloquear' })}
                                 className="p-1.5 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded transition-colors"
                                 title="Bloquear"
                               >
@@ -268,7 +264,7 @@ const SettingsPage: React.FC = () => {
                               </button>
                             ) : (
                               <button
-                                onClick={() => handleDesbloquear(u.email)}
+                                onClick={() => setBlockTarget({ email: u.email, action: 'desbloquear' })}
                                 className="p-1.5 text-green-500 hover:text-green-700 hover:bg-green-50 rounded transition-colors"
                                 title="Desbloquear"
                               >
@@ -426,6 +422,21 @@ const SettingsPage: React.FC = () => {
             />
           </div>
         </Modal>
+
+        {/* Confirm bloquear / desbloquear */}
+        <ConfirmModal
+          isOpen={!!blockTarget}
+          onClose={() => setBlockTarget(null)}
+          onConfirm={handleConfirmBlock}
+          title={blockTarget?.action === 'bloquear' ? 'Bloquear usuario' : 'Desbloquear usuario'}
+          message={
+            blockTarget?.action === 'bloquear'
+              ? `¿Bloquear a ${blockTarget.email}? No podrá iniciar sesión hasta que sea desbloqueado.`
+              : `¿Desbloquear a ${blockTarget?.email}? Podrá volver a iniciar sesión.`
+          }
+          confirmText={blockLoading ? 'Procesando…' : blockTarget?.action === 'bloquear' ? 'Bloquear' : 'Desbloquear'}
+          variant={blockTarget?.action === 'bloquear' ? 'danger' : 'info'}
+        />
 
         {/* Confirm eliminar */}
         <ConfirmModal
