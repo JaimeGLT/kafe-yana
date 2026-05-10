@@ -1,10 +1,13 @@
+// Mocks kept for pages not yet connected to backend
+// TODO: Remove mocks as each page is connected to the backend
+
 import { subDays, setHours, setMinutes } from 'date-fns';
 import type { Sale, Product, InventoryStats } from '../types';
 import type { CashMovement, CashRegister } from '../types';
 import type { PurchaseOrder, Supplier } from '../types';
 import type { Insumo } from '../types/recipes';
 
-const today = new Date(2026, 3, 17); // Apr 17 2026
+const today = new Date(2026, 3, 17);
 
 function d(daysAgo: number, hour: number, min: number): Date {
   return setMinutes(setHours(subDays(today, daysAgo), hour), min);
@@ -56,7 +59,6 @@ function sale(
   };
 }
 
-// Productos
 const CAP  = { id: 'prod-1', name: 'Capuccino caliente', price: 25 };
 const AME  = { id: 'prod-2', name: 'Café americano',     price: 15 };
 const LAT  = { id: 'prod-3', name: 'Latte',              price: 28 };
@@ -68,7 +70,6 @@ const TOR  = { id: 'prod-8', name: 'Torta del día',      price: 18 };
 const FAN  = { id: 'prod-9', name: 'Fanta 1L',           price: 15 };
 const AGU  = { id: 'prod-10', name: 'Agua mineral',      price: 8 };
 
-// Clientes frecuentes
 const C1 = { id: 'cust-1', name: 'María Quispe' };
 const C2 = { id: 'cust-2', name: 'Carlos Mamani' };
 const C3 = { id: 'cust-3', name: 'Lucía Flores' };
@@ -76,7 +77,6 @@ const C4 = { id: 'cust-4', name: 'Roberto Condori' };
 const C5 = { id: 'cust-5', name: 'Ana Gutierrez' };
 
 export const MOCK_SALES: Sale[] = [
-  // --- Día 0 (hoy, 17 abr) ---
   sale('001', 0, 8, 15,  [{ ...CAP, qty: 1 }, { ...TOR, qty: 1 }], 'cash', C1.id, C1.name),
   sale('002', 0, 8, 45,  [{ ...AME, qty: 2 }], 'qr'),
   sale('003', 0, 9, 10,  [{ ...LAT, qty: 1 }, { ...SAN, qty: 1 }], 'card', C2.id, C2.name),
@@ -92,8 +92,6 @@ export const MOCK_SALES: Sale[] = [
   sale('013', 0, 14, 40, [{ ...CAP, qty: 1 }, { ...TOR, qty: 1 }], 'cash', C5.id, C5.name),
   sale('014', 0, 15, 15, [{ ...AME, qty: 1 }, { ...AGU, qty: 2 }], 'cash'),
   sale('015', 0, 16, 0,  [{ ...CAP, qty: 2 }], 'qr'),
-
-  // --- Día 1 (16 abr) ---
   sale('016', 1, 8, 20,  [{ ...CAP, qty: 1 }, { ...SAN, qty: 1 }], 'cash', C2.id, C2.name),
   sale('017', 1, 9, 5,   [{ ...AME, qty: 1 }], 'qr'),
   sale('018', 1, 9, 50,  [{ ...MEN, qty: 2 }], 'cash'),
@@ -106,8 +104,6 @@ export const MOCK_SALES: Sale[] = [
   sale('025', 1, 15, 0,  [{ ...CAP, qty: 2 }, { ...AGU, qty: 1 }], 'qr'),
   sale('026', 1, 15, 45, [{ ...MEN, qty: 1 }], 'cash'),
   sale('027', 1, 16, 30, [{ ...LAT, qty: 1 }], 'qr'),
-
-  // --- Día 2 (15 abr) ---
   sale('028', 2, 8, 10,  [{ ...CAP, qty: 1 }], 'cash'),
   sale('029', 2, 9, 0,   [{ ...MEN, qty: 2 }, { ...FAN, qty: 2 }], 'qr', C4.id, C4.name),
   sale('030', 2, 9, 40,  [{ ...AME, qty: 1 }, { ...SAN, qty: 1 }], 'cash'),
@@ -119,8 +115,6 @@ export const MOCK_SALES: Sale[] = [
   sale('036', 2, 14, 0,  [{ ...TOR, qty: 2 }, { ...FAN, qty: 1 }], 'cash'),
   sale('037', 2, 15, 30, [{ ...LAT, qty: 1 }], 'card'),
   sale('038', 2, 16, 10, [{ ...CAP, qty: 1 }, { ...NEG, qty: 1 }], 'qr'),
-
-  // --- Día 3 (14 abr) ---
   sale('039', 3, 8, 30,  [{ ...CAP, qty: 1 }, { ...SAN, qty: 1 }], 'cash', C1.id, C1.name),
   sale('040', 3, 9, 15,  [{ ...AME, qty: 2 }], 'qr'),
   sale('041', 3, 10, 0,  [{ ...MEN, qty: 1 }, { ...FAN, qty: 1 }], 'cash'),
@@ -132,8 +126,6 @@ export const MOCK_SALES: Sale[] = [
   sale('047', 3, 14, 30, [{ ...TER, qty: 2 }, { ...FAN, qty: 1 }], 'qr'),
   sale('048', 3, 15, 15, [{ ...LAT, qty: 1 }], 'card'),
   sale('049', 3, 16, 0,  [{ ...CAP, qty: 1 }, { ...AME, qty: 1 }], 'cash'),
-
-  // --- Día 4 (13 abr) ---
   sale('050', 4, 8, 5,   [{ ...NEG, qty: 1 }, { ...SAN, qty: 1 }], 'cash'),
   sale('051', 4, 8, 55,  [{ ...CAP, qty: 2 }], 'qr', C4.id, C4.name),
   sale('052', 4, 9, 40,  [{ ...MEN, qty: 1 }, { ...AGU, qty: 1 }], 'cash'),
@@ -146,8 +138,6 @@ export const MOCK_SALES: Sale[] = [
   sale('059', 4, 15, 5,  [{ ...LAT, qty: 1 }, { ...TOR, qty: 1 }], 'cash'),
   sale('060', 4, 15, 50, [{ ...MEN, qty: 1 }, { ...FAN, qty: 1 }], 'qr'),
   sale('061', 4, 16, 30, [{ ...CAP, qty: 1 }], 'card'),
-
-  // --- Día 5 (12 abr) ---
   sale('062', 5, 8, 10,  [{ ...CAP, qty: 1 }, { ...TOR, qty: 1 }], 'cash', C2.id, C2.name),
   sale('063', 5, 9, 0,   [{ ...MEN, qty: 2 }, { ...AME, qty: 1 }], 'qr'),
   sale('064', 5, 9, 50,  [{ ...NEG, qty: 2 }], 'cash'),
@@ -159,8 +149,6 @@ export const MOCK_SALES: Sale[] = [
   sale('070', 5, 14, 35, [{ ...AME, qty: 1 }, { ...FAN, qty: 1 }], 'qr'),
   sale('071', 5, 15, 20, [{ ...LAT, qty: 1 }], 'cash', C4.id, C4.name),
   sale('072', 5, 16, 5,  [{ ...CAP, qty: 1 }, { ...AGU, qty: 1 }], 'qr'),
-
-  // --- Día 6 (11 abr) ---
   sale('073', 6, 8, 20,  [{ ...AME, qty: 2 }, { ...TOR, qty: 1 }], 'cash'),
   sale('074', 6, 9, 10,  [{ ...CAP, qty: 1 }], 'qr', C5.id, C5.name),
   sale('075', 6, 10, 0,  [{ ...MEN, qty: 2 }, { ...FAN, qty: 1 }], 'cash'),
@@ -172,8 +160,6 @@ export const MOCK_SALES: Sale[] = [
   sale('081', 6, 14, 45, [{ ...SAN, qty: 1 }, { ...TER, qty: 1 }], 'qr'),
   sale('082', 6, 15, 30, [{ ...AME, qty: 1 }, { ...LAT, qty: 1 }], 'cash', C2.id, C2.name),
   sale('083', 6, 16, 10, [{ ...CAP, qty: 1 }], 'qr'),
-
-  // --- Días 7-14 (compactados) ---
   sale('084', 7,  8, 30, [{ ...CAP, qty: 1 }, { ...MEN, qty: 1 }], 'cash'),
   sale('085', 7,  9, 20, [{ ...AME, qty: 2 }], 'qr', C3.id, C3.name),
   sale('086', 7, 10, 15, [{ ...LAT, qty: 1 }, { ...TOR, qty: 1 }], 'card'),
@@ -182,7 +168,6 @@ export const MOCK_SALES: Sale[] = [
   sale('089', 7, 13, 15, [{ ...CAP, qty: 1 }], 'cash'),
   sale('090', 7, 14, 45, [{ ...TER, qty: 1 }, { ...AGU, qty: 1 }], 'qr'),
   sale('091', 7, 16,  0, [{ ...LAT, qty: 1 }, { ...TOR, qty: 1 }], 'card', C4.id, C4.name),
-
   sale('092', 8,  8, 10, [{ ...CAP, qty: 2 }], 'qr'),
   sale('093', 8,  9, 0,  [{ ...MEN, qty: 1 }, { ...FAN, qty: 1 }], 'cash', C5.id, C5.name),
   sale('094', 8, 10, 30, [{ ...AME, qty: 1 }, { ...SAN, qty: 1 }], 'qr'),
@@ -192,7 +177,6 @@ export const MOCK_SALES: Sale[] = [
   sale('098', 8, 14, 30, [{ ...TOR, qty: 2 }], 'cash'),
   sale('099', 8, 15, 15, [{ ...SAN, qty: 1 }, { ...NEG, qty: 1 }], 'qr'),
   sale('100', 8, 16,  0, [{ ...CAP, qty: 1 }, { ...FAN, qty: 1 }], 'cash'),
-
   sale('101', 9,  8, 25, [{ ...LAT, qty: 1 }, { ...TOR, qty: 1 }], 'qr'),
   sale('102', 9,  9, 15, [{ ...MEN, qty: 1 }], 'cash', C2.id, C2.name),
   sale('103', 9, 10, 10, [{ ...CAP, qty: 2 }, { ...SAN, qty: 1 }], 'qr'),
@@ -201,7 +185,6 @@ export const MOCK_SALES: Sale[] = [
   sale('106', 9, 13, 10, [{ ...CAP, qty: 1 }], 'qr', C3.id, C3.name),
   sale('107', 9, 14, 45, [{ ...TER, qty: 1 }, { ...TOR, qty: 1 }], 'cash'),
   sale('108', 9, 16,  0, [{ ...LAT, qty: 1 }], 'qr'),
-
   sale('109', 10, 8, 0,  [{ ...CAP, qty: 1 }, { ...SAN, qty: 2 }], 'cash'),
   sale('110', 10, 9, 30, [{ ...MEN, qty: 1 }, { ...AME, qty: 1 }], 'qr', C4.id, C4.name),
   sale('111', 10, 10, 15, [{ ...NEG, qty: 2 }], 'cash'),
@@ -210,7 +193,6 @@ export const MOCK_SALES: Sale[] = [
   sale('114', 10, 13, 20, [{ ...CAP, qty: 1 }, { ...AGU, qty: 2 }], 'cash', C5.id, C5.name),
   sale('115', 10, 14, 10, [{ ...SAN, qty: 1 }], 'qr'),
   sale('116', 10, 16,  0, [{ ...AME, qty: 2 }], 'cash'),
-
   sale('117', 11, 8, 15, [{ ...CAP, qty: 1 }], 'cash', C1.id, C1.name),
   sale('118', 11, 9, 5,  [{ ...MEN, qty: 1 }, { ...FAN, qty: 2 }], 'qr'),
   sale('119', 11, 10, 30, [{ ...LAT, qty: 2 }], 'card'),
@@ -219,7 +201,6 @@ export const MOCK_SALES: Sale[] = [
   sale('122', 11, 13, 30, [{ ...CAP, qty: 1 }, { ...AGU, qty: 1 }], 'cash'),
   sale('123', 11, 14, 45, [{ ...NEG, qty: 1 }, { ...TER, qty: 1 }], 'qr'),
   sale('124', 11, 16,  0, [{ ...LAT, qty: 1 }], 'cash'),
-
   sale('125', 12, 8, 20, [{ ...MEN, qty: 1 }, { ...CAP, qty: 1 }], 'cash'),
   sale('126', 12, 9, 10, [{ ...AME, qty: 2 }], 'qr', C3.id, C3.name),
   sale('127', 12, 10, 0, [{ ...TOR, qty: 2 }, { ...FAN, qty: 1 }], 'cash'),
@@ -228,7 +209,6 @@ export const MOCK_SALES: Sale[] = [
   sale('130', 12, 13, 10, [{ ...CAP, qty: 2 }], 'cash', C4.id, C4.name),
   sale('131', 12, 14, 40, [{ ...NEG, qty: 1 }], 'qr'),
   sale('132', 12, 16,  0, [{ ...LAT, qty: 1 }, { ...TOR, qty: 1 }], 'cash'),
-
   sale('133', 13, 8, 30, [{ ...CAP, qty: 1 }, { ...SAN, qty: 1 }], 'cash'),
   sale('134', 13, 9, 20, [{ ...MEN, qty: 2 }], 'qr', C5.id, C5.name),
   sale('135', 13, 10, 10, [{ ...AME, qty: 1 }, { ...TER, qty: 1 }], 'cash'),
@@ -237,7 +217,6 @@ export const MOCK_SALES: Sale[] = [
   sale('138', 13, 13, 10, [{ ...MEN, qty: 1 }], 'cash'),
   sale('139', 13, 14, 40, [{ ...SAN, qty: 2 }, { ...AGU, qty: 1 }], 'qr'),
   sale('140', 13, 16,  0, [{ ...CAP, qty: 1 }], 'cash'),
-
   sale('141', 14, 8, 0,  [{ ...LAT, qty: 1 }], 'qr', C2.id, C2.name),
   sale('142', 14, 9, 20, [{ ...MEN, qty: 1 }, { ...CAP, qty: 1 }], 'cash'),
   sale('143', 14, 10, 30, [{ ...AME, qty: 2 }], 'qr'),
@@ -246,8 +225,6 @@ export const MOCK_SALES: Sale[] = [
   sale('146', 14, 13, 20, [{ ...CAP, qty: 1 }, { ...AGU, qty: 2 }], 'qr', C3.id, C3.name),
   sale('147', 14, 14, 45, [{ ...NEG, qty: 2 }], 'cash'),
   sale('148', 14, 16,  0, [{ ...LAT, qty: 1 }, { ...TER, qty: 1 }], 'qr'),
-
-  // --- Días 15-16 ---
   sale('149', 15, 8, 10, [{ ...CAP, qty: 2 }, { ...TOR, qty: 1 }], 'cash'),
   sale('150', 15, 9, 0,  [{ ...MEN, qty: 1 }, { ...FAN, qty: 2 }], 'qr', C4.id, C4.name),
   sale('151', 15, 10, 30, [{ ...AME, qty: 1 }, { ...SAN, qty: 1 }], 'cash'),
@@ -256,7 +233,6 @@ export const MOCK_SALES: Sale[] = [
   sale('154', 15, 13, 30, [{ ...CAP, qty: 1 }, { ...AGU, qty: 1 }], 'cash'),
   sale('155', 15, 14, 20, [{ ...TOR, qty: 2 }], 'qr'),
   sale('156', 15, 16,  0, [{ ...SAN, qty: 1 }, { ...AME, qty: 1 }], 'cash'),
-
   sale('157', 16, 8, 20, [{ ...CAP, qty: 1 }], 'cash', C1.id, C1.name),
   sale('158', 16, 9, 10, [{ ...MEN, qty: 1 }, { ...FAN, qty: 1 }], 'qr'),
   sale('159', 16, 10, 0, [{ ...LAT, qty: 2 }, { ...TOR, qty: 1 }], 'card'),
@@ -266,8 +242,6 @@ export const MOCK_SALES: Sale[] = [
   sale('163', 16, 14, 45, [{ ...CAP, qty: 1 }, { ...TER, qty: 1 }], 'qr'),
   sale('164', 16, 16,  0, [{ ...TOR, qty: 1 }], 'cash'),
 ];
-
-// ── Cash mocks ─────────────────────────────────────────────────────────────
 
 export const MOCK_CASH_MOVEMENTS: CashMovement[] = [
   { id: 'cm-1',  type: 'expense', category: 'Proveedores',       concept: 'Pago café en grano', amount: 450, date: d(2,  9, 0),  userId: 'u1', userName: 'Jaime G.' },
@@ -312,8 +286,6 @@ export const MOCK_CASH_REGISTERS: CashRegister[] = [
   },
 ];
 
-// ── Inventory mocks ────────────────────────────────────────────────────────
-
 function p(id: string, name: string, cat: string, tipo: 'comprado' | 'elaborado', cost: number, sale: number, stock: number, min: number): Product {
   return {
     id, code: id, name, categoryId: cat, categoryName: cat, tipo,
@@ -349,8 +321,6 @@ export const MOCK_INVENTORY_STATS: InventoryStats = {
   totalValue: 680,
   categoriesCount: 6,
 };
-
-// ── Purchases mocks ────────────────────────────────────────────────────────
 
 export const MOCK_SUPPLIERS: Supplier[] = [
   { id: 'sup-1', code: 'SUP-001', razon_Social: 'Distribuidora Café Norte', telefono: '71234567', isActive: true, createdAt: d(60,0,0), updatedAt: d(5,0,0) },
@@ -395,8 +365,6 @@ export const MOCK_PURCHASE_ORDERS: PurchaseOrder[] = [
   po('007', 1,  'sup-3', 'Bebidas y Más S.R.L.',     [{ name: 'Fanta 1L', qty: 12, cost: 9 }], 'pending'),
   po('008', 0,  'sup-4', 'Insumos Pastelería Lima',  [{ name: 'Azúcar 1kg', qty: 5, cost: 6 }], 'pending'),
 ];
-
-// ── Insumos mocks ──────────────────────────────────────────────────────────
 
 function ins(
   id: string, name: string, cat: string,

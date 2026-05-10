@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
-import { startOfMonth, endOfDay, format, eachDayOfInterval, isWithinInterval } from 'date-fns';
+import React from 'react';
+import { startOfMonth, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
-  AreaChart, Area, BarChart, Bar,
+  AreaChart, Area,
+  BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 import {
@@ -12,9 +13,8 @@ import {
 import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Button, Input } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
-import { formatCurrency, getPaymentMethodLabel } from '../../utils';
-import { MOCK_SALES } from '../../data/reportsMocks';
-import type { Sale } from '../../types';
+import { formatCurrency } from '../../utils';
+import { useSalesReportPage } from '../../hooks/useSalesReportPage';
 
 const CHART_COLORS = {
   primary: '#8B4513',
@@ -34,97 +34,50 @@ const tooltipStyle = {
 };
 
 const SalesReportPage: React.FC = () => {
-  const [sales] = useState<Sale[]>(MOCK_SALES);
-
   const today = new Date();
-  const [dateFrom, setDateFrom] = useState<string>(
+  const [dateFrom, setDateFrom] = React.useState<string>(
     format(startOfMonth(today), 'yyyy-MM-dd')
   );
-  const [dateTo, setDateTo] = useState<string>(format(today, 'yyyy-MM-dd'));
+  const [dateTo, setDateTo] = React.useState<string>(format(today, 'yyyy-MM-dd'));
 
-  const filteredSales = useMemo(() => {
-    const from = new Date(dateFrom + 'T00:00:00');
-    const to = endOfDay(new Date(dateTo + 'T00:00:00'));
-    return sales.filter((s: Sale) => {
-      const d = new Date(s.date);
-      return s.status === 'completed' && isWithinInterval(d, { start: from, end: to });
-    });
-  }, [sales, dateFrom, dateTo]);
+  const {
+    stats,
+    dailySalesData,
+    paymentMethodData,
+    topProducts,
+    topCustomers,
+    isLoading,
+    error,
+  } = useSalesReportPage(dateFrom, dateTo);
 
-  // KPIs
-  const totalRevenue = useMemo(
-    () => filteredSales.reduce((sum, s) => sum + s.total, 0),
-    [filteredSales]
-  );
-  const totalSalesCount = filteredSales.length;
-  const avgTicket = totalSalesCount > 0 ? totalRevenue / totalSalesCount : 0;
-  const unitsSold = useMemo(
-    () => filteredSales.reduce((sum, s) => sum + s.items.reduce((is, i) => is + i.quantity, 0), 0),
-    [filteredSales]
-  );
+  const dailyChartData = dailySalesData.map(d => ({
+    ...d,
+    fecha: format(new Date(d.fecha + 'T00:00:00'), 'dd MMM', { locale: es }),
+  }));
 
-  // Daily sales chart data
-  const dailySalesData = useMemo(() => {
-    const from = new Date(dateFrom + 'T00:00:00');
-    const to = new Date(dateTo + 'T00:00:00');
-    if (from > to) return [];
-    const days = eachDayOfInterval({ start: from, end: to });
-    return days.map(day => {
-      const dayKey = format(day, 'yyyy-MM-dd');
-      const daySales = filteredSales.filter(s => format(new Date(s.date), 'yyyy-MM-dd') === dayKey);
-      return {
-        fecha: format(day, 'dd MMM', { locale: es }),
-        ingresos: daySales.reduce((sum, s) => sum + s.total, 0),
-        ventas: daySales.length,
-      };
-    });
-  }, [filteredSales, dateFrom, dateTo]);
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <PageContainer>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-coffee-500">Cargando reporte de ventas...</div>
+          </div>
+        </PageContainer>
+      </MainLayout>
+    );
+  }
 
-  // Payment method breakdown
-  const paymentMethodData = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredSales.forEach(s => {
-      s.paymentMethods.forEach(pm => {
-        map[pm.type] = (map[pm.type] || 0) + pm.amount;
-      });
-    });
-    return Object.entries(map).map(([type, total]) => ({
-      metodo: getPaymentMethodLabel(type),
-      total,
-    }));
-  }, [filteredSales]);
-
-  // Top products by revenue
-  const topProducts = useMemo(() => {
-    const map: Record<string, { name: string; revenue: number; qty: number }> = {};
-    filteredSales.forEach(s => {
-      s.items.forEach(item => {
-        if (!map[item.productId]) {
-          map[item.productId] = { name: item.productName, revenue: 0, qty: 0 };
-        }
-        map[item.productId].revenue += item.total;
-        map[item.productId].qty += item.quantity;
-      });
-    });
-    return Object.values(map)
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 10);
-  }, [filteredSales]);
-
-  // Top customers by purchases
-  const topCustomers = useMemo(() => {
-    const map: Record<string, { name: string; total: number; count: number }> = {};
-    filteredSales.forEach(s => {
-      const key = s.customerId || '__guest__';
-      const name = s.customerName || 'Cliente General';
-      if (!map[key]) map[key] = { name, total: 0, count: 0 };
-      map[key].total += s.total;
-      map[key].count += 1;
-    });
-    return Object.values(map)
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 10);
-  }, [filteredSales]);
+  if (error) {
+    return (
+      <MainLayout>
+        <PageContainer>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-red-500">Error: {error}</div>
+          </div>
+        </PageContainer>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -165,28 +118,28 @@ const SalesReportPage: React.FC = () => {
         <KPIGrid columns={4}>
           <KPICard
             title="Total Ventas"
-            value={totalSalesCount}
+            value={stats.totalSalesCount}
             subtitle="Transacciones completadas"
             icon={<ShoppingCart className="h-6 w-6" />}
             color="coffee"
           />
           <KPICard
             title="Ingresos Totales"
-            value={formatCurrency(totalRevenue)}
+            value={formatCurrency(stats.totalRevenue)}
             subtitle="Período seleccionado"
             icon={<DollarSign className="h-6 w-6" />}
             color="green"
           />
           <KPICard
             title="Ticket Promedio"
-            value={formatCurrency(avgTicket)}
+            value={formatCurrency(stats.avgTicket)}
             subtitle="Por transacción"
             icon={<TrendingUp className="h-6 w-6" />}
             color="blue"
           />
           <KPICard
             title="Unidades Vendidas"
-            value={unitsSold}
+            value={stats.unitsSold}
             subtitle="Productos despachados"
             icon={<Package className="h-6 w-6" />}
             color="yellow"
@@ -195,9 +148,9 @@ const SalesReportPage: React.FC = () => {
 
         {/* Area Chart - Daily Sales */}
         <PageSection title="Ventas Diarias" description="Ingresos por día en el período seleccionado">
-          {dailySalesData.length > 0 ? (
+          {dailyChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={dailySalesData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <AreaChart data={dailyChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorIngresos" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={CHART_COLORS.primary} stopOpacity={0.3} />

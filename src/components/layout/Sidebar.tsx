@@ -7,7 +7,7 @@ import {
   Truck,
   Wallet,
   BarChart3,
-  Settings,
+  // Settings,
   ChevronLeft,
   ChevronRight,
   Coffee,

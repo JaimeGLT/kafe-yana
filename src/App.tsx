@@ -25,7 +25,7 @@ import SalesReportPage from './pages/reports/SalesReportPage';
 import InventoryReportPage from './pages/reports/InventoryReportPage';
 import PurchasesReportPage from './pages/reports/PurchasesReportPage';
 import CashReportPage from './pages/reports/CashReportPage';
-import SettingsPage from './pages/settings/SettingsPage';
+// import SettingsPage from './pages/settings/SettingsPage';
 import InsumosPage from './pages/recipes/InsumosPage';
 import RecetasPage from './pages/recipes/RecetasPage';
 import ElaboradosPage from './pages/inventory/ElaboradosPage';

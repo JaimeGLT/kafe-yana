@@ -41,17 +41,9 @@ export const GET_PARA_LLEVAR = `
 `;
 
 export const GET_VENTAS = `
-  query GetVentas($after: String) {
-    ventas(first: 50, after: $after, order: [{ fecha: DESC }]) {
+  query GetVentas($after: String, $where: VentaFilterInput) {
+    ventas(first: 50, after: $after, order: [{ fecha: DESC }], where: $where) {
       nodes {
-        detalles {
-          id_venta
-          nombre
-          cantidad
-          precio
-          total
-          id
-        }
         id
         codigo
         fecha
@@ -62,6 +54,14 @@ export const GET_VENTAS = `
         estado
         subtotal
         total
+        detalles {
+          id_venta
+          nombre
+          cantidad
+          precio
+          total
+          id
+        }
       }
       pageInfo {
         hasNextPage
