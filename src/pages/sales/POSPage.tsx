@@ -655,7 +655,7 @@ export const POSPage: React.FC = () => {
 
   const handleConfirmSale = async () => {
     if (!activeMesa) return;
-    if (activeMesa.tipo === 'para_llevar' && !activeMesa.customerId && !reviewClienteId) {
+    if (!activeMesa.customerId && !reviewClienteId) {
       toast.warning('Cliente requerido', 'Selecciona un cliente antes de cobrar.');
       return;
     }

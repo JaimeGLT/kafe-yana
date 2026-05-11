@@ -345,12 +345,17 @@ export function usePOSMesas(): UsePOSMesasReturn {
     setParaLlevarOrders(prev => [...prev, newOrder]);
     setActiveMesaId(newId);
 
-    // Sync in background to refresh state without blocking the flow
+    // Sync in background to refresh state without blocking the flow.
+    // Use functional update to preserve optimistic entries not yet in backend.
     syncParaLlevar().then(freshData => {
       const mapped = freshData
         .filter(pl => pl.disponible || pl.pedido !== null)
         .map(mapParaLlevarToLocalMesa);
-      setParaLlevarOrders(mapped);
+      setParaLlevarOrders(prev => {
+        const backendIds = new Set(mapped.map(m => m.id));
+        const localOnly = prev.filter(m => !backendIds.has(m.id));
+        return [...mapped, ...localOnly];
+      });
     });
 
     return newId;
