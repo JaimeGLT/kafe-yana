@@ -41,7 +41,9 @@ export const GET_CAJA_HISTORIAL = `
     cajaHistorial {
       totalCount
       nodes {
+        abiertaPor
         apertura
+        cerradaPor
         cierre
         codigo
         diferencia

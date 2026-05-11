@@ -1,18 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { startOfDay, endOfDay } from 'date-fns';
 import { gql } from '../lib/graphql';
-import { GET_VENTAS } from '../lib/queries/ventas.queries';
+import { GET_VENTAS_REPORT } from '../lib/queries/ventas.queries';
 import type {
   VentaNode,
   VentaFilters,
   VentaReportStats,
   VentaDailyData,
   VentaPaymentData,
-  VentaTopProduct,
-  VentaTopCustomer,
   UseSalesReportPageReturn,
 } from '../types/ventas';
-import { getPaymentMethodLabel } from '../types/ventas';
+import { normalizePaymentLabel } from '../types/ventas';
 
 interface VentasResponse {
   ventas: {
@@ -39,8 +37,6 @@ export function useSalesReportPage(
   });
   const [dailySalesData, setDailySalesData] = useState<VentaDailyData[]>([]);
   const [paymentMethodData, setPaymentMethodData] = useState<VentaPaymentData[]>([]);
-  const [topProducts, setTopProducts] = useState<VentaTopProduct[]>([]);
-  const [topCustomers, setTopCustomers] = useState<VentaTopCustomer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,7 +50,7 @@ export function useSalesReportPage(
 
       const filters: VentaFilters = {
         fecha: { gte: fromDate, lte: toDate },
-        estado: { eq: 'completed' },
+        estado: { eq: 'Finalizada' },
       };
 
       let allNodes: VentaNode[] = [];
@@ -62,7 +58,7 @@ export function useSalesReportPage(
       let hasNextPage = true;
 
       while (hasNextPage) {
-        const data = await gql<VentasResponse>(GET_VENTAS, {
+        const data = await gql<VentasResponse>(GET_VENTAS_REPORT, {
           where: filters,
           after: cursor,
         });
@@ -72,20 +68,15 @@ export function useSalesReportPage(
         cursor = data.ventas.pageInfo.endCursor;
       }
 
-      const nodes = allNodes;
-
-      const totalRevenue = nodes.reduce((sum, v) => sum + parseDecimal(v.total), 0);
-      const totalSalesCount = nodes.length;
+      const totalRevenue = allNodes.reduce((sum, v) => sum + parseDecimal(v.total), 0);
+      const totalSalesCount = allNodes.length;
       const avgTicket = totalSalesCount > 0 ? totalRevenue / totalSalesCount : 0;
-      const unitsSold = nodes.reduce(
-        (sum, v) => sum + v.detalles.reduce((s, d) => s + d.cantidad, 0),
-        0,
-      );
+      const unitsSold = allNodes.reduce((sum, v) => sum + (v.productos ?? 0), 0);
 
       setStats({ totalRevenue, totalSalesCount, avgTicket, unitsSold });
 
       const dailyMap: Record<string, VentaDailyData> = {};
-      nodes.forEach((v) => {
+      allNodes.forEach((v) => {
         const dayKey = v.fecha.split('T')[0];
         if (!dailyMap[dayKey]) {
           dailyMap[dayKey] = { fecha: dayKey, ingresos: 0, ventas: 0 };
@@ -97,47 +88,13 @@ export function useSalesReportPage(
         Object.values(dailyMap).sort((a, b) => a.fecha.localeCompare(b.fecha)),
       );
 
-      const paymentMap: Record<number, number> = {};
-      nodes.forEach((v) => {
-        paymentMap[v.pago] = (paymentMap[v.pago] || 0) + parseDecimal(v.total);
+      const paymentMap: Record<string, number> = {};
+      allNodes.forEach((v) => {
+        const label = normalizePaymentLabel(v.pago);
+        paymentMap[label] = (paymentMap[label] || 0) + parseDecimal(v.total);
       });
       setPaymentMethodData(
-        Object.entries(paymentMap).map(([pago, total]) => ({
-          metodo: getPaymentMethodLabel(parseInt(pago)),
-          total,
-        })),
-      );
-
-      const productMap: Record<string, VentaTopProduct> = {};
-      nodes.forEach((v) => {
-        v.detalles.forEach((d) => {
-          if (!productMap[d.nombre]) {
-            productMap[d.nombre] = { name: d.nombre, revenue: 0, qty: 0 };
-          }
-          productMap[d.nombre].revenue += parseDecimal(d.total);
-          productMap[d.nombre].qty += d.cantidad;
-        });
-      });
-      setTopProducts(
-        Object.values(productMap)
-          .sort((a, b) => b.revenue - a.revenue)
-          .slice(0, 10),
-      );
-
-      const customerMap: Record<string, VentaTopCustomer> = {};
-      nodes.forEach((v) => {
-        const key = v.cliente || '__guest__';
-        const name = v.cliente || 'Cliente General';
-        if (!customerMap[key]) {
-          customerMap[key] = { name, total: 0, count: 0 };
-        }
-        customerMap[key].total += parseDecimal(v.total);
-        customerMap[key].count += 1;
-      });
-      setTopCustomers(
-        Object.values(customerMap)
-          .sort((a, b) => b.total - a.total)
-          .slice(0, 10),
+        Object.entries(paymentMap).map(([metodo, total]) => ({ metodo, total })),
       );
     } catch (e) {
       console.error('Error loading sales report:', e);
@@ -155,5 +112,5 @@ export function useSalesReportPage(
     await loadData();
   }, [loadData]);
 
-  return { stats, dailySalesData, paymentMethodData, topProducts, topCustomers, isLoading, error, refresh };
+  return { stats, dailySalesData, paymentMethodData, isLoading, error, refresh };
 }

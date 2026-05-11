@@ -15,6 +15,7 @@ import { Button, Input } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
 import { formatCurrency } from '../../utils';
 import { useSalesReportPage } from '../../hooks/useSalesReportPage';
+import { generateSalesReportPdf } from '../../lib/salesReportPdf';
 
 const CHART_COLORS = {
   primary: '#8B4513',
@@ -44,11 +45,13 @@ const SalesReportPage: React.FC = () => {
     stats,
     dailySalesData,
     paymentMethodData,
-    topProducts,
-    topCustomers,
     isLoading,
     error,
   } = useSalesReportPage(dateFrom, dateTo);
+
+  const handleExportPdf = () => {
+    generateSalesReportPdf({ dateFrom, dateTo, stats, dailySalesData, paymentMethodData });
+  };
 
   const dailyChartData = dailySalesData.map(d => ({
     ...d,
@@ -107,8 +110,14 @@ const SalesReportPage: React.FC = () => {
                   className="w-40"
                 />
               </div>
-              <Button variant="outline" size="sm" leftIcon={<FileText className="h-4 w-4" />}>
-                Exportar
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<FileText className="h-4 w-4" />}
+                onClick={handleExportPdf}
+                disabled={isLoading}
+              >
+                Exportar PDF
               </Button>
             </div>
           }
@@ -201,77 +210,8 @@ const SalesReportPage: React.FC = () => {
           )}
         </PageSection>
 
-        {/* Top Products Table */}
-        <PageSection title="Top Productos por Ingresos" description="Los productos más vendidos en el período">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-coffee-100">
-                  <th className="text-left py-3 px-4 font-semibold text-coffee-700">#</th>
-                  <th className="text-left py-3 px-4 font-semibold text-coffee-700">Producto</th>
-                  <th className="text-right py-3 px-4 font-semibold text-coffee-700">Unidades</th>
-                  <th className="text-right py-3 px-4 font-semibold text-coffee-700">Ingresos</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topProducts.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="text-center py-8 text-coffee-400">
-                      No hay datos para el período seleccionado
-                    </td>
-                  </tr>
-                ) : (
-                  topProducts.map((p, idx) => (
-                    <tr key={idx} className="border-b border-coffee-50 hover:bg-coffee-50 transition-colors">
-                      <td className="py-3 px-4 text-coffee-500">{idx + 1}</td>
-                      <td className="py-3 px-4 font-medium text-coffee-900">{p.name || '—'}</td>
-                      <td className="py-3 px-4 text-right text-coffee-700">{p.qty}</td>
-                      <td className="py-3 px-4 text-right font-semibold text-coffee-900">
-                        {formatCurrency(p.revenue)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </PageSection>
-
-        {/* Top Customers Table */}
-        <PageSection title="Top Clientes por Compras" description="Los clientes con mayor volumen de compras">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-coffee-100">
-                  <th className="text-left py-3 px-4 font-semibold text-coffee-700">#</th>
-                  <th className="text-left py-3 px-4 font-semibold text-coffee-700">Cliente</th>
-                  <th className="text-right py-3 px-4 font-semibold text-coffee-700">Transacciones</th>
-                  <th className="text-right py-3 px-4 font-semibold text-coffee-700">Total Comprado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topCustomers.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="text-center py-8 text-coffee-400">
-                      No hay datos para el período seleccionado
-                    </td>
-                  </tr>
-                ) : (
-                  topCustomers.map((c, idx) => (
-                    <tr key={idx} className="border-b border-coffee-50 hover:bg-coffee-50 transition-colors">
-                      <td className="py-3 px-4 text-coffee-500">{idx + 1}</td>
-                      <td className="py-3 px-4 font-medium text-coffee-900">{c.name}</td>
-                      <td className="py-3 px-4 text-right text-coffee-700">{c.count}</td>
-                      <td className="py-3 px-4 text-right font-semibold text-coffee-900">
-                        {formatCurrency(c.total)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </PageSection>
+        {/* Top Productos — pendiente integración */}
+        {/* Top Clientes — pendiente integración */}
       </PageContainer>
     </MainLayout>
   );

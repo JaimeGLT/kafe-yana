@@ -1,24 +1,15 @@
-import React, { useState, useMemo } from 'react';
-import { startOfMonth, endOfDay, format, eachDayOfInterval, isWithinInterval } from 'date-fns';
-import { es } from 'date-fns/locale';
+import React, { useState } from 'react';
+import { startOfMonth, format } from 'date-fns';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import { TrendingUp, TrendingDown, Scale, BookOpen, Calendar, FileText } from 'lucide-react';
+import { TrendingUp, TrendingDown, Scale, BookOpen, Calendar, FileText, ShoppingCart } from 'lucide-react';
 import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
-import { Button, Input, Badge, StatusBadge } from '../../components/ui';
+import { Button, Input, Badge } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
 import { formatCurrency, formatDate } from '../../utils';
-import { MOCK_CASH_MOVEMENTS, MOCK_CASH_REGISTERS } from '../../data/reportsMocks';
-import type { CashMovement, CashRegister } from '../../types';
-
-const CHART_COLORS = {
-  primary: '#8B4513',
-  secondary: '#D4A574',
-  tertiary: '#C4883A',
-  success: '#22c55e',
-  warning: '#eab308',
-};
+import { useCashReportPage } from '../../hooks/useCashReportPage';
+import { generateCashReportPdf } from '../../lib/cashReportPdf';
 
 const tooltipStyle = {
   contentStyle: {
@@ -30,73 +21,44 @@ const tooltipStyle = {
 };
 
 const CashReportPage: React.FC = () => {
-  const [movements] = useState<CashMovement[]>(MOCK_CASH_MOVEMENTS);
-  const [cashRegisters] = useState<CashRegister[]>(MOCK_CASH_REGISTERS);
-
   const today = new Date();
   const [dateFrom, setDateFrom] = useState<string>(format(startOfMonth(today), 'yyyy-MM-dd'));
   const [dateTo, setDateTo] = useState<string>(format(today, 'yyyy-MM-dd'));
 
-  const filteredMovements = useMemo(() => {
-    const from = new Date(dateFrom + 'T00:00:00');
-    const to = endOfDay(new Date(dateTo + 'T00:00:00'));
-    return movements.filter((m: CashMovement) => {
-      const d = new Date(m.date);
-      return isWithinInterval(d, { start: from, end: to });
-    });
-  }, [movements, dateFrom, dateTo]);
+  const { stats, dailyData, categoryData, filteredSessions, isLoading, error } =
+    useCashReportPage(dateFrom, dateTo);
 
-  const filteredRegisters = useMemo(() => {
-    const from = new Date(dateFrom + 'T00:00:00');
-    const to = endOfDay(new Date(dateTo + 'T00:00:00'));
-    return cashRegisters.filter((r: CashRegister) => {
-      const d = new Date(r.openedAt);
-      return isWithinInterval(d, { start: from, end: to });
-    });
-  }, [cashRegisters, dateFrom, dateTo]);
+  const handleExportPdf = () => {
+    generateCashReportPdf({ dateFrom, dateTo, stats, categoryData, filteredSessions });
+  };
 
-  // KPIs
-  const totalIncome = useMemo(
-    () => filteredMovements.filter((m: CashMovement) => m.type === 'income').reduce((sum: number, m: CashMovement) => sum + m.amount, 0),
-    [filteredMovements]
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <PageContainer>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-coffee-500">Cargando reporte de caja...</div>
+          </div>
+        </PageContainer>
+      </MainLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <MainLayout>
+        <PageContainer>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-red-500">Error: {error}</div>
+          </div>
+        </PageContainer>
+      </MainLayout>
+    );
+  }
+
+  const sortedSessions = [...filteredSessions].sort(
+    (a, b) => new Date(b.apertura).getTime() - new Date(a.apertura).getTime(),
   );
-  const totalExpense = useMemo(
-    () => filteredMovements.filter((m: CashMovement) => m.type === 'expense').reduce((sum: number, m: CashMovement) => sum + m.amount, 0),
-    [filteredMovements]
-  );
-  const netBalance = totalIncome - totalExpense;
-  const openRegistersCount = cashRegisters.filter((r: CashRegister) => r.status === 'open').length;
-
-  // Daily income vs expense chart
-  const dailyData = useMemo(() => {
-    const from = new Date(dateFrom + 'T00:00:00');
-    const to = new Date(dateTo + 'T00:00:00');
-    if (from > to) return [];
-    const days = eachDayOfInterval({ start: from, end: to });
-    return days.map(day => {
-      const dayKey = format(day, 'yyyy-MM-dd');
-      const dayMovements = filteredMovements.filter(
-        (m: CashMovement) => format(new Date(m.date), 'yyyy-MM-dd') === dayKey
-      );
-      return {
-        fecha: format(day, 'dd MMM', { locale: es }),
-        ingresos: dayMovements.filter((m: CashMovement) => m.type === 'income').reduce((sum: number, m: CashMovement) => sum + m.amount, 0),
-        egresos: dayMovements.filter((m: CashMovement) => m.type === 'expense').reduce((sum: number, m: CashMovement) => sum + m.amount, 0),
-      };
-    });
-  }, [filteredMovements, dateFrom, dateTo]);
-
-  // Movements by category
-  const movementsByCategory = useMemo(() => {
-    const map: Record<string, { category: string; type: string; total: number; count: number }> = {};
-    filteredMovements.forEach((m: CashMovement) => {
-      const key = m.category;
-      if (!map[key]) map[key] = { category: m.category, type: m.type, total: 0, count: 0 };
-      map[key].total += m.amount;
-      map[key].count += 1;
-    });
-    return Object.values(map).sort((a, b) => b.total - a.total);
-  }, [filteredMovements]);
 
   return (
     <MainLayout>
@@ -126,47 +88,58 @@ const CashReportPage: React.FC = () => {
                   className="w-40"
                 />
               </div>
-              <Button variant="outline" size="sm" leftIcon={<FileText className="h-4 w-4" />}>
-                Exportar
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<FileText className="h-4 w-4" />}
+                onClick={handleExportPdf}
+                disabled={isLoading}
+              >
+                Exportar PDF
               </Button>
             </div>
           }
         />
 
-        {/* KPIs */}
         <KPIGrid columns={4}>
           <KPICard
             title="Total Ingresos"
-            value={formatCurrency(totalIncome)}
+            value={formatCurrency(stats.totalIngresos)}
             subtitle="Entradas de efectivo"
             icon={<TrendingUp className="h-6 w-6" />}
             color="green"
           />
           <KPICard
             title="Total Egresos"
-            value={formatCurrency(totalExpense)}
+            value={formatCurrency(stats.totalEgresos)}
             subtitle="Salidas de efectivo"
             icon={<TrendingDown className="h-6 w-6" />}
             color="red"
           />
           <KPICard
-            title="Balance Neto"
-            value={formatCurrency(netBalance)}
-            subtitle={netBalance >= 0 ? 'Saldo positivo' : 'Saldo negativo'}
-            icon={<Scale className="h-6 w-6" />}
-            color={netBalance >= 0 ? 'green' : 'red'}
+            title="Ventas POS"
+            value={formatCurrency(stats.totalVentas)}
+            subtitle="Cobrado en caja"
+            icon={<ShoppingCart className="h-6 w-6" />}
+            color="coffee"
           />
           <KPICard
-            title="Cajas Abiertas"
-            value={openRegistersCount}
-            subtitle="Registros activos"
+            title="Balance Neto"
+            value={formatCurrency(stats.balanceNeto)}
+            subtitle={stats.balanceNeto >= 0 ? 'Saldo positivo' : 'Saldo negativo'}
+            icon={<Scale className="h-6 w-6" />}
+            color={stats.balanceNeto >= 0 ? 'green' : 'red'}
+          />
+          <KPICard
+            title="Sesiones"
+            value={stats.sesionesCount}
+            subtitle="En el período"
             icon={<BookOpen className="h-6 w-6" />}
-            color="coffee"
+            color="blue"
           />
         </KPIGrid>
 
-        {/* Daily income vs expenses chart */}
-        <PageSection title="Ingresos vs Egresos Diarios" description="Comparativo de entradas y salidas de efectivo por día">
+        <PageSection title="Ingresos vs Egresos por Día" description="Comparativo de entradas y salidas por sesión de apertura">
           {dailyData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={dailyData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
@@ -175,19 +148,19 @@ const CashReportPage: React.FC = () => {
                 <YAxis tick={{ fontSize: 12, fill: '#6B4F3B' }} tickFormatter={v => `S/${v}`} />
                 <Tooltip {...tooltipStyle} formatter={(value) => [formatCurrency(Number(value))]} />
                 <Legend />
-                <Bar dataKey="ingresos" name="Ingresos" fill={CHART_COLORS.success} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="egresos" name="Egresos" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="ingresos" name="Ingresos" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="egresos" name="Egresos" fill="#8B4513" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="ventas" name="Ventas POS" fill="#D4A574" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-48 text-coffee-400">
-              No hay movimientos en el período seleccionado
+              No hay sesiones en el período seleccionado
             </div>
           )}
         </PageSection>
 
-        {/* Movements by category */}
-        <PageSection title="Movimientos por Categoría" description="Totales agrupados por categoría de movimiento">
+        <PageSection title="Movimientos por Categoría" description="Totales agrupados por categoría">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -199,46 +172,34 @@ const CashReportPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {movementsByCategory.length === 0 ? (
+                {categoryData.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="text-center py-8 text-coffee-400">
                       No hay movimientos en el período seleccionado
                     </td>
                   </tr>
                 ) : (
-                  movementsByCategory.map((m, idx) => (
+                  categoryData.map((c, idx) => (
                     <tr key={idx} className="border-b border-coffee-50 hover:bg-coffee-50 transition-colors">
-                      <td className="py-3 px-4 font-medium text-coffee-900">{m.category}</td>
+                      <td className="py-3 px-4 font-medium text-coffee-900">{c.category}</td>
                       <td className="py-3 px-4 text-center">
-                        <Badge variant={m.type === 'income' ? 'success' : 'danger'}>
-                          {m.type === 'income' ? 'Ingreso' : 'Egreso'}
+                        <Badge variant={c.tipo === 'Ingreso' ? 'success' : 'danger'}>
+                          {c.tipo}
                         </Badge>
                       </td>
-                      <td className="py-3 px-4 text-right text-coffee-700">{m.count}</td>
+                      <td className="py-3 px-4 text-right text-coffee-700">{c.count}</td>
                       <td className="py-3 px-4 text-right font-semibold text-coffee-900">
-                        {formatCurrency(m.total)}
+                        {formatCurrency(c.total)}
                       </td>
                     </tr>
                   ))
-                )}
-                {movementsByCategory.length > 0 && (
-                  <tr className="bg-coffee-50 border-t-2 border-coffee-200">
-                    <td colSpan={2} className="py-3 px-4 font-bold text-coffee-900">TOTAL</td>
-                    <td className="py-3 px-4 text-right font-bold text-coffee-900">
-                      {filteredMovements.length}
-                    </td>
-                    <td className="py-3 px-4 text-right font-bold text-coffee-900">
-                      {formatCurrency(totalIncome - totalExpense)}
-                    </td>
-                  </tr>
                 )}
               </tbody>
             </table>
           </div>
         </PageSection>
 
-        {/* Cash Register Sessions */}
-        <PageSection title="Sesiones de Caja" description="Historial de aperturas y cierres de caja en el período">
+        <PageSection title="Sesiones de Caja" description="Historial de aperturas y cierres en el período">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -246,50 +207,47 @@ const CashReportPage: React.FC = () => {
                   <th className="text-left py-3 px-4 font-semibold text-coffee-700">Código</th>
                   <th className="text-left py-3 px-4 font-semibold text-coffee-700">Apertura</th>
                   <th className="text-left py-3 px-4 font-semibold text-coffee-700">Cierre</th>
-                  <th className="text-right py-3 px-4 font-semibold text-coffee-700">Saldo Inicial</th>
+                  <th className="text-right py-3 px-4 font-semibold text-coffee-700">S. Inicial</th>
                   <th className="text-right py-3 px-4 font-semibold text-coffee-700">Ingresos</th>
                   <th className="text-right py-3 px-4 font-semibold text-coffee-700">Egresos</th>
-                  <th className="text-right py-3 px-4 font-semibold text-coffee-700">Diferencia</th>
+                  <th className="text-right py-3 px-4 font-semibold text-coffee-700">Ventas</th>
                   <th className="text-center py-3 px-4 font-semibold text-coffee-700">Estado</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredRegisters.length === 0 ? (
+                {sortedSessions.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="text-center py-8 text-coffee-400">
-                      No hay sesiones de caja en el período seleccionado
+                      No hay sesiones en el período seleccionado
                     </td>
                   </tr>
                 ) : (
-                  filteredRegisters
-                    .sort((a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime())
-                    .map(r => {
-                      const diff = r.difference ?? 0;
-                      return (
-                        <tr key={r.id} className="border-b border-coffee-50 hover:bg-coffee-50 transition-colors">
-                          <td className="py-3 px-4 font-mono text-xs text-coffee-600">{r.code}</td>
-                          <td className="py-3 px-4 text-coffee-700">{formatDate(r.openedAt)}</td>
-                          <td className="py-3 px-4 text-coffee-700">
-                            {r.closedAt ? formatDate(r.closedAt) : '—'}
-                          </td>
-                          <td className="py-3 px-4 text-right text-coffee-700">
-                            {formatCurrency(r.openingBalance)}
-                          </td>
-                          <td className="py-3 px-4 text-right text-green-700">
-                            {formatCurrency(r.totalIncome)}
-                          </td>
-                          <td className="py-3 px-4 text-right text-red-700">
-                            {formatCurrency(r.totalExpense)}
-                          </td>
-                          <td className={`py-3 px-4 text-right font-semibold ${diff >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                            {r.closedAt ? formatCurrency(diff) : '—'}
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            <StatusBadge status={r.status as 'open' | 'closed'} />
-                          </td>
-                        </tr>
-                      );
-                    })
+                  sortedSessions.map(s => (
+                    <tr key={s.id} className="border-b border-coffee-50 hover:bg-coffee-50 transition-colors">
+                      <td className="py-3 px-4 font-mono text-xs text-coffee-600">{s.codigo}</td>
+                      <td className="py-3 px-4 text-coffee-700">{formatDate(s.apertura)}</td>
+                      <td className="py-3 px-4 text-coffee-700">
+                        {s.cierre ? formatDate(s.cierre) : '—'}
+                      </td>
+                      <td className="py-3 px-4 text-right text-coffee-700">
+                        {formatCurrency(s.saldoInicial)}
+                      </td>
+                      <td className="py-3 px-4 text-right text-green-700">
+                        {formatCurrency(s.totalIngresos)}
+                      </td>
+                      <td className="py-3 px-4 text-right text-red-700">
+                        {formatCurrency(Math.abs(s.totalEgresos))}
+                      </td>
+                      <td className="py-3 px-4 text-right text-coffee-900 font-semibold">
+                        {formatCurrency(s.totalVentas)}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <Badge variant={s.cierre ? 'default' : 'success'}>
+                          {s.cierre ? s.estado : 'Abierta'}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
