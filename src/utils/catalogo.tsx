@@ -1,6 +1,5 @@
 // utils/catalogo.ts — cambia la URL
-const API_URL = process.env.NEXT_PUBLIC_PRINTER_URL || "http://localhost:5001";
-
+const API_URL = import.meta.env.VITE_PRINTER_URL || "http://localhost:5001";
 export async function enviarCatalogo(comprados: any, elaborados: any, combos: any) {
   const productos = [
     ...comprados.map((i: any) => ({
