@@ -5,11 +5,11 @@ export interface VentaNode {
   cliente: string;
   cajero: string;
   productos: number;
-  pago: number;
+  pago: string;
   estado: string;
-  subtotal: string;
-  total: string;
-  detalles: DetalleVentaNode[];
+  subtotal: string | number;
+  total: string | number;
+  detalles?: DetalleVentaNode[];
 }
 
 export interface DetalleVentaNode {
@@ -65,18 +65,23 @@ export interface UseSalesReportPageReturn {
   stats: VentaReportStats;
   dailySalesData: VentaDailyData[];
   paymentMethodData: VentaPaymentData[];
-  topProducts: VentaTopProduct[];
-  topCustomers: VentaTopCustomer[];
+  // topProducts: VentaTopProduct[];     // pendiente
+  // topCustomers: VentaTopCustomer[];   // pendiente
   isLoading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
 }
 
-export function getPaymentMethodLabel(pago: number): string {
-  switch (pago) {
-    case 1: return 'Efectivo';
-    case 2: return 'Tarjeta';
-    case 3: return 'QR';
-    default: return `Método ${pago}`;
-  }
+const PAYMENT_TEXT: Record<string, string> = {
+  '0': 'Efectivo',
+  '1': 'Tarjeta',
+  '2': 'QR',
+  efectivo: 'Efectivo',
+  tarjeta: 'Tarjeta',
+  qr: 'QR',
+};
+
+export function normalizePaymentLabel(pago: string | number): string {
+  const key = String(pago).toLowerCase().trim();
+  return PAYMENT_TEXT[key] ?? String(pago);
 }

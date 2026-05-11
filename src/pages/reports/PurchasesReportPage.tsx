@@ -1,24 +1,16 @@
-import React, { useState, useMemo } from 'react';
-import { startOfMonth, endOfDay, format, isWithinInterval } from 'date-fns';
-import { es } from 'date-fns/locale';
+import React, { useState } from 'react';
+import { startOfMonth, format } from 'date-fns';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import { ShoppingBag, Clock, Users, Calendar, FileText } from 'lucide-react';
+import { ShoppingBag, Clock, Users, Calendar, FileText, DollarSign } from 'lucide-react';
 import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Button, Input, Badge } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
 import { formatCurrency, formatDate } from '../../utils';
-import { MOCK_PURCHASE_ORDERS, MOCK_SUPPLIERS } from '../../data/reportsMocks';
-import type { PurchaseOrder, Supplier } from '../../types';
-
-const CHART_COLORS = {
-  primary: '#8B4513',
-  secondary: '#D4A574',
-  tertiary: '#C4883A',
-  success: '#22c55e',
-  warning: '#eab308',
-};
+import { usePurchasesReportPage } from '../../hooks/usePurchasesReportPage';
+import { generatePurchasesReportPdf } from '../../lib/purchasesReportPdf';
+import { ESTADO_VARIANTS } from '../../types/ordenesCompra';
 
 const tooltipStyle = {
   contentStyle: {
@@ -29,78 +21,45 @@ const tooltipStyle = {
   },
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  draft: 'Borrador',
-  pending: 'Pendiente',
-  approved: 'Aprobado',
-  received: 'Recibido',
-  partial: 'Parcial',
-  cancelled: 'Cancelado',
-};
-
-const STATUS_VARIANTS: Record<string, 'default' | 'warning' | 'success' | 'danger' | 'info'> = {
-  draft: 'default',
-  pending: 'warning',
-  approved: 'info',
-  received: 'success',
-  partial: 'warning',
-  cancelled: 'danger',
-};
-
 const PurchasesReportPage: React.FC = () => {
-  const [purchaseOrders] = useState<PurchaseOrder[]>(MOCK_PURCHASE_ORDERS);
-  const [suppliers] = useState<Supplier[]>(MOCK_SUPPLIERS);
-
   const today = new Date();
   const [dateFrom, setDateFrom] = useState<string>(format(startOfMonth(today), 'yyyy-MM-dd'));
   const [dateTo, setDateTo] = useState<string>(format(today, 'yyyy-MM-dd'));
 
-  const filteredOrders = useMemo(() => {
-    const from = new Date(dateFrom + 'T00:00:00');
-    const to = endOfDay(new Date(dateTo + 'T00:00:00'));
-    return purchaseOrders.filter((o: PurchaseOrder) => {
-      const d = new Date(o.date);
-      return isWithinInterval(d, { start: from, end: to });
-    });
-  }, [purchaseOrders, dateFrom, dateTo]);
+  const { stats, monthlyData, topSuppliers, filteredOrders, isLoading, error } =
+    usePurchasesReportPage(dateFrom, dateTo);
 
-  // KPIs
-  const totalPurchasesValue = useMemo(
-    () => filteredOrders
-      .filter((o: PurchaseOrder) => o.status !== 'cancelled' && o.status !== 'draft')
-      .reduce((sum: number, o: PurchaseOrder) => sum + o.total, 0),
-    [filteredOrders]
+  const handleExportPdf = () => {
+    generatePurchasesReportPdf({ dateFrom, dateTo, stats, monthlyData, topSuppliers, filteredOrders });
+  };
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <PageContainer>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-coffee-500">Cargando reporte de compras...</div>
+          </div>
+        </PageContainer>
+      </MainLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <MainLayout>
+        <PageContainer>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-red-500">Error: {error}</div>
+          </div>
+        </PageContainer>
+      </MainLayout>
+    );
+  }
+
+  const sortedOrders = [...filteredOrders].sort(
+    (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime(),
   );
-  const pendingOrdersCount = useMemo(
-    () => filteredOrders.filter((o: PurchaseOrder) => o.status === 'pending' || o.status === 'approved' || o.status === 'partial').length,
-    [filteredOrders]
-  );
-  const activeSuppliers = useMemo(() => suppliers.filter((s: Supplier) => s.isActive).length, [suppliers]);
-
-  // Monthly breakdown chart
-  const monthlyData = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredOrders.forEach((o: PurchaseOrder) => {
-      if (o.status === 'cancelled' || o.status === 'draft') return;
-      const key = format(new Date(o.date), 'MMM yyyy', { locale: es });
-      map[key] = (map[key] || 0) + o.total;
-    });
-    return Object.entries(map).map(([mes, total]) => ({ mes, total }));
-  }, [filteredOrders]);
-
-  // Top suppliers by purchase value
-  const topSuppliers = useMemo(() => {
-    const map: Record<string, { name: string; total: number; count: number }> = {};
-    filteredOrders.forEach((o: PurchaseOrder) => {
-      if (o.status === 'cancelled') return;
-      const key = o.supplierId;
-      const name = o.supplierName || 'Proveedor desconocido';
-      if (!map[key]) map[key] = { name, total: 0, count: 0 };
-      map[key].total += o.total;
-      map[key].count += 1;
-    });
-    return Object.values(map).sort((a, b) => b.total - a.total).slice(0, 10);
-  }, [filteredOrders]);
 
   return (
     <MainLayout>
@@ -130,40 +89,51 @@ const PurchasesReportPage: React.FC = () => {
                   className="w-40"
                 />
               </div>
-              <Button variant="outline" size="sm" leftIcon={<FileText className="h-4 w-4" />}>
-                Exportar
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<FileText className="h-4 w-4" />}
+                onClick={handleExportPdf}
+                disabled={isLoading}
+              >
+                Exportar PDF
               </Button>
             </div>
           }
         />
 
-        {/* KPIs */}
         <KPIGrid columns={4}>
           <KPICard
             title="Total Compras"
-            value={formatCurrency(totalPurchasesValue)}
+            value={formatCurrency(stats.totalValue)}
             subtitle="En el período seleccionado"
-            icon={<ShoppingBag className="h-6 w-6" />}
+            icon={<DollarSign className="h-6 w-6" />}
             color="coffee"
           />
           <KPICard
+            title="Órdenes Totales"
+            value={stats.totalOrders}
+            subtitle="En el período"
+            icon={<ShoppingBag className="h-6 w-6" />}
+            color="blue"
+          />
+          <KPICard
             title="Órdenes Pendientes"
-            value={pendingOrdersCount}
-            subtitle="Por recibir o aprobar"
+            value={stats.pendingCount}
+            subtitle="Por recibir"
             icon={<Clock className="h-6 w-6" />}
             color="yellow"
           />
           <KPICard
-            title="Proveedores Activos"
-            value={activeSuppliers}
-            subtitle="Proveedores habilitados"
+            title="Proveedores"
+            value={stats.uniqueSuppliers}
+            subtitle="Con órdenes en el período"
             icon={<Users className="h-6 w-6" />}
             color="green"
           />
         </KPIGrid>
 
-        {/* Monthly Bar Chart */}
-        <PageSection title="Compras por Mes" description="Monto total de compras agrupado por mes">
+        <PageSection title="Compras por Mes" description="Monto total agrupado por mes">
           {monthlyData.length > 0 ? (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={monthlyData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
@@ -172,7 +142,7 @@ const PurchasesReportPage: React.FC = () => {
                 <YAxis tick={{ fontSize: 12, fill: '#6B4F3B' }} tickFormatter={v => `S/${v}`} />
                 <Tooltip {...tooltipStyle} formatter={(value) => [formatCurrency(value as number), 'Total']} />
                 <Legend />
-                <Bar dataKey="total" name="Total Compras (S/)" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="total" name="Total Compras (S/)" fill="#8B4513" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -182,8 +152,7 @@ const PurchasesReportPage: React.FC = () => {
           )}
         </PageSection>
 
-        {/* Top Suppliers */}
-        <PageSection title="Top Proveedores por Monto de Compra" description="Proveedores con mayor volumen de compras en el período">
+        <PageSection title="Top Proveedores" description="Proveedores con mayor volumen de compras">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -218,8 +187,7 @@ const PurchasesReportPage: React.FC = () => {
           </div>
         </PageSection>
 
-        {/* Recent Purchase Orders */}
-        <PageSection title="Órdenes de Compra en el Período" description="Historial de órdenes en el rango de fechas seleccionado">
+        <PageSection title="Órdenes de Compra" description="Historial de órdenes en el período seleccionado">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -232,30 +200,30 @@ const PurchasesReportPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredOrders.length === 0 ? (
+                {sortedOrders.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="text-center py-8 text-coffee-400">
                       No hay órdenes en el período seleccionado
                     </td>
                   </tr>
                 ) : (
-                  [...filteredOrders]
-                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                    .map(o => (
+                  sortedOrders.map(o => {
+                    const estadoLabel = o.estado ?? (o.recibido ? 'Recibido' : 'Pendiente');
+                    const variant = ESTADO_VARIANTS[estadoLabel] ?? 'default';
+                    return (
                       <tr key={o.id} className="border-b border-coffee-50 hover:bg-coffee-50 transition-colors">
-                        <td className="py-3 px-4 font-mono text-xs text-coffee-600">{o.code}</td>
-                        <td className="py-3 px-4 font-medium text-coffee-900">{o.supplierName || '—'}</td>
-                        <td className="py-3 px-4 text-coffee-600">{formatDate(o.date)}</td>
+                        <td className="py-3 px-4 font-mono text-xs text-coffee-600">{o.codigo}</td>
+                        <td className="py-3 px-4 font-medium text-coffee-900">{o.nombre_Proveedor}</td>
+                        <td className="py-3 px-4 text-coffee-600">{formatDate(o.fecha)}</td>
                         <td className="py-3 px-4 text-center">
-                          <Badge variant={STATUS_VARIANTS[o.status] || 'default'}>
-                            {STATUS_LABELS[o.status] || o.status}
-                          </Badge>
+                          <Badge variant={variant}>{estadoLabel}</Badge>
                         </td>
                         <td className="py-3 px-4 text-right font-semibold text-coffee-900">
                           {formatCurrency(o.total)}
                         </td>
                       </tr>
-                    ))
+                    );
+                  })
                 )}
               </tbody>
             </table>

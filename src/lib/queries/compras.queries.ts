@@ -9,6 +9,7 @@ export const GET_ORDENES_COMPRA = `
         nombre_Proveedor
         nota
         recibido
+        estado
         total
         proveedor {
           id

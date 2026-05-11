@@ -149,7 +149,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
   ];
 
   return (
-    <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-x-auto">
       <table className="min-w-full divide-y divide-coffee-200">
         <thead className="bg-coffee-50">
           <tr>

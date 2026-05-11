@@ -40,6 +40,30 @@ export const GET_PARA_LLEVAR = `
   }
 `;
 
+export const GET_VENTAS_REPORT = `
+  query GetVentasReport($after: String, $where: VentaFilterInput) {
+    ventas(first: 50, after: $after, order: [{ fecha: DESC }], where: $where) {
+      nodes {
+        id
+        codigo
+        fecha
+        cliente
+        cajero
+        productos
+        pago
+        estado
+        subtotal
+        total
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      totalCount
+    }
+  }
+`;
+
 export const GET_VENTAS = `
   query GetVentas($after: String, $where: VentaFilterInput) {
     ventas(first: 50, after: $after, order: [{ fecha: DESC }], where: $where) {

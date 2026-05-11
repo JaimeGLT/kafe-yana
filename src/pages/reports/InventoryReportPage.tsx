@@ -8,6 +8,7 @@ import { Button, Badge } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
 import { formatCurrency } from '../../utils';
 import { useInventoryReportPage } from '../../hooks/useInventoryReportPage';
+import { generateInventoryReportPdf } from '../../lib/inventoryReportPdf';
 
 const PIE_PALETTE = [
   '#8B4513', '#D4A574', '#C4883A', '#22c55e', '#eab308',
@@ -25,6 +26,10 @@ const tooltipStyle = {
 
 const InventoryReportPage: React.FC = () => {
   const { stats, categoryData, criticalItems, expiringItems, isLoading, error } = useInventoryReportPage();
+
+  const handleExportPdf = () => {
+    generateInventoryReportPdf({ stats, categoryData, criticalItems, expiringItems });
+  };
 
   const getRatioColor = (ratio: number) => {
     const pct = ratio * 100;
@@ -83,8 +88,14 @@ const InventoryReportPage: React.FC = () => {
             { label: 'Inventario' },
           ]}
           actions={
-            <Button variant="outline" size="sm" leftIcon={<FileText className="h-4 w-4" />}>
-              Exportar
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<FileText className="h-4 w-4" />}
+              onClick={handleExportPdf}
+              disabled={isLoading}
+            >
+              Exportar PDF
             </Button>
           }
         />

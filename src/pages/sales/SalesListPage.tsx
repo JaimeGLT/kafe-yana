@@ -5,13 +5,11 @@ import { PageHeader, PageContainer, PageSection } from '../../components/layout'
 import { Input, Select, SkeletonSalesTable } from '../../components/ui';
 import { SalesTable } from '../../components/tables/SalesTable';
 import { SaleDetailModal } from '../../components/modals/SaleDetailModal';
-import type { RefundBlockedInfo } from '../../components/modals/SaleDetailModal';
 import { RefundModal } from '../../components/modals/RefundModal';
 import { api } from '../../lib/api';
 import { toast } from '../../components/ui/Toast';
 import { formatCurrency } from '../../utils';
-import type { Sale, RefundInput, Refund, RefundItem } from '../../types';
-import { useAuth } from '../../contexts/AuthContext';
+import type { Sale } from '../../types';
 import { gql } from '../../lib/graphql';
 import { GET_VENTAS } from '../../lib/queries/ventas.queries';
 
@@ -35,12 +33,11 @@ const mapPagoToPaymentMethod = (pago: PagoType): { type: import('../../types').P
 };
 
 const mapEstadoToStatus = (estado: string): Sale['status'] => {
-  switch (estado) {
-    case 'Finalizada': return 'completed';
-    case 'Reembolsada': return 'refunded';
-    case 'Parcialmente reembolsada': return 'partially_refunded';
-    default: return 'completed';
-  }
+  const e = estado.toLowerCase();
+  if (e === 'finalizada' || e === 'finalizado') return 'completed';
+  if (e === 'reembolsada' || e === 'reembolsado') return 'refunded';
+  if (e.startsWith('parcialmente')) return 'partially_refunded';
+  return 'completed';
 };
 
 interface BackendVentaDetalle {
@@ -116,7 +113,6 @@ const mapBackendVentaToSale = (v: BackendVenta): Sale => {
 };
 
 export const SalesListPage: React.FC = () => {
-  const { user } = useAuth();
   const [sales, setSales] = useState<Sale[]>([]);
   const [stats, setStats] = useState<SaleStats>({ totalSalesToday: 0, totalSalesMonth: 0, averageTicket: 0 });
   const [_isLoading, setIsLoading] = useState(true);
@@ -194,91 +190,16 @@ export const SalesListPage: React.FC = () => {
     setStats({ totalSalesToday, totalSalesMonth, averageTicket });
   }, [sales]);
 
-  // ── Reembolso ─────────────────────────────────────────────────────────────
-  const handleRefund = useCallback(async (
-    saleId: string,
-    input: RefundInput,
-    force = false,
-  ): Promise<{ blocked?: RefundBlockedInfo } | void> => {
-    await new Promise(r => setTimeout(r, 350));
-
-    const sale = sales.find(s => s.id === saleId);
-    if (!sale) return;
-
-    // Simula bloqueo por puntos igual que antes (solo reembolso total)
-    if (input.type === 'total' && !force) {
-      const pointsNeeded = sale.pointsEarned ?? 0;
-      const customerPoints = Math.floor(pointsNeeded * 0.3);
-      if (pointsNeeded > 0 && customerPoints < pointsNeeded) {
-        return { blocked: { customerPoints, pointsNeeded } };
-      }
-    }
-
-    const refundedBy = user?.nombre ?? 'Sistema';
-    const now = new Date();
-
-    // Construir el objeto Refund
-    let refundItems: RefundItem[];
-    let refundAmount: number;
-
-    if (input.type === 'total') {
-      refundItems = sale.items
-        .filter(i => !i.isRedeemed)
-        .map(i => ({ saleItemId: i.id, productName: i.productName, quantity: i.quantity, unitPrice: i.unitPrice, amount: i.total }));
-      refundAmount = sale.total;
-    } else {
-      refundItems = (input.items ?? []).map(ri => {
-        const item = sale.items.find(i => i.id === ri.saleItemId)!;
-        return { saleItemId: ri.saleItemId, productName: item.productName, quantity: ri.quantity, unitPrice: item.unitPrice, amount: item.unitPrice * ri.quantity };
-      });
-      refundAmount = refundItems.reduce((s, i) => s + i.amount, 0);
-    }
-
-    const newRefund: Refund = {
-      id: `ref_${Date.now()}`,
-      type: input.type,
-      items: refundItems,
-      amount: refundAmount,
-      reason: input.reason,
-      refundedBy,
-      refundedAt: now,
-    };
-
-    // Determinar nuevo status
-    const allRefundedQty = (itemId: string) => {
-      const prev = (sale.refunds ?? []).reduce((s, r) => {
-        return s + (r.items.find(ri => ri.saleItemId === itemId)?.quantity ?? 0);
-      }, 0);
-      return prev + (refundItems.find(ri => ri.saleItemId === itemId)?.quantity ?? 0);
-    };
-    const allItemsFullyRefunded = sale.items
-      .filter(i => !i.isRedeemed)
-      .every(i => allRefundedQty(i.id) >= i.quantity);
-
-    const newStatus: Sale['status'] = (input.type === 'total' || allItemsFullyRefunded) ? 'refunded' : 'partially_refunded';
-
-    setSales(prev => prev.map(s => s.id === saleId ? {
-      ...s,
-      status: newStatus,
-      refunds: [...(s.refunds ?? []), newRefund],
-    } : s));
-
-    toast.success('Reembolso registrado', `${input.type === 'total' ? 'Total' : 'Parcial'} — ${new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' }).format(refundAmount)}`);
-  }, [sales, user]);
-
   const handleSimpleRefund = async (amount: number, reason: string) => {
     if (!refundingSale) return;
-    await api.post('/Caja/movimiento?entrada=false', {
-      cantidad: amount,
-      categoria: 'Reembolso',
-      concepto: `Reembolso venta ${refundingSale.code}`,
-      referencia: refundingSale.code,
-      nota: reason || '',
+    await api.post(`/Venta/reembolso/${refundingSale.id}`, {
+      monto: amount,
+      nota: reason,
     });
     setSales(prev => prev.map(s =>
       s.id === refundingSale.id ? { ...s, status: 'refunded' as const } : s
     ));
-    toast.success('Reembolso registrado', `${formatCurrency(amount)} registrados como egreso.`);
+    toast.success('Reembolso registrado', `${formatCurrency(amount)} reembolsados.`);
     setRefundingSale(null);
   };
 
@@ -432,7 +353,6 @@ export const SalesListPage: React.FC = () => {
         <SaleDetailModal
           sale={selectedSale}
           onClose={() => setSelectedSale(null)}
-          onRefund={handleRefund}
         />
 
         <RefundModal
