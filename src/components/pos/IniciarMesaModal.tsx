@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { X, UtensilsCrossed } from 'lucide-react';
+import { X, UtensilsCrossed, ShoppingBag } from 'lucide-react';
 
 interface IniciarMesaModalProps {
   mesa: { id: string; name: string };
+  tipo?: 'mesa' | 'para_llevar';
   iniciarClienteId: string;
   showNewCustomerForm: boolean;
   isStartingMesa: boolean;
@@ -10,7 +11,7 @@ interface IniciarMesaModalProps {
   getOrCreateProfile: (customerId: string) => { points: number } | null;
   onClienteChange: (id: string) => void;
   onToggleNewCustomerForm: () => void;
-  onIniciar: () => void;
+  onIniciar: (clienteIdOverride?: string) => void;
   onClose: () => void;
   newCustomerName: string;
   newCustomerPhone: string;
@@ -22,6 +23,7 @@ interface IniciarMesaModalProps {
 
 export const IniciarMesaModal: React.FC<IniciarMesaModalProps> = ({
   mesa,
+  tipo = 'mesa',
   iniciarClienteId,
   showNewCustomerForm,
   isStartingMesa,
@@ -42,7 +44,7 @@ export const IniciarMesaModal: React.FC<IniciarMesaModalProps> = ({
   const [localPhone, setLocalPhone] = useState(newCustomerPhone);
 
   const handleCreateAndStart = () => {
-    onCreateCustomer(id => { onClienteChange(id); onIniciar(); });
+    onCreateCustomer(id => { onIniciar(id); });
   };
 
   return (
@@ -54,7 +56,10 @@ export const IniciarMesaModal: React.FC<IniciarMesaModalProps> = ({
         <div className="bg-coffee-800 px-6 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center">
-              <UtensilsCrossed className="h-5 w-5 text-cream" />
+              {tipo === 'para_llevar'
+                ? <ShoppingBag className="h-5 w-5 text-cream" />
+                : <UtensilsCrossed className="h-5 w-5 text-cream" />
+              }
             </div>
             <div>
               <p className="text-[10px] text-coffee-400 uppercase tracking-widest">Iniciar</p>
@@ -131,7 +136,7 @@ export const IniciarMesaModal: React.FC<IniciarMesaModalProps> = ({
             )}
           </div>
           <button
-            onClick={onIniciar}
+            onClick={() => onIniciar()}
             disabled={isStartingMesa}
             className="w-full py-4 rounded-2xl bg-coffee-800 text-cream font-bold text-base hover:bg-coffee-700 active:scale-95 transition-all shadow-lg disabled:opacity-60 flex items-center justify-center gap-2"
           >
@@ -140,7 +145,7 @@ export const IniciarMesaModal: React.FC<IniciarMesaModalProps> = ({
                 <div className="w-4 h-4 border-2 border-cream/40 border-t-cream rounded-full animate-spin" />
                 Iniciando...
               </>
-            ) : `Iniciar ${mesa.name}`}
+            ) : tipo === 'para_llevar' ? 'Iniciar pedido para llevar' : `Iniciar ${mesa.name}`}
           </button>
         </div>
       </div>

@@ -35,7 +35,7 @@ const ReviewPanel = lazy(() => import('../../components/pos/ReviewPanel').then(m
 const PagoPanel = lazy(() => import('../../components/pos/PagoPanel').then(m => ({ default: m.PagoPanel })));
 const SuccessPanel = lazy(() => import('../../components/pos/SuccessPanel').then(m => ({ default: m.SuccessPanel })));
 
-type ModalView = 'none' | 'nueva_mesa' | 'iniciar' | 'detalle' | 'review' | 'pago' | 'success';
+type ModalView = 'none' | 'nueva_mesa' | 'iniciar' | 'iniciar_para_llevar' | 'detalle' | 'review' | 'pago' | 'success';
 type DetalleView = 'none' | 'pedido' | 'historial';
 
 const TIPO_PAGO_MAP: Record<string, number> = {
@@ -388,6 +388,7 @@ export const POSPage: React.FC = () => {
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('cash');
   const [cashReceived, setCashReceived] = useState('');
+  const [isOpeningParaLlevar, setIsOpeningParaLlevar] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastSaleResult, setLastSaleResult] = useState<{ code: string; points: PointsCalculation | null; newBalance: number } | null>(null);
 
@@ -442,6 +443,31 @@ export const POSPage: React.FC = () => {
   const pointsPreview = activeMesa?.customerId
     ? calculatePointsForAmount(activeMesa.customerId, mesaTotal, hasCombo)
     : null;
+
+  const handleIniciarParaLlevar = async (clienteIdOverride?: string) => {
+    const id = clienteIdOverride ?? iniciarClienteId;
+    const clienteId = id ? parseInt(id, 10) : null;
+    setIsOpeningParaLlevar(true);
+    const mesaId = await openParaLlevar(clienteId);
+    setIsOpeningParaLlevar(false);
+    if (!mesaId) {
+      toast.error('Error', 'No se pudo iniciar el pedido para llevar.');
+      return;
+    }
+    if (id) {
+      const cliente = customers.find(c => c.id === id);
+      if (cliente) {
+        updateMesa(mesaId, {
+          customerId: id,
+          cliente: { id: parseInt(id, 10), nombre: cliente.nombre, puntos: cliente.puntos ?? 0, celular: cliente.celular ?? '', estado: true },
+        });
+      }
+    }
+    setIniciarClienteId('');
+    setShowNewCustomerForm(false);
+    setModalView('detalle');
+    if (!productsLoaded) loadProducts();
+  };
 
   const openModal = (mesaId: string, view: ModalView) => {
     setActiveMesaId(mesaId);
@@ -622,10 +648,6 @@ export const POSPage: React.FC = () => {
       toast.warning('Pedido pendiente', 'Envía los productos a cocina/barra antes de cobrar.');
       return;
     }
-    if (activeMesa.tipo === 'para_llevar' && !activeMesa.customerId) {
-      toast.warning('Cliente requerido', 'Selecciona un cliente antes de cobrar.');
-      return;
-    }
     updateMesa(activeMesa.id, { status: 'esperando_pago' });
     setReviewClienteId(activeMesa.customerId ?? null);
     setModalView('review');
@@ -750,29 +772,42 @@ export const POSPage: React.FC = () => {
                 </span>
               ))}
             </div>
-            <button
-              onClick={async () => {
-                const mesaId = await openParaLlevar();
-                if (mesaId) {
-                  setModalView('detalle');
-                  if (!productsLoaded) {
-                    loadProducts();
+            {(() => {
+              const activeParaLlevar = mesas.find(m => m.tipo === 'para_llevar' && m.status !== 'libre');
+              return (
+                <button
+                  disabled={isOpeningParaLlevar}
+                  onClick={() => {
+                    if (activeParaLlevar) {
+                      setActiveMesaId(activeParaLlevar.id);
+                      setModalView('detalle');
+                      if (!productsLoaded) loadProducts();
+                    } else {
+                      setIniciarClienteId('');
+                      setShowNewCustomerForm(false);
+                      setNewCustomerName('');
+                      setNewCustomerPhone('');
+                      setModalView('iniciar_para_llevar');
+                    }
+                  }}
+                  className={clsx(
+                    'flex items-center gap-2 text-white font-semibold text-sm px-3 sm:px-4 py-2.5 rounded-xl transition-colors shadow-sm disabled:opacity-60',
+                    activeParaLlevar
+                      ? 'bg-amber-600 hover:bg-amber-500 ring-2 ring-amber-400/50'
+                      : 'bg-coffee-600 hover:bg-coffee-500',
+                  )}
+                >
+                  {isOpeningParaLlevar
+                    ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin flex-shrink-0" />
+                    : <ShoppingBag className="h-4 w-4 flex-shrink-0" />
                   }
-                }
-              }}
-              className={clsx(
-                'flex items-center gap-2 text-white font-semibold text-sm px-3 sm:px-4 py-2.5 rounded-xl transition-colors shadow-sm',
-                mesas.find(m => m.tipo === 'para_llevar' && m.status !== 'libre')?.status !== 'libre'
-                  ? 'bg-amber-600 hover:bg-amber-500 ring-2 ring-amber-400/50'
-                  : 'bg-coffee-600 hover:bg-coffee-500',
-              )}
-            >
-              <ShoppingBag className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Para llevar</span>
-              {mesas.find(m => m.tipo === 'para_llevar' && m.status !== 'libre')?.status !== 'libre' && (
-                <span className="h-2 w-2 rounded-full bg-amber-300 animate-pulse flex-shrink-0" />
-              )}
-            </button>
+                  <span className="hidden sm:inline">Para llevar</span>
+                  {activeParaLlevar && !isOpeningParaLlevar && (
+                    <span className="h-2 w-2 rounded-full bg-amber-300 animate-pulse flex-shrink-0" />
+                  )}
+                </button>
+              );
+            })()}
             <button
               onClick={() => { openNuevaMesa(); setModalView('nueva_mesa'); }}
               className="flex items-center gap-2 bg-coffee-600 hover:bg-coffee-500 text-white font-semibold text-sm px-3 sm:px-4 py-2.5 rounded-xl transition-colors shadow-sm"
@@ -820,6 +855,28 @@ export const POSPage: React.FC = () => {
           </div>
         )}
 
+        {modalView === 'iniciar_para_llevar' && (
+          <IniciarMesaModal
+            tipo="para_llevar"
+            mesa={{ id: 'para_llevar', name: 'Para llevar' }}
+            iniciarClienteId={iniciarClienteId}
+            showNewCustomerForm={showNewCustomerForm}
+            isStartingMesa={isOpeningParaLlevar}
+            customers={customers}
+            getOrCreateProfile={getOrCreateProfile as any}
+            onClienteChange={setIniciarClienteId}
+            onToggleNewCustomerForm={() => { setShowNewCustomerForm(v => !v); setNewCustomerName(''); setNewCustomerPhone(''); }}
+            onIniciar={handleIniciarParaLlevar}
+            onClose={() => setModalView('none')}
+            newCustomerName={newCustomerName}
+            newCustomerPhone={newCustomerPhone}
+            isCreatingCustomer={isCreatingCustomer}
+            onNewCustomerNameChange={setNewCustomerName}
+            onNewCustomerPhoneChange={setNewCustomerPhone}
+            onCreateCustomer={handleCreateCustomer}
+          />
+        )}
+
         {modalView === 'nueva_mesa' && (
           <NuevaMesaModal
             editMesaId={editMesaId}
@@ -841,7 +898,7 @@ export const POSPage: React.FC = () => {
             getOrCreateProfile={getOrCreateProfile as any}
             onClienteChange={setIniciarClienteId}
             onToggleNewCustomerForm={() => { setShowNewCustomerForm(v => !v); setNewCustomerName(''); setNewCustomerPhone(''); }}
-            onIniciar={() => { setModalView('none'); handleIniciarMesa(activeMesa, iniciarClienteId || undefined); setIniciarClienteId(''); }}
+            onIniciar={(overrideId) => { setModalView('none'); handleIniciarMesa(activeMesa, (overrideId ?? iniciarClienteId) || undefined); setIniciarClienteId(''); }}
             onClose={closeAll}
             newCustomerName={newCustomerName}
             newCustomerPhone={newCustomerPhone}

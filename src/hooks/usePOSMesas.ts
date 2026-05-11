@@ -28,7 +28,7 @@ interface UsePOSMesasReturn {
   activeMesaId: string | null;
   setActiveMesaId: (id: string | null) => void;
   loadingMesas: boolean;
-  openParaLlevar: () => Promise<string | null>;
+  openParaLlevar: (clienteId?: number | null) => Promise<string | null>;
   openNuevaMesa: () => void;
   openEditMesa: (mesa: LocalMesa, e: React.MouseEvent) => void;
   handleSaveMesa: () => Promise<void>;
@@ -308,7 +308,7 @@ export function usePOSMesas(): UsePOSMesasReturn {
 
   const paraLlevarCount = paraLlevarOrders.filter(pl => pl.status !== 'libre').length;
 
-  const openParaLlevar = useCallback(async (): Promise<string | null> => {
+  const openParaLlevar = useCallback(async (clienteId?: number | null): Promise<string | null> => {
     // Fetch fresh data and sync state immediately (avoids stale-closure on paraLlevarOrders)
     const freshData = await syncParaLlevar();
     const freshMapped = freshData
@@ -323,28 +323,38 @@ export function usePOSMesas(): UsePOSMesasReturn {
       return activeOrder.id;
     }
 
-    // Create new pedido (backend will assign to a free para llevar slot)
-    const newPedidoId = await createPedidoParaLlevar();
-    if (newPedidoId) {
-      const newId = `pl_${newPedidoId}`;
-      const newOrder: LocalMesa = {
-        id: newId,
-        number: 0,
-        name: `Para llevar #${newPedidoId}`,
-        status: 'ocupada',
-        openedAt: Date.now(),
-        order: [],
-        tipo: 'para_llevar',
-        currentRound: 1,
-        roundsSent: [],
-        pedidoId: newPedidoId,
-      };
-      setParaLlevarOrders(prev => [...prev, newOrder]);
-      setActiveMesaId(newId);
-      return newId;
-    }
-    return null;
-  }, [syncParaLlevar, createPedidoParaLlevar]);
+    // Create new pedido with optional client
+    const newPedidoId = await createPedidoParaLlevar(clienteId ?? null);
+    if (!newPedidoId) return null;
+
+    // Build local mesa immediately (backend may not expose it in paraLlevar yet)
+    const newId = `pl_${newPedidoId}`;
+    const newOrder: LocalMesa = {
+      id: newId,
+      pedidoId: newPedidoId,
+      number: 0,
+      name: `Para llevar #${newPedidoId}`,
+      status: 'ocupada',
+      openedAt: Date.now(),
+      order: [],
+      tipo: 'para_llevar',
+      currentRound: 1,
+      roundsSent: [],
+      customerId: clienteId != null ? String(clienteId) : undefined,
+    };
+    setParaLlevarOrders(prev => [...prev, newOrder]);
+    setActiveMesaId(newId);
+
+    // Sync in background to refresh state without blocking the flow
+    syncParaLlevar().then(freshData => {
+      const mapped = freshData
+        .filter(pl => pl.disponible || pl.pedido !== null)
+        .map(mapParaLlevarToLocalMesa);
+      setParaLlevarOrders(mapped);
+    });
+
+    return newId;
+  }, [syncParaLlevar, createPedidoParaLlevar, mapParaLlevarToLocalMesa]);
 
   const openNuevaMesa = useCallback(() => {
     setEditMesaId(null);

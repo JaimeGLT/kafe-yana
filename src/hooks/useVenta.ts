@@ -61,10 +61,10 @@ export function useVenta(): UseVentaReturn {
 
   const createPedidoParaLlevar = useCallback(async (clienteId?: number | null): Promise<number | null> => {
     try {
-      const response = await api.post<{ id: number }>('/Venta/pedido', {
+      const response = await api.post<{ Id_Pedido: number }>('/Venta/pedido', {
         id_Cliente: clienteId ?? null,
       });
-      return response.id ?? null;
+      return response.Id_Pedido ?? null;
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'No se pudo crear el pedido.';
       toast.error('Error', msg);
