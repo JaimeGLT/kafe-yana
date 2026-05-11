@@ -11,3 +11,17 @@ export const GET_USUARIOS = `
     }
   }
 `;
+
+export const GET_ME = `
+  query Me {
+    me {
+      nombre
+      apellido
+      userName
+      rol
+      email
+      celular
+      estado
+    }
+  }
+`;

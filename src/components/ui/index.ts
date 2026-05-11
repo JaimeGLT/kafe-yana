@@ -1,8 +1,11 @@
 // UI Components barrel export
 export { Button } from './Button';
 export { Input, Textarea } from './Input';
+export { PasswordInput } from './PasswordInput';
 export { Select, MultiSelect, SearchableSelect } from './Select';
 export { Modal, ConfirmModal } from './Modal';
+export { BottomSheet } from './BottomSheet';
+export { UserDetailSheet } from './UserDetailSheet';
 export { Table, Pagination } from './Table';
 export { Card, CardHeader, CardContent, CardFooter } from './Card';
 export { Badge, StatusBadge } from './Badge';

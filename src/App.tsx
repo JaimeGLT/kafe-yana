@@ -25,7 +25,8 @@ import SalesReportPage from './pages/reports/SalesReportPage';
 import InventoryReportPage from './pages/reports/InventoryReportPage';
 import PurchasesReportPage from './pages/reports/PurchasesReportPage';
 import CashReportPage from './pages/reports/CashReportPage';
-import SettingsPage from './pages/settings/SettingsPage';
+import { SettingsIndexPage } from './pages/settings/SettingsIndexPage';
+import { SettingsUsersPage } from './pages/settings/SettingsUsersPage';
 import InsumosPage from './pages/recipes/InsumosPage';
 import RecetasPage from './pages/recipes/RecetasPage';
 import ElaboradosPage from './pages/inventory/ElaboradosPage';
@@ -100,9 +101,10 @@ function App() {
                 <Route path="/recipes/insumos"  element={<ProtectedRoute allowedRoles={[ADMIN]}><InsumosPage /></ProtectedRoute>} />
                 <Route path="/recipes/recetas"  element={<ProtectedRoute allowedRoles={[ADMIN]}><RecetasPage /></ProtectedRoute>} />
 
-                {/* Settings — solo admin */}
-                <Route path="/settings"   element={<ProtectedRoute allowedRoles={[ADMIN]}><SettingsPage /></ProtectedRoute>} />
-                <Route path="/settings/*" element={<ProtectedRoute allowedRoles={[ADMIN]}><SettingsPage /></ProtectedRoute>} />
+                {/* Settings — todos los roles */}
+                <Route path="/settings" element={<SettingsIndexPage />} />
+                <Route path="/settings/profile" element={<ProtectedRoute allowedRoles={ALL}><SettingsIndexPage /></ProtectedRoute>} />
+                <Route path="/settings/users" element={<ProtectedRoute allowedRoles={[ADMIN]}><SettingsUsersPage /></ProtectedRoute>} />
 
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />

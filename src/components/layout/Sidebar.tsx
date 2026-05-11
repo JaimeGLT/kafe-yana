@@ -126,7 +126,7 @@ const navItems: NavItem[] = [
     label: 'Configuración',
     icon: <Settings className="h-5 w-5" />,
     path: '/settings',
-    allowedRoles: [ADMIN],
+    allowedRoles: [ADMIN, CAJERO, MESERO],
   },
 ];
 

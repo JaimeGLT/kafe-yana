@@ -233,3 +233,5 @@ export const SkeletonSalesTable: React.FC = () => (
     </table>
   </div>
 );
+
+
