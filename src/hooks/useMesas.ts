@@ -176,8 +176,9 @@ export function useMesas(): UseMesasReturn {
       }
       await refreshMesas();
       return response.id_Pedido ?? null;
-    } catch {
-      toast.error('Error', 'No se pudo ocupar la mesa.');
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'No se pudo ocupar la mesa.';
+      toast.error('Error al iniciar mesa', msg);
       return null;
     }
   }, [refreshMesas]);
