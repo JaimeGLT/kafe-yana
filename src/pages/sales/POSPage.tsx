@@ -413,11 +413,10 @@ export const POSPage: React.FC = () => {
       return p.stock <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${p.stock}`, ok: true };
     }
     if (p.tipo === 'elaborado') {
-      if (p.producible) {
-        return p.stock <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${p.stock}`, ok: true };
+      if (!p.producible) {
+        return { label: '', ok: true };
       }
-      const producible = p.cantidadProducible ?? 0;
-      return producible <= 0 ? { label: 'Agotado', ok: false } : { label: `Producible: ${producible}`, ok: true };
+      return p.stock <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${p.stock}`, ok: true };
     }
     return p.stock <= 0 ? { label: 'Agotado', ok: false } : { label: String(p.stock), ok: true };
   }, []);

@@ -111,7 +111,6 @@ const CategoriesPage: React.FC = () => {
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'No se pudo guardar la categoría. Intente nuevamente.';
       toast.error('Error', message);
-      throw err;
     }
   };
 
