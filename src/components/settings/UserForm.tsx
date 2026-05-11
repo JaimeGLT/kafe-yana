@@ -22,11 +22,12 @@ interface UserFormProps {
   errors?: Partial<Record<string, string>>;
   showPasswordField?: boolean;
   showRolField?: boolean;
+  emailEditable?: boolean;
 }
 
 
 
-export const UserForm: React.FC<UserFormProps> = ({ user, onSubmit, loading, errors, showPasswordField = true, showRolField = true }) => {
+export const UserForm: React.FC<UserFormProps> = ({ user, onSubmit, loading, errors, showPasswordField = true, showRolField = true, emailEditable = false }) => {
   const isEdit = !!user;
   const [form, setForm] = useState(() => ({
     nombre: user?.nombre ?? '',
@@ -66,8 +67,12 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSubmit, loading, err
     };
 
     if (isEdit) {
-      const { email, ...rest } = payload;
-      await onSubmit({ ...rest, password: form.password || undefined } as UpdateUserPayload);
+      if (emailEditable) {
+        await onSubmit(payload as CreateUserPayload);
+      } else {
+        const { email, ...rest } = payload;
+        await onSubmit({ ...rest, password: form.password || undefined } as UpdateUserPayload);
+      }
     } else {
       await onSubmit(payload as CreateUserPayload);
     }
@@ -105,7 +110,7 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSubmit, loading, err
         value={form.email}
         onChange={(e) => handleChange('email', e.target.value)}
         error={errors?.email ?? localErrors.email}
-        disabled={loading || isEdit}
+        disabled={loading || (isEdit && !emailEditable)}
       />
       {showPasswordField && (
         <PasswordInput

@@ -407,20 +407,23 @@ export const POSPage: React.FC = () => {
   }, [products, selectedCatId, activeCategories, productSearch]);
 
   const getEffectiveStock = useCallback((p: Product): { label: string; ok: boolean } => {
+    const reserved = getTempQty(p.id);
     if (p.tipo === 'comprado') {
-      return p.stock <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${p.stock}`, ok: true };
+      const available = p.stock - reserved;
+      return available <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${available}`, ok: true };
     }
     if (p.tipo === 'combo') {
-      return p.stock <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${p.stock}`, ok: true };
+      const available = p.stock - reserved;
+      return available <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${available}`, ok: true };
     }
     if (p.tipo === 'elaborado') {
-      if (!p.producible) {
-        return { label: '', ok: true };
-      }
-      return p.stock <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${p.stock}`, ok: true };
+      if (!p.producible) return { label: '', ok: true };
+      const available = p.stock - reserved;
+      return available <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${available}`, ok: true };
     }
-    return p.stock <= 0 ? { label: 'Agotado', ok: false } : { label: String(p.stock), ok: true };
-  }, []);
+    const available = p.stock - reserved;
+    return available <= 0 ? { label: 'Agotado', ok: false } : { label: String(available), ok: true };
+  }, [getTempQty]);
 
   const mesaSubtotal = activeMesa ? mesaOrderTotal(activeMesa.order) : 0;
   const loyaltyProfile = activeMesa?.customerId ? getOrCreateProfile(activeMesa.customerId) : null;
@@ -1110,6 +1113,15 @@ export const POSPage: React.FC = () => {
                                   ))}
                                 </div>
                               ) : null}
+                              {comboDetails[item.product.id]?.length > 0 && (
+                                <div className="mt-0.5 space-y-0.5">
+                                  {comboDetails[item.product.id].map((d, di) => (
+                                    <p key={di} className="text-xs text-coffee-400">
+                                      <span className="font-medium text-coffee-500">· </span>{d.quantity}× {d.name}
+                                    </p>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                             <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                               <div className="flex items-center gap-1.5">
@@ -1211,6 +1223,15 @@ export const POSPage: React.FC = () => {
                                             ))}
                                           </div>
                                         ) : null}
+                                        {comboDetails[item.product.id]?.length > 0 && (
+                                          <div className="mt-0.5 space-y-0.5">
+                                            {comboDetails[item.product.id].map((d, di) => (
+                                              <p key={di} className="text-xs text-coffee-400">
+                                                <span className="font-medium text-coffee-500">· </span>{d.quantity}× {d.name}
+                                              </p>
+                                            ))}
+                                          </div>
+                                        )}
                                       </div>
                                       <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                                         <div className="flex items-center gap-1.5">

@@ -444,7 +444,15 @@ export function usePOSMesas(): UsePOSMesasReturn {
       if (!autoReleased) {
         await liberarPedido();
       }
-      setParaLlevarOrders(prev => prev.filter(m => m.id !== mesaId));
+      // Resync from backend: the optimistic entry uses pl_${pedidoId} but the
+      // backend-synced entry uses pl_${paraLlevarEntityId} — IDs differ, so
+      // filtering by mesaId alone leaves a stale "ocupada" entry in state.
+      const fresh = await syncParaLlevar();
+      setParaLlevarOrders(
+        fresh
+          .filter(pl => pl.disponible || pl.pedido !== null)
+          .map(mapParaLlevarToLocalMesa)
+      );
     } else {
       if (!autoReleased) {
         await apiLiberarMesa(mesaId);
@@ -453,7 +461,7 @@ export function usePOSMesas(): UsePOSMesasReturn {
     }
     setIsClosingMesa(null);
     setActiveMesaId(null);
-  }, [apiLiberarMesa, liberarPedido, updateMesa]);
+  }, [apiLiberarMesa, liberarPedido, syncParaLlevar, updateMesa]);
 
   const sendToKitchen = useCallback(async (
     mesaId: string,

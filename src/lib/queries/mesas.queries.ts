@@ -31,6 +31,7 @@ export const GET_MESAS = `
               nombre_Producto
               cantidad
               precio
+              
             }
           }
         }
@@ -85,6 +86,32 @@ export const GET_MESA_BY_ID = `
               nombre_Producto
               cantidad
               precio
+              opciones {
+                id_Opcion
+                tipoOpcion
+                valorAnterior
+                costoExtra
+                opcion {
+                  nombre
+                  ajustePrecio
+                  variacion {
+                    id
+                    nombre
+                  }
+                  ajustes {
+                    tipoAjuste
+                    cantidad
+                    insumoBase {
+                      id
+                      nombre
+                    }
+                    insumoNuevo {
+                      id
+                      nombre
+                    }
+                  }
+                }
+              }
             }
           }
         }

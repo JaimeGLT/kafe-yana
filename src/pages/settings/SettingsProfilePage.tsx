@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { MainLayout, PageHeader, PageContainer } from '../../components/layout';
 import { Button, BottomSheet, PasswordInput } from '../../components/ui';
 import { toast } from '../../components/ui/Toast';
-import { usePerfil, type UpdatePerfilPayload, type ChangePasswordPayload } from '../../hooks/usePerfil';
+import { usePerfil, type ChangePasswordPayload } from '../../hooks/usePerfil';
+import { useAuth } from '../../contexts/AuthContext';
 import { ROL_LABEL } from '../../components/settings/UserForm';
 import { UserForm } from '../../components/settings/UserForm';
+import type { CreateUserPayload, UpdateUserPayload } from '../../hooks/useUsuarios';
 
 const emptyPw: ChangePasswordPayload = {
   passwordActual: '',
@@ -18,6 +20,7 @@ interface SettingsProfilePageProps {
 
 export const SettingsProfilePage: React.FC<SettingsProfilePageProps> = ({ embedded }) => {
   const { perfil, loading, fetchPerfil, updatePerfil, changePassword } = usePerfil();
+  const { refreshUser } = useAuth();
 
   const [editOpen, setEditOpen] = useState(false);
   const [changePwOpen, setChangePwOpen] = useState(false);
@@ -29,14 +32,20 @@ export const SettingsProfilePage: React.FC<SettingsProfilePageProps> = ({ embedd
     fetchPerfil();
   }, [fetchPerfil]);
 
-  const handleEditProfile = async (data: UpdatePerfilPayload) => {
+  const handleEditProfile = async (data: CreateUserPayload | UpdateUserPayload) => {
     if (!perfil) return;
     setSubmitLoading(true);
-    const ok = await updatePerfil(perfil.email, data);
+    const email = (data as CreateUserPayload).email ?? perfil.email;
+    const ok = await updatePerfil(email, {
+      nombre: data.nombre,
+      apellido: data.apellido,
+      telefono: data.numeroPhone,
+    });
     setSubmitLoading(false);
     if (ok) {
       toast.success('Perfil actualizado correctamente');
       setEditOpen(false);
+      await refreshUser();
       await fetchPerfil();
     } else {
       toast.error('Error al actualizar', 'No se pudo actualizar el perfil.');
@@ -57,7 +66,7 @@ export const SettingsProfilePage: React.FC<SettingsProfilePageProps> = ({ embedd
   const handleChangePassword = async () => {
     if (!perfil || !validateChangePw()) return;
     setSubmitLoading(true);
-    const ok = await changePassword(perfil.email, changePwForm);
+    const ok = await changePassword(changePwForm);
     setSubmitLoading(false);
     if (ok) {
       toast.success('Contraseña actualizada correctamente');
@@ -159,6 +168,7 @@ export const SettingsProfilePage: React.FC<SettingsProfilePageProps> = ({ embedd
           loading={submitLoading}
           showPasswordField={false}
           showRolField={false}
+          emailEditable={true}
         />
       </BottomSheet>
 

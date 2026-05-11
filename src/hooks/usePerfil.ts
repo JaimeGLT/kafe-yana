@@ -7,8 +7,7 @@ import type { User } from '../types/user';
 export interface UpdatePerfilPayload {
   nombre: string;
   apellido: string;
-  numeroPhone: string;
-  rol: number;
+  telefono: string;
 }
 
 export interface ChangePasswordPayload {
@@ -38,13 +37,12 @@ export function usePerfil() {
 
   const updatePerfil = useCallback(async (email: string, payload: UpdatePerfilPayload): Promise<boolean> => {
     try {
-      const body: Record<string, string | number | undefined> = {
+      await api.put('/Aunth/info', {
         nombre: payload.nombre.trim(),
         apellido: payload.apellido.trim(),
-        numeroPhone: payload.numeroPhone.trim(),
-        rol: payload.rol,
-      };
-      await api.put(`/Aunth/${encodeURIComponent(email)}`, body);
+        email,
+        telefono: payload.telefono.trim(),
+      });
       return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'No se pudo actualizar el perfil.';
@@ -54,12 +52,10 @@ export function usePerfil() {
   }, []);
 
   const changePassword = useCallback(async (
-    email: string,
     payload: ChangePasswordPayload
   ): Promise<boolean> => {
     try {
       await api.put('/Aunth/new-password', {
-        email,
         passwordActual: payload.passwordActual,
         passwordNueva: payload.passwordNueva,
       });
