@@ -137,6 +137,7 @@ export const GET_POS_DATA = `
         unidad_medida
         producible
         stock_actual
+        ubicacion
         producto {
           id nombre descripcion precio tipo imagen
           categoria { id nombre descripcion estado color }
@@ -157,7 +158,7 @@ export const GET_POS_DATA = `
     }
     comprados {
       nodes {
-        costo_compra stock_actual disponible
+        costo_compra stock_actual disponible ubicacion
         producto {
           id nombre descripcion precio tipo imagen
           categoria { id nombre descripcion estado color }

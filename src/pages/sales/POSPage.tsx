@@ -17,6 +17,7 @@ import { usePOSCart } from '../../hooks/usePOSCart';
 import { usePOSLoyalty } from '../../hooks/usePOSLoyalty';
 import { formatCurrency } from '../../utils';
 import { formatOpcionLabel, formatOpcionLabelString } from '../../utils/opcionUtils';
+import { enviarCatalogo, enviarPedido } from '../../utils/comandas';
 import { SkeletonMesaGrid, SkeletonCategoryTabs, SkeletonProductScroll, Overlay, ConfirmModal } from '../../components/ui';
 import { MesaCard } from '../../components/pos/MesaCard';
 import { NuevaMesaModal } from '../../components/pos/NuevaMesaModal';
@@ -48,6 +49,7 @@ const mesaOrderTotal = (order: any[]) =>
   order.reduce((s, i) => s + i.precioFinal * i.quantity, 0);
 
 const printComanda = (mesaName: string, roundNumber: number, items: any[]) => {
+  enviarPedido(mesaName, items.map(i => ({ cantidad: i.quantity, nombre: i.product.name, nota: i.notes ?? '' })));
   const win = window.open('', '_blank', 'width=320,height=500');
   if (!win) return;
   const now = new Date().toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
@@ -194,7 +196,7 @@ export const POSPage: React.FC = () => {
       const data = await gql<{
         elaborados: { nodes: Array<{
           id_Producto: number; unidad_medida: string;
-          producible: boolean; stock_actual: number;
+          producible: boolean; stock_actual: number; ubicacion: string;
           producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; imagen?: string;
             categoria: { id: number; nombre: string; descripcion: string; estado: boolean; color: string } | null };
           receta: { id: number; cantidadProducible: number };
@@ -203,7 +205,7 @@ export const POSPage: React.FC = () => {
               ajustes: Array<{ tipoAjuste: string; cantidad: number; insumoBase: { id: number; nombre: string } | null; insumoNuevo: { id: number; nombre: string } | null }> }> }>;
         }> };
         comprados: { nodes: Array<{
-          costo_compra: number; stock_actual: number; disponible: boolean;
+          costo_compra: number; stock_actual: number; disponible: boolean; ubicacion: string;
           producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; imagen?: string;
             categoria: { id: number; nombre: string; descripcion: string; estado: boolean; color: string } | null };
         }> };
@@ -334,6 +336,7 @@ export const POSPage: React.FC = () => {
       setComboDetails(newComboDetails);
       setCustomers(data.clientes.nodes as Customer[]);
       setProductsLoaded(true);
+      enviarCatalogo(data.comprados.nodes, data.elaborados.nodes, data.combos.nodes);
     } catch {
       toast.error('Error', 'No se pudieron cargar los productos.');
     } finally {
