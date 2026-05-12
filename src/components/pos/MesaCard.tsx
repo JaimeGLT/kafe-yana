@@ -60,7 +60,7 @@ export const MesaCard: React.FC<MesaCardProps> = ({
       <div className={clsx('absolute top-3 left-3 h-2 w-2 rounded-full', cfg.dot)} />
 
       {isLibre && (
-        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-opacity">
           <button
             onClick={e => onEdit(mesa, e)}
             className="h-6 w-6 rounded-lg bg-coffee-700 hover:bg-coffee-600 flex items-center justify-center text-coffee-300 hover:text-white"
