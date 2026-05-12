@@ -25,11 +25,11 @@ export const ProdCard: React.FC<ProdCardProps> = ({
   onAdd, onInc, onDec, onInfo, rewardInfo, onRedeem, pointsShortfall, stockLabel,
 }) => (
   <div className={clsx(
-    'flex-shrink-0 w-36 sm:w-40 bg-white rounded-2xl overflow-hidden shadow-sm flex flex-col select-none',
+    'flex-shrink-0 w-32 sm:w-40 bg-white rounded-2xl overflow-hidden shadow-sm flex flex-col select-none',
     unavailable && 'opacity-50',
   )}>
-    <div className="relative h-28 bg-coffee-50 flex items-center justify-center">
-      <span className="text-4xl">{getProductEmoji(product)}</span>
+    <div className="relative h-24 sm:h-32 bg-coffee-50 flex items-center justify-center">
+      <span className="text-4xl sm:text-5xl">{getProductEmoji(product)}</span>
       {product.tipo === 'elaborado' && (
         <span className="absolute top-1.5 left-1.5 text-[9px] bg-white text-amber-700 rounded-full px-1.5 py-0.5 font-semibold flex items-center gap-0.5 shadow-sm">
           <FlaskConical className="h-2 w-2" />Elab.
@@ -59,44 +59,44 @@ export const ProdCard: React.FC<ProdCardProps> = ({
         </div>
       )}
     </div>
-    <div className="px-2.5 pt-2 pb-1 flex-1 flex flex-col">
-      <p className="text-xs font-bold text-coffee-900 leading-tight line-clamp-2 font-display flex-1">{product.name}</p>
-      <p className="text-sm font-black text-coffee-800 mt-1">{formatCurrency(product.salePrice)}</p>
+    <div className="px-2.5 sm:px-3 pt-2 sm:pt-2.5 pb-1 flex-1 flex flex-col">
+      <p className="text-xs sm:text-sm font-bold text-coffee-900 leading-tight line-clamp-2 font-display flex-1">{product.name}</p>
+      <p className="text-sm sm:text-base font-black text-coffee-800 mt-1">{formatCurrency(product.salePrice)}</p>
       {stockLabel && (
-        <p className={clsx('text-[10px] font-semibold mt-0.5', unavailable ? 'text-red-500' : 'text-coffee-500')}>{stockLabel}</p>
+        <p className={clsx('text-[10px] sm:text-xs font-semibold mt-0.5', unavailable ? 'text-red-500' : 'text-coffee-500')}>{stockLabel}</p>
       )}
     </div>
-    <div className="px-2.5 pb-2.5">
+    <div className="px-2.5 sm:px-3 pb-2.5 sm:pb-3">
       {attrCount > 0 ? (
         <button
           disabled={unavailable}
           onClick={onAdd}
           className={clsx(
-            'w-full flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold transition-all',
+            'w-full flex items-center justify-center gap-1 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold transition-all',
             unavailable ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-coffee-800 text-cream hover:bg-coffee-700 active:scale-95',
           )}
         >
-          <Plus className="h-3 w-3" /> Agregar
+          <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Agregar
         </button>
       ) : qty === 0 ? (
         <button
           disabled={unavailable}
           onClick={onAdd}
           className={clsx(
-            'w-full flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold transition-all',
+            'w-full flex items-center justify-center gap-1 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold transition-all',
             unavailable ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-coffee-800 text-cream hover:bg-coffee-700 active:scale-95',
           )}
         >
-          <Plus className="h-3 w-3" /> Agregar
+          <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Agregar
         </button>
       ) : (
-        <div className="flex items-center justify-between bg-coffee-100 rounded-xl overflow-hidden h-8">
-          <button onClick={onDec} className="w-8 h-full flex items-center justify-center hover:bg-coffee-200 text-coffee-700 transition-colors">
-            <Minus className="h-3 w-3" />
+        <div className="flex items-center justify-between bg-coffee-100 rounded-xl overflow-hidden h-9 sm:h-11">
+          <button onClick={onDec} className="w-9 sm:w-11 h-full flex items-center justify-center hover:bg-coffee-200 text-coffee-700 transition-colors">
+            <Minus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </button>
-          <span className="text-sm font-black text-coffee-900">{qty}</span>
-          <button onClick={onInc} className="w-8 h-full flex items-center justify-center hover:bg-coffee-200 text-coffee-700 transition-colors">
-            <Plus className="h-3 w-3" />
+          <span className="text-sm sm:text-base font-black text-coffee-900">{qty}</span>
+          <button onClick={onInc} className="w-9 sm:w-11 h-full flex items-center justify-center hover:bg-coffee-200 text-coffee-700 transition-colors">
+            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </button>
         </div>
       )}

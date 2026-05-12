@@ -917,7 +917,7 @@ export const POSPage: React.FC = () => {
 
         {modalView === 'detalle' && activeMesa && (
           <Overlay onClose={closeAll}>
-            <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[90vh]">
 
               <div className="bg-coffee-800 px-5 py-4 flex items-center justify-between flex-shrink-0">
                 {detalleView !== 'none' ? (
@@ -958,19 +958,19 @@ export const POSPage: React.FC = () => {
                   {detalleView === 'none' && (
                     <button
                       onClick={() => setDetalleView(v => v === 'historial' ? 'none' : 'historial')}
-                      className="relative h-8 rounded-xl flex items-center justify-center gap-1.5 px-2 sm:px-3 transition-all text-xs font-semibold bg-white/10 text-coffee-300 hover:bg-white/20"
+                      className="relative h-10 rounded-xl flex items-center justify-center gap-1.5 px-3 sm:px-4 transition-all text-sm font-semibold bg-white/10 text-coffee-300 hover:bg-white/20"
                     >
-                      <History className="h-4 w-4 flex-shrink-0" />
+                      <History className="h-5 w-5 flex-shrink-0" />
                       <span className="hidden sm:inline">Historial</span>
                       {activeMesa.order.length > 0 && (
-                        <span className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-amber-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                        <span className="absolute -top-1.5 -right-1.5 h-5 w-5 bg-amber-500 text-white text-[10px] font-black rounded-full flex items-center justify-center">
                           {activeMesa.order.reduce((s, i) => s + i.quantity, 0)}
                         </span>
                       )}
                     </button>
                   )}
-                  <button onClick={closeAll} className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center text-coffee-300 hover:bg-white/20">
-                    <X className="h-4 w-4" />
+                  <button onClick={closeAll} className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center text-coffee-300 hover:bg-white/20">
+                    <X className="h-5 w-5" />
                   </button>
                 </div>
               </div>
@@ -1019,7 +1019,7 @@ export const POSPage: React.FC = () => {
                             key={cat.id}
                             onClick={() => setSelectedCatId(cat.id)}
                             className={clsx(
-                              'flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all',
+                              'flex-shrink-0 px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold transition-all',
                               (selectedCatId || activeCategories[0]?.id) === cat.id
                                 ? 'bg-coffee-800 text-cream shadow-md'
                                 : 'bg-coffee-100 text-coffee-600 hover:bg-coffee-200',
@@ -1362,16 +1362,16 @@ export const POSPage: React.FC = () => {
                 <button
                   onClick={() => setDetalleView(v => v === 'pedido' ? 'none' : 'pedido')}
                   className={clsx(
-                    'relative flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all flex-shrink-0',
+                    'relative flex items-center gap-1.5 px-3 py-2.5 sm:px-4 sm:py-3 rounded-xl text-xs sm:text-sm font-semibold transition-all flex-shrink-0',
                     detalleView === 'pedido'
                       ? 'bg-coffee-800 text-cream'
                       : 'bg-coffee-100 text-coffee-600 hover:bg-coffee-200',
                   )}
                 >
-                  <ShoppingBag className="h-4 w-4" />
+                  <ShoppingBag className="h-5 w-5" />
                   Ver pedido
                   {tempCart.length > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-amber-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                    <span className="absolute -top-1.5 -right-1.5 h-5 w-5 bg-amber-500 text-white text-[10px] font-black rounded-full flex items-center justify-center">
                       {tempCart.reduce((s, i) => s + i.quantity, 0)}
                     </span>
                   )}
@@ -1382,16 +1382,16 @@ export const POSPage: React.FC = () => {
                     <button
                       onClick={handleSendToKitchen}
                       disabled={isSendingToKitchen}
-                      className="relative flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-coffee-800 text-cream text-xs font-bold hover:bg-coffee-700 active:scale-95 transition-all shadow-md disabled:opacity-60"
+                      className="relative flex items-center gap-1.5 px-3 py-2.5 sm:px-4 sm:py-3 rounded-xl bg-coffee-800 text-cream text-xs sm:text-sm font-bold hover:bg-coffee-700 active:scale-95 transition-all shadow-md disabled:opacity-60"
                     >
                       {isSendingToKitchen ? (
-                        <div className="w-4 h-4 border-2 border-cream/40 border-t-cream rounded-full animate-spin" />
+                        <div className="w-5 h-5 border-2 border-cream/40 border-t-cream rounded-full animate-spin" />
                       ) : (
-                        <Printer className="h-4 w-4" />
+                        <Printer className="h-5 w-5" />
                       )}
                       {isSendingToKitchen ? 'Enviando...' : 'Enviar a cocina/barra'}
                       {!isSendingToKitchen && (
-                        <span className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-red-400 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                        <span className="absolute -top-1.5 -right-1.5 h-5 w-5 bg-red-400 text-white text-[10px] font-black rounded-full flex items-center justify-center">
                           {tempCart.reduce((s, i) => s + i.quantity, 0)}
                         </span>
                       )}
@@ -1402,13 +1402,13 @@ export const POSPage: React.FC = () => {
                       onClick={handleRequestPayment}
                       disabled={activeMesa.order.length === 0}
                       className={clsx(
-                        'flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all',
+                        'flex items-center gap-1.5 px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold transition-all',
                         activeMesa.order.length > 0
                           ? 'bg-emerald-600 text-white hover:bg-emerald-500 active:scale-95 shadow-md'
                           : 'bg-coffee-100 text-coffee-400 cursor-not-allowed',
                       )}
                     >
-                      Cobrar <ChevronRight className="h-4 w-4" />
+                      Cobrar <ChevronRight className="h-5 w-5" />
                     </button>
                   )}
                 </div>
