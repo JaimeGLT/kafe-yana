@@ -1,15 +1,22 @@
 import React, { useState } from 'react';
 import { clsx } from 'clsx';
-import { ChevronLeft, ChevronRight, Check, Users, List, SlidersHorizontal, Minus, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Check, Users, List, SlidersHorizontal, Minus, Plus } from 'lucide-react';
 
 type SplitStep = 'modo' | 'configurar' | 'cobrar';
 type SplitMode = 'partes_iguales' | 'por_items' | 'montos_libres';
 type SplitPayMethod = 'cash' | 'card' | 'transfer';
 
+interface DisplayItem {
+  name: string;
+  quantity: number;
+  monto: number;
+}
+
 interface CuentaDividida {
   id: number;
   monto: number;
   itemCartKeys?: string[];
+  displayItems?: DisplayItem[];
   status: 'pendiente' | 'activo' | 'pagado';
   tipoPago?: SplitPayMethod;
   efectivoRecibido?: number;
@@ -70,12 +77,13 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
   const [payMethod, setPayMethod] = useState<SplitPayMethod>('cash');
   const [cashInput, setCashInput] = useState('');
   const [cashError, setCashError] = useState('');
+  const [showOrderList, setShowOrderList] = useState(false);
 
   const activeIdx = cuentas.findIndex(c => c.status === 'activo');
   const activaCuenta = activeIdx >= 0 ? cuentas[activeIdx] : null;
   const cashNum = parseFloat(cashInput.replace(',', '.')) || 0;
 
-  const resetItemAssignments = (n: number) =>
+  const resetItemAssignments = (_n: number) =>
     setItemAssignments(Object.fromEntries(order.map(i => [i.cartKey, 0])));
 
   const cycleItemAssignment = (cartKey: string) => {
@@ -113,19 +121,30 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
     let nuevas: CuentaDividida[] = [];
 
     if (mode === 'partes_iguales') {
-      nuevas = buildIguales(numPersonas, mesaTotal);
+      const base = buildIguales(numPersonas, mesaTotal);
+      const sharedItems: DisplayItem[] = order.map(item => ({
+        name: item.product.name,
+        quantity: item.quantity,
+        monto: parseFloat(((item.precioFinal * item.quantity) / numPersonas).toFixed(2)),
+      }));
+      nuevas = base.map(c => ({ ...c, displayItems: sharedItems }));
     } else if (mode === 'por_items') {
       nuevas = Array.from({ length: numCuentasPorItems }, (_, i) => {
         const keys = Object.entries(itemAssignments)
           .filter(([, acc]) => acc === i + 1)
           .map(([k]) => k);
-        const monto = order
-          .filter(item => keys.includes(item.cartKey))
-          .reduce((s, item) => s + item.precioFinal * item.quantity, 0);
+        const assigned = order.filter(item => keys.includes(item.cartKey));
+        const monto = assigned.reduce((s, item) => s + item.precioFinal * item.quantity, 0);
+        const displayItems: DisplayItem[] = assigned.map(item => ({
+          name: item.product.name,
+          quantity: item.quantity,
+          monto: item.precioFinal * item.quantity,
+        }));
         return {
           id: i + 1,
           monto: parseFloat(monto.toFixed(2)),
           itemCartKeys: keys,
+          displayItems,
           status: i === 0 ? 'activo' : 'pendiente',
         } as CuentaDividida;
       });
@@ -290,7 +309,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
                     </button>
                     <span className="text-lg font-bold text-coffee-900 w-6 text-center">{numCuentasPorItems}</span>
                     <button
-                      onClick={() => { const n = Math.min(4, numCuentasPorItems + 1); setNumCuentasPorItems(n); resetItemAssignments(n); }}
+                      onClick={() => { const n = Math.min(10, numCuentasPorItems + 1); setNumCuentasPorItems(n); resetItemAssignments(n); }}
                       className="h-8 w-8 rounded-xl bg-coffee-100 flex items-center justify-center text-coffee-700 hover:bg-coffee-200"
                     >
                       <Plus className="h-4 w-4" />
@@ -352,7 +371,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
                     </button>
                     <span className="text-lg font-bold text-coffee-900 w-6 text-center">{numCuentasLibres}</span>
                     <button
-                      onClick={() => resizeMontosLibres(Math.min(4, numCuentasLibres + 1))}
+                      onClick={() => resizeMontosLibres(Math.min(10, numCuentasLibres + 1))}
                       className="h-8 w-8 rounded-xl bg-coffee-100 flex items-center justify-center text-coffee-700 hover:bg-coffee-200"
                     >
                       <Plus className="h-4 w-4" />
@@ -417,7 +436,32 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
             <span className="font-bold text-coffee-900">{formatCurrency(mesaTotal)}</span>
           </div>
 
-          {cuentas.map((cuenta, idx) => (
+          {/* Acordeón de productos solo para montos_libres */}
+          {mode === 'montos_libres' && (
+            <div className="rounded-xl overflow-hidden border border-coffee-100">
+              <button
+                onClick={() => setShowOrderList(v => !v)}
+                className="w-full flex justify-between items-center px-4 py-3 bg-coffee-50 text-sm text-coffee-700 font-semibold"
+              >
+                <span>Productos de la orden</span>
+                <ChevronDown className={clsx('h-4 w-4 transition-transform text-coffee-400', showOrderList && 'rotate-180')} />
+              </button>
+              {showOrderList && (
+                <div className="px-4 py-3 space-y-1.5 border-t border-coffee-100">
+                  {order.map(item => (
+                    <div key={item.cartKey} className="flex justify-between text-xs text-coffee-500">
+                      <span>{item.product.name} ×{item.quantity}</span>
+                      <span className="font-semibold">
+                        {item.redeemRewardId ? 'Gratis' : formatCurrency(item.precioFinal * item.quantity)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {cuentas.map((cuenta) => (
             <div
               key={cuenta.id}
               className={clsx(
@@ -447,6 +491,18 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
                   <span className="text-xs font-semibold bg-coffee-100 text-coffee-400 rounded-full px-2.5 py-1">Pendiente</span>
                 )}
               </div>
+
+              {/* Lista de ítems por cuenta (partes_iguales y por_items) */}
+              {cuenta.displayItems && cuenta.displayItems.length > 0 && (
+                <div className="px-4 pb-3 space-y-1 border-t border-coffee-100 pt-2">
+                  {cuenta.displayItems.map((item, i) => (
+                    <div key={i} className="flex justify-between text-xs text-coffee-500">
+                      <span>{item.name} ×{item.quantity}</span>
+                      <span className="font-semibold">{formatCurrency(item.monto)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {cuenta.status === 'activo' && (
                 <div className="px-4 pb-4 border-t border-blue-100 pt-3 space-y-3">
