@@ -121,13 +121,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
     let nuevas: CuentaDividida[] = [];
 
     if (mode === 'partes_iguales') {
-      const base = buildIguales(numPersonas, mesaTotal);
-      const sharedItems: DisplayItem[] = order.map(item => ({
-        name: item.product.name,
-        quantity: item.quantity,
-        monto: parseFloat(((item.precioFinal * item.quantity) / numPersonas).toFixed(2)),
-      }));
-      nuevas = base.map(c => ({ ...c, displayItems: sharedItems }));
+      nuevas = buildIguales(numPersonas, mesaTotal);
     } else if (mode === 'por_items') {
       nuevas = Array.from({ length: numCuentasPorItems }, (_, i) => {
         const keys = Object.entries(itemAssignments)
@@ -436,14 +430,14 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
             <span className="font-bold text-coffee-900">{formatCurrency(mesaTotal)}</span>
           </div>
 
-          {/* Acordeón de productos solo para montos_libres */}
-          {mode === 'montos_libres' && (
+          {/* Acordeón de productos para partes_iguales y montos_libres */}
+          {(mode === 'montos_libres' || mode === 'partes_iguales') && (
             <div className="rounded-xl overflow-hidden border border-coffee-100">
               <button
                 onClick={() => setShowOrderList(v => !v)}
                 className="w-full flex justify-between items-center px-4 py-3 bg-coffee-50 text-sm text-coffee-700 font-semibold"
               >
-                <span>Productos de la orden</span>
+                <span>Ver orden de productos</span>
                 <ChevronDown className={clsx('h-4 w-4 transition-transform text-coffee-400', showOrderList && 'rotate-180')} />
               </button>
               {showOrderList && (
