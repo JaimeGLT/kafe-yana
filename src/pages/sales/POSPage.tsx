@@ -35,8 +35,9 @@ import { Tooltip } from '../../components/ui/Tooltip';
 const ReviewPanel = lazy(() => import('../../components/pos/ReviewPanel').then(m => ({ default: m.ReviewPanel })));
 const PagoPanel = lazy(() => import('../../components/pos/PagoPanel').then(m => ({ default: m.PagoPanel })));
 const SuccessPanel = lazy(() => import('../../components/pos/SuccessPanel').then(m => ({ default: m.SuccessPanel })));
+const DividirCuentaPanel = lazy(() => import('../../components/pos/DividirCuentaPanel').then(m => ({ default: m.DividirCuentaPanel })));
 
-type ModalView = 'none' | 'nueva_mesa' | 'iniciar' | 'iniciar_para_llevar' | 'detalle' | 'review' | 'pago' | 'success';
+type ModalView = 'none' | 'nueva_mesa' | 'iniciar' | 'iniciar_para_llevar' | 'detalle' | 'review' | 'pago' | 'dividir' | 'success';
 type DetalleView = 'none' | 'pedido' | 'historial';
 
 const TIPO_PAGO_MAP: Record<string, number> = {
@@ -713,6 +714,37 @@ export const POSPage: React.FC = () => {
           newBalance = profile?.points ?? 0;
         }
         setLastSaleResult({ code: newSale.code, points: earnedPoints, newBalance });
+        setModalView('success');
+      }
+    } catch {
+      toast.error('Error', 'No se pudo registrar la venta.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleConfirmSaleDividida = async (tipoPago: number, efectivoRecibido: number) => {
+    if (!activeMesa) return;
+    setIsProcessing(true);
+    try {
+      const pedidoId = (activeMesa as any).pedidoId;
+      const idCliente = reviewClienteId ? parseInt(reviewClienteId, 10) : null;
+      const isParaLlevar = activeMesa.tipo === 'para_llevar';
+
+      let success = false;
+      if (isParaLlevar && pedidoId) {
+        success = await cobrarParaLlevar(pedidoId, idCliente, tipoPago, efectivoRecibido);
+      } else if (pedidoId) {
+        success = await api.post<any>(`/Mesa/cobrar/${activeMesa.id}`, {
+          id_Pedido: pedidoId,
+          id_Cliente: idCliente,
+          tipoPago,
+          efectivoRecibido,
+        });
+      }
+
+      if (success) {
+        setLastSaleResult({ code: isParaLlevar ? `PL-${pedidoId}` : `MESA-${activeMesa.id}`, points: null, newBalance: 0 });
         setModalView('success');
       }
     } catch {
@@ -1439,6 +1471,22 @@ export const POSPage: React.FC = () => {
                 formatCurrency={formatCurrency}
                 onBack={() => setModalView('detalle')}
                 onConfirm={() => setModalView('pago')}
+                onDividir={() => setModalView('dividir')}
+              />
+            </Suspense>
+          </Overlay>
+        )}
+
+        {modalView === 'dividir' && activeMesa && (
+          <Overlay onClose={() => setModalView('review')}>
+            <Suspense fallback={<div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl p-8 flex items-center justify-center"><div className="w-8 h-8 border-2 border-coffee-300 border-t-coffee-800 rounded-full animate-spin" /></div>}>
+              <DividirCuentaPanel
+                mesaName={activeMesa.name}
+                order={activeMesa.order as any}
+                mesaTotal={mesaTotal}
+                formatCurrency={formatCurrency}
+                onBack={() => setModalView('review')}
+                onAllPaid={handleConfirmSaleDividida}
               />
             </Suspense>
           </Overlay>

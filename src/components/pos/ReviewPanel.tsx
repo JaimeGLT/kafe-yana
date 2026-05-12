@@ -30,6 +30,7 @@ interface ReviewPanelProps {
   formatCurrency: (n: number) => string;
   onBack: () => void;
   onConfirm: () => void;
+  onDividir?: () => void;
 }
 
 export const ReviewPanel: React.FC<ReviewPanelProps> = ({
@@ -39,6 +40,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
   formatCurrency,
   onBack,
   onConfirm,
+  onDividir,
 }) => (
   <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
     <div className="flex items-center justify-between px-5 py-4 border-b border-coffee-100 flex-shrink-0">
@@ -93,7 +95,15 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
           <span className="font-display">{formatCurrency(mesaTotal)}</span>
         </div>
       </div>
-      <div className="px-5 py-4">
+      <div className="px-5 py-4 space-y-2">
+        {onDividir && (
+          <button
+            onClick={onDividir}
+            className="w-full py-3 rounded-2xl border-2 border-coffee-200 text-coffee-700 font-semibold text-sm hover:bg-coffee-50 active:scale-95 transition-all"
+          >
+            ÷ Dividir cuenta
+          </button>
+        )}
         <button
           onClick={onConfirm}
           className="w-full py-4 rounded-2xl bg-coffee-800 text-cream font-bold text-base hover:bg-coffee-700 active:scale-95 transition-all flex items-center justify-center gap-2"
