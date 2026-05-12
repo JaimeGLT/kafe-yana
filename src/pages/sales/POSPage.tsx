@@ -917,9 +917,9 @@ export const POSPage: React.FC = () => {
 
         {modalView === 'detalle' && activeMesa && (
           <Overlay onClose={closeAll}>
-            <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[90vh]">
+            <div className="bg-white w-full sm:max-w-xl md:max-w-2xl rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[90vh]">
 
-              <div className="bg-coffee-800 px-5 py-4 flex items-center justify-between flex-shrink-0">
+              <div className="bg-coffee-800 px-4 py-3 sm:px-5 sm:py-4 flex items-center justify-between flex-shrink-0">
                 {detalleView !== 'none' ? (
                   <button
                     onClick={() => setDetalleView('none')}
@@ -958,9 +958,9 @@ export const POSPage: React.FC = () => {
                   {detalleView === 'none' && (
                     <button
                       onClick={() => setDetalleView(v => v === 'historial' ? 'none' : 'historial')}
-                      className="relative h-10 rounded-xl flex items-center justify-center gap-1.5 px-3 sm:px-4 transition-all text-sm font-semibold bg-white/10 text-coffee-300 hover:bg-white/20"
+                      className="relative h-9 rounded-xl flex items-center justify-center gap-1.5 px-2.5 sm:px-4 transition-all text-sm font-semibold bg-white/10 text-coffee-300 hover:bg-white/20"
                     >
-                      <History className="h-5 w-5 flex-shrink-0" />
+                      <History className="h-4 w-4 flex-shrink-0" />
                       <span className="hidden sm:inline">Historial</span>
                       {activeMesa.order.length > 0 && (
                         <span className="absolute -top-1.5 -right-1.5 h-5 w-5 bg-amber-500 text-white text-[10px] font-black rounded-full flex items-center justify-center">
@@ -969,15 +969,15 @@ export const POSPage: React.FC = () => {
                       )}
                     </button>
                   )}
-                  <button onClick={closeAll} className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center text-coffee-300 hover:bg-white/20">
-                    <X className="h-5 w-5" />
+                  <button onClick={closeAll} className="h-9 w-9 rounded-xl bg-white/10 flex items-center justify-center text-coffee-300 hover:bg-white/20">
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               </div>
 
               {detalleView === 'none' && (
                 <>
-                  <div className="px-4 pt-3 pb-1 flex-shrink-0">
+                  <div className="px-4 pt-2 pb-1 flex-shrink-0">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-coffee-400 pointer-events-none" />
                       <input
@@ -1011,7 +1011,7 @@ export const POSPage: React.FC = () => {
                         onMouseMove={dragScrollDetalleCat.onMouseMove}
                         onMouseUp={dragScrollDetalleCat.onMouseUp}
                         onMouseLeave={dragScrollDetalleCat.onMouseLeave}
-                        className="px-4 pt-3 pb-2 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-shrink-0 cursor-grab active:cursor-grabbing select-none"
+                        className="px-4 pt-2 pb-1.5 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-shrink-0 cursor-grab active:cursor-grabbing select-none"
                         style={{ WebkitOverflowScrolling: 'touch' }}
                       >
                         {activeCategories.map(cat => (
@@ -1036,7 +1036,7 @@ export const POSPage: React.FC = () => {
                         onMouseMove={dragScrollDetalleProd.onMouseMove}
                         onMouseUp={dragScrollDetalleProd.onMouseUp}
                         onMouseLeave={dragScrollDetalleProd.onMouseLeave}
-                        className="flex gap-2.5 overflow-x-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-shrink-0 cursor-grab active:cursor-grabbing select-none border-b border-coffee-100"
+                        className="flex gap-2 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-shrink-0 cursor-grab active:cursor-grabbing select-none border-b border-coffee-100"
                         style={{ WebkitOverflowScrolling: 'touch' }}
                       >
                         {pickerProducts.length === 0 ? (
@@ -1269,7 +1269,7 @@ export const POSPage: React.FC = () => {
               )}
 
               {detalleView === 'none' && (
-                <div className="px-4 py-2.5 border-t border-coffee-100 flex-shrink-0">
+                <div className="px-4 py-2 border-t border-coffee-100 flex-shrink-0">
                   {activeMesa.customerId ? (
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 text-xs text-coffee-600">
@@ -1358,7 +1358,7 @@ export const POSPage: React.FC = () => {
                 </div>
               )}
 
-              <div className="px-4 py-3 border-t border-coffee-100 flex items-center gap-2 flex-shrink-0">
+              <div className="px-4 py-2 sm:py-3 border-t border-coffee-100 flex items-center gap-2 flex-shrink-0">
                 <button
                   onClick={() => setDetalleView(v => v === 'pedido' ? 'none' : 'pedido')}
                   className={clsx(

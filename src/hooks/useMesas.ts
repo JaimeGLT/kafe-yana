@@ -91,7 +91,7 @@ interface UseMesasReturn {
   crearRonda: (mesaId: string, detalles: { id_Producto: number; ids_Opcion: number[]; cantidad: number }[]) => Promise<boolean>;
   cobrarMesa: (mesaId: string, data: { id_Pedido: number; id_Cliente: number | null; tipoPago: number; efectivoRecibido: number }) => Promise<boolean>;
   getActivePedidoId: (mesaId: string) => number | null;
-  refreshMesas: () => Promise<void>;
+  refreshMesas: (silent?: boolean) => Promise<void>;
 }
 
 export function useMesas(): UseMesasReturn {
@@ -100,9 +100,9 @@ export function useMesas(): UseMesasReturn {
   const [error, setError] = useState<string | null>(null);
   const [pedidoPorMesa, setPedidoPorMesa] = useState<Record<string, number>>({});
 
-  const refreshMesas = useCallback(async () => {
+  const refreshMesas = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       const data = await gql<{ mesas: { nodes: MesaBackend[] } }>(GET_MESAS);
       setMesas(data.mesas.nodes);
@@ -119,15 +119,26 @@ export function useMesas(): UseMesasReturn {
         return updated;
       });
     } catch (err) {
-      setError('No se pudieron cargar las mesas');
+      if (!silent) setError('No se pudieron cargar las mesas');
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     refreshMesas();
+  }, [refreshMesas]);
+
+  useEffect(() => {
+    const POLL_INTERVAL = 10_000;
+    const tick = () => { if (!document.hidden) refreshMesas(true); };
+    const id = setInterval(tick, POLL_INTERVAL);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', tick);
+    };
   }, [refreshMesas]);
 
   const createMesa = useCallback(async (nombre: string): Promise<string | null> => {

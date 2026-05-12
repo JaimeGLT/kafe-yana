@@ -28,7 +28,7 @@ export const ProdCard: React.FC<ProdCardProps> = ({
     'flex-shrink-0 w-32 sm:w-40 bg-white rounded-2xl overflow-hidden shadow-sm flex flex-col select-none',
     unavailable && 'opacity-50',
   )}>
-    <div className="relative h-24 sm:h-32 bg-coffee-50 flex items-center justify-center">
+    <div className="relative h-20 sm:h-32 bg-coffee-50 flex items-center justify-center">
       <span className="text-4xl sm:text-5xl">{getProductEmoji(product)}</span>
       {product.tipo === 'elaborado' && (
         <span className="absolute top-1.5 left-1.5 text-[9px] bg-white text-amber-700 rounded-full px-1.5 py-0.5 font-semibold flex items-center gap-0.5 shadow-sm">
