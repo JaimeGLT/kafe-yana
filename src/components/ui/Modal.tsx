@@ -43,11 +43,11 @@ export const Modal: React.FC<ModalProps> = ({
       />
 
       {/* Modal */}
-      <div className="flex min-h-full items-center justify-center p-4">
+      <div className="flex min-h-[100dvh] items-center justify-center p-4">
         <div
           className={clsx(
             'relative w-full bg-white rounded-xl shadow-xl',
-            'transform transition-all',
+            'transform transition-all max-h-[90dvh] flex flex-col',
             sizes[size]
           )}
         >
@@ -71,7 +71,7 @@ export const Modal: React.FC<ModalProps> = ({
           )}
 
           {/* Content */}
-          <div className="px-6 py-4">{children}</div>
+          <div className="px-6 py-4 overflow-y-auto flex-1">{children}</div>
 
           {/* Footer */}
           {footer && (

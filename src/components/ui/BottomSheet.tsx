@@ -28,7 +28,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
       />
       <div className="flex min-h-full items-end sm:items-center justify-center p-0 sm:p-4">
         <div
-          className="relative bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[85vh] sm:max-h-none"
+          className="relative bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[85dvh] sm:max-h-none"
         >
           {(title || showCloseButton) && (
             <div className="flex items-center justify-between px-5 py-4 border-b border-coffee-100 flex-shrink-0">

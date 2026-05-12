@@ -742,7 +742,7 @@ export const POSPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="-m-6 min-h-[calc(100vh-4rem)] bg-[#160c02] overflow-y-auto">
+      <div className="-m-6 min-h-[calc(100dvh-4rem)] bg-[#160c02] overflow-y-auto">
 
         <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
