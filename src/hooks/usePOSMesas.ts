@@ -2,10 +2,37 @@ import { useState, useCallback, useEffect } from 'react';
 import { useMesas, type MesaBackend } from './useMesas';
 import { useVenta, type ParaLlevarPedido } from './useVenta';
 import type { CartItem, RondaRecord } from './usePOSCart';
+import type { ProductTipo } from '../types';
 
 export const PARA_LLEVAR_ID = 'para-llevar';
 
 type MesaStatus = 'libre' | 'ocupada' | 'esperando_pago';
+
+interface DetalleRonda {
+  id: number;
+  id_Producto: number;
+  id_Ronda: number;
+  nombre_Producto: string;
+  precio: number;
+  cantidad: number;
+  itemsCombo?: Array<{ nombre: string; cantidad: number; ubicacion?: string }>;
+  producto?: { tipo?: string; detalles?: Array<{ producto: { nombre: string; tipo: string }; cantidad: number }> };
+  opciones?: Array<{
+    id_Opcion: number;
+    opcion: {
+      nombre: string;
+      ajustePrecio: number;
+      tipoOpcion?: string;
+      variacion?: { id: number; nombre: string };
+      ajustes?: Array<{
+        tipoAjuste: string;
+        cantidad: number;
+        insumoBase?: { nombre: string } | null;
+        insumoNuevo?: { nombre: string } | null;
+      }>;
+    };
+  }>;
+}
 
 interface LocalMesa {
   id: string;
@@ -55,6 +82,65 @@ interface UsePOSMesasReturn {
   loadingParaLlevar: boolean;
 }
 
+const processDetalle = (detalle: DetalleRonda, roundNum: number, rondaId: number) => {
+  const comboComponentes = detalle.itemsCombo?.length
+    ? detalle.itemsCombo.map((ic: { nombre: string; cantidad: number; ubicacion?: string }) => ({
+        nombre: ic.nombre,
+        cantidad: ic.cantidad,
+        tipo: '',
+        ubicacion: ic.ubicacion ?? '',
+      }))
+    : detalle.producto?.detalles?.map((d: { producto: { nombre: string; tipo: string }; cantidad: number }) => ({
+        nombre: d.producto.nombre,
+        cantidad: d.cantidad,
+        tipo: d.producto.tipo,
+        ubicacion: '',
+      })) ?? [];
+
+  const opcionesSeleccionadas = detalle.opciones?.map((opt) => {
+    const ajuste = opt.opcion.ajustes?.[0];
+    return {
+      atributoId: String(opt.opcion.variacion?.id ?? ''),
+      atributoNombre: opt.opcion.variacion?.nombre ?? '',
+      opcionId: String(opt.id_Opcion),
+      opcionNombre: opt.opcion.nombre,
+      precioAjuste: opt.opcion.ajustePrecio,
+      tipoOpcion: opt.opcion.tipoOpcion,
+      tipoAjuste: ajuste?.tipoAjuste,
+      insumoBaseNombre: ajuste?.insumoBase?.nombre,
+      insumoNuevoNombre: ajuste?.insumoNuevo?.nombre,
+      ajusteCantidad: ajuste?.cantidad,
+      opcionRaw: opt.opcion,
+    };
+  }) ?? [];
+
+  return {
+    product: {
+      id: String(detalle.id_Producto),
+      name: detalle.nombre_Producto,
+      salePrice: detalle.precio,
+      tipo: (() => {
+        const t = (detalle.producto?.tipo ?? 'comprado').toLowerCase();
+        if (t === 'combos') return 'combo';
+        if (t === 'elaborado') return 'elaborado';
+        return 'comprado';
+      })() as ProductTipo,
+      comboComponentes,
+      code: String(detalle.id_Producto),
+      categoryId: '', unit: 'unidad', costPrice: 0,
+      stock: 0, minStock: 0, maxStock: 0,
+      variations: [], isActive: true, hasVariations: false,
+      description: '', createdAt: new Date(), updatedAt: new Date(),
+    },
+    quantity: detalle.cantidad,
+    opciones: opcionesSeleccionadas,
+    precioFinal: detalle.precio,
+    cartKey: `hist_${detalle.id}_${rondaId}`,
+    roundNumber: roundNum,
+    consumoInsumos: [],
+  };
+};
+
 const mapParaLlevarToLocalMesa = (pl: ParaLlevarPedido): LocalMesa => {
   const isOccupied = pl.pedido !== null;
   const status: MesaStatus = isOccupied ? 'ocupada' : 'libre';
@@ -87,33 +173,8 @@ const mapParaLlevarToLocalMesa = (pl: ParaLlevarPedido): LocalMesa => {
       pl.pedido.rondas.forEach((ronda, idx) => {
         const roundNum = idx + 1;
         ronda.detalle.forEach((detalle) => {
-          order.push({
-            product: {
-              id: String(detalle.id),
-              name: detalle.nombre_Producto,
-              salePrice: detalle.precio,
-              tipo: 'comprado' as const,
-              code: String(detalle.id),
-              categoryId: '',
-              unit: 'unidad',
-              costPrice: 0,
-              stock: 0,
-              minStock: 0,
-              maxStock: 0,
-              variations: [],
-              isActive: true,
-              hasVariations: false,
-              description: '',
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            },
-            quantity: detalle.cantidad,
-            opciones: [],
-            precioFinal: detalle.precio,
-            cartKey: `${detalle.id}_${ronda.id}`,
-            roundNumber: roundNum,
-            consumoInsumos: [] as import('./usePOSCart').ConsumoInsumo[],
-          });
+          const processed = processDetalle(detalle as DetalleRonda, roundNum, ronda.id);
+          order.push(processed as CartItem);
         });
       });
 
@@ -200,52 +261,8 @@ export function usePOSMesas(): UsePOSMesasReturn {
         bm.pedido.rondas.forEach((ronda, idx) => {
           const roundNum = idx + 1;
           ronda.detalle.forEach((detalle) => {
-            const opcionesSeleccionadas = detalle.opciones?.map(opt => {
-              const ajuste = opt.opcion.ajustes?.[0];
-              return {
-                atributoId: String(opt.opcion.variacion.id),
-                atributoNombre: opt.opcion.variacion.nombre,
-                opcionId: String(opt.id_Opcion),
-                opcionNombre: opt.opcion.nombre,
-                precioAjuste: opt.opcion.ajustePrecio,
-                tipoOpcion: opt.tipoOpcion,
-                valorAnterior: opt.valorAnterior,
-                costoExtra: opt.costoExtra,
-                tipoAjuste: ajuste?.tipoAjuste,
-                insumoBaseNombre: ajuste?.insumoBase?.nombre,
-                insumoNuevoNombre: ajuste?.insumoNuevo?.nombre,
-                ajusteCantidad: ajuste?.cantidad,
-                opcionRaw: opt.opcion,
-              };
-            }) ?? [];
-
-            order.push({
-              product: {
-                id: String(detalle.id),
-                name: detalle.nombre_Producto,
-                salePrice: detalle.precio,
-                tipo: 'comprado' as const,
-                code: String(detalle.id),
-                categoryId: '',
-                unit: 'unidad',
-                costPrice: 0,
-                stock: 0,
-                minStock: 0,
-                maxStock: 0,
-                variations: [],
-                isActive: true,
-                hasVariations: false,
-                description: '',
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              },
-              quantity: detalle.cantidad,
-              opciones: opcionesSeleccionadas,
-              precioFinal: detalle.precio,
-              cartKey: `${detalle.id}_${ronda.id}`,
-              roundNumber: roundNum,
-              consumoInsumos: [] as import('./usePOSCart').ConsumoInsumo[],
-            });
+            const processed = processDetalle(detalle as unknown as DetalleRonda, roundNum, ronda.id);
+            order.push(processed as CartItem);
           });
         });
 
@@ -309,25 +326,21 @@ export function usePOSMesas(): UsePOSMesasReturn {
   const paraLlevarCount = paraLlevarOrders.filter(pl => pl.status !== 'libre').length;
 
   const openParaLlevar = useCallback(async (clienteId?: number | null): Promise<string | null> => {
-    // Fetch fresh data and sync state immediately (avoids stale-closure on paraLlevarOrders)
     const freshData = await syncParaLlevar();
     const freshMapped = freshData
       .filter(pl => pl.disponible || pl.pedido !== null)
       .map(mapParaLlevarToLocalMesa);
     setParaLlevarOrders(freshMapped);
 
-    // If there's an existing active para llevar order, resume it
     const activeOrder = freshMapped.find(m => m.status === 'ocupada');
     if (activeOrder) {
       setActiveMesaId(activeOrder.id);
       return activeOrder.id;
     }
 
-    // Create new pedido with optional client
     const newPedidoId = await createPedidoParaLlevar(clienteId ?? null);
     if (!newPedidoId) return null;
 
-    // Build local mesa immediately (backend may not expose it in paraLlevar yet)
     const newId = `pl_${newPedidoId}`;
     const newOrder: LocalMesa = {
       id: newId,
@@ -345,8 +358,6 @@ export function usePOSMesas(): UsePOSMesasReturn {
     setParaLlevarOrders(prev => [...prev, newOrder]);
     setActiveMesaId(newId);
 
-    // Sync in background to refresh state without blocking the flow.
-    // Use functional update to preserve optimistic entries not yet in backend.
     syncParaLlevar().then(freshData => {
       const mapped = freshData
         .filter(pl => pl.disponible || pl.pedido !== null)
@@ -444,9 +455,6 @@ export function usePOSMesas(): UsePOSMesasReturn {
       if (!autoReleased) {
         await liberarPedido();
       }
-      // Resync from backend: the optimistic entry uses pl_${pedidoId} but the
-      // backend-synced entry uses pl_${paraLlevarEntityId} — IDs differ, so
-      // filtering by mesaId alone leaves a stale "ocupada" entry in state.
       const fresh = await syncParaLlevar();
       setParaLlevarOrders(
         fresh

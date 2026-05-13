@@ -323,6 +323,11 @@ export const POSPage: React.FC = () => {
           salePrice: n.producto.precio, stock: n.cantidadProducible,
           minStock: 0, maxStock: 0, variations: [], isActive: true,
           hasVariations: false, createdAt: new Date(), updatedAt: new Date(),
+          comboComponentes: n.detalles.map(d => ({  // ← AGREGA ESTO
+            nombre: d.producto.nombre,
+            cantidad: d.cantidad,
+            tipo: d.producto.tipo,
+          })),
         });
         newComboDetails[id] = n.detalles.map(d => ({
           name: d.producto.nombre, quantity: d.cantidad, emoji: '•',
@@ -1148,13 +1153,26 @@ export const POSPage: React.FC = () => {
                                   ))}
                                 </div>
                               ) : null}
-                              {comboDetails[item.product.id]?.length > 0 && (
+                              {item.product.tipo === 'combo' && (
                                 <div className="mt-0.5 space-y-0.5">
-                                  {comboDetails[item.product.id].map((d, di) => (
-                                    <p key={di} className="text-xs text-coffee-400">
-                                      <span className="font-medium text-coffee-500">· </span>{d.quantity}× {d.name}
-                                    </p>
-                                  ))}
+                                  {(() => {
+                                    const componentes = item.product.comboComponentes?.length
+                                      ? item.product.comboComponentes
+                                      : item.product.tipo === 'combo'
+                                        ? comboDetails[item.product.id]?.map(d => ({ nombre: d.name, cantidad: d.quantity }))
+                                        : undefined;
+                                    return componentes?.length ? (
+                                      <div className="mt-0.5 space-y-0.5">
+                                        {componentes.map((d, di) => (
+                                          <p key={di} className="text-xs text-coffee-400">
+                                            <span className="font-medium text-coffee-500">· </span>
+                                            {d.cantidad}× {d.nombre}
+                                            
+                                          </p>
+                                        ))}
+                                      </div>
+                                    ) : null;
+                                  })()}
                                 </div>
                               )}
                             </div>
@@ -1249,24 +1267,35 @@ export const POSPage: React.FC = () => {
                                             </span>
                                           )}
                                         </div>
-                                        {item.opciones && item.opciones.length > 0 ? (
+                                        {item.opciones && item.opciones.length > 0 && (
                                           <div className="mt-0.5 space-y-0.5">
                                             {item.opciones.map((o, oi) => (
                                               <p key={oi} className="text-xs text-coffee-400">
-                                                <span className="font-medium text-coffee-500">{o.atributoNombre}:</span> {formatOpcionLabel(o)}
-                                              </p>
-                                            ))}
-                                          </div>
-                                        ) : null}
-                                        {comboDetails[item.product.id]?.length > 0 && (
-                                          <div className="mt-0.5 space-y-0.5">
-                                            {comboDetails[item.product.id].map((d, di) => (
-                                              <p key={di} className="text-xs text-coffee-400">
-                                                <span className="font-medium text-coffee-500">· </span>{d.quantity}× {d.name}
+                                                <span className="font-medium text-coffee-500">{o.atributoNombre}:</span>{' '}
+                                                {formatOpcionLabel(o)}
                                               </p>
                                             ))}
                                           </div>
                                         )}
+
+                                        {/* Componentes — combos */}
+                                          {(() => {
+                                            const componentes = item.product.comboComponentes?.length
+                                              ? item.product.comboComponentes
+                                              : item.product.tipo === 'combo'
+                                                ? comboDetails[item.product.id]?.map(d => ({ nombre: d.name, cantidad: d.quantity }))
+                                                : undefined;
+                                            return componentes?.length ? (
+                                              <div className="mt-0.5 space-y-0.5">
+                                                {componentes.map((d, di) => (
+                                                  <p key={di} className="text-xs text-coffee-400">
+                                                    <span className="font-medium text-coffee-500">· </span>
+                                                    {d.cantidad}× {d.nombre}
+                                                  </p>
+                                                ))}
+                                              </div>
+                                            ) : null;
+                                          })()}
                                       </div>
                                       <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                                         <div className="flex items-center gap-1.5">

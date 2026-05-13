@@ -119,6 +119,7 @@ export interface Product extends BaseEntity {
   porcionesBase?: number;
   /** For elaborados: ID of the associated recipe (recipeId) */
   recetaId?: string;
+  comboComponentes?: Array<{ nombre: string; cantidad: number; tipo: string; ubicacion?: string }>;
 }
 
 export interface ProductInput {

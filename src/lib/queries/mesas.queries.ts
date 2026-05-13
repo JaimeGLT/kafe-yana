@@ -12,26 +12,51 @@ export const GET_MESAS = `
           total
           cliente {
             id
-            dni
             nombre
             celular
-            correo
-            fecha_nacimiento
-            direccion
             puntos
             estado
           }
           rondas {
             id
-            id_Pedido
             ronda_Descripcion
             subTotal
             detalle {
               id
+              id_Producto
               nombre_Producto
               cantidad
+              nota
               precio
-              
+              itemsCombo {
+                id
+                id_Producto
+                nombre
+                cantidad
+                ubicacion
+              }
+              producto {
+                tipo
+                categoria { nombre }
+                detalles {
+                  cantidad
+                  producto { id nombre tipo }
+                }
+              }
+              opciones {
+                opcion {
+                  nombre
+                  ajustePrecio
+                  tipoOpcion
+                  variacion { id nombre }
+                  ajustes {
+                    tipoAjuste
+                    cantidad
+                    insumoBase { nombre }
+                    insumoNuevo { nombre }
+                  }
+                }
+              }
             }
           }
         }
@@ -78,37 +103,41 @@ export const GET_MESA_BY_ID = `
           }
           rondas {
             id
-            id_Pedido
             ronda_Descripcion
             subTotal
             detalle {
               id
+              id_Producto
               nombre_Producto
               cantidad
+              nota
               precio
+              itemsCombo {
+                id
+                id_Producto
+                nombre
+                cantidad
+                ubicacion
+              }
+              producto {
+                tipo
+                categoria { nombre }
+                detalles {
+                  cantidad
+                  producto { id nombre tipo }
+                }
+              }
               opciones {
-                id_Opcion
-                tipoOpcion
-                valorAnterior
-                costoExtra
                 opcion {
                   nombre
                   ajustePrecio
-                  variacion {
-                    id
-                    nombre
-                  }
+                  tipoOpcion
+                  variacion { id nombre }
                   ajustes {
                     tipoAjuste
                     cantidad
-                    insumoBase {
-                      id
-                      nombre
-                    }
-                    insumoNuevo {
-                      id
-                      nombre
-                    }
+                    insumoBase { nombre }
+                    insumoNuevo { nombre }
                   }
                 }
               }
