@@ -40,11 +40,7 @@ const DividirCuentaPanel = lazy(() => import('../../components/pos/DividirCuenta
 type ModalView = 'none' | 'nueva_mesa' | 'iniciar' | 'iniciar_para_llevar' | 'detalle' | 'review' | 'pago' | 'dividir' | 'success';
 type DetalleView = 'none' | 'pedido' | 'historial';
 
-const TIPO_PAGO_MAP: Record<string, number> = {
-  cash: 1,
-  transfer: 2,
-  card: 3,
-};
+
 
 const mesaOrderTotal = (order: any[]) =>
   order.reduce((s, i) => s + i.precioFinal * i.quantity, 0);
@@ -678,19 +674,20 @@ export const POSPage: React.FC = () => {
       const pedidoId = (activeMesa as any).pedidoId;
 
       if ((isMesa || isParaLlevar) && pedidoId) {
-        const tipoPago = TIPO_PAGO_MAP[paymentMethod] ?? 1;
-        const efectivoRecibido = paymentMethod === 'cash' ? cashNum : 0;
+        const pagos: PagosObject = { efectivo: 0, tarjeta: 0, qr: 0, total: mesaTotal };
+        if (paymentMethod === 'cash') pagos.efectivo = mesaTotal;
+        else if (paymentMethod === 'card') pagos.tarjeta = mesaTotal;
+        else if (paymentMethod === 'transfer') pagos.qr = mesaTotal;
         const idCliente = reviewClienteId ? parseInt(reviewClienteId, 10) : null;
 
         let success = false;
         if (isParaLlevar) {
-          success = await cobrarParaLlevar(pedidoId, idCliente, tipoPago, efectivoRecibido);
+          success = await cobrarParaLlevar(pedidoId, idCliente, pagos);
         } else {
           success = await api.post<any>(`/Mesa/cobrar/${activeMesa.id}`, {
             id_Pedido: pedidoId,
             id_Cliente: idCliente,
-            tipoPago,
-            efectivoRecibido,
+            pagos,
           });
         }
 
@@ -728,7 +725,14 @@ export const POSPage: React.FC = () => {
     }
   };
 
-  const handleConfirmSaleDividida = async (tipoPago: number, efectivoRecibido: number) => {
+  interface PagosObject {
+    efectivo: number;
+    tarjeta: number;
+    qr: number;
+    total: number;
+  }
+
+  const handleConfirmSaleDividida = async (pagos: PagosObject) => {
     if (!activeMesa) return;
     setIsProcessing(true);
     try {
@@ -738,13 +742,12 @@ export const POSPage: React.FC = () => {
 
       let success = false;
       if (isParaLlevar && pedidoId) {
-        success = await cobrarParaLlevar(pedidoId, idCliente, tipoPago, efectivoRecibido);
+        success = await cobrarParaLlevar(pedidoId, idCliente, pagos);
       } else if (pedidoId) {
         success = await api.post<any>(`/Mesa/cobrar/${activeMesa.id}`, {
           id_Pedido: pedidoId,
           id_Cliente: idCliente,
-          tipoPago,
-          efectivoRecibido,
+          pagos,
         });
       }
 

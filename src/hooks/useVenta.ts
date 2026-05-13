@@ -43,7 +43,7 @@ interface UseVentaReturn {
   syncParaLlevar: () => Promise<ParaLlevarPedido[]>;
   createPedidoParaLlevar: (clienteId?: number | null) => Promise<number | null>;
   crearRondaParaLlevar: (pedidoId: number, detalles: { id_Producto: number; ids_Opcion: number[]; cantidad: number }[]) => Promise<boolean>;
-  cobrarParaLlevar: (pedidoId: number, clienteId: number | null, tipoPago: number, efectivoRecibido: number) => Promise<boolean>;
+  cobrarParaLlevar: (pedidoId: number, clienteId: number | null, pagos: { efectivo: number; tarjeta: number; qr: number; total: number }) => Promise<boolean>;
   liberarPedido: () => Promise<boolean>;
 }
 
@@ -92,15 +92,13 @@ export function useVenta(): UseVentaReturn {
   const cobrarParaLlevar = useCallback(async (
     pedidoId: number,
     clienteId: number | null,
-    tipoPago: number,
-    efectivoRecibido: number
+    pagos: { efectivo: number; tarjeta: number; qr: number; total: number }
   ): Promise<boolean> => {
     try {
       await api.post('/Venta/cobrar', {
         id_Pedido: pedidoId,
         id_Cliente: clienteId,
-        tipoPago,
-        efectivoRecibido,
+        pagos,
       });
       return true;
     } catch (err) {

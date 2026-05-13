@@ -30,16 +30,23 @@ interface ReviewOrderItem {
   redeemRewardId?: string;
 }
 
+interface PagosObject {
+  efectivo: number;
+  tarjeta: number;
+  qr: number;
+  total: number;
+}
+
 interface DividirCuentaPanelProps {
   mesaName: string;
   order: ReviewOrderItem[];
   mesaTotal: number;
   formatCurrency: (n: number) => string;
   onBack: () => void;
-  onAllPaid: (tipoPago: number, efectivoRecibido: number) => void;
+  onAllPaid: (pagos: PagosObject) => void;
 }
 
-const TIPO_PAGO: Record<SplitPayMethod, number> = { cash: 1, transfer: 2, card: 3 };
+
 const PAY_LABEL: Record<SplitPayMethod, string> = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'QR' };
 const PAY_METHODS: SplitPayMethod[] = ['cash', 'card', 'transfer'];
 
@@ -174,10 +181,13 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
     setCashInput('');
 
     if (nextCuentas.every(c => c.status === 'pagado')) {
-      const totalEfectivo = nextCuentas.reduce((s, c) => s + (c.efectivoRecibido ?? 0), 0);
-      const methods = [...new Set(nextCuentas.map(c => c.tipoPago!))];
-      const finalTipo = methods.length === 1 ? TIPO_PAGO[methods[0]] : 1;
-      onAllPaid(finalTipo, totalEfectivo);
+      const pagos: PagosObject = { efectivo: 0, tarjeta: 0, qr: 0, total: mesaTotal };
+      nextCuentas.forEach(c => {
+        if (c.tipoPago === 'cash') pagos.efectivo += c.monto;
+        else if (c.tipoPago === 'card') pagos.tarjeta += c.monto;
+        else if (c.tipoPago === 'transfer') pagos.qr += c.monto;
+      });
+      onAllPaid(pagos);
     }
   };
 

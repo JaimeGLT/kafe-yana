@@ -89,7 +89,7 @@ interface UseMesasReturn {
   ocuparMesa: (id: string, clienteId: number | null) => Promise<number | null>;
   liberarMesa: (id: string) => Promise<boolean>;
   crearRonda: (mesaId: string, detalles: { id_Producto: number; ids_Opcion: number[]; cantidad: number }[]) => Promise<boolean>;
-  cobrarMesa: (mesaId: string, data: { id_Pedido: number; id_Cliente: number | null; tipoPago: number; efectivoRecibido: number }) => Promise<boolean>;
+  cobrarMesa: (mesaId: string, data: { id_Pedido: number; id_Cliente: number | null; pagos: { efectivo: number; tarjeta: number; qr: number; total: number } }) => Promise<boolean>;
   getActivePedidoId: (mesaId: string) => number | null;
   refreshMesas: (silent?: boolean) => Promise<void>;
 }
@@ -235,7 +235,7 @@ export function useMesas(): UseMesasReturn {
 
   const cobrarMesa = useCallback(async (
     mesaId: string,
-    data: { id_Pedido: number; id_Cliente: number | null; tipoPago: number; efectivoRecibido: number }
+    data: { id_Pedido: number; id_Cliente: number | null; pagos: { efectivo: number; tarjeta: number; qr: number; total: number } }
   ): Promise<boolean> => {
     try {
       await api.post(`/Mesa/cobrar/${mesaId}`, data);
