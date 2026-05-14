@@ -170,6 +170,7 @@ export const GET_ELABORADO_INGREDIENTES = `
           porciones
           detalles {
             cantidad
+            merma
             insumo { id nombre unidad_min_uso stock_actual }
           }
         }

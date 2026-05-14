@@ -182,7 +182,6 @@ export const GET_KARDEX_MOVEMENTS = `
     ventas(where: { productos: { eq: $productoId } }) {
       nodes {
         fecha
-        id
         codigo
         estado
         total

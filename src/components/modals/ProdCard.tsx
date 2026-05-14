@@ -95,7 +95,7 @@ export const ProdCard: React.FC<ProdCardProps> = ({
             <Minus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </button>
           <span className="text-sm sm:text-base font-black text-coffee-900">{qty}</span>
-          <button onClick={onInc} className="w-9 sm:w-11 h-full flex items-center justify-center hover:bg-coffee-200 text-coffee-700 transition-colors">
+          <button disabled={unavailable} onClick={onInc} className={clsx('w-9 sm:w-11 h-full flex items-center justify-center transition-colors', unavailable ? 'opacity-40 cursor-not-allowed' : 'hover:bg-coffee-200 text-coffee-700')}>
             <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </button>
         </div>

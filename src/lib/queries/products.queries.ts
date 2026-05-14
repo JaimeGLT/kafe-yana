@@ -170,8 +170,11 @@ export const GET_POS_DATA = `
         cantidadProducible
         producto { id nombre descripcion precio tipo imagen }
         detalles {
-          producto { id nombre descripcion precio tipo imagen }
-          cantidad opcional
+          cantidad
+          opcional
+          producto {
+            id nombre descripcion precio tipo imagen
+          }
         }
       }
     }

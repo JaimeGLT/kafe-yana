@@ -39,7 +39,8 @@
       "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
       "Bash(Get-ChildItem *)",
       "Bash(Get-Content \"C:\\\\Users\\\\jaime\\\\Desktop\\\\kafe-yana\\\\package.json\")",
-      "Bash(Select-Object -First 50)"
+      "Bash(Select-Object -First 50)",
+      "Bash(findstr /S /C:\"Stock insuficiente para insumo\" .)"
     ]
   }
 }

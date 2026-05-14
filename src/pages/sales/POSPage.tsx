@@ -13,7 +13,7 @@ import { GET_POS_DATA } from '../../lib/queries/products.queries';
 import { GET_ELABORADO_INGREDIENTES } from '../../lib/queries/elaborados.queries';
 import { usePOSMesas } from '../../hooks/usePOSMesas';
 import { useVenta } from '../../hooks/useVenta';
-import { usePOSCart } from '../../hooks/usePOSCart';
+import { usePOSCart, validarStockDisponible } from '../../hooks/usePOSCart';
 import { usePOSLoyalty } from '../../hooks/usePOSLoyalty';
 import { formatCurrency } from '../../utils';
 import { formatOpcionLabel, formatOpcionLabelString } from '../../utils/opcionUtils';
@@ -23,7 +23,7 @@ import { MesaCard } from '../../components/pos/MesaCard';
 import { NuevaMesaModal } from '../../components/pos/NuevaMesaModal';
 import { IniciarMesaModal } from '../../components/pos/IniciarMesaModal';
 import { ComboDetailPanel } from '../../components/pos/ComboDetailPanel';
-import type { Product, Category, Customer, SaleInput, PaymentMethodType, VariacionAtributo } from '../../types';
+import type { Product, Category, Customer, CustomerInput, SaleInput, PaymentMethodType, VariacionAtributo } from '../../types';
 import type { Reward, MilestoneReward, PointsCalculation } from '../../types/loyalty';
 import { VariacionPickerModal } from '../../components/modals/VariacionPickerModal';
 import { ElaboradoDetailModal } from '../../components/modals/ElaboradoDetailModal';
@@ -134,6 +134,18 @@ export const POSPage: React.FC = () => {
     stockInsumos: Record<string, number>;
   }>>({});
   const [stockInsumosGlobal, setStockInsumosGlobal] = useState<Record<string, number>>({});
+  const [comboRecipes, setComboRecipes] = useState<Record<string, {
+    components: Array<{
+      productId: string;
+      tipo: string;
+      cantidad: number;
+      recipe?: {
+        producible: boolean;
+        porciones: number;
+        detalles: Array<{ insumoId: string; insumoNombre: string; cantidad: number; merma: number }>;
+      };
+    }>;
+  }>>({});
 
   const {
     tempCart,
@@ -307,6 +319,8 @@ export const POSPage: React.FC = () => {
 
       const comboProducts: Product[] = [];
       const newComboDetails: Record<string, { name: string; quantity: number; emoji: string }[]> = {};
+      const newComboRecipes: Record<string, { components: Array<{ productId: string; tipo: string; cantidad: number; recipe?: { producible: boolean; porciones: number; detalles: Array<{ insumoId: string; insumoNombre: string; cantidad: number; merma: number }> } }> }> = {};
+      const comboInsumoStocks: Record<string, number> = {};
 
       for (const n of data.combos.nodes) {
         const id = String(n.producto.id);
@@ -319,15 +333,21 @@ export const POSPage: React.FC = () => {
           salePrice: n.producto.precio, stock: n.cantidadProducible,
           minStock: 0, maxStock: 0, variations: [], isActive: true,
           hasVariations: false, createdAt: new Date(), updatedAt: new Date(),
-          comboComponentes: n.detalles.map(d => ({  // ← AGREGA ESTO
+          comboComponentes: n.detalles.map((d: any) => ({
+            id: String(d.producto.id),
             nombre: d.producto.nombre,
             cantidad: d.cantidad,
             tipo: d.producto.tipo,
           })),
         });
-        newComboDetails[id] = n.detalles.map(d => ({
+        newComboDetails[id] = n.detalles.map((d: any) => ({
           name: d.producto.nombre, quantity: d.cantidad, emoji: '•',
         }));
+        newComboRecipes[id] = {
+          components: n.detalles.map((d: any) => ({
+            productId: String(d.producto.id), tipo: d.producto.tipo, cantidad: d.cantidad,
+          })),
+        };
       }
 
       const cats = [...catMap.values()].filter(c => c.isActive);
@@ -336,6 +356,8 @@ export const POSPage: React.FC = () => {
       setProducts([...elaboradoProducts, ...compradoProducts, ...comboProducts]);
       setAtributos(mappedAtributos);
       setComboDetails(newComboDetails);
+      setComboRecipes(newComboRecipes);
+      setStockInsumosGlobal(prev => ({ ...prev, ...comboInsumoStocks }));
       setCustomers(data.clientes.nodes as Customer[]);
       setProductsLoaded(true);
       enviarCatalogo(data.comprados.nodes, data.elaborados.nodes, data.combos.nodes);
@@ -411,6 +433,59 @@ export const POSPage: React.FC = () => {
     return products.filter(p => p.isActive && p.categoryId === catId);
   }, [products, selectedCatId, activeCategories, productSearch]);
 
+  const consumedFromCart = useMemo(() => {
+    const consumed: Record<string, number> = {};
+    for (const item of tempCart) {
+      for (const c of item.consumoInsumos) {
+        consumed[c.insumoId] = (consumed[c.insumoId] ?? 0) + c.cantidad * item.quantity;
+      }
+    }
+    return consumed;
+  }, [tempCart]);
+
+  const elaboradoEffectiveMax = useMemo(() => {
+    if (!elaboradoDetailProduct) return 999;
+    const p = elaboradoDetailProduct;
+
+    if (p.producible === true) {
+      const reserved = tempCart.filter(i => i.product.id === p.id).reduce((s, i) => s + i.quantity, 0);
+      return Math.max(0, p.stock - reserved);
+    }
+
+    const extras = elaboradoExtras[p.id];
+    if (extras?.receta?.detalles?.length) {
+      const porciones = (extras.receta as any).porciones ?? 1;
+      return extras.receta.detalles.reduce((min, det) => {
+        const totalStock = stockInsumosGlobal[det.insumo.id] ?? 0;
+        const consumed = consumedFromCart[det.insumo.id] ?? 0;
+        const cantidadEfectiva = (det.cantidad / porciones) * (1 + ((det as any).merma ?? 0) / 100);
+        return Math.min(min, Math.floor(Math.max(0, totalStock - consumed) / cantidadEfectiva));
+      }, p.cantidadProducible ?? 999);
+    }
+
+    return p.cantidadProducible ?? 999;
+  }, [elaboradoDetailProduct, elaboradoExtras, stockInsumosGlobal, consumedFromCart, tempCart]);
+
+  const calcularConsumoCombo = useCallback((comboId: string) => {
+    const recipe = comboRecipes[comboId];
+    if (!recipe) return [];
+    const consumed: Record<string, { cantidad: number; nombre: string }> = {};
+    for (const comp of recipe.components) {
+      if (!comp.recipe || comp.recipe.producible) continue;
+      const p = comp.recipe.porciones > 0 ? comp.recipe.porciones : 1;
+      for (const det of comp.recipe.detalles) {
+        const cantPorCombo = (det.cantidad / p) * (1 + det.merma / 100) * comp.cantidad;
+        consumed[det.insumoId] = {
+          cantidad: (consumed[det.insumoId]?.cantidad ?? 0) + cantPorCombo,
+          nombre: det.insumoNombre,
+        };
+      }
+    }
+    return Object.entries(consumed).map(([insumoId, v]) => ({
+      insumoId, nombre: v.nombre, cantidad: v.cantidad, tipo: 'base' as const,
+    }));
+  }, [comboRecipes]);
+
   const getEffectiveStock = useCallback((p: Product): { label: string; ok: boolean } => {
     const reserved = getTempQty(p.id);
     if (p.tipo === 'comprado') {
@@ -418,17 +493,42 @@ export const POSPage: React.FC = () => {
       return available <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${available}`, ok: true };
     }
     if (p.tipo === 'combo') {
+      const recipe = comboRecipes[p.id];
+      if (recipe?.components.some(c => c.recipe && !c.recipe.producible)) {
+        let effectiveMax = p.stock;
+        for (const comp of recipe.components) {
+          if (!comp.recipe || comp.recipe.producible) continue;
+          const por = comp.recipe.porciones > 0 ? comp.recipe.porciones : 1;
+          for (const det of comp.recipe.detalles) {
+            const cantPerCombo = (det.cantidad / por) * (1 + det.merma / 100) * comp.cantidad;
+            const remaining = Math.max(0, (stockInsumosGlobal[det.insumoId] ?? 0) - (consumedFromCart[det.insumoId] ?? 0));
+            effectiveMax = Math.min(effectiveMax, Math.floor(remaining / cantPerCombo));
+          }
+        }
+        const available = effectiveMax - reserved;
+        return available <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${available}`, ok: true };
+      }
       const available = p.stock - reserved;
       return available <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${available}`, ok: true };
     }
     if (p.tipo === 'elaborado') {
       if (!p.producible) return { label: '', ok: true };
+      const extras = elaboradoExtras[p.id];
+      if (extras?.receta?.detalles?.length) {
+        const porciones = (extras.receta as any).porciones ?? 1;
+        const effectiveMax = extras.receta.detalles.reduce((min, det) => {
+          const remaining = Math.max(0, (stockInsumosGlobal[det.insumo.id] ?? 0) - (consumedFromCart[det.insumo.id] ?? 0));
+          const cantidadEfectiva = (det.cantidad / porciones) * (1 + ((det as any).merma ?? 0) / 100);
+          return Math.min(min, Math.floor(remaining / cantidadEfectiva));
+        }, p.cantidadProducible ?? 999);
+        return effectiveMax <= 0 ? { label: 'Agotado', ok: false } : { label: `Disponible: ${effectiveMax}`, ok: true };
+      }
       const available = p.stock - reserved;
       return available <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${available}`, ok: true };
     }
     const available = p.stock - reserved;
     return available <= 0 ? { label: 'Agotado', ok: false } : { label: String(available), ok: true };
-  }, [getTempQty]);
+  }, [getTempQty, elaboradoExtras, stockInsumosGlobal, consumedFromCart, comboRecipes]);
 
   const mesaSubtotal = activeMesa ? mesaOrderTotal(activeMesa.order) : 0;
   const loyaltyProfile = activeMesa?.customerId ? getOrCreateProfile(activeMesa.customerId) : null;
@@ -549,6 +649,13 @@ export const POSPage: React.FC = () => {
     toast.success('Cliente registrado', `${name} añadido correctamente.`);
   };
 
+  const handleCreateCustomerCombobox = (input: CustomerInput): Promise<Customer> =>
+    new Promise((resolve) => {
+      handleCreateCustomerReview(input.nombre, input.celular, (id) => {
+        resolve({ id, nombre: input.nombre, celular: input.celular, puntos: 0, estado: true });
+      });
+    });
+
   const addTempProduct = (product: Product) => {
     if (product.tipo === 'combo') {
       setComboDetailProduct(product);
@@ -597,9 +704,11 @@ export const POSPage: React.FC = () => {
               .map((i: any) => ({ id: String(i.id), nombre: i.nombre, stock: i.stock_actual ?? 0 }));
 
             const receta = node?.receta ? {
+              porciones: node.receta.porciones ?? 1,
               detalles: (node.receta.detalles ?? []).map((d: any) => ({
                 insumo: { id: String(d.insumo?.id ?? d.id_insumo), nombre: d.insumo?.nombre ?? d.insumo?.id ?? '' },
                 cantidad: d.cantidad,
+                merma: d.merma ?? 0,
               })),
             } : null;
 
@@ -1510,7 +1619,7 @@ export const POSPage: React.FC = () => {
         )}
 
         {modalView === 'dividir' && activeMesa && (
-          <Overlay onClose={() => setModalView('review')}>
+          <Overlay>
             <Suspense fallback={<div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl p-8 flex items-center justify-center"><div className="w-8 h-8 border-2 border-coffee-300 border-t-coffee-800 rounded-full animate-spin" /></div>}>
               <DividirCuentaPanel
                 mesaName={activeMesa.name}
@@ -1519,6 +1628,10 @@ export const POSPage: React.FC = () => {
                 formatCurrency={formatCurrency}
                 onBack={() => setModalView('review')}
                 onAllPaid={handleConfirmSaleDividida}
+                clientes={customers}
+                selectedClienteId={reviewClienteId ?? ''}
+                onClienteChange={(id) => setReviewClienteId(id || null)}
+                onCreateCustomer={handleCreateCustomerCombobox}
               />
             </Suspense>
           </Overlay>
@@ -1581,7 +1694,23 @@ export const POSPage: React.FC = () => {
               product={comboDetailProduct as any}
               details={comboDetails[comboDetailProduct.id] ?? []}
               formatCurrency={formatCurrency}
-              onAdd={() => { addTempDirect(comboDetailProduct); setComboDetailProduct(null); }}
+              onAdd={() => {
+                const consumoInsumos = calcularConsumoCombo(comboDetailProduct.id);
+                const fakeItem = {
+                  product: comboDetailProduct,
+                  quantity: 1,
+                  precioFinal: comboDetailProduct.salePrice,
+                  cartKey: '__check__',
+                  consumoInsumos,
+                };
+                const validacion = validarStockDisponible(fakeItem, tempCart, stockInsumosGlobal);
+                if (!validacion.valido) {
+                  toast.error('Stock insuficiente', `No hay suficiente ${validacion.insumoBloqueado}. Disponible: ${validacion.disponible?.toFixed(0)}, necesario: ${validacion.requerido?.toFixed(0)}`);
+                  return;
+                }
+                addTempDirect(comboDetailProduct, undefined, undefined, 1, consumoInsumos);
+                setComboDetailProduct(null);
+              }}
               onClose={() => setComboDetailProduct(null)}
             />
           </Overlay>
@@ -1594,11 +1723,33 @@ export const POSPage: React.FC = () => {
             product={elaboradoDetailProduct}
             atributos={getAtributosByProductId(elaboradoDetailProduct.id)}
             ingredientes={elaboradoIngredientes[elaboradoDetailProduct.id] ?? []}
-            insumosStock={elaboradoExtras[elaboradoDetailProduct.id]?.insumosStock ?? []}
+            insumosStock={
+              (elaboradoExtras[elaboradoDetailProduct.id]?.insumosStock ?? []).map(i => ({
+                ...i,
+                stock: Math.max(0, i.stock - (consumedFromCart[i.id] ?? 0)),
+              }))
+            }
             opcionesStockInfo={elaboradoExtras[elaboradoDetailProduct.id]?.opcionesStockInfo ?? []}
             receta={elaboradoExtras[elaboradoDetailProduct.id]?.receta ?? null}
             variaciones={elaboradoExtras[elaboradoDetailProduct.id]?.variaciones ?? []}
+            effectiveMax={elaboradoEffectiveMax}
             onConfirm={(opciones, precioFinal, qty, consumoInsumos) => {
+              const fakeItem = {
+                product: elaboradoDetailProduct,
+                quantity: qty,
+                opciones,
+                precioFinal: precioFinal ?? elaboradoDetailProduct.salePrice,
+                cartKey: `__check__`,
+                consumoInsumos,
+              };
+              const validacion = validarStockDisponible(fakeItem, tempCart, stockInsumosGlobal);
+              if (!validacion.valido) {
+                toast.error(
+                  'Stock insuficiente',
+                  `No hay suficiente ${validacion.insumoBloqueado}. Disponible: ${validacion.disponible?.toFixed(0)}, necesario: ${validacion.requerido?.toFixed(0)}`
+                );
+                return;
+              }
               addTempDirect(elaboradoDetailProduct, opciones, precioFinal, qty, consumoInsumos);
               setElaboradoDetailProduct(null);
             }}

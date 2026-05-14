@@ -37,14 +37,17 @@ interface AjusteInfo {
 }
 
 export function calcularConsumo(
-  recetaDetalles: Array<{ insumo: { id: string; nombre: string }; cantidad: number }>,
+  recetaDetalles: Array<{ insumo: { id: string; nombre: string }; cantidad: number; merma?: number }>,
+  porciones: number,
   opciones: OpcionSeleccionada[],
   ajustesMap: Record<string, AjusteInfo[]>
 ): ConsumoInsumo[] {
+  const p = porciones > 0 ? porciones : 1;
   const consumo: Record<string, { cantidad: number; nombre: string; tipo: 'base' | 'reemplazo' | 'extra' }> = {};
 
   for (const det of recetaDetalles) {
-    consumo[det.insumo.id] = { cantidad: det.cantidad, nombre: det.insumo.nombre, tipo: 'base' };
+    const cantidadEfectiva = (det.cantidad / p) * (1 + (det.merma ?? 0) / 100);
+    consumo[det.insumo.id] = { cantidad: cantidadEfectiva, nombre: det.insumo.nombre, tipo: 'base' };
   }
 
   for (const opcion of opciones) {
@@ -54,24 +57,24 @@ export function calcularConsumo(
         if (consumo[aj.insumoBase.id]) consumo[aj.insumoBase.id].cantidad = 0;
         if (aj.insumoNuevo) {
           consumo[aj.insumoNuevo.id] = {
-            cantidad: aj.cantidad,
+            cantidad: aj.cantidad / p,
             nombre: aj.insumoNuevo.nombre ?? aj.insumoNuevo.id,
             tipo: 'reemplazo',
           };
         }
       } else if (aj.tipoAjuste === 'Modificacion') {
         if (consumo[aj.insumoBase.id]) {
-          consumo[aj.insumoBase.id].cantidad = aj.cantidad;
+          consumo[aj.insumoBase.id].cantidad = aj.cantidad / p;
           consumo[aj.insumoBase.id].tipo = 'reemplazo';
         }
       } else if (aj.tipoAjuste === 'Extra' || aj.tipoAjuste === 'extra') {
         if (aj.insumoNuevo) {
           if (consumo[aj.insumoNuevo.id]) {
-            consumo[aj.insumoNuevo.id].cantidad += aj.cantidad;
+            consumo[aj.insumoNuevo.id].cantidad += aj.cantidad / p;
             consumo[aj.insumoNuevo.id].tipo = 'extra';
           } else {
             consumo[aj.insumoNuevo.id] = {
-              cantidad: aj.cantidad,
+              cantidad: aj.cantidad / p,
               nombre: aj.insumoNuevo.nombre ?? aj.insumoNuevo.id,
               tipo: 'extra',
             };
@@ -196,7 +199,20 @@ export function usePOSCart() {
       const item = prev.find(i => i.cartKey === cartKey);
       if (!item) return prev;
 
-      const validacion = validarStockDisponible(item, prev, stockInsumos);
+      if (item.product.tipo === 'comprado' || item.product.tipo === 'combo') {
+        const totalInCart = prev
+          .filter(i => i.product.id === item.product.id)
+          .reduce((s, i) => s + i.quantity, 0);
+        if (totalInCart >= item.product.stock) {
+          toast.error(
+            'Stock insuficiente',
+            `Solo hay ${item.product.stock} unidad(es) de ${item.product.name}.`
+          );
+          return prev;
+        }
+      }
+
+      const validacion = validarStockDisponible({ ...item, quantity: item.quantity + 1 }, prev, stockInsumos);
       if (!validacion.valido) {
         toast.error(
           'Stock insuficiente',

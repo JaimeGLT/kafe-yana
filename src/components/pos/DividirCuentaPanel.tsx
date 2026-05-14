@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { clsx } from 'clsx';
 import { ChevronLeft, ChevronRight, ChevronDown, Check, Users, List, SlidersHorizontal, Minus, Plus } from 'lucide-react';
+import { CustomerCombobox } from '../forms/CustomerCombobox';
+import type { Customer, CustomerInput } from '../../types';
 
 type SplitStep = 'modo' | 'configurar' | 'cobrar';
 type SplitMode = 'partes_iguales' | 'por_items' | 'montos_libres';
@@ -44,6 +46,10 @@ interface DividirCuentaPanelProps {
   formatCurrency: (n: number) => string;
   onBack: () => void;
   onAllPaid: (pagos: PagosObject) => void;
+  clientes: Customer[];
+  selectedClienteId: string;
+  onClienteChange: (id: string) => void;
+  onCreateCustomer: (input: CustomerInput) => Promise<Customer>;
 }
 
 
@@ -62,6 +68,7 @@ function buildIguales(n: number, total: number): CuentaDividida[] {
 
 export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
   mesaName, order, mesaTotal, formatCurrency, onBack, onAllPaid,
+  clientes, selectedClienteId, onClienteChange, onCreateCustomer,
 }) => {
   const [step, setStep] = useState<SplitStep>('modo');
   const [mode, setMode] = useState<SplitMode>('partes_iguales');
@@ -89,6 +96,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
   const activeIdx = cuentas.findIndex(c => c.status === 'activo');
   const activaCuenta = activeIdx >= 0 ? cuentas[activeIdx] : null;
   const cashNum = parseFloat(cashInput.replace(',', '.')) || 0;
+  const allPaid = cuentas.length > 0 && cuentas.every(c => c.status === 'pagado');
 
   const resetItemAssignments = (_n: number) =>
     setItemAssignments(Object.fromEntries(order.map(i => [i.cartKey, 0])));
@@ -179,16 +187,16 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
     setCuentas(nextCuentas);
     setPayMethod('cash');
     setCashInput('');
+  };
 
-    if (nextCuentas.every(c => c.status === 'pagado')) {
-      const pagos: PagosObject = { efectivo: 0, tarjeta: 0, qr: 0, total: mesaTotal };
-      nextCuentas.forEach(c => {
-        if (c.tipoPago === 'cash') pagos.efectivo += c.monto;
-        else if (c.tipoPago === 'card') pagos.tarjeta += c.monto;
-        else if (c.tipoPago === 'transfer') pagos.qr += c.monto;
-      });
-      onAllPaid(pagos);
-    }
+  const handleTerminarCobro = () => {
+    const pagos: PagosObject = { efectivo: 0, tarjeta: 0, qr: 0, total: mesaTotal };
+    cuentas.forEach(c => {
+      if (c.tipoPago === 'cash') pagos.efectivo += c.monto;
+      else if (c.tipoPago === 'card') pagos.tarjeta += c.monto;
+      else if (c.tipoPago === 'transfer') pagos.qr += c.monto;
+    });
+    onAllPaid(pagos);
   };
 
   const headerBack =
@@ -434,7 +442,15 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
 
       {/* ── STEP: COBRAR ── */}
       {step === 'cobrar' && (
+        <>
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-0">
+          <CustomerCombobox
+            customers={clientes}
+            value={selectedClienteId}
+            onChange={onClienteChange}
+            onCreateCustomer={onCreateCustomer}
+          />
+
           <div className="bg-coffee-50 rounded-xl p-3 flex justify-between text-sm mb-2">
             <span className="text-coffee-500">{cuentas.length} cuentas</span>
             <span className="font-bold text-coffee-900">{formatCurrency(mesaTotal)}</span>
@@ -557,6 +573,18 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
 
           <div className="h-4" />
         </div>
+
+        {allPaid && (
+          <div className="flex-shrink-0 border-t border-coffee-100 px-5 py-4">
+            <button
+              onClick={handleTerminarCobro}
+              className="w-full py-4 rounded-2xl font-bold text-base bg-emerald-600 text-white hover:bg-emerald-500 active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              <Check className="h-5 w-5" /> Terminar cobro
+            </button>
+          </div>
+        )}
+        </>
       )}
     </div>
   );

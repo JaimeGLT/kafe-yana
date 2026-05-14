@@ -289,7 +289,6 @@ export interface KardexVentaDetalle {
 
 export interface KardexRawVenta {
   fecha: string;
-  id: number;
   codigo: string;
   estado: string;
   total: number;

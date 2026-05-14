@@ -33,9 +33,11 @@ export interface OpcionStockInfo {
 interface RecetaDetalle {
   insumo: { id: string; nombre: string };
   cantidad: number;
+  merma?: number;
 }
 
 interface RecetaInfo {
+  porciones?: number;
   detalles: RecetaDetalle[];
 }
 
@@ -65,6 +67,7 @@ interface Props {
   opcionesStockInfo: OpcionStockInfo[];
   receta: RecetaInfo | null;
   variaciones: VariacionRaw[];
+  effectiveMax?: number;
   onConfirm: (opciones: OpcionSeleccionada[], precioFinal: number, qty: number, consumoInsumos: ConsumoInsumo[]) => void;
 }
 
@@ -78,6 +81,7 @@ export const ElaboradoDetailModal: React.FC<Props> = ({
   opcionesStockInfo,
   receta,
   variaciones,
+  effectiveMax,
   onConfirm,
 }) => {
   const [selecciones, setSelecciones] = React.useState<Record<string, string>>({});
@@ -127,9 +131,9 @@ export const ElaboradoDetailModal: React.FC<Props> = ({
   }, [selecciones, product.salePrice, activeAtributos]);
 
   const maxProducible = React.useMemo(() => {
-    if (product.producible === true) return product.stock;
+    if (product.producible === true) return effectiveMax ?? product.stock;
 
-    let max = product.cantidadProducible ?? 999;
+    let max = effectiveMax ?? product.cantidadProducible ?? 999;
 
     for (const opcionId of Object.values(selecciones)) {
       const stockInfo = opcionesStockInfo.find(o => o.opcionId === opcionId);
@@ -140,7 +144,7 @@ export const ElaboradoDetailModal: React.FC<Props> = ({
     }
 
     return Math.floor(max);
-  }, [product, selecciones, opcionesStockInfo, insumosStock]);
+  }, [product, effectiveMax, selecciones, opcionesStockInfo, insumosStock]);
 
   const adjustmentTotal = precioFinal - product.salePrice;
 
@@ -197,7 +201,7 @@ ajusteCantidad: opcion.ajusteCantidad,
     }
 
     const consumoInsumos = receta?.detalles
-      ? calcularConsumo(receta.detalles, opciones, ajustesMap)
+      ? calcularConsumo(receta.detalles, receta.porciones ?? 1, opciones, ajustesMap)
       : [];
 
     onConfirm(opciones, precioFinal, qty, consumoInsumos);
