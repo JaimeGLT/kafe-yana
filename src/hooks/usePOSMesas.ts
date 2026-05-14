@@ -3,6 +3,47 @@ import { useMesas, type MesaBackend } from './useMesas';
 import { useVenta, type ParaLlevarPedido } from './useVenta';
 import type { CartItem, RondaRecord } from './usePOSCart';
 import type { ProductTipo } from '../types';
+import { gql } from '../lib/graphql';
+import { GET_MESA_BY_ID } from '../lib/queries/mesas.queries';
+
+interface ComandaItem {
+  cantidad: number;
+  nombre: string;
+  nota?: string;
+  ubicacion?: string;
+}
+
+function buildComandaItems(ronda: any): ComandaItem[] {
+  const items: ComandaItem[] = [];
+  for (const detalle of ronda.detalle) {
+    if (detalle.itemsCombo?.length > 0) {
+      for (const sub of detalle.itemsCombo) {
+        items.push({
+          cantidad: sub.cantidad * detalle.cantidad,
+          nombre: sub.nombre,
+          nota: `(combo: ${detalle.nombre_Producto})`,
+          ubicacion: sub.ubicacion,
+        });
+      }
+    } else {
+      const notasOpciones = detalle.opciones
+        ?.map((o: any) => o.opcion.nombre)
+        .join(', ') ?? '';
+      const nota = [detalle.nota, notasOpciones].filter(Boolean).join(' | ') || undefined;
+      items.push({ cantidad: detalle.cantidad, nombre: detalle.nombre_Producto, nota });
+    }
+  }
+  return items;
+}
+
+async function enviarComanda(mesaNombre: string, ronda: any): Promise<void> {
+  const items = buildComandaItems(ronda);
+  await fetch('http://localhost:5001/api/pedido', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mesa: mesaNombre, items }),
+  });
+}
 
 export const PARA_LLEVAR_ID = 'para-llevar';
 
@@ -521,6 +562,19 @@ export function usePOSMesas(): UsePOSMesasReturn {
       setParaLlevarOrders(updateFn);
 
       printComanda(mesa.name, round, itemsWithRound);
+
+      if (!mesaId.startsWith('pl_')) {
+        try {
+          const data = await gql<any>(GET_MESA_BY_ID, { id: parseInt(mesaId, 10) });
+          const mesaData = data?.mesas?.nodes?.[0];
+          const rondas = mesaData?.pedido?.rondas;
+          if (rondas?.length) {
+            await enviarComanda(mesaData.nombre, rondas[rondas.length - 1]);
+          }
+        } catch {
+          // error de comanda no bloquea el flujo
+        }
+      }
     }
 
     setIsSendingToKitchen(false);
