@@ -26,13 +26,14 @@ export async function enviarCatalogo(
 
 export async function enviarPedido(
   mesa: string,
-  items: Array<{ cantidad: number; nombre: string; nota: string }>,
+  ronda: string,
+  items: Array<{ cantidad: number; nombre: string; nota: string; ubicacion: string }>,
 ): Promise<void> {
   try {
     const res = await fetch(`${PRINT_SERVER}/api/pedido`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mesa, items }),
+      body: JSON.stringify({ mesa, ronda, items }),
     });
     const resultado: Array<{ ok: boolean; destino: string }> = await res.json();
     const fallas = resultado.filter(r => !r.ok);

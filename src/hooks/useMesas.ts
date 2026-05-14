@@ -79,6 +79,35 @@ export interface RondaBackend {
   detalle: RondaDetalle[];
 }
 
+export interface RondaCreatedCambio {
+  tipo: 'Reemplazo' | 'Modificacion';
+  sale?: string;
+  entra?: string;
+  cantidad: number;
+  unidad: string;
+}
+
+export interface RondaCreatedOpcion {
+  nombre: string;
+  cambios?: RondaCreatedCambio[];
+}
+
+export interface RondaCreatedItem {
+  cantidad: number;
+  nombre: string;
+  ubicacion: string;
+  opciones?: RondaCreatedOpcion[];
+  items_combo?: Array<{ cantidad: number; nombre: string; ubicacion: string }>;
+}
+
+export interface RondaCreatedResponse {
+  nombre_mesa: string;
+  ronda: {
+    Ronda_Descripcion: string;
+    detalles: RondaCreatedItem[];
+  };
+}
+
 interface UseMesasReturn {
   mesas: MesaBackend[];
   loading: boolean;
@@ -88,7 +117,7 @@ interface UseMesasReturn {
   deleteMesa: (id: string) => Promise<boolean>;
   ocuparMesa: (id: string, clienteId: number | null) => Promise<number | null>;
   liberarMesa: (id: string) => Promise<boolean>;
-  crearRonda: (mesaId: string, detalles: { id_Producto: number; ids_Opcion: number[]; cantidad: number }[]) => Promise<boolean>;
+  crearRonda: (mesaId: string, detalles: { id_Producto: number; ids_Opcion: number[]; cantidad: number }[]) => Promise<RondaCreatedResponse | null>;
   cobrarMesa: (mesaId: string, data: { id_Pedido: number; id_Cliente: number | null; pagos: { efectivo: number; tarjeta: number; qr: number; total: number } }) => Promise<boolean>;
   getActivePedidoId: (mesaId: string) => number | null;
   refreshMesas: (silent?: boolean) => Promise<void>;
@@ -213,23 +242,23 @@ export function useMesas(): UseMesasReturn {
   const crearRonda = useCallback(async (
     mesaId: string,
     detalles: { id_Producto: number; ids_Opcion: number[]; cantidad: number }[]
-  ): Promise<boolean> => {
+  ): Promise<RondaCreatedResponse | null> => {
     try {
       const id_Pedido = pedidoPorMesa[mesaId];
       if (!id_Pedido) {
         toast.error('Error', 'La mesa no tiene un pedido activo.');
-        return false;
+        return null;
       }
 
-      await api.post(`/Mesa/ronda/${mesaId}`, {
+      const response = await api.post<RondaCreatedResponse>(`/Mesa/ronda/${mesaId}`, {
         id_Pedido,
         detalles,
       });
       await refreshMesas();
-      return true;
+      return response;
     } catch {
       toast.error('Error', 'No se pudo crear la ronda.');
-      return false;
+      return null;
     }
   }, [pedidoPorMesa, refreshMesas]);
 

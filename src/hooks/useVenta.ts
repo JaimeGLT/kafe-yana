@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { gql } from '../lib/graphql';
 import { GET_PARA_LLEVAR } from '../lib/queries/ventas.queries';
 import { toast } from '../components/ui/Toast';
+import type { RondaCreatedResponse } from './useMesas';
 
 export interface ParaLlevarPedido {
   disponible: boolean;
@@ -42,7 +43,7 @@ export interface ParaLlevarPedido {
 interface UseVentaReturn {
   syncParaLlevar: () => Promise<ParaLlevarPedido[]>;
   createPedidoParaLlevar: (clienteId?: number | null) => Promise<number | null>;
-  crearRondaParaLlevar: (pedidoId: number, detalles: { id_Producto: number; ids_Opcion: number[]; cantidad: number }[]) => Promise<boolean>;
+  crearRondaParaLlevar: (pedidoId: number, detalles: { id_Producto: number; ids_Opcion: number[]; cantidad: number }[]) => Promise<RondaCreatedResponse | null>;
   cobrarParaLlevar: (pedidoId: number, clienteId: number | null, pagos: { efectivo: number; tarjeta: number; qr: number; total: number }) => Promise<boolean>;
   liberarPedido: () => Promise<boolean>;
 }
@@ -75,17 +76,17 @@ export function useVenta(): UseVentaReturn {
   const crearRondaParaLlevar = useCallback(async (
     pedidoId: number,
     detalles: { id_Producto: number; ids_Opcion: number[]; cantidad: number }[]
-  ): Promise<boolean> => {
+  ): Promise<RondaCreatedResponse | null> => {
     try {
-      await api.post('/Venta/ronda', {
+      const response = await api.post<RondaCreatedResponse>('/Venta/ronda', {
         id_Pedido: pedidoId,
         detalles,
       });
-      return true;
+      return response;
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'No se pudo crear la ronda.';
       toast.error('Error', msg);
-      return false;
+      return null;
     }
   }, []);
 

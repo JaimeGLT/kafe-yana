@@ -17,7 +17,7 @@ import { usePOSCart, validarStockDisponible } from '../../hooks/usePOSCart';
 import { usePOSLoyalty } from '../../hooks/usePOSLoyalty';
 import { formatCurrency } from '../../utils';
 import { formatOpcionLabel, formatOpcionLabelString } from '../../utils/opcionUtils';
-import { enviarCatalogo, enviarPedido } from '../../utils/comandas';
+import { enviarCatalogo } from '../../utils/comandas';
 import { SkeletonMesaGrid, SkeletonCategoryTabs, SkeletonProductScroll, Overlay, ConfirmModal } from '../../components/ui';
 import { MesaCard } from '../../components/pos/MesaCard';
 import { NuevaMesaModal } from '../../components/pos/NuevaMesaModal';
@@ -46,7 +46,6 @@ const mesaOrderTotal = (order: any[]) =>
   order.reduce((s, i) => s + i.precioFinal * i.quantity, 0);
 
 const printComanda = (mesaName: string, roundNumber: number, items: any[]) => {
-  enviarPedido(mesaName, items.map(i => ({ cantidad: i.quantity, nombre: i.product.name, nota: i.notes ?? '' })));
   const win = window.open('', '_blank', 'width=320,height=500');
   if (!win) return;
   const now = new Date().toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });

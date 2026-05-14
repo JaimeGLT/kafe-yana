@@ -1,47 +1,41 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useMesas, type MesaBackend } from './useMesas';
+import { useMesas, type MesaBackend, type RondaCreatedResponse, type RondaCreatedOpcion } from './useMesas';
 import { useVenta, type ParaLlevarPedido } from './useVenta';
 import type { CartItem, RondaRecord } from './usePOSCart';
 import type { ProductTipo } from '../types';
-import { gql } from '../lib/graphql';
-import { GET_MESA_BY_ID } from '../lib/queries/mesas.queries';
+import { enviarPedido } from '../utils/comandas';
 
-interface ComandaItem {
-  cantidad: number;
-  nombre: string;
-  nota?: string;
-  ubicacion?: string;
+function formatearCambios(opciones: RondaCreatedOpcion[] | undefined): string {
+  if (!opciones?.length) return '';
+  return opciones.map(opcion => {
+    const cambios = opcion.cambios
+      ?.map(c => {
+        if (c.tipo === 'Reemplazo') return `${c.sale} -> ${c.entra} (${c.cantidad} ${c.unidad})`;
+        if (c.tipo === 'Modificacion') return `${c.entra ?? c.sale} (${c.cantidad} ${c.unidad})`;
+        return null;
+      })
+      .filter(Boolean)
+      .join(', ');
+    return cambios ? `${opcion.nombre}: ${cambios}` : opcion.nombre;
+  }).join(' | ');
 }
 
-function buildComandaItems(ronda: any): ComandaItem[] {
-  const items: ComandaItem[] = [];
-  for (const detalle of ronda.detalle) {
-    if (detalle.itemsCombo?.length > 0) {
-      for (const sub of detalle.itemsCombo) {
-        items.push({
-          cantidad: sub.cantidad * detalle.cantidad,
-          nombre: sub.nombre,
-          nota: `(combo: ${detalle.nombre_Producto})`,
-          ubicacion: sub.ubicacion,
-        });
-      }
-    } else {
-      const notasOpciones = detalle.opciones
-        ?.map((o: any) => o.opcion.nombre)
-        .join(', ') ?? '';
-      const nota = [detalle.nota, notasOpciones].filter(Boolean).join(' | ') || undefined;
-      items.push({ cantidad: detalle.cantidad, nombre: detalle.nombre_Producto, nota });
+function buildComandaFromResponse(data: RondaCreatedResponse): Array<{ cantidad: number; nombre: string; nota: string; ubicacion: string }> {
+  return data.ronda.detalles.flatMap(detalle => {
+    if (detalle.items_combo?.length) {
+      return detalle.items_combo.map(sub => ({
+        cantidad: sub.cantidad * detalle.cantidad,
+        nombre: sub.nombre,
+        nota: `(combo: ${detalle.nombre.split('(')[0].trim()})`,
+        ubicacion: sub.ubicacion.toLowerCase(),
+      }));
     }
-  }
-  return items;
-}
-
-async function enviarComanda(mesaNombre: string, ronda: any): Promise<void> {
-  const items = buildComandaItems(ronda);
-  await fetch('http://localhost:5001/api/pedido', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mesa: mesaNombre, items }),
+    return [{
+      cantidad: detalle.cantidad,
+      nombre: detalle.nombre.split('(')[0].trim(),
+      nota: formatearCambios(detalle.opciones),
+      ubicacion: detalle.ubicacion.toLowerCase(),
+    }];
   });
 }
 
@@ -532,18 +526,22 @@ export function usePOSMesas(): UsePOSMesasReturn {
       ids_Opcion: i.opciones?.map(o => Number(o.opcionId)).filter(id => !isNaN(id)) ?? [],
     }));
 
+    let rondaResponse: RondaCreatedResponse | null = null;
+
     if (mesaId.startsWith('pl_')) {
       const pedidoId = (mesa as LocalMesa).pedidoId;
       if (!pedidoId) {
         setIsSendingToKitchen(false);
         return false;
       }
-      success = await crearRondaParaLlevar(pedidoId, detalles);
+      rondaResponse = await crearRondaParaLlevar(pedidoId, detalles);
     } else {
-      success = await apiCrearRonda(mesaId, detalles);
+      rondaResponse = await apiCrearRonda(mesaId, detalles);
     }
 
-    if (success) {
+    success = rondaResponse !== null;
+
+    if (success && rondaResponse) {
       const itemsWithRound = tempCart.map(i => ({ ...i, roundNumber: round }));
       const rondaSubTotal = itemsWithRound.reduce((s, i) => s + i.precioFinal * i.quantity, 0);
 
@@ -563,17 +561,14 @@ export function usePOSMesas(): UsePOSMesasReturn {
 
       printComanda(mesa.name, round, itemsWithRound);
 
-      if (!mesaId.startsWith('pl_')) {
-        try {
-          const data = await gql<any>(GET_MESA_BY_ID, { id: parseInt(mesaId, 10) });
-          const mesaData = data?.mesas?.nodes?.[0];
-          const rondas = mesaData?.pedido?.rondas;
-          if (rondas?.length) {
-            await enviarComanda(mesaData.nombre, rondas[rondas.length - 1]);
-          }
-        } catch {
-          // error de comanda no bloquea el flujo
-        }
+      try {
+        await enviarPedido(
+          rondaResponse.nombre_mesa,
+          rondaResponse.ronda.Ronda_Descripcion,
+          buildComandaFromResponse(rondaResponse),
+        );
+      } catch {
+        // error de impresión no bloquea el flujo
       }
     }
 
