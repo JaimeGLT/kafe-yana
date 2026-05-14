@@ -8,7 +8,8 @@ import { Button, Badge } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
 import { formatCurrency } from '../../utils';
 import { useInventoryReportPage } from '../../hooks/useInventoryReportPage';
-import { generateInventoryReportPdf } from '../../lib/inventoryReportPdf';
+import { api } from '../../lib/api';
+import { toast } from '../../components/ui/Toast';
 
 const PIE_PALETTE = [
   '#8B4513', '#D4A574', '#C4883A', '#22c55e', '#eab308',
@@ -26,9 +27,23 @@ const tooltipStyle = {
 
 const InventoryReportPage: React.FC = () => {
   const { stats, categoryData, criticalItems, expiringItems, isLoading, error } = useInventoryReportPage();
+  const [isExportingPdf, setIsExportingPdf] = React.useState(false);
 
-  const handleExportPdf = () => {
-    generateInventoryReportPdf({ stats, categoryData, criticalItems, expiringItems });
+  const handleExportPdf = async () => {
+    setIsExportingPdf(true);
+    try {
+      const blob = await api.getBlob('/Reporte/inventario');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `inventario_${new Date().toISOString().split('T')[0]}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Error', 'No se pudo descargar el reporte de inventario.');
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   const getRatioColor = (ratio: number) => {
@@ -93,9 +108,9 @@ const InventoryReportPage: React.FC = () => {
               size="sm"
               leftIcon={<FileText className="h-4 w-4" />}
               onClick={handleExportPdf}
-              disabled={isLoading}
+              disabled={isLoading || isExportingPdf}
             >
-              Exportar PDF
+              {isExportingPdf ? 'Descargando...' : 'Exportar PDF'}
             </Button>
           }
         />

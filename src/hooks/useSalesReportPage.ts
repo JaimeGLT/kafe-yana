@@ -10,7 +10,6 @@ import type {
   VentaPaymentData,
   UseSalesReportPageReturn,
 } from '../types/ventas';
-import { normalizePaymentLabel } from '../types/ventas';
 
 interface VentasResponse {
   ventas: {
@@ -90,8 +89,9 @@ export function useSalesReportPage(
 
       const paymentMap: Record<string, number> = {};
       allNodes.forEach((v) => {
-        const label = normalizePaymentLabel(v.pago);
-        paymentMap[label] = (paymentMap[label] || 0) + parseDecimal(v.total);
+        if (v.pagoEfectivo > 0) paymentMap['Efectivo'] = (paymentMap['Efectivo'] || 0) + parseDecimal(v.pagoEfectivo);
+        if (v.pagoTarjeta > 0) paymentMap['Tarjeta'] = (paymentMap['Tarjeta'] || 0) + parseDecimal(v.pagoTarjeta);
+        if (v.pagoQr > 0) paymentMap['QR'] = (paymentMap['QR'] || 0) + parseDecimal(v.pagoQr);
       });
       setPaymentMethodData(
         Object.entries(paymentMap).map(([metodo, total]) => ({ metodo, total })),

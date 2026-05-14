@@ -56,6 +56,33 @@ async function tryRefreshToken(): Promise<boolean> {
   }
 }
 
+async function requestBlob(path: string, isRetry = false): Promise<Blob> {
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = {
+    'X-Requested-With': 'XMLHttpRequest',
+    ...(csrfToken ? { 'X-CSRFToken': csrfToken } : {}),
+  };
+
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, { method: 'GET', credentials: 'include', headers });
+  } catch {
+    throw new ApiError('Sin conexión. Verifica tu red e intenta de nuevo.', 0);
+  }
+
+  if (response.status === 401 && !isRetry) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) return requestBlob(path, true);
+    window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+  }
+
+  if (!response.ok) {
+    throw new ApiError('Error al descargar el archivo.', response.status);
+  }
+
+  return response.blob();
+}
+
 async function request<T>(path: string, options: RequestInit = {}, isRetry = false): Promise<T> {
   const csrfToken = getCsrfToken();
 
@@ -126,6 +153,8 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
 export const api = {
   get: <T>(path: string, options?: RequestInit) =>
     request<T>(path, { method: 'GET', ...options }),
+
+  getBlob: (path: string) => requestBlob(path),
 
   post: <T>(path: string, body?: unknown, options?: RequestInit) =>
     request<T>(path, {

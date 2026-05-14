@@ -1,24 +1,23 @@
 export interface VentaNode {
-  id: number;
   codigo: string;
   fecha: string;
   cliente: string;
   cajero: string;
   productos: number;
-  pago: string;
   estado: string;
   subtotal: string | number;
   total: string | number;
+  pagoEfectivo: number;
+  pagoTarjeta: number;
+  pagoQr: number;
   detalles?: DetalleVentaNode[];
 }
 
 export interface DetalleVentaNode {
-  id_venta: number;
   nombre: string;
   cantidad: number;
   precio: string;
   total: string;
-  id: number;
 }
 
 export interface VentaFilters {
@@ -72,16 +71,3 @@ export interface UseSalesReportPageReturn {
   refresh: () => Promise<void>;
 }
 
-const PAYMENT_TEXT: Record<string, string> = {
-  '0': 'Efectivo',
-  '1': 'Tarjeta',
-  '2': 'QR',
-  efectivo: 'Efectivo',
-  tarjeta: 'Tarjeta',
-  qr: 'QR',
-};
-
-export function normalizePaymentLabel(pago: string | number): string {
-  const key = String(pago).toLowerCase().trim();
-  return PAYMENT_TEXT[key] ?? String(pago);
-}

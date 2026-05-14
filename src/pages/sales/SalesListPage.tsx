@@ -21,17 +21,6 @@ interface SaleStats {
 
 // ── Backend mapping ───────────────────────────────────────────────────────────
 
-type PagoType = '1' | '2' | '3' | string;
-
-const mapPagoToPaymentMethod = (pago: PagoType): { type: import('../../types').PaymentMethodType; name: string } => {
-  switch (pago) {
-    case '1': return { type: 'cash', name: 'Efectivo' };
-    case '2': return { type: 'card', name: 'Tarjeta' };
-    case '3': return { type: 'qr', name: 'QR' };
-    default: return { type: 'cash', name: pago };
-  }
-};
-
 const mapEstadoToStatus = (estado: string): Sale['status'] => {
   const e = estado.toLowerCase();
   if (e === 'finalizada' || e === 'finalizado') return 'completed';
@@ -41,26 +30,25 @@ const mapEstadoToStatus = (estado: string): Sale['status'] => {
 };
 
 interface BackendVentaDetalle {
-  id_venta: number;
   nombre: string;
   cantidad: number;
   precio: number;
   total: number;
-  id: number;
 }
 
 interface BackendVenta {
   detalles: BackendVentaDetalle[];
-  id: number;
   codigo: string;
   fecha: string;
   cliente: string;
   cajero: string;
   productos: number;
-  pago: PagoType;
   estado: string;
   subtotal: number;
   total: number;
+  pagoEfectivo: number;
+  pagoTarjeta: number;
+  pagoQr: number;
 }
 
 interface BackendVentasResponse {
@@ -72,9 +60,13 @@ interface BackendVentasResponse {
 }
 
 const mapBackendVentaToSale = (v: BackendVenta): Sale => {
-  const payment = mapPagoToPaymentMethod(v.pago);
+  const paymentMethods: Sale['paymentMethods'] = [];
+  if (v.pagoEfectivo > 0) paymentMethods.push({ id: `${v.codigo}-cash`, type: 'cash', name: 'Efectivo', amount: Number(v.pagoEfectivo) });
+  if (v.pagoTarjeta > 0) paymentMethods.push({ id: `${v.codigo}-card`, type: 'card', name: 'Tarjeta', amount: Number(v.pagoTarjeta) });
+  if (v.pagoQr > 0) paymentMethods.push({ id: `${v.codigo}-qr`, type: 'qr', name: 'QR', amount: Number(v.pagoQr) });
+
   return {
-    id: String(v.id),
+    id: v.codigo,
     code: v.codigo,
     date: new Date(v.fecha),
     customerId: undefined,
@@ -89,9 +81,9 @@ const mapBackendVentaToSale = (v: BackendVenta): Sale => {
     tax: 0,
     taxPercentage: 18,
     total: Number(v.total),
-    paymentMethods: [{ id: String(v.id), type: payment.type, name: payment.name, amount: Number(v.total) }],
-    items: v.detalles.map(d => ({
-      id: String(d.id),
+    paymentMethods,
+    items: v.detalles.map((d, i) => ({
+      id: `${v.codigo}-${i}`,
       productId: '',
       productName: d.nombre,
       productCode: '',
