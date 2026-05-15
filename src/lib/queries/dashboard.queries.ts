@@ -26,7 +26,7 @@ export const GET_DASHBOARD_DATA = `
     }
     ventas(first: 50, order: [{ fecha: DESC }], where: $where) {
       nodes {
-        id
+        id 
         codigo
         fecha
         cliente
