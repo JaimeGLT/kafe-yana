@@ -159,17 +159,6 @@ export function useMesas(): UseMesasReturn {
     refreshMesas();
   }, [refreshMesas]);
 
-  useEffect(() => {
-    const POLL_INTERVAL = 10_000;
-    const tick = () => { if (!document.hidden) refreshMesas(true); };
-    const id = setInterval(tick, POLL_INTERVAL);
-    document.addEventListener('visibilitychange', tick);
-    return () => {
-      clearInterval(id);
-      document.removeEventListener('visibilitychange', tick);
-    };
-  }, [refreshMesas]);
-
   const createMesa = useCallback(async (nombre: string): Promise<string | null> => {
     try {
       const result = await api.post<{ id: number }>('/Mesa', { nombre });

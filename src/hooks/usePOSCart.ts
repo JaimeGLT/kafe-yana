@@ -194,30 +194,21 @@ export function usePOSCart() {
     return [...order, { product, quantity: 1, opciones, precioFinal: price, cartKey: key, consumoInsumos }];
   }, []);
 
-  const incTempQty = useCallback((cartKey: string, stockInsumos: Record<string, number>) => {
+  const incTempQty = useCallback((cartKey: string) => {
     setTempCart(prev => {
       const item = prev.find(i => i.cartKey === cartKey);
       if (!item) return prev;
 
-      if (item.product.tipo === 'comprado' || item.product.tipo === 'combo') {
-        const totalInCart = prev
-          .filter(i => i.product.id === item.product.id)
-          .reduce((s, i) => s + i.quantity, 0);
-        if (totalInCart >= item.product.stock) {
-          toast.error(
-            'Stock insuficiente',
-            `Solo hay ${item.product.stock} unidad(es) de ${item.product.name}.`
-          );
-          return prev;
-        }
-      }
+      const stockMax = item.product.tipo === 'elaborado' && !item.product.producible
+        ? (item.product.cantidadProducible ?? 999)
+        : item.product.stock;
 
-      const validacion = validarStockDisponible({ ...item, quantity: item.quantity + 1 }, prev, stockInsumos);
-      if (!validacion.valido) {
-        toast.error(
-          'Stock insuficiente',
-          `No hay suficiente ${validacion.insumoBloqueado}. Disponible: ${validacion.disponible?.toFixed(0)}, necesario: ${validacion.requerido?.toFixed(0)}`
-        );
+      const totalInCart = prev
+        .filter(i => i.product.id === item.product.id)
+        .reduce((s, i) => s + i.quantity, 0);
+
+      if (totalInCart >= stockMax) {
+        toast.error('Stock insuficiente', `Solo hay ${stockMax} unidad(es) de ${item.product.name}.`);
         return prev;
       }
 

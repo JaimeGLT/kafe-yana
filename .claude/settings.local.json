@@ -40,7 +40,12 @@
       "Bash(Get-ChildItem *)",
       "Bash(Get-Content \"C:\\\\Users\\\\jaime\\\\Desktop\\\\kafe-yana\\\\package.json\")",
       "Bash(Select-Object -First 50)",
-      "Bash(findstr /S /C:\"Stock insuficiente para insumo\" .)"
+      "Bash(findstr /S /C:\"Stock insuficiente para insumo\" .)",
+      "Bash(pnpm add *)",
+      "Bash(pnpm install *)",
+      "Bash(pnpm config *)",
+      "Bash(pnpm run *)",
+      "Bash(pnpm approve-builds *)"
     ]
   }
 }

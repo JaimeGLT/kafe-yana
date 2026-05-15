@@ -31,6 +31,13 @@ export default defineConfig({
         cookieDomainRewrite: 'localhost',
         agent: keepAliveAgent,
       },
+      '/hubs': {
+        target: API_TARGET,
+        changeOrigin: true,
+        secure: true,
+        cookieDomainRewrite: 'localhost',
+        ws: true,
+      },
     },
   },
 })

@@ -9,11 +9,12 @@ import { MainLayout } from '../../components/layout';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { gql } from '../../lib/graphql';
+import { getConnection } from '../../lib/signalr';
 import { GET_POS_DATA } from '../../lib/queries/products.queries';
 import { GET_ELABORADO_INGREDIENTES } from '../../lib/queries/elaborados.queries';
 import { usePOSMesas } from '../../hooks/usePOSMesas';
 import { useVenta } from '../../hooks/useVenta';
-import { usePOSCart, validarStockDisponible } from '../../hooks/usePOSCart';
+import { usePOSCart } from '../../hooks/usePOSCart';
 import { usePOSLoyalty } from '../../hooks/usePOSLoyalty';
 import { formatCurrency } from '../../utils';
 import { formatOpcionLabel, formatOpcionLabelString } from '../../utils/opcionUtils';
@@ -132,7 +133,6 @@ export const POSPage: React.FC = () => {
     variaciones: Array<{ opciones: Array<{ id: string; ajustes: Array<{ tipoAjuste: string; cantidad: number; insumoBase: { id: string }; insumoNuevo: { id: string } | null }> }> }>;
     stockInsumos: Record<string, number>;
   }>>({});
-  const [stockInsumosGlobal, setStockInsumosGlobal] = useState<Record<string, number>>({});
   const [comboRecipes, setComboRecipes] = useState<Record<string, {
     components: Array<{
       productId: string;
@@ -319,8 +319,6 @@ export const POSPage: React.FC = () => {
       const comboProducts: Product[] = [];
       const newComboDetails: Record<string, { name: string; quantity: number; emoji: string }[]> = {};
       const newComboRecipes: Record<string, { components: Array<{ productId: string; tipo: string; cantidad: number; recipe?: { producible: boolean; porciones: number; detalles: Array<{ insumoId: string; insumoNombre: string; cantidad: number; merma: number }> } }> }> = {};
-      const comboInsumoStocks: Record<string, number> = {};
-
       for (const n of data.combos.nodes) {
         const id = String(n.producto.id);
         comboProducts.push({
@@ -356,7 +354,6 @@ export const POSPage: React.FC = () => {
       setAtributos(mappedAtributos);
       setComboDetails(newComboDetails);
       setComboRecipes(newComboRecipes);
-      setStockInsumosGlobal(prev => ({ ...prev, ...comboInsumoStocks }));
       setCustomers(data.clientes.nodes as Customer[]);
       setProductsLoaded(true);
       enviarCatalogo(data.comprados.nodes, data.elaborados.nodes, data.combos.nodes);
@@ -382,11 +379,37 @@ export const POSPage: React.FC = () => {
       return p;
     }));
     setElaboradoExtras({});
-    setStockInsumosGlobal({});
   } catch {
     // silencioso
   }
 }, []);
+
+  useEffect(() => {
+    const conn = getConnection();
+    const handler = (data: {
+      comprados?: { id: number; stock: number }[];
+      elaborados?: { id: number; stock: number; cantidadProducible: number }[];
+      combos?: { id: number; cantidadProducible: number }[];
+    }) => {
+      setProducts(prev => prev.map(p => {
+        if (p.tipo === 'comprado') {
+          const u = data.comprados?.find(c => String(c.id) === p.id);
+          return u ? { ...p, stock: u.stock } : p;
+        }
+        if (p.tipo === 'elaborado') {
+          const u = data.elaborados?.find(e => String(e.id) === p.id);
+          return u ? { ...p, stock: u.stock, cantidadProducible: u.cantidadProducible } : p;
+        }
+        if (p.tipo === 'combo') {
+          const u = data.combos?.find(c => String(c.id) === p.id);
+          return u ? { ...p, stock: u.cantidadProducible } : p;
+        }
+        return p;
+      }));
+    };
+    conn.on('StockActualizado', handler);
+    return () => { conn.off('StockActualizado', handler); };
+  }, []);
 
   const getAtributosByProductId = useCallback((productId: string): VariacionAtributo[] => {
     return atributos.filter((a: VariacionAtributo) => a.productId === productId);
@@ -445,25 +468,10 @@ export const POSPage: React.FC = () => {
   const elaboradoEffectiveMax = useMemo(() => {
     if (!elaboradoDetailProduct) return 999;
     const p = elaboradoDetailProduct;
-
-    if (p.producible === true) {
-      const reserved = tempCart.filter(i => i.product.id === p.id).reduce((s, i) => s + i.quantity, 0);
-      return Math.max(0, p.stock - reserved);
-    }
-
-    const extras = elaboradoExtras[p.id];
-    if (extras?.receta?.detalles?.length) {
-      const porciones = (extras.receta as any).porciones ?? 1;
-      return extras.receta.detalles.reduce((min, det) => {
-        const totalStock = stockInsumosGlobal[det.insumo.id] ?? 0;
-        const consumed = consumedFromCart[det.insumo.id] ?? 0;
-        const cantidadEfectiva = (det.cantidad / porciones) * (1 + ((det as any).merma ?? 0) / 100);
-        return Math.min(min, Math.floor(Math.max(0, totalStock - consumed) / cantidadEfectiva));
-      }, p.cantidadProducible ?? 999);
-    }
-
-    return p.cantidadProducible ?? 999;
-  }, [elaboradoDetailProduct, elaboradoExtras, stockInsumosGlobal, consumedFromCart, tempCart]);
+    const reserved = tempCart.filter(i => i.product.id === p.id).reduce((s, i) => s + i.quantity, 0);
+    if (p.producible === true) return Math.max(0, p.stock - reserved);
+    return Math.max(0, (p.cantidadProducible ?? 999) - reserved);
+  }, [elaboradoDetailProduct, tempCart]);
 
   const calcularConsumoCombo = useCallback((comboId: string) => {
     const recipe = comboRecipes[comboId];
@@ -487,47 +495,17 @@ export const POSPage: React.FC = () => {
 
   const getEffectiveStock = useCallback((p: Product): { label: string; ok: boolean } => {
     const reserved = getTempQty(p.id);
-    if (p.tipo === 'comprado') {
-      const available = p.stock - reserved;
-      return available <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${available}`, ok: true };
-    }
-    if (p.tipo === 'combo') {
-      const recipe = comboRecipes[p.id];
-      if (recipe?.components.some(c => c.recipe && !c.recipe.producible)) {
-        let effectiveMax = p.stock;
-        for (const comp of recipe.components) {
-          if (!comp.recipe || comp.recipe.producible) continue;
-          const por = comp.recipe.porciones > 0 ? comp.recipe.porciones : 1;
-          for (const det of comp.recipe.detalles) {
-            const cantPerCombo = (det.cantidad / por) * (1 + det.merma / 100) * comp.cantidad;
-            const remaining = Math.max(0, (stockInsumosGlobal[det.insumoId] ?? 0) - (consumedFromCart[det.insumoId] ?? 0));
-            effectiveMax = Math.min(effectiveMax, Math.floor(remaining / cantPerCombo));
-          }
-        }
-        const available = effectiveMax - reserved;
-        return available <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${available}`, ok: true };
-      }
-      const available = p.stock - reserved;
-      return available <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${available}`, ok: true };
-    }
     if (p.tipo === 'elaborado') {
-      if (!p.producible) return { label: '', ok: true };
-      const extras = elaboradoExtras[p.id];
-      if (extras?.receta?.detalles?.length) {
-        const porciones = (extras.receta as any).porciones ?? 1;
-        const effectiveMax = extras.receta.detalles.reduce((min, det) => {
-          const remaining = Math.max(0, (stockInsumosGlobal[det.insumo.id] ?? 0) - (consumedFromCart[det.insumo.id] ?? 0));
-          const cantidadEfectiva = (det.cantidad / porciones) * (1 + ((det as any).merma ?? 0) / 100);
-          return Math.min(min, Math.floor(remaining / cantidadEfectiva));
-        }, p.cantidadProducible ?? 999);
-        return effectiveMax <= 0 ? { label: 'Agotado', ok: false } : { label: `Disponible: ${effectiveMax}`, ok: true };
+      if (!p.producible) {
+        const available = (p.cantidadProducible ?? 0) - reserved;
+        return available <= 0 ? { label: 'Agotado', ok: false } : { label: `Disponible: ${available}`, ok: true };
       }
       const available = p.stock - reserved;
       return available <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${available}`, ok: true };
     }
     const available = p.stock - reserved;
-    return available <= 0 ? { label: 'Agotado', ok: false } : { label: String(available), ok: true };
-  }, [getTempQty, elaboradoExtras, stockInsumosGlobal, consumedFromCart, comboRecipes]);
+    return available <= 0 ? { label: 'Agotado', ok: false } : { label: `Stock: ${available}`, ok: true };
+  }, [getTempQty]);
 
   const mesaSubtotal = activeMesa ? mesaOrderTotal(activeMesa.order) : 0;
   const loyaltyProfile = activeMesa?.customerId ? getOrCreateProfile(activeMesa.customerId) : null;
@@ -729,7 +707,6 @@ export const POSPage: React.FC = () => {
             }
 
             setElaboradoExtras(prev => ({ ...prev, [product.id]: { insumosStock, opcionesStockInfo, receta, variaciones, stockInsumos } }));
-            setStockInsumosGlobal(prev => ({ ...prev, ...stockInsumos }));
           }).catch(() => {
             setElaboradoIngredientes(prev => ({ ...prev, [product.id]: [] }));
             setElaboradoExtras(prev => ({ ...prev, [product.id]: { insumosStock: [], opcionesStockInfo: [], receta: null, variaciones: [], stockInsumos: {} } }));
@@ -1209,7 +1186,7 @@ export const POSPage: React.FC = () => {
                               unavailable={!stock.ok}
                               attrCount={attrCount}
                               onAdd={() => addTempProduct(product)}
-                              onInc={() => incTempQty(buildCartKey(product.id), stockInsumosGlobal)}
+                              onInc={() => incTempQty(buildCartKey(product.id))}
                               onDec={() => decTempQty(buildCartKey(product.id))}
                               rewardInfo={reward ? { icon: reward.icon, pointsCost: reward.pointsCost } : null}
                               onRedeem={canAfford ? () => {
@@ -1305,7 +1282,7 @@ export const POSPage: React.FC = () => {
                                     <Minus className="h-3 w-3" />
                                   </button>
                                   <span className="w-5 text-center text-sm font-bold text-coffee-900">{item.quantity}</span>
-                                  <button onClick={() => incTempQty(item.cartKey, stockInsumosGlobal)} className="h-6 w-6 rounded-md bg-coffee-800 hover:bg-coffee-700 flex items-center justify-center text-cream">
+                                  <button onClick={() => incTempQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-800 hover:bg-coffee-700 flex items-center justify-center text-cream">
                                     <Plus className="h-3 w-3" />
                                   </button>
                                 </div>
@@ -1694,20 +1671,12 @@ export const POSPage: React.FC = () => {
               details={comboDetails[comboDetailProduct.id] ?? []}
               formatCurrency={formatCurrency}
               onAdd={() => {
-                const consumoInsumos = calcularConsumoCombo(comboDetailProduct.id);
-                const fakeItem = {
-                  product: comboDetailProduct,
-                  quantity: 1,
-                  precioFinal: comboDetailProduct.salePrice,
-                  cartKey: '__check__',
-                  consumoInsumos,
-                };
-                const validacion = validarStockDisponible(fakeItem, tempCart, stockInsumosGlobal);
-                if (!validacion.valido) {
-                  toast.error('Stock insuficiente', `No hay suficiente ${validacion.insumoBloqueado}. Disponible: ${validacion.disponible?.toFixed(0)}, necesario: ${validacion.requerido?.toFixed(0)}`);
+                const reserved = getTempQty(comboDetailProduct.id);
+                if (reserved >= comboDetailProduct.stock) {
+                  toast.error('Stock insuficiente', `Solo hay ${comboDetailProduct.stock} unidad(es) de ${comboDetailProduct.name}.`);
                   return;
                 }
-                addTempDirect(comboDetailProduct, undefined, undefined, 1, consumoInsumos);
+                addTempDirect(comboDetailProduct, undefined, undefined, 1, calcularConsumoCombo(comboDetailProduct.id));
                 setComboDetailProduct(null);
               }}
               onClose={() => setComboDetailProduct(null)}
@@ -1733,20 +1702,8 @@ export const POSPage: React.FC = () => {
             variaciones={elaboradoExtras[elaboradoDetailProduct.id]?.variaciones ?? []}
             effectiveMax={elaboradoEffectiveMax}
             onConfirm={(opciones, precioFinal, qty, consumoInsumos) => {
-              const fakeItem = {
-                product: elaboradoDetailProduct,
-                quantity: qty,
-                opciones,
-                precioFinal: precioFinal ?? elaboradoDetailProduct.salePrice,
-                cartKey: `__check__`,
-                consumoInsumos,
-              };
-              const validacion = validarStockDisponible(fakeItem, tempCart, stockInsumosGlobal);
-              if (!validacion.valido) {
-                toast.error(
-                  'Stock insuficiente',
-                  `No hay suficiente ${validacion.insumoBloqueado}. Disponible: ${validacion.disponible?.toFixed(0)}, necesario: ${validacion.requerido?.toFixed(0)}`
-                );
+              if (qty > elaboradoEffectiveMax) {
+                toast.error('Stock insuficiente', `Solo hay ${elaboradoEffectiveMax} unidad(es) disponibles de ${elaboradoDetailProduct.name}.`);
                 return;
               }
               addTempDirect(elaboradoDetailProduct, opciones, precioFinal, qty, consumoInsumos);

@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useMesas, type MesaBackend, type RondaCreatedResponse, type RondaCreatedOpcion } from './useMesas';
+import { getConnection, startConnection } from '../lib/signalr';
 import { useVenta, type ParaLlevarPedido } from './useVenta';
 import type { CartItem, RondaRecord } from './usePOSCart';
 import type { ProductTipo } from '../types';
@@ -243,6 +244,7 @@ export function usePOSMesas(): UsePOSMesasReturn {
     ocuparMesa: apiOcuparMesa,
     liberarMesa: apiLiberarMesa,
     crearRonda: apiCrearRonda,
+    refreshMesas,
   } = useMesas();
 
   const {
@@ -343,6 +345,42 @@ export function usePOSMesas(): UsePOSMesasReturn {
   useEffect(() => {
     syncParaLlevarOrders();
   }, [syncParaLlevarOrders]);
+
+  const refreshMesasRef = useRef(refreshMesas);
+  refreshMesasRef.current = refreshMesas;
+  const syncParaLlevarOrdersRef = useRef(syncParaLlevarOrders);
+  syncParaLlevarOrdersRef.current = syncParaLlevarOrders;
+
+  useEffect(() => {
+    const conn = getConnection();
+
+    const onMesaActualizada = () => { refreshMesasRef.current(true); };
+    const onNuevaRonda = () => { refreshMesasRef.current(true); };
+    const onVentaProcesada = () => { refreshMesasRef.current(true); };
+    const onPedidoParaLlevarActualizado = () => { syncParaLlevarOrdersRef.current(); };
+
+    conn.on('MesaActualizada', onMesaActualizada);
+    conn.on('NuevaRonda', onNuevaRonda);
+    conn.on('VentaProcesada', onVentaProcesada);
+    conn.on('PedidoParaLlevarActualizado', onPedidoParaLlevarActualizado);
+
+    conn.onreconnected(async () => {
+      await conn.invoke('UnirseAGrupo', 'salon');
+      refreshMesasRef.current(true);
+    });
+
+    startConnection()
+      .then(() => conn.invoke('UnirseAGrupo', 'salon'))
+      .catch(console.error);
+
+    return () => {
+      conn.off('MesaActualizada', onMesaActualizada);
+      conn.off('NuevaRonda', onNuevaRonda);
+      conn.off('VentaProcesada', onVentaProcesada);
+      conn.off('PedidoParaLlevarActualizado', onPedidoParaLlevarActualizado);
+      conn.invoke('AbandonarGrupo', 'salon').catch(() => {});
+    };
+  }, []);
 
   const updateMesa = useCallback((id: string, patch: Partial<LocalMesa>) => {
     setMesas(prev => prev.map(m => m.id === id ? { ...m, ...patch } : m));
