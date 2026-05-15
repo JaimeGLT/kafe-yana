@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { clsx } from 'clsx';
 import { ChevronLeft, ChevronRight, ChevronDown, Check, Users, List, SlidersHorizontal, Minus, Plus } from 'lucide-react';
 import { CustomerCombobox } from '../forms/CustomerCombobox';
+import { toast } from '../ui/Toast';
 import type { Customer, CustomerInput } from '../../types';
 
 type SplitStep = 'modo' | 'configurar' | 'cobrar';
@@ -190,6 +191,10 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
   };
 
   const handleTerminarCobro = () => {
+    if (!selectedClienteId) {
+      toast.warning('Cliente requerido', 'Selecciona un cliente antes de terminar el cobro.');
+      return;
+    }
     const pagos: PagosObject = { efectivo: 0, tarjeta: 0, qr: 0, total: mesaTotal };
     cuentas.forEach(c => {
       if (c.tipoPago === 'cash') pagos.efectivo += c.monto;

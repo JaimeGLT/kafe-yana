@@ -9,7 +9,9 @@ import {
   CheckCircle,
   Clock,
   TrendingUp,
+  Eye,
 } from 'lucide-react';
+import { formatCurrency } from '../../utils';
 
 interface Activity {
   id: string;
@@ -25,6 +27,7 @@ interface RecentActivityProps {
   title?: string;
   maxItems?: number;
   className?: string;
+  onViewSaleDetail?: (saleId: string) => void;
 }
 
 export const RecentActivity: React.FC<RecentActivityProps> = ({
@@ -32,6 +35,7 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({
   title = 'Actividad Reciente',
   maxItems = 10,
   className,
+  onViewSaleDetail,
 }) => {
   const getActivityIcon = (type: Activity['type']) => {
     const icons = {
@@ -84,7 +88,18 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({
           </div>
         ) : (
           displayActivities.map((activity) => (
-            <div key={activity.id} className="px-6 py-4 hover:bg-coffee-50 transition-colors">
+            <div
+              key={activity.id}
+              className={clsx(
+                'px-6 py-4 transition-colors',
+                activity.type === 'sale' && onViewSaleDetail ? 'hover:bg-coffee-50 cursor-pointer' : ''
+              )}
+              onClick={() => {
+                if (activity.type === 'sale' && onViewSaleDetail) {
+                  onViewSaleDetail(activity.id);
+                }
+              }}
+            >
               <div className="flex items-start gap-3">
                 <div
                   className={clsx(
@@ -101,13 +116,18 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({
                   <p className="text-sm text-coffee-500">{activity.description}</p>
                   {activity.amount && (
                     <p className="mt-1 text-sm font-semibold text-coffee-700">
-                      S/ {activity.amount.toLocaleString()}
+                      {formatCurrency(activity.amount)}
                     </p>
                   )}
                 </div>
-                <span className="flex-shrink-0 text-xs text-coffee-400">
-                  {formatTimestamp(activity.timestamp)}
-                </span>
+                <div className="flex items-center gap-2">
+                  {activity.type === 'sale' && onViewSaleDetail && (
+                    <Eye className="h-4 w-4 text-coffee-400" />
+                  )}
+                  <span className="flex-shrink-0 text-xs text-coffee-400">
+                    {formatTimestamp(activity.timestamp)}
+                  </span>
+                </div>
               </div>
             </div>
           ))

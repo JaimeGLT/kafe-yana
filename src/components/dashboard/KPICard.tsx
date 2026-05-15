@@ -63,6 +63,7 @@ export const KPICard: React.FC<KPICardProps> = ({
         onClick && 'cursor-pointer hover:shadow-md',
         className
       )}
+      onClick={onClick}
     >
       <div className="p-6">
         <div className="flex items-start justify-between">

@@ -55,6 +55,14 @@ export const GET_VENTAS_REPORT = `
         pagoEfectivo
         pagoTarjeta
         pagoQr
+        detalles {
+          id_venta
+          nombre
+          cantidad
+          precio
+          total
+          id
+        }
       }
       pageInfo {
         hasNextPage
@@ -69,6 +77,7 @@ export const GET_VENTAS = `
   query GetVentas($after: String, $where: VentaFilterInput) {
     ventas(first: 50, after: $after, order: [{ fecha: DESC }], where: $where) {
       nodes {
+        id
         codigo
         fecha
         cliente

@@ -7,7 +7,7 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   sale: { id: string; code: string; total: number } | null;
-  onConfirm: (amount: number, reason: string) => Promise<void>;
+  onConfirm: (id: string, amount: number, reason: string) => Promise<void>;
 }
 
 export const RefundModal: React.FC<Props> = ({ isOpen, onClose, sale, onConfirm }) => {
@@ -25,6 +25,7 @@ export const RefundModal: React.FC<Props> = ({ isOpen, onClose, sale, onConfirm 
   }, [isOpen, sale]);
 
   const handleConfirm = async () => {
+    if (!sale) return;
     const parsed = parseFloat(amount);
     if (!parsed || parsed <= 0) {
       setError('Ingresa un monto válido mayor a 0.');
@@ -37,7 +38,7 @@ export const RefundModal: React.FC<Props> = ({ isOpen, onClose, sale, onConfirm 
     setError(null);
     setIsLoading(true);
     try {
-      await onConfirm(parsed, reason);
+      await onConfirm(sale.id, parsed, reason);
     } catch {
       setError('No se pudo registrar el reembolso. Verifica que la caja esté abierta.');
     } finally {

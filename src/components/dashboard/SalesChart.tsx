@@ -48,7 +48,7 @@ export const SalesChart: React.FC<SalesChartProps> = ({
             <YAxis
               stroke="#8B4513"
               tick={{ fill: '#8B4513', fontSize: 12 }}
-              tickFormatter={(value) => `S/${value}`}
+              tickFormatter={(value) => `Bs ${value}`}
             />
             <Tooltip
               contentStyle={{
@@ -57,7 +57,7 @@ export const SalesChart: React.FC<SalesChartProps> = ({
                 borderRadius: '8px',
               }}
               formatter={(value, name) => {
-                if (name === 'sales') return [`S/${Number(value).toLocaleString()}`, 'Ventas'];
+                if (name === 'sales') return [`Bs ${Number(value).toLocaleString()}`, 'Ventas'];
                 return [value, 'Órdenes'];
               }}
             />

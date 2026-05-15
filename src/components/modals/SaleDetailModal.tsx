@@ -19,9 +19,33 @@ const STATUS_VARIANT: Record<Sale['status'], 'warning' | 'success' | 'danger' | 
 interface Props {
   sale: Sale | null;
   onClose: () => void;
+  isLoading?: boolean;
+  error?: string | null;
 }
 
-export const SaleDetailModal: React.FC<Props> = ({ sale, onClose }) => {
+export const SaleDetailModal: React.FC<Props> = ({ sale, onClose, isLoading, error }) => {
+  if (!sale && !isLoading && !error) return null;
+
+  if (isLoading) {
+    return (
+      <Modal isOpen onClose={onClose} title="Cargando detalle..." size="lg" bottomSheet>
+        <div className="flex items-center justify-center py-12">
+          <p className="text-coffee-500">Cargando...</p>
+        </div>
+      </Modal>
+    );
+  }
+
+  if (error) {
+    return (
+      <Modal isOpen onClose={onClose} title="Error" size="lg" bottomSheet>
+        <div className="flex items-center justify-center py-12">
+          <p className="text-red-500">{error}</p>
+        </div>
+      </Modal>
+    );
+  }
+
   if (!sale) return null;
 
   const alreadyRefundedQty = (itemId: string): number => {

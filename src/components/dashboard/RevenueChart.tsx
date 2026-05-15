@@ -42,7 +42,7 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({
             <YAxis
               stroke="#8B4513"
               tick={{ fill: '#8B4513', fontSize: 12 }}
-              tickFormatter={(value) => `S/${value}`}
+              tickFormatter={(value) => `Bs ${value}`}
             />
             <Tooltip
               contentStyle={{
@@ -51,8 +51,8 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({
                 borderRadius: '8px',
               }}
               formatter={(value, name) => {
-                if (name === 'revenue') return [`S/${Number(value).toLocaleString()}`, 'Ingresos'];
-                return [`S/${Number(value).toLocaleString()}`, 'Gastos'];
+                if (name === 'revenue') return [`Bs ${Number(value).toLocaleString()}`, 'Ingresos'];
+                return [`Bs ${Number(value).toLocaleString()}`, 'Gastos'];
               }}
             />
             <Bar dataKey="revenue" fill="#8B4513" radius={[4, 4, 0, 0]} />

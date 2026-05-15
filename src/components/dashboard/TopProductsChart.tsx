@@ -31,9 +31,9 @@ export const TopProductsChart: React.FC<TopProductsChartProps> = ({
         <h3 className="text-lg font-display font-semibold text-coffee-900">{title}</h3>
       </div>
       <div className="p-6">
-        <div className="flex">
+        <div className="flex flex-col sm:flex-row gap-4">
           {/* Chart */}
-          <div className="w-1/2">
+          <div className="w-full sm:w-1/2">
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie
@@ -65,7 +65,7 @@ export const TopProductsChart: React.FC<TopProductsChartProps> = ({
           </div>
 
           {/* Legend */}
-          <div className="w-1/2 flex flex-col justify-center gap-2">
+          <div className="w-full sm:w-1/2 flex flex-col justify-center gap-2">
             {data.map((item, index) => (
               <div
                 key={item.name}

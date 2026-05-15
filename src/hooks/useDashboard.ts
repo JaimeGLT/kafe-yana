@@ -1,0 +1,291 @@
+import { useState, useEffect, useCallback } from 'react';
+import { subDays, isSameDay, format } from 'date-fns';
+import { gql } from '../lib/graphql';
+import { GET_DASHBOARD_DATA } from '../lib/queries/dashboard.queries';
+
+interface VentaNode {
+  id: number;
+  codigo: string;
+  fecha: string;
+  cliente?: string;
+  cajero?: string;
+  productos: number;
+  estado: string;
+  subtotal: string | number;
+  total: string | number;
+  pagoEfectivo: number;
+  pagoTarjeta: number;
+  pagoQr: number;
+  detalles?: { nombre: string; cantidad: number }[];
+}
+
+interface CajaEstadoNode {
+  id: number;
+  nombre: string;
+  abierta: boolean;
+  fechaApertura: string;
+  fechaCierre: string | null;
+  abiertaPor: string;
+  cerradaPor: string | null;
+  saldoInicial: number;
+  totalVentas: number;
+  totalIngresos: number;
+  totalEgresos: number;
+  saldoEsperado: number;
+}
+
+interface CajaMovimientoNode {
+  id: string;
+  fecha: string;
+  tipo: string;
+  categoria: string;
+  monto: number;
+  referencia?: string;
+}
+
+interface CompradoNode {
+  stock_actual: number;
+  stock_minimo: number;
+  producto: { id: number; nombre: string };
+}
+
+interface ElaboradoNode {
+  stock_actual: number;
+  producible: boolean;
+  producto: { id: number; nombre: string };
+}
+
+interface DashboardResponse {
+  caja: CajaEstadoNode | null;
+  cajaMoviminetos: { nodes: CajaMovimientoNode[] };
+  ventas: { nodes: VentaNode[] };
+  comprados: { nodes: CompradoNode[] };
+  elaborados: { nodes: ElaboradoNode[] };
+}
+
+function parseDecimal(value: string | number | null | undefined): number {
+  if (value == null) return 0;
+  if (typeof value === 'number') return value;
+  return parseFloat(value) || 0;
+}
+
+function parseDate(value: string | null | undefined): Date {
+  if (!value) return new Date();
+  return new Date(value);
+}
+
+export interface DashboardStats {
+  totalSalesToday: number;
+  totalSalesMonth: number;
+  activeProducts: number;
+  lowStockProducts: number;
+  openRegisters: number;
+}
+
+export interface RevenueDataPoint {
+  day: string;
+  revenue: number;
+  expenses: number;
+}
+
+export interface SalesDataPoint {
+  hour: string;
+  sales: number;
+  orders: number;
+}
+
+export interface TopProduct {
+  name: string;
+  value: number;
+  percentage: number;
+}
+
+export interface RecentActivity {
+  id: string;
+  type: 'sale';
+  title: string;
+  description: string;
+  timestamp: Date;
+  amount: number;
+}
+
+export interface LowStockProduct {
+  id: string;
+  name: string;
+  stock: number;
+  minStock: number;
+}
+
+export interface UseDashboardReturn {
+  stats: DashboardStats;
+  revenueData: RevenueDataPoint[];
+  salesData: SalesDataPoint[];
+  topProductsData: TopProduct[];
+  recentActivities: RecentActivity[];
+  lowStockProducts: LowStockProduct[];
+  isLoading: boolean;
+  error: string | null;
+}
+
+export function useDashboard(): UseDashboardReturn {
+  const [stats, setStats] = useState<DashboardStats>({
+    totalSalesToday: 0,
+    totalSalesMonth: 0,
+    activeProducts: 0,
+    lowStockProducts: 0,
+    openRegisters: 0,
+  });
+  const [revenueData, setRevenueData] = useState<RevenueDataPoint[]>([]);
+  const [salesData, setSalesData] = useState<SalesDataPoint[]>([]);
+  const [topProductsData, setTopProductsData] = useState<TopProduct[]>([]);
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+  const [lowStockProducts, setLowStockProducts] = useState<LowStockProduct[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const today = new Date();
+      const todayStr = format(today, 'yyyy-MM-dd');
+      const monthStart = format(new Date(today.getFullYear(), today.getMonth(), 1), 'yyyy-MM-dd');
+
+      const data = await gql<DashboardResponse>(GET_DASHBOARD_DATA, {
+        where: {
+          fecha: {
+            gte: new Date(`${monthStart}T00:00:00`).toISOString(),
+            lte: new Date(`${todayStr}T23:59:59`).toISOString(),
+          },
+          estado: { eq: 'Finalizada' },
+        },
+      });
+
+      const allSales = data.ventas.nodes;
+      const completedSales = allSales.filter((s) => s.estado === 'Finalizada');
+
+      const totalSalesToday = completedSales
+        .filter((s) => isSameDay(parseDate(s.fecha), today))
+        .reduce((sum, s) => sum + parseDecimal(s.total), 0);
+
+      const totalSalesMonth = completedSales.reduce((sum, s) => sum + parseDecimal(s.total), 0);
+
+      const openRegisters = data.caja?.fechaCierre == null ? 1 : 0;
+
+      const lowStockComprados = data.comprados.nodes.filter(
+        (p) => p.stock_minimo > 0 && p.stock_actual <= p.stock_minimo,
+      ).length;
+      const lowStockElaborados = data.elaborados.nodes.filter(
+        (p) => p.stock_actual <= 0,
+      ).length;
+
+      setStats({
+        totalSalesToday,
+        totalSalesMonth,
+        activeProducts: data.comprados.nodes.length + data.elaborados.nodes.length,
+        lowStockProducts: lowStockComprados + lowStockElaborados,
+        openRegisters,
+      });
+
+      const expensesByDay: Record<string, number> = {};
+      data.cajaMoviminetos.nodes
+        .filter((m) => m.tipo === 'Egreso')
+        .forEach((m) => {
+          const key = parseDate(m.fecha).toISOString().split('T')[0];
+          expensesByDay[key] = (expensesByDay[key] ?? 0) + m.monto;
+        });
+
+      const revenueDataPoints: RevenueDataPoint[] = Array.from({ length: 7 }, (_, i) => {
+        const date = subDays(today, 6 - i);
+        const key = format(date, 'yyyy-MM-dd');
+        const dayLabel = format(date, 'EEE', { locale: undefined });
+
+        const revenue = completedSales
+          .filter((s) => isSameDay(parseDate(s.fecha), date))
+          .reduce((sum, s) => sum + parseDecimal(s.total), 0);
+
+        const expenses = expensesByDay[key] ?? 0;
+
+        return {
+          day: dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1),
+          revenue,
+          expenses,
+        };
+      });
+      setRevenueData(revenueDataPoints);
+
+      const todaySales = completedSales.filter((s) => isSameDay(parseDate(s.fecha), today));
+      const salesDataPoints: SalesDataPoint[] = Array.from({ length: 13 }, (_, i) => {
+        const hour = 8 + i;
+        const hourSales = todaySales.filter((s) => parseDate(s.fecha).getHours() === hour);
+        return {
+          hour: `${hour}:00`,
+          sales: hourSales.reduce((sum, s) => sum + parseDecimal(s.total), 0),
+          orders: hourSales.length,
+        };
+      });
+      setSalesData(salesDataPoints);
+
+      const productMap: Record<string, { name: string; value: number }> = {};
+      completedSales.forEach((s) => {
+        (s.detalles ?? []).forEach((d) => {
+          if (!productMap[d.nombre]) productMap[d.nombre] = { name: d.nombre, value: 0 };
+          productMap[d.nombre].value += d.cantidad;
+        });
+      });
+      const sortedProducts = Object.values(productMap).sort((a, b) => b.value - a.value).slice(0, 5);
+      const totalTop = sortedProducts.reduce((s, p) => s + p.value, 0) || 1;
+      setTopProductsData(
+        sortedProducts.map((p) => ({
+          name: p.name.length > 18 ? p.name.slice(0, 18) + '…' : p.name,
+          value: p.value,
+          percentage: Math.round((p.value / totalTop) * 100),
+        })),
+      );
+
+      const recent = [...completedSales]
+        .sort((a, b) => parseDate(b.fecha).getTime() - parseDate(a.fecha).getTime())
+        .slice(0, 5)
+        .map((s) => ({
+          id: String(s.id),
+          type: 'sale' as const,
+          title: `Venta ${s.codigo}`,
+          description: `${s.productos} producto(s)`,
+          timestamp: parseDate(s.fecha),
+          amount: parseDecimal(s.total),
+        }));
+      setRecentActivities(recent);
+
+      const allProducts: LowStockProduct[] = [
+        ...data.comprados.nodes
+          .filter((p) => p.stock_minimo > 0 && p.stock_actual <= p.stock_minimo)
+          .map((p) => ({ id: String(p.producto.id), name: p.producto.nombre, stock: p.stock_actual, minStock: p.stock_minimo })),
+        ...data.elaborados.nodes
+          .filter((p) => p.stock_actual <= 0)
+          .map((p) => ({ id: String(p.producto.id), name: p.producto.nombre, stock: p.stock_actual, minStock: 0 })),
+      ];
+      setLowStockProducts(allProducts.slice(0, 10));
+    } catch (e) {
+      console.error('Error loading dashboard:', e);
+      setError('No se pudo cargar el dashboard.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  return {
+    stats,
+    revenueData,
+    salesData,
+    topProductsData,
+    recentActivities,
+    lowStockProducts,
+    isLoading,
+    error,
+  };
+}

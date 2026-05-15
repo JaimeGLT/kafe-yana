@@ -37,6 +37,7 @@ interface BackendVentaDetalle {
 }
 
 interface BackendVenta {
+  id: number;
   detalles: BackendVentaDetalle[];
   codigo: string;
   fecha: string;
@@ -66,7 +67,7 @@ const mapBackendVentaToSale = (v: BackendVenta): Sale => {
   if (v.pagoQr > 0) paymentMethods.push({ id: `${v.codigo}-qr`, type: 'qr', name: 'QR', amount: Number(v.pagoQr) });
 
   return {
-    id: v.codigo,
+    id: String(v.id),
     code: v.codigo,
     date: new Date(v.fecha),
     customerId: undefined,
@@ -182,9 +183,9 @@ export const SalesListPage: React.FC = () => {
     setStats({ totalSalesToday, totalSalesMonth, averageTicket });
   }, [sales]);
 
-  const handleSimpleRefund = async (amount: number, reason: string) => {
+  const handleSimpleRefund = async (id: string, amount: number, reason: string) => {
     if (!refundingSale) return;
-    await api.post(`/Venta/reembolso/${refundingSale.id}`, {
+    await api.post(`/Venta/reembolso/${id}`, {
       monto: amount,
       nota: reason,
     });
