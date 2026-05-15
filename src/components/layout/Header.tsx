@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, LogOut, ChevronDown, Menu, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Bell, LogOut, ChevronDown, Menu, AlertTriangle, AlertCircle, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useUI } from '../../contexts/UIContext';
 import { useSettings } from '../../contexts/SettingsContext';
@@ -28,6 +28,7 @@ export const Header: React.FC = () => {
   const displayUser = user;
 
   const userMenuItems = [
+    { id: 'settings', label: 'Configuración', icon: <Settings className="h-4 w-4" /> },
     { id: 'logout', label: 'Cerrar Sesión', icon: <LogOut className="h-4 w-4" /> },
   ];
 
@@ -87,6 +88,8 @@ export const Header: React.FC = () => {
   const handleUserMenu = (id: string) => {
     if (id === 'logout') {
       logout().then(() => navigate('/login', { replace: true }));
+    } else if (id === 'settings') {
+      navigate('/settings');
     }
   };
 
@@ -142,7 +145,7 @@ export const Header: React.FC = () => {
             </button>
 
             {notificationsOpen && (
-              <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg border border-coffee-200 shadow-lg z-30 max-h-96 overflow-hidden flex flex-col">
+              <div className="fixed left-4 right-4 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80 bg-white rounded-lg border border-coffee-200 shadow-lg z-30 max-h-96 overflow-hidden flex flex-col">
                 <div className="px-4 py-3 border-b border-coffee-100 flex items-center justify-between">
                   <span className="font-semibold text-coffee-800">Notificaciones de Stock</span>
                   <button
