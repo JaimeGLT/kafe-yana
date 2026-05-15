@@ -132,6 +132,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={customer ? 'Editar Cliente' : 'Nuevo Cliente'}
+      bottomSheet
       size="md"
     >
       <Form onSubmit={handleSubmit}>

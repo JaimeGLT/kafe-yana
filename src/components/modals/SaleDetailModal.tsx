@@ -61,52 +61,38 @@ export const SaleDetailModal: React.FC<Props> = ({ sale, onClose }) => {
         {/* Items */}
         <div>
           <h4 className="text-sm font-semibold text-coffee-700 mb-2">Productos</h4>
-          <div className="rounded-lg border border-coffee-100 overflow-hidden">
-            <table className="min-w-full text-sm">
-              <thead className="bg-coffee-50">
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-coffee-600 uppercase">Producto</th>
-                  <th className="px-4 py-2 text-right text-xs font-medium text-coffee-600 uppercase">Cant.</th>
-                  <th className="px-4 py-2 text-right text-xs font-medium text-coffee-600 uppercase">Precio</th>
-                  <th className="px-4 py-2 text-right text-xs font-medium text-coffee-600 uppercase">Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-coffee-100">
-                {sale.items.map((item) => {
-                  const refundedQty = alreadyRefundedQty(item.id);
-                  return (
-                    <tr key={item.id} className={item.isRedeemed ? 'bg-amber-50/50' : ''}>
-                      <td className="px-4 py-2 text-coffee-900">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span>{item.productName ?? 'Producto'}</span>
-                          {item.isRedeemed && (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-                              <Gift className="h-3 w-3" /> Canjeado
-                            </span>
-                          )}
-                          {refundedQty > 0 && (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
-                              <RotateCcw className="h-3 w-3" /> {refundedQty} reemb.
-                            </span>
-                          )}
-                        </div>
-                        {item.variationName && <p className="text-xs text-coffee-400 mt-0.5">{item.variationName}</p>}
-                      </td>
-                      <td className="px-4 py-2 text-right text-coffee-700">{item.quantity}</td>
-                      <td className="px-4 py-2 text-right text-coffee-700">
-                        {item.isRedeemed ? '—' : formatCurrency(item.unitPrice)}
-                      </td>
-                      <td className="px-4 py-2 text-right font-medium">
-                        {item.isRedeemed
-                          ? <span className="text-amber-600">0.00 (canje)</span>
-                          : <span className="text-coffee-900">{formatCurrency(item.total)}</span>
-                        }
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="rounded-lg border border-coffee-100 divide-y divide-coffee-50">
+            {sale.items.map((item) => {
+              const refundedQty = alreadyRefundedQty(item.id);
+              return (
+                <div key={item.id} className={`px-3 py-2.5 flex items-start justify-between gap-3 ${item.isRedeemed ? 'bg-amber-50/40' : ''}`}>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-coffee-900 leading-snug">{item.productName ?? 'Producto'}</p>
+                    {item.variationName && <p className="text-xs text-coffee-400">{item.variationName}</p>}
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {item.isRedeemed && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                          <Gift className="h-3 w-3" /> Canjeado
+                        </span>
+                      )}
+                      {refundedQty > 0 && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
+                          <RotateCcw className="h-3 w-3" /> {refundedQty} reemb.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0 text-right text-sm">
+                    <p className="font-semibold text-coffee-900">
+                      {item.isRedeemed ? <span className="text-amber-600">Canje</span> : formatCurrency(item.total)}
+                    </p>
+                    <p className="text-xs text-coffee-400">
+                      {item.quantity} × {item.isRedeemed ? '—' : formatCurrency(item.unitPrice)}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

@@ -133,110 +133,114 @@ export const CustomersPage: React.FC = () => {
 
         {/* Table */}
         <PageSection>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-coffee-200">
-              <thead className="bg-coffee-50">
-                <tr>
-                  {['Nombre', 'Teléfono', 'Email', 'DNI', 'F. Nacimiento', 'Puntos', 'Estado', ''].map((h) => (
-                    <th
-                      key={h}
-                      className="px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-coffee-100">
-                {isLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
-                ) : filteredCustomers.length === 0 ? (
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
+
+            {/* ── Mobile: lista nombre + puntos ───────────────────────── */}
+            <div className="sm:hidden divide-y divide-coffee-50">
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="px-4 py-3 flex items-center gap-3 animate-pulse">
+                    <div className="h-9 w-9 rounded-full bg-coffee-100 flex-shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 w-32 bg-coffee-200 rounded" />
+                      <div className="h-3 w-16 bg-coffee-100 rounded" />
+                    </div>
+                    <div className="h-5 w-12 bg-coffee-100 rounded" />
+                  </div>
+                ))
+              ) : filteredCustomers.length === 0 ? (
+                <div className="py-10 text-center text-coffee-400 text-sm">No hay clientes registrados</div>
+              ) : (
+                filteredCustomers.map((customer) => (
+                  <button
+                    key={customer.id}
+                    onClick={() => openDetail(customer)}
+                    className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-coffee-50/60 active:bg-coffee-100 transition-colors"
+                  >
+                    <div className="h-9 w-9 rounded-full bg-coffee-100 flex items-center justify-center flex-shrink-0">
+                      <User className="h-4 w-4 text-coffee-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-coffee-900 truncate">{customer.nombre}</p>
+                      <p className="text-xs text-coffee-400 mt-0.5">{customer.celular}</p>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <Star className="h-3.5 w-3.5 text-amber-400" />
+                      <span className="font-semibold text-coffee-900 text-sm">{customer.puntos}</span>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+
+            {/* ── Desktop: tabla completa ──────────────────────────────── */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="min-w-full divide-y divide-coffee-200">
+                <thead className="bg-coffee-50">
                   <tr>
-                    <td colSpan={8} className="px-6 py-10 text-center text-coffee-400">
-                      No hay clientes registrados
-                    </td>
+                    {['Nombre', 'Teléfono', 'Email', 'DNI', 'F. Nacimiento', 'Puntos', 'Estado', ''].map((h) => (
+                      <th key={h} className="px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">{h}</th>
+                    ))}
                   </tr>
-                ) : (
-                  filteredCustomers.map((customer) => (
-                    <tr
-                      key={customer.id}
-                      className="hover:bg-coffee-50 transition-colors cursor-pointer"
-                      onClick={() => openDetail(customer)}
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <div className="h-8 w-8 rounded-full bg-coffee-100 flex items-center justify-center flex-shrink-0">
-                            <User className="h-4 w-4 text-coffee-500" />
-                          </div>
-                          <span className="font-medium text-coffee-900">{customer.nombre}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-700">
-                        <div className="flex items-center gap-1">
-                          <Phone className="h-3.5 w-3.5 text-coffee-400" />
-                          {customer.celular}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-600">
-                        {customer.correo ? (
-                          <div className="flex items-center gap-1">
-                            <Mail className="h-3.5 w-3.5 text-coffee-400" />
-                            {customer.correo}
-                          </div>
-                        ) : (
-                          <span className="text-coffee-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-600">
-                        {customer.dni || <span className="text-coffee-300">—</span>}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-600">
-                        {customer.fecha_nacimiento ? (
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3.5 w-3.5 text-coffee-400" />
-                            {formatDate(customer.fecha_nacimiento)}
-                          </div>
-                        ) : (
-                          <span className="text-coffee-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-1">
-                          <Star className="h-3.5 w-3.5 text-amber-400" />
-                          <span className="font-semibold text-coffee-900">{customer.puntos}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant={customer.estado ? 'success' : 'default'}>
-                          {customer.estado ? 'Activo' : 'Inactivo'}
-                        </Badge>
-                      </td>
-                      <td
-                        className="px-6 py-4 whitespace-nowrap"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => openEdit(customer)}
-                            className="p-1.5 rounded-lg hover:bg-coffee-100 text-coffee-500 hover:text-coffee-700"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </button>
-                          {isAdmin && (
-                            <button
-                              onClick={() => openDelete(customer)}
-                              className="p-1.5 rounded-lg hover:bg-red-100 text-coffee-400 hover:text-red-500"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                </thead>
+                <tbody className="bg-white divide-y divide-coffee-100">
+                  {isLoading ? (
+                    Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
+                  ) : filteredCustomers.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-6 py-10 text-center text-coffee-400">No hay clientes registrados</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    filteredCustomers.map((customer) => (
+                      <tr key={customer.id} className="hover:bg-coffee-50 transition-colors cursor-pointer" onClick={() => openDetail(customer)}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <div className="h-8 w-8 rounded-full bg-coffee-100 flex items-center justify-center flex-shrink-0">
+                              <User className="h-4 w-4 text-coffee-500" />
+                            </div>
+                            <span className="font-medium text-coffee-900">{customer.nombre}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-700">
+                          <div className="flex items-center gap-1"><Phone className="h-3.5 w-3.5 text-coffee-400" />{customer.celular}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-600">
+                          {customer.correo
+                            ? <div className="flex items-center gap-1"><Mail className="h-3.5 w-3.5 text-coffee-400" />{customer.correo}</div>
+                            : <span className="text-coffee-300">—</span>}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-600">
+                          {customer.dni || <span className="text-coffee-300">—</span>}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-coffee-600">
+                          {customer.fecha_nacimiento
+                            ? <div className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5 text-coffee-400" />{formatDate(customer.fecha_nacimiento)}</div>
+                            : <span className="text-coffee-300">—</span>}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-1"><Star className="h-3.5 w-3.5 text-amber-400" /><span className="font-semibold text-coffee-900">{customer.puntos}</span></div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Badge variant={customer.estado ? 'success' : 'default'}>{customer.estado ? 'Activo' : 'Inactivo'}</Badge>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => openEdit(customer)} className="p-1.5 rounded-lg hover:bg-coffee-100 text-coffee-500 hover:text-coffee-700">
+                              <Edit2 className="h-4 w-4" />
+                            </button>
+                            {isAdmin && (
+                              <button onClick={() => openDelete(customer)} className="p-1.5 rounded-lg hover:bg-red-100 text-coffee-400 hover:text-red-500">
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </PageSection>
 
@@ -282,6 +286,7 @@ export const CustomersPage: React.FC = () => {
             onClose={() => setIsDetailOpen(false)}
             title={viewingCustomer.nombre}
             size="lg"
+            bottomSheet
           >
             <div className="space-y-6">
               <div className="flex items-center gap-4">
