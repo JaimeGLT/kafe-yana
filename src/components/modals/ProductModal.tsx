@@ -82,6 +82,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       onClose={onClose}
       title={product ? 'Editar Producto' : 'Nuevo Producto'}
       size="xl"
+      bottomSheet
     >
       {isLoadingDetail ? (
         <SkeletonProductForm />

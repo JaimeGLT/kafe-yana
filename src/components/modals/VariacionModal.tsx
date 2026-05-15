@@ -682,8 +682,8 @@ export const VariacionModal: React.FC<Props> = ({
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title={`Variaciones: ${productName}`} size="xl">
-        <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+      <Modal isOpen={isOpen} onClose={onClose} title={`Variaciones: ${productName}`} size="xl" bottomSheet>
+        <div className="space-y-4 pr-1">
 
           {/* Skeleton overlay while refreshing */}
           {isLoading && (

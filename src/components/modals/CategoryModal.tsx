@@ -99,6 +99,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
       onClose={onClose}
       title={category ? 'Editar Categoría' : 'Nueva Categoría'}
       size="md"
+      bottomSheet
     >
       <Form onSubmit={handleSubmit}>
         <FormField label="Nombre" required error={errors.name}>

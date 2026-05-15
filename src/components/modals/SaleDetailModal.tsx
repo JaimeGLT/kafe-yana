@@ -35,7 +35,7 @@ export const SaleDetailModal: React.FC<Props> = ({ sale, onClose }) => {
   const hasLoyalty = !!sale.customerId && ((sale.pointsEarned ?? 0) > 0 || (sale.pointsRedeemed ?? 0) > 0);
 
   return (
-    <Modal isOpen={!!sale} onClose={onClose} title={`Venta — ${sale.code}`} size="lg">
+    <Modal isOpen={!!sale} onClose={onClose} title={`Venta — ${sale.code}`} size="lg" bottomSheet>
       <div className="space-y-5">
 
         {/* Meta */}

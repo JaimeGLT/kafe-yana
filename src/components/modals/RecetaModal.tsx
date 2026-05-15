@@ -442,6 +442,7 @@ export const RecetaModal: React.FC<RecetaModalProps> = ({
       onClose={onClose}
       title={receta ? 'Editar Receta' : 'Nueva Receta'}
       size="xl"
+      bottomSheet
     >
       {isOpen && (
         <RecetaFormContent

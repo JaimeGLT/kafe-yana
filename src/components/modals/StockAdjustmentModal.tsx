@@ -359,7 +359,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Ajuste de Stock" size="xl">
+    <Modal isOpen={isOpen} onClose={onClose} title="Ajuste de Stock" size="xl" bottomSheet>
       <Form onSubmit={handleSubmit}>
         {/* Tipo de producto */}
         <div className="space-y-1">

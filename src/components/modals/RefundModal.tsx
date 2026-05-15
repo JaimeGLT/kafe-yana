@@ -48,7 +48,7 @@ export const RefundModal: React.FC<Props> = ({ isOpen, onClose, sale, onConfirm 
   if (!sale) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Reembolso — ${sale.code}`} size="sm">
+    <Modal isOpen={isOpen} onClose={onClose} title={`Reembolso — ${sale.code}`} size="sm" bottomSheet>
       <div className="space-y-4">
         <div className="bg-coffee-50 rounded-lg px-4 py-3 text-sm text-coffee-700">
           Total de la venta: <span className="font-semibold">{formatCurrency(sale.total)}</span>

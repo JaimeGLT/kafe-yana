@@ -188,7 +188,7 @@ const AdjustmentsPage: React.FC = () => {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-x-auto">
+        <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
           {!isLoading && ajustes.length === 0 ? (
             <div className="py-20 flex flex-col items-center justify-center text-coffee-500">
               <div className="h-16 w-16 rounded-2xl bg-coffee-50 flex items-center justify-center mb-4">
@@ -208,125 +208,117 @@ const AdjustmentsPage: React.FC = () => {
               </Button>
             </div>
           ) : (
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b border-coffee-100 bg-coffee-50/60">
-                  <th className="pl-5 pr-4 py-3 text-left text-xs font-semibold text-coffee-500 uppercase tracking-wide">
-                    Fecha
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-coffee-500 uppercase tracking-wide">
-                    Producto
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-coffee-500 uppercase tracking-wide">
-                    Movimiento
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-coffee-500 uppercase tracking-wide">
-                    Stock
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-coffee-500 uppercase tracking-wide">
-                    Pérdida
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-coffee-500 uppercase tracking-wide">
-                    Motivo
-                  </th>
-                  <th className="pr-5 pl-4 py-3 text-left text-xs font-semibold text-coffee-500 uppercase tracking-wide">
-                    Usuario
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-coffee-50">
+            <>
+              {/* ── Mobile: cards ─────────────────────────────────────────── */}
+              <div className="sm:hidden divide-y divide-coffee-50">
                 {isLoading
-                  ? Array.from({ length: 6 }).map((_, i) => <SkeletonAjusteRow key={i} />)
+                  ? Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="px-4 py-3 flex items-center gap-3 animate-pulse">
+                        <div className="w-9 h-9 rounded-lg bg-coffee-100 flex-shrink-0" />
+                        <div className="flex-1 space-y-2">
+                          <div className="h-3 w-36 bg-coffee-200 rounded" />
+                          <div className="h-3 w-24 bg-coffee-100 rounded" />
+                        </div>
+                        <div className="h-6 w-14 bg-coffee-100 rounded-full" />
+                      </div>
+                    ))
                   : ajustes.map((ajuste) => {
                       const esEntrada = ajuste.ajuste >= 0;
                       return (
-                        <tr
-                          key={ajuste.id}
-                          className="hover:bg-coffee-50/40 transition-colors group"
-                        >
-                          {/* Fecha */}
-                          <td className="pl-5 pr-4 py-4 whitespace-nowrap">
-                            <p className="font-semibold text-coffee-800">{formatFecha(ajuste.fecha)}</p>
-                            <p className="text-xs text-coffee-400 mt-0.5">{formatHora(ajuste.fecha)}</p>
-                          </td>
-
-                          {/* Nombre + tipo */}
-                          <td className="px-4 py-4">
-                            <p className="font-medium text-coffee-900 leading-tight">{ajuste.nombre}</p>
-                            {ajuste.nota && (
-                              <p className="text-xs text-coffee-400 mt-0.5 truncate max-w-[200px]">
-                                {ajuste.nota}
-                              </p>
-                            )}
-                            <span
-                              className={`inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${TIPO_COLOR[ajuste.tipo] ?? 'bg-coffee-100 text-coffee-600'}`}
-                            >
-                              {TIPO_ICON[ajuste.tipo] ?? <Package className="h-3.5 w-3.5" />}
-                              {ajuste.tipo}
-                            </span>
-                          </td>
-
-                          {/* Movimiento */}
-                          <td className="px-4 py-4 text-center">
-                            <span
-                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold ${
-                                esEntrada
-                                  ? 'bg-emerald-50 text-emerald-700'
-                                  : 'bg-red-50 text-red-600'
-                              }`}
-                            >
-                              {esEntrada ? (
-                                <TrendingUp className="h-3.5 w-3.5" />
-                              ) : (
-                                <TrendingDown className="h-3.5 w-3.5" />
+                        <div key={ajuste.id} className="px-4 py-3 flex items-start gap-3">
+                          <div className={`flex-shrink-0 mt-0.5 h-8 w-8 rounded-lg flex items-center justify-center text-xs ${TIPO_COLOR[ajuste.tipo] ?? 'bg-coffee-100 text-coffee-600'}`}>
+                            {TIPO_ICON[ajuste.tipo] ?? <Package className="h-3.5 w-3.5" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-coffee-900 text-sm truncate">{ajuste.nombre}</p>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <span className="text-xs text-coffee-400">{formatFecha(ajuste.fecha)} · {formatHora(ajuste.fecha)}</span>
+                              {ajuste.motivo && (
+                                <span className="text-xs bg-coffee-100 text-coffee-600 px-1.5 py-0.5 rounded-full">{ajuste.motivo}</span>
                               )}
-                              {esEntrada ? '+' : ''}
-                              {ajuste.ajuste}
-                            </span>
-                          </td>
-
-                          {/* Stock anterior → nuevo */}
-                          <td className="px-4 py-4 text-center">
-                            <span className="inline-flex items-center gap-1.5 text-sm tabular-nums">
-                              <span className="text-coffee-400">{ajuste.stockAnterior}</span>
-                              <ArrowRight className="h-3 w-3 text-coffee-300 flex-shrink-0" />
-                              <span
-                                className={`font-semibold ${ajuste.stockNuevo <= 0 ? 'text-red-600' : 'text-coffee-900'}`}
-                              >
-                                {ajuste.stockNuevo}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-xs text-coffee-400 tabular-nums">
+                                {ajuste.stockAnterior} <ArrowRight className="h-3 w-3 inline text-coffee-300" /> <span className={ajuste.stockNuevo <= 0 ? 'text-red-600 font-semibold' : 'text-coffee-700 font-semibold'}>{ajuste.stockNuevo}</span>
                               </span>
-                            </span>
-                          </td>
-
-                          {/* Pérdida */}
-                          <td className="px-4 py-4 text-right tabular-nums">
-                            {ajuste.perdida > 0 ? (
-                              <span className="font-semibold text-red-500">
-                                {formatCurrency(ajuste.perdida)}
-                              </span>
-                            ) : (
-                              <span className="text-coffee-200">—</span>
-                            )}
-                          </td>
-
-                          {/* Motivo */}
-                          <td className="px-4 py-4">
-                            {ajuste.motivo ? (
-                              <Badge variant="default">{ajuste.motivo}</Badge>
-                            ) : (
-                              <span className="text-coffee-200">—</span>
-                            )}
-                          </td>
-
-                          {/* Usuario */}
-                          <td className="pr-5 pl-4 py-4 text-xs text-coffee-400 whitespace-nowrap">
-                            {ajuste.usuario}
-                          </td>
-                        </tr>
+                              {ajuste.perdida > 0 && (
+                                <span className="text-xs font-semibold text-red-500">{formatCurrency(ajuste.perdida)}</span>
+                              )}
+                            </div>
+                          </div>
+                          <span className={`flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${esEntrada ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                            {esEntrada ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                            {esEntrada ? '+' : ''}{ajuste.ajuste}
+                          </span>
+                        </div>
                       );
                     })}
-              </tbody>
-            </table>
+              </div>
+
+              {/* ── Desktop: tabla ────────────────────────────────────────── */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-coffee-100 bg-coffee-50/60">
+                      <th className="pl-5 pr-4 py-3 text-left text-xs font-semibold text-coffee-500 uppercase tracking-wide">Fecha</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-coffee-500 uppercase tracking-wide">Producto</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-coffee-500 uppercase tracking-wide">Movimiento</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-coffee-500 uppercase tracking-wide">Stock</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-coffee-500 uppercase tracking-wide">Pérdida</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-coffee-500 uppercase tracking-wide">Motivo</th>
+                      <th className="pr-5 pl-4 py-3 text-left text-xs font-semibold text-coffee-500 uppercase tracking-wide">Usuario</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-coffee-50">
+                    {isLoading
+                      ? Array.from({ length: 6 }).map((_, i) => <SkeletonAjusteRow key={i} />)
+                      : ajustes.map((ajuste) => {
+                          const esEntrada = ajuste.ajuste >= 0;
+                          return (
+                            <tr key={ajuste.id} className="hover:bg-coffee-50/40 transition-colors group">
+                              <td className="pl-5 pr-4 py-4 whitespace-nowrap">
+                                <p className="font-semibold text-coffee-800">{formatFecha(ajuste.fecha)}</p>
+                                <p className="text-xs text-coffee-400 mt-0.5">{formatHora(ajuste.fecha)}</p>
+                              </td>
+                              <td className="px-4 py-4">
+                                <p className="font-medium text-coffee-900 leading-tight">{ajuste.nombre}</p>
+                                {ajuste.nota && (
+                                  <p className="text-xs text-coffee-400 mt-0.5 truncate max-w-[200px]">{ajuste.nota}</p>
+                                )}
+                                <span className={`inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${TIPO_COLOR[ajuste.tipo] ?? 'bg-coffee-100 text-coffee-600'}`}>
+                                  {TIPO_ICON[ajuste.tipo] ?? <Package className="h-3.5 w-3.5" />}
+                                  {ajuste.tipo}
+                                </span>
+                              </td>
+                              <td className="px-4 py-4 text-center">
+                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold ${esEntrada ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                                  {esEntrada ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                                  {esEntrada ? '+' : ''}{ajuste.ajuste}
+                                </span>
+                              </td>
+                              <td className="px-4 py-4 text-center">
+                                <span className="inline-flex items-center gap-1.5 text-sm tabular-nums">
+                                  <span className="text-coffee-400">{ajuste.stockAnterior}</span>
+                                  <ArrowRight className="h-3 w-3 text-coffee-300 flex-shrink-0" />
+                                  <span className={`font-semibold ${ajuste.stockNuevo <= 0 ? 'text-red-600' : 'text-coffee-900'}`}>{ajuste.stockNuevo}</span>
+                                </span>
+                              </td>
+                              <td className="px-4 py-4 text-right tabular-nums">
+                                {ajuste.perdida > 0
+                                  ? <span className="font-semibold text-red-500">{formatCurrency(ajuste.perdida)}</span>
+                                  : <span className="text-coffee-200">—</span>}
+                              </td>
+                              <td className="px-4 py-4">
+                                {ajuste.motivo ? <Badge variant="default">{ajuste.motivo}</Badge> : <span className="text-coffee-200">—</span>}
+                              </td>
+                              <td className="pr-5 pl-4 py-4 text-xs text-coffee-400 whitespace-nowrap">{ajuste.usuario}</td>
+                            </tr>
+                          );
+                        })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
 

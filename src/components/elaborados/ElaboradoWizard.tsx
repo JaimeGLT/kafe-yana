@@ -132,8 +132,8 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
 
   return (
     <>
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex h-full items-end sm:items-stretch sm:justify-end p-0 bg-black/50">
+      <div className="bg-white rounded-t-2xl sm:rounded-none sm:rounded-l-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] sm:max-h-none sm:h-full flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-coffee-100 flex items-center justify-between">
           <div className="flex items-center gap-3">

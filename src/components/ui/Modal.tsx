@@ -12,6 +12,7 @@ interface ModalProps {
   footer?: React.ReactNode;
   showCloseButton?: boolean;
   closeOnOverlay?: boolean;
+  bottomSheet?: boolean;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -23,6 +24,7 @@ export const Modal: React.FC<ModalProps> = ({
   footer,
   showCloseButton = true,
   closeOnOverlay = true,
+  bottomSheet = false,
 }) => {
   if (!isOpen) return null;
 
@@ -35,7 +37,7 @@ export const Modal: React.FC<ModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className={clsx('fixed inset-0 z-50', bottomSheet ? 'overflow-hidden' : 'overflow-y-auto')}>
       {/* Overlay */}
       <div
         className="fixed inset-0 bg-black/30 backdrop-blur-sm transition-opacity"
@@ -43,11 +45,19 @@ export const Modal: React.FC<ModalProps> = ({
       />
 
       {/* Modal */}
-      <div className="flex min-h-[100dvh] items-center justify-center p-4">
+      <div className={clsx(
+        'flex',
+        bottomSheet
+          ? 'h-full items-end sm:items-stretch sm:justify-end p-0'
+          : 'min-h-[100dvh] items-center justify-center p-4',
+      )}>
         <div
           className={clsx(
-            'relative w-full bg-white rounded-xl shadow-xl',
-            'transform transition-all max-h-[90dvh] flex flex-col',
+            'relative w-full bg-white shadow-xl',
+            'transform transition-all flex flex-col',
+            bottomSheet
+              ? 'rounded-t-2xl sm:rounded-none sm:rounded-l-2xl max-h-[90dvh] sm:max-h-none sm:h-full'
+              : 'rounded-xl max-h-[90dvh]',
             sizes[size]
           )}
         >

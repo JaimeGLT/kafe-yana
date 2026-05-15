@@ -14,6 +14,18 @@ interface SalesTableProps {
   isLoading?: boolean;
 }
 
+const formatCurrency = (amount: number) => `S/ ${amount.toFixed(2)}`;
+const formatDate = (date: Date) => format(new Date(date), 'dd MMM yyyy HH:mm', { locale: es });
+const formatDateShort = (date: Date) => format(new Date(date), 'dd MMM · HH:mm', { locale: es });
+
+const PAYMENT_NAMES: Record<string, string> = {
+  cash: 'Efectivo',
+  card: 'Tarjeta',
+  transfer: 'Transferencia',
+  credit: 'Crédito',
+  qr: 'QR',
+};
+
 export const SalesTable: React.FC<SalesTableProps> = ({
   sales,
   onView,
@@ -21,178 +33,156 @@ export const SalesTable: React.FC<SalesTableProps> = ({
   onRefund,
   isLoading = false,
 }) => {
-  const formatCurrency = (amount: number) => {
-    return `S/ ${amount.toFixed(2)}`;
-  };
-
-  const formatDate = (date: Date) => {
-    return format(new Date(date), 'dd MMM yyyy HH:mm', { locale: es });
-  };
-
-  const columns = [
-    {
-      key: 'code',
-      header: 'Código',
-      width: '120px',
-      render: (value: unknown) => (
-        <span className="font-mono text-sm text-coffee-600">{String(value)}</span>
-      ),
-    },
-    {
-      key: 'date',
-      header: 'Fecha',
-      width: '160px',
-      render: (value: unknown) => (
-        <span className="text-sm text-coffee-700">{formatDate(value as Date)}</span>
-      ),
-    },
-    {
-      key: 'customerName',
-      header: 'Cliente',
-      render: (value: unknown) => (
-        <span className="text-coffee-900">{String(value || 'Cliente General')}</span>
-      ),
-    },
-    {
-      key: 'items',
-      header: 'Productos',
-      width: '80px',
-      render: (value: unknown) => (
-        <Badge variant="info" size="sm">
-          {(value as unknown[]).length} items
-        </Badge>
-      ),
-    },
-    {
-      key: 'total',
-      header: 'Total',
-      width: '120px',
-      render: (value: unknown) => (
-        <span className="font-semibold text-coffee-900">
-          {formatCurrency(Number(value))}
-        </span>
-      ),
-    },
-    {
-      key: 'paymentMethods',
-      header: 'Pago',
-      width: '100px',
-      render: (value: unknown) => {
-        const methods = value as { type: string }[];
-        const methodNames: Record<string, string> = {
-          cash: 'Efectivo',
-          card: 'Tarjeta',
-          transfer: 'Transferencia',
-          credit: 'Crédito',
-        };
-        return (
-          <span className="text-sm text-coffee-600">
-            {methods?.map(m => methodNames[m.type] || m.type).join(', ') || 'N/A'}
-          </span>
-        );
-      },
-    },
-    {
-      key: 'status',
-      header: 'Estado',
-      width: '100px',
-      render: (value: unknown) => {
-        return (
-          <StatusBadge
-            status={
-              value === 'completed'  ? 'completed'  :
-              value === 'pending'    ? 'pending'    :
-              value === 'cancelled'  ? 'cancelled'  :
-              value === 'refunded'   ? 'refunded'   :
-              'active'
-            }
-          />
-        );
-      },
-    },
-    {
-      key: 'actions',
-      header: '',
-      width: '100px',
-      render: (_: unknown, row: Sale) => (
-        <div className="flex items-center justify-end gap-1">
-          {onView && (
-            <button
-              className="p-1.5 rounded-lg hover:bg-coffee-100 text-coffee-500 hover:text-coffee-700"
-              onClick={() => onView(row)}
-              title="Ver detalle"
-            >
-              <Eye className="h-4 w-4" />
-            </button>
-          )}
-          {onInvoice && row.status === 'completed' && (
-            <button
-              className="p-1.5 rounded-lg hover:bg-coffee-100 text-coffee-500 hover:text-coffee-700"
-              onClick={() => onInvoice(row)}
-              title="Factura"
-            >
-              <FileText className="h-4 w-4" />
-            </button>
-          )}
-          {onRefund && row.status === 'completed' && (
-            <button
-              className="p-1.5 rounded-lg hover:bg-amber-50 text-coffee-400 hover:text-amber-600"
-              onClick={() => onRefund(row)}
-              title="Reembolso"
-            >
-              <RotateCcw className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      ),
-    },
-  ];
-
   return (
-    <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-x-auto">
-      <table className="min-w-full divide-y divide-coffee-200">
-        <thead className="bg-coffee-50">
-          <tr>
-            {columns.map((column) => (
-              <th
-                key={column.key}
-                className={clsx(
-                  'px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider'
+    <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
+
+      {/* ── Mobile: cards ───────────────────────────────────────────── */}
+      <div className="sm:hidden divide-y divide-coffee-50">
+        {isLoading ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="px-4 py-4 space-y-2 animate-pulse">
+              <div className="flex justify-between">
+                <div className="h-3 w-20 bg-coffee-200 rounded" />
+                <div className="h-4 w-16 bg-coffee-100 rounded" />
+              </div>
+              <div className="h-4 w-40 bg-coffee-200 rounded" />
+              <div className="h-3 w-28 bg-coffee-100 rounded" />
+            </div>
+          ))
+        ) : sales.length === 0 ? (
+          <div className="py-12 text-center text-coffee-500 text-sm">No hay ventas registradas</div>
+        ) : (
+          sales.map((sale) => (
+            <div key={sale.id} className="px-4 py-4 space-y-3">
+              {/* Fila 1: código + total */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-xs text-coffee-400">{sale.code}</span>
+                <span className="font-bold text-coffee-900 text-base">{formatCurrency(sale.total)}</span>
+              </div>
+
+              {/* Fila 2: cliente + estado */}
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium text-coffee-800 truncate">
+                  {sale.customerName || 'Cliente General'}
+                </p>
+                <StatusBadge status={
+                  sale.status === 'completed'          ? 'completed' :
+                  sale.status === 'refunded'           ? 'refunded'  :
+                  sale.status === 'partially_refunded' ? 'refunded'  : 'active'
+                } />
+              </div>
+
+              {/* Fila 3: fecha + pago */}
+              <p className="text-xs text-coffee-400">
+                {formatDateShort(sale.date)} · {sale.paymentMethods?.map(m => PAYMENT_NAMES[m.type] || m.type).join(', ') || 'N/A'}
+              </p>
+
+              {/* Fila 4: acciones */}
+              <div className="flex gap-2 pt-1">
+                {onView && (
+                  <button
+                    onClick={() => onView(sale)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-coffee-200 text-coffee-600 hover:bg-coffee-50 text-xs font-medium transition-colors"
+                  >
+                    <Eye className="h-3.5 w-3.5" /> Ver detalle
+                  </button>
                 )}
-              >
-                {column.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-coffee-100">
-          {isLoading ? (
+                {onRefund && sale.status === 'completed' && (
+                  <button
+                    onClick={() => onRefund(sale)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-amber-200 text-amber-600 hover:bg-amber-50 text-xs font-medium transition-colors"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" /> Reembolso
+                  </button>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* ── Desktop: tabla ──────────────────────────────────────────── */}
+      <div className="hidden sm:block overflow-x-auto">
+        <table className="min-w-full divide-y divide-coffee-200">
+          <thead className="bg-coffee-50">
             <tr>
-              <td colSpan={columns.length} className="px-6 py-8 text-center">
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-coffee-500" />
-                </div>
-              </td>
+              {['Código', 'Fecha', 'Cliente', 'Productos', 'Total', 'Pago', 'Estado', ''].map((h) => (
+                <th key={h} className="px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">
+                  {h}
+                </th>
+              ))}
             </tr>
-          ) : sales.length === 0 ? (
-            <tr>
-              <td colSpan={columns.length} className="px-6 py-8 text-center text-coffee-500">
-                No hay ventas registradas
-              </td>
-            </tr>
-          ) : (
-            sales.map((sale) => (
-              <tr key={sale.id} className="hover:bg-coffee-50 transition-colors">
-                {columns.map((column) => (
-                  <td key={column.key} className="px-6 py-4 whitespace-nowrap">
-                    {column.render(sale[column.key as keyof Sale], sale)}
-                  </td>
-                ))}
+          </thead>
+          <tbody className="bg-white divide-y divide-coffee-100">
+            {isLoading ? (
+              <tr>
+                <td colSpan={8} className="px-6 py-8 text-center">
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-coffee-500" />
+                  </div>
+                </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : sales.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-6 py-8 text-center text-coffee-500">
+                  No hay ventas registradas
+                </td>
+              </tr>
+            ) : (
+              sales.map((sale) => (
+                <tr key={sale.id} className={clsx('hover:bg-coffee-50 transition-colors')}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="font-mono text-sm text-coffee-600">{sale.code}</span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm text-coffee-700">{formatDate(sale.date)}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-coffee-900">{sale.customerName || 'Cliente General'}</span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <Badge variant="info" size="sm">{(sale.items as unknown[]).length} items</Badge>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="font-semibold text-coffee-900">{formatCurrency(sale.total)}</span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm text-coffee-600">
+                      {sale.paymentMethods?.map(m => PAYMENT_NAMES[m.type] || m.type).join(', ') || 'N/A'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <StatusBadge status={
+                      sale.status === 'completed'           ? 'completed' :
+                      sale.status === 'refunded'            ? 'refunded'  :
+                      sale.status === 'partially_refunded'  ? 'refunded'  : 'active'
+                    } />
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1">
+                      {onView && (
+                        <button className="p-1.5 rounded-lg hover:bg-coffee-100 text-coffee-500 hover:text-coffee-700" onClick={() => onView(sale)} title="Ver detalle">
+                          <Eye className="h-4 w-4" />
+                        </button>
+                      )}
+                      {onInvoice && sale.status === 'completed' && (
+                        <button className="p-1.5 rounded-lg hover:bg-coffee-100 text-coffee-500 hover:text-coffee-700" onClick={() => onInvoice(sale)} title="Factura">
+                          <FileText className="h-4 w-4" />
+                        </button>
+                      )}
+                      {onRefund && sale.status === 'completed' && (
+                        <button className="p-1.5 rounded-lg hover:bg-amber-50 text-coffee-400 hover:text-amber-600" onClick={() => onRefund(sale)} title="Reembolso">
+                          <RotateCcw className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };

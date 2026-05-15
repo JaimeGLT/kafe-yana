@@ -155,7 +155,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={combo ? 'Editar Combo' : 'Nuevo Combo'} size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title={combo ? 'Editar Combo' : 'Nuevo Combo'} size="lg" bottomSheet>
       <form onSubmit={handleSubmit} className="space-y-5">
 
         {/* Name + price */}
