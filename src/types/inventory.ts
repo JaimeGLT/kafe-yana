@@ -115,6 +115,7 @@ export interface Product extends BaseEntity {
   producible?: boolean;
   /** Cantidad producible del elaborado (para al_momento) */
   cantidadProducible?: number;
+  tieneReceta?: boolean;
   /** Used for elaborados: how many portions the recipe produces */
   porcionesBase?: number;
   /** For elaborados: ID of the associated recipe (recipeId) */

@@ -259,6 +259,7 @@ export const POSPage: React.FC = () => {
           hasVariations: n.variaciones.length > 0,
           producible: n.producible,
           cantidadProducible: n.receta?.cantidadProducible,
+          tieneReceta: n.receta != null,
           createdAt: new Date(), updatedAt: new Date(),
         });
         for (const v of n.variaciones) {
@@ -388,7 +389,7 @@ export const POSPage: React.FC = () => {
     const conn = getConnection();
     const handler = (data: {
       comprados?: { id: number; stock: number }[];
-      elaborados?: { id: number; stock: number; cantidadProducible: number }[];
+      elaborados?: { id: number; stock: number; cantidadProducible: number | null }[];
       combos?: { id: number; cantidadProducible: number }[];
     }) => {
       setProducts(prev => prev.map(p => {
@@ -398,7 +399,12 @@ export const POSPage: React.FC = () => {
         }
         if (p.tipo === 'elaborado') {
           const u = data.elaborados?.find(e => String(e.id) === p.id);
-          return u ? { ...p, stock: u.stock, cantidadProducible: u.cantidadProducible } : p;
+          if (!u) return p;
+          // cantidadProducible=null → Producible=true, usa stock físico
+          // cantidadProducible=number → Producible=false, usa cantidadProducible
+          return u.cantidadProducible !== null
+            ? { ...p, stock: u.stock, cantidadProducible: u.cantidadProducible }
+            : { ...p, stock: u.stock };
         }
         if (p.tipo === 'combo') {
           const u = data.combos?.find(c => String(c.id) === p.id);
@@ -406,6 +412,7 @@ export const POSPage: React.FC = () => {
         }
         return p;
       }));
+      setElaboradoExtras({});
     };
     conn.on('StockActualizado', handler);
     return () => { conn.off('StockActualizado', handler); };
@@ -470,6 +477,7 @@ export const POSPage: React.FC = () => {
     const p = elaboradoDetailProduct;
     const reserved = tempCart.filter(i => i.product.id === p.id).reduce((s, i) => s + i.quantity, 0);
     if (p.producible === true) return Math.max(0, p.stock - reserved);
+    if (!p.tieneReceta) return 9999;
     return Math.max(0, (p.cantidadProducible ?? 999) - reserved);
   }, [elaboradoDetailProduct, tempCart]);
 
@@ -497,6 +505,7 @@ export const POSPage: React.FC = () => {
     const reserved = getTempQty(p.id);
     if (p.tipo === 'elaborado') {
       if (!p.producible) {
+        if (!p.tieneReceta) return { label: 'Disponible', ok: true };
         const available = (p.cantidadProducible ?? 0) - reserved;
         return available <= 0 ? { label: 'Agotado', ok: false } : { label: `Disponible: ${available}`, ok: true };
       }
@@ -626,12 +635,22 @@ export const POSPage: React.FC = () => {
     toast.success('Cliente registrado', `${name} añadido correctamente.`);
   };
 
-  const handleCreateCustomerCombobox = (input: CustomerInput): Promise<Customer> =>
-    new Promise((resolve) => {
-      handleCreateCustomerReview(input.nombre, input.celular, (id) => {
-        resolve({ id, nombre: input.nombre, celular: input.celular, puntos: 0, estado: true });
-      });
+  const handleCreateCustomerCombobox = async (input: CustomerInput): Promise<Customer> => {
+    const res = await api.post<{ message: string; id: number }>('/Cliente', {
+      nombre: input.nombre,
+      celular: input.celular,
+      correo: input.correo ?? null,
+      dni: input.dni ?? null,
+      fecha_nacimiento: null,
+      direccion: null,
+      estado: true,
     });
+    const id = String(res.id);
+    const newCustomer: Customer = { id, nombre: input.nombre, celular: input.celular, puntos: 0, estado: true };
+    setCustomers(prev => [...prev, newCustomer]);
+    toast.success('Cliente registrado', `${input.nombre} añadido correctamente.`);
+    return newCustomer;
+  };
 
   const addTempProduct = (product: Product) => {
     if (product.tipo === 'combo') {
