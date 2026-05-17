@@ -21,13 +21,15 @@ export default defineConfig({
         target: API_TARGET,
         changeOrigin: true,
         secure: false,
-        cookieDomainRewrite: 'localhost'
+        cookieDomainRewrite: 'localhost',
+        agent: keepAliveAgent,
       },
       '/graphql': {
         target: API_TARGET,
         changeOrigin: true,
         secure: false,
-        cookieDomainRewrite: 'localhost'
+        cookieDomainRewrite: 'localhost',
+        agent: keepAliveAgent,
       },
       '/hubs': {
         target: API_TARGET,
