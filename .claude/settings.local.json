@@ -45,7 +45,8 @@
       "Bash(pnpm install *)",
       "Bash(pnpm config *)",
       "Bash(pnpm run *)",
-      "Bash(pnpm approve-builds *)"
+      "Bash(pnpm approve-builds *)",
+      "Bash(Find /c/Users/jaime/Desktop/kafeyana-complete/frontend/lib -type f -name \"*query*\" -o -name \"*gql*\")"
     ]
   }
 }

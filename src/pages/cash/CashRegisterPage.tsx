@@ -21,6 +21,7 @@ export const CashRegisterPage: React.FC = () => {
   const {
     caja,
     movimientos,
+    ultimaSesion,
     loading,
     syncCaja,
     abrirCaja,
@@ -109,8 +110,6 @@ export const CashRegisterPage: React.FC = () => {
         })
     : [];
 
-  const cajaCerrada = !caja || !caja.abierta;
-
   if (loading && !caja) {
     return (
       <MainLayout>
@@ -124,8 +123,8 @@ export const CashRegisterPage: React.FC = () => {
     );
   }
 
-  /* ── Caja cerrada ── */
-  if (cajaCerrada) {
+  /* ── Sin caja (nunca abierta) ── */
+  if (!caja) {
     return (
       <MainLayout>
         <PageContainer>
@@ -162,6 +161,154 @@ export const CashRegisterPage: React.FC = () => {
               </form>
             </div>
           </div>
+        </PageContainer>
+      </MainLayout>
+    );
+  }
+
+  /* ── Caja cerrada con última sesión ── */
+  if (!caja.abierta) {
+    const diff = ultimaSesion?.diferencia ?? null;
+    return (
+      <MainLayout>
+        <PageContainer>
+          {/* Header */}
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <h1 className="text-2xl font-display font-bold text-coffee-900">{caja.nombre}</h1>
+                <Badge variant="danger" dot>Cerrada</Badge>
+              </div>
+              <p className="text-sm text-coffee-500 flex items-center gap-2">
+                <Clock className="h-3.5 w-3.5" />
+                Abierta el {caja.fechaApertura ? formatDateTime(new Date(caja.fechaApertura)) : '—'}
+                <span className="text-coffee-300">→</span>
+                Cerrada el {caja.fechaCierre ? formatDateTime(new Date(caja.fechaCierre)) : '—'}
+                {caja.cerradaPor && <span className="ml-1">por <strong>{caja.cerradaPor}</strong></span>}
+              </p>
+            </div>
+          </div>
+
+          {/* KPIs */}
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
+            {[
+              { label: 'Saldo Inicial',  value: formatCurrency(caja.saldoInicial),  icon: <Wallet className="h-5 w-5 text-coffee-500" />,   bg: 'bg-coffee-100', highlight: false },
+              { label: 'Total Ventas',   value: formatCurrency(caja.totalVentas),   icon: <DollarSign className="h-5 w-5 text-blue-500" />,  bg: 'bg-blue-100',   highlight: false },
+              { label: 'Ingresos',       value: formatCurrency(caja.totalIngresos), icon: <TrendingUp className="h-5 w-5 text-green-500" />, bg: 'bg-green-100',  highlight: false },
+              { label: 'Egresos',        value: formatCurrency(caja.totalEgresos),  icon: <TrendingDown className="h-5 w-5 text-red-500" />, bg: 'bg-red-100',    highlight: false },
+              { label: 'Saldo Esperado', value: formatCurrency(caja.saldoEsperado), icon: <Wallet className="h-5 w-5 text-coffee-700" />,    bg: 'bg-coffee-200', highlight: true  },
+            ].map((kpi) => (
+              <div key={kpi.label} className={clsx('bg-white rounded-xl border border-coffee-100 shadow-sm p-4', kpi.highlight && 'ring-2 ring-coffee-300')}>
+                <div className={clsx('h-9 w-9 rounded-lg flex items-center justify-center mb-3', kpi.bg)}>{kpi.icon}</div>
+                <p className="text-xs text-coffee-500 mb-0.5">{kpi.label}</p>
+                <p className="text-lg font-display font-bold text-coffee-900">{kpi.value}</p>
+              </div>
+            ))}
+            {diff !== null && (
+              <div className={clsx(
+                'bg-white rounded-xl border shadow-sm p-4',
+                diff === 0 ? 'border-green-200 ring-2 ring-green-200' : diff > 0 ? 'border-blue-200 ring-2 ring-blue-200' : 'border-red-200 ring-2 ring-red-200',
+              )}>
+                <div className={clsx('h-9 w-9 rounded-lg flex items-center justify-center mb-3',
+                  diff === 0 ? 'bg-green-100' : diff > 0 ? 'bg-blue-100' : 'bg-red-100',
+                )}>
+                  <DollarSign className={clsx('h-5 w-5', diff === 0 ? 'text-green-600' : diff > 0 ? 'text-blue-600' : 'text-red-600')} />
+                </div>
+                <p className="text-xs text-coffee-500 mb-0.5">Diferencia</p>
+                <p className={clsx('text-lg font-display font-bold',
+                  diff === 0 ? 'text-green-700' : diff > 0 ? 'text-blue-700' : 'text-red-700',
+                )}>
+                  {diff >= 0 ? '+' : ''}{formatCurrency(diff)}
+                </p>
+                <p className={clsx('text-xs mt-0.5', diff === 0 ? 'text-green-600' : diff > 0 ? 'text-blue-600' : 'text-red-600')}>
+                  {diff === 0 ? 'Sin diferencia' : diff > 0 ? 'Sobrante' : 'Faltante'}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Nota de cierre */}
+          {ultimaSesion?.nota && (
+            <div className="bg-coffee-50 border border-coffee-200 rounded-xl px-5 py-4 mb-6">
+              <p className="text-xs font-semibold text-coffee-600 uppercase tracking-wide mb-1">Nota de cierre</p>
+              <p className="text-sm text-coffee-800">{ultimaSesion.nota}</p>
+            </div>
+          )}
+
+          {/* Abrir nueva caja */}
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-6 mb-6">
+            <h2 className="font-display font-semibold text-coffee-900 mb-4 flex items-center gap-2">
+              <Unlock className="h-4 w-4 text-coffee-500" />
+              Abrir Nueva Caja
+            </h2>
+            <form onSubmit={handleOpenRegister} className="flex items-end gap-3">
+              <div className="flex-1 max-w-xs">
+                <label className="block text-sm font-medium text-coffee-700 mb-1">Saldo Inicial</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-coffee-500 font-medium text-sm">S/</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={openingBalance}
+                    onChange={(e) => { setOpeningBalance(e.target.value); setOpeningError(''); }}
+                    className="w-full pl-9 pr-4 py-2.5 border border-coffee-200 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-coffee-400"
+                    placeholder="0.00"
+                  />
+                </div>
+                {openingError && <p className="text-xs text-red-500 mt-1">{openingError}</p>}
+              </div>
+              <Button type="submit" isLoading={isOpening} leftIcon={<Unlock className="h-4 w-4" />}>
+                Abrir Caja
+              </Button>
+            </form>
+          </div>
+
+          {/* Movimientos de la sesión cerrada */}
+          {ultimaSesion && (
+            <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-coffee-100">
+                <h2 className="font-display font-semibold text-coffee-900">Movimientos de la sesión cerrada</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-coffee-200">
+                  <thead className="bg-coffee-50">
+                    <tr>
+                      {['Tipo', 'Categoría', 'Concepto', 'Monto'].map((h) => (
+                        <th key={h} className="px-6 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-coffee-100">
+                    {ultimaSesion.movimientos.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-10 text-center text-coffee-400">
+                          Sin movimientos en esta sesión
+                        </td>
+                      </tr>
+                    ) : (
+                      ultimaSesion.movimientos.map((mov) => (
+                        <tr key={mov.id} className="hover:bg-coffee-50 transition-colors">
+                          <td className="px-6 py-3 whitespace-nowrap">
+                            <Badge variant={mov.tipo.toLowerCase() === 'ingreso' ? 'success' : 'danger'} size="sm">
+                              {mov.tipo}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-3 whitespace-nowrap text-sm text-coffee-700">{mov.categoria}</td>
+                          <td className="px-6 py-3 text-sm text-coffee-900">{mov.descripcion}</td>
+                          <td className="px-6 py-3 whitespace-nowrap">
+                            <span className={clsx('font-semibold', mov.tipo.toLowerCase() === 'ingreso' ? 'text-green-600' : 'text-red-600')}>
+                              {mov.tipo.toLowerCase() === 'ingreso' ? '+' : '-'}{formatCurrency(mov.monto)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </PageContainer>
       </MainLayout>
     );

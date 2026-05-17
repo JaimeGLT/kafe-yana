@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { api, ApiError } from '../lib/api';
 import { gql } from '../lib/graphql';
-import { GET_CAJA_ESTADO, GET_CAJA_MOVIMIENTOS } from '../lib/queries/caja.queries';
+import { GET_CAJA_ESTADO, GET_CAJA_MOVIMIENTOS, GET_CAJA_HISTORIAL } from '../lib/queries/caja.queries';
 import { toast } from '../components/ui/Toast';
 import { getConnection, startConnection } from '../lib/signalr';
+import type { CajaHistorialNode } from '../types/cajaHistorial';
 
 export interface CajaEstado {
   abierta: boolean;
@@ -35,6 +36,7 @@ export interface CajaMovimiento {
 interface UseCajaReturn {
   caja: CajaEstado | null;
   movimientos: CajaMovimiento[];
+  ultimaSesion: CajaHistorialNode | null;
   loading: boolean;
   error: string | null;
   syncCaja: () => Promise<void>;
@@ -53,6 +55,7 @@ interface UseCajaReturn {
 export function useCaja(): UseCajaReturn {
   const [caja, setCaja] = useState<CajaEstado | null>(null);
   const [movimientos, setMovimientos] = useState<CajaMovimiento[]>([]);
+  const [ultimaSesion, setUltimaSesion] = useState<CajaHistorialNode | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,6 +72,12 @@ export function useCaja(): UseCajaReturn {
         ...m,
         tipo: (m.tipo as string).toLowerCase() === 'ingreso' ? 'ingreso' : 'egreso',
       })) as CajaMovimiento[]);
+      if (!estadoData.caja.abierta) {
+        const histData = await gql<{ cajaHistorial: { nodes: CajaHistorialNode[] } }>(GET_CAJA_HISTORIAL);
+        setUltimaSesion(histData.cajaHistorial.nodes[0] ?? null);
+      } else {
+        setUltimaSesion(null);
+      }
     } catch (err) {
       setError('No se pudo cargar la información de caja');
       console.error(err);
@@ -169,6 +178,7 @@ export function useCaja(): UseCajaReturn {
   return {
     caja,
     movimientos,
+    ultimaSesion,
     loading,
     error,
     syncCaja,
