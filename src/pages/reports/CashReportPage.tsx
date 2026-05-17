@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { TrendingUp, TrendingDown, Scale, BookOpen, Calendar, FileText, ShoppingCart } from 'lucide-react';
 import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
-import { Button, Input, Badge } from '../../components/ui';
+import { Button, Input, Badge, Skeleton, SkeletonKpiCard } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
 import { formatCurrency, formatDate } from '../../utils';
 import { useCashReportPage } from '../../hooks/useCashReportPage';
@@ -36,8 +36,55 @@ const CashReportPage: React.FC = () => {
     return (
       <MainLayout>
         <PageContainer>
-          <div className="flex items-center justify-center h-64">
-            <div className="text-coffee-500">Cargando reporte de caja...</div>
+          <div className="flex items-center justify-between mb-6">
+            <div className="space-y-2">
+              <Skeleton className="h-7 w-48" />
+              <Skeleton className="h-4 w-72" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-36 rounded-lg" />
+              <Skeleton className="h-9 w-36 rounded-lg" />
+              <Skeleton className="h-9 w-28 rounded-lg" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
+            {Array.from({ length: 5 }).map((_, i) => <SkeletonKpiCard key={i} />)}
+          </div>
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 mb-6">
+            <Skeleton className="h-5 w-52 mb-4" />
+            <Skeleton className="h-72 w-full rounded-lg" />
+          </div>
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 mb-6">
+            <Skeleton className="h-5 w-48 mb-4" />
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex gap-4 py-3 border-b border-coffee-50">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-5 w-16 rounded-full mx-auto" />
+                <Skeleton className="h-4 w-8 ml-auto" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4">
+            <Skeleton className="h-5 w-40 mb-4" />
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex gap-3 py-3 border-b border-coffee-50">
+                <Skeleton className="h-4 w-16" />
+                <div className="space-y-1">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-20" />
+                </div>
+                <div className="space-y-1">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-20" />
+                </div>
+                <Skeleton className="h-4 w-16 ml-auto" />
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+            ))}
           </div>
         </PageContainer>
       </MainLayout>
@@ -225,9 +272,17 @@ const CashReportPage: React.FC = () => {
                   sortedSessions.map(s => (
                     <tr key={s.id} className="border-b border-coffee-50 hover:bg-coffee-50 transition-colors">
                       <td className="py-3 px-4 font-mono text-xs text-coffee-600">{s.codigo}</td>
-                      <td className="py-3 px-4 text-coffee-700">{formatDate(s.apertura)}</td>
-                      <td className="py-3 px-4 text-coffee-700">
-                        {s.cierre ? formatDate(s.cierre) : '—'}
+                      <td className="py-3 px-4">
+                        <div className="text-coffee-700">{formatDate(s.apertura)}</div>
+                        <div className="text-xs text-coffee-400">{s.abiertaPor}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        {s.cierre ? (
+                          <>
+                            <div className="text-coffee-700">{formatDate(s.cierre)}</div>
+                            <div className="text-xs text-coffee-400">{s.cerradaPor ?? '—'}</div>
+                          </>
+                        ) : '—'}
                       </td>
                       <td className="py-3 px-4 text-right text-coffee-700">
                         {formatCurrency(s.saldoInicial)}

@@ -4,7 +4,7 @@ import {
 } from 'recharts';
 import { Package, AlertTriangle, DollarSign, FileText } from 'lucide-react';
 import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
-import { Button, Badge } from '../../components/ui';
+import { Button, Badge, Skeleton, SkeletonKpiCard } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
 import { formatCurrency } from '../../utils';
 import { useInventoryReportPage } from '../../hooks/useInventoryReportPage';
@@ -72,8 +72,29 @@ const InventoryReportPage: React.FC = () => {
     return (
       <MainLayout>
         <PageContainer>
-          <div className="flex items-center justify-center h-64">
-            <div className="text-coffee-500">Cargando reporte de inventario...</div>
+          <div className="space-y-2 mb-6">
+            <Skeleton className="h-7 w-56" />
+            <Skeleton className="h-4 w-72" />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            {Array.from({ length: 4 }).map((_, i) => <SkeletonKpiCard key={i} />)}
+          </div>
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 mb-6">
+            <Skeleton className="h-5 w-40 mb-4" />
+            <Skeleton className="h-64 w-full rounded-lg" />
+          </div>
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4">
+            <Skeleton className="h-5 w-48 mb-4" />
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex gap-4 py-3 border-b border-coffee-50">
+                <Skeleton className="h-5 w-16 rounded-full" />
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-12 ml-auto" />
+                <Skeleton className="h-4 w-12" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+            ))}
           </div>
         </PageContainer>
       </MainLayout>
