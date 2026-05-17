@@ -37,13 +37,13 @@ export const Header: React.FC = () => {
     if (isLoading) return;
 
     const insumosCriticos: NotificationItem[] = (insumos as any[])
-      .filter((n: any) => n.stock_actual <= n.stock_min * n.factor_conversion)
+      .filter((n: any) => n.stock_min > 0 && n.stock_actual <= n.stock_min * 1.3)
       .map((n: any) => {
-        const stockEnUnidad = n.stock_actual / n.factor_conversion;
-        const minEnUnidad = n.stock_min;
+        const stockEnUnidad = Math.ceil(n.stock_actual / n.factor_conversion);
+        const minEnUnidad = Math.ceil(n.stock_min / n.factor_conversion);
         return {
           id: `insumo-${n.id}`,
-          name: n.nombre,
+          name: n.name,
           tipo: 'insumo' as const,
           categoryName: n.categoria || 'Sin categoría',
           stock: stockEnUnidad,
@@ -53,7 +53,7 @@ export const Header: React.FC = () => {
           stockEnUnidadCompra: stockEnUnidad,
           factorConversion: n.factor_conversion,
           ratio: minEnUnidad > 0 ? stockEnUnidad / minEnUnidad : 1,
-          severity: 'critical' as const,
+          severity: n.stock_actual <= n.stock_min ? 'critical' as const : 'low' as const,
         };
       });
 
@@ -179,10 +179,10 @@ export const Header: React.FC = () => {
                               </p>
                               <div className="flex items-center gap-2 mt-1">
                                 <span className="text-xs font-medium text-red-600">
-                                  Stock: {item.stock.toFixed(1)} {item.unidad || ''}
+                                  Stock: {item.stock} {item.unidad || ''}
                                 </span>
                                 <span className="text-xs text-coffee-400">
-                                  Mín: {item.minStock.toFixed(1)} {item.unidad || ''}
+                                  Mín: {item.minStock} {item.unidad || ''}
                                 </span>
                               </div>
                             </div>

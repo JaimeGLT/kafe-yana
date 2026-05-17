@@ -108,10 +108,7 @@ const InsumosPage: React.FC = () => {
   }, [recetas]);
 
   const lowStockCount = useMemo(
-    () => insumos.filter((i: Insumo) => {
-      const stockEnCompra = i.factorConversion > 0 ? i.stock / i.factorConversion : i.stock;
-      return i.stockMinimo > 0 && stockEnCompra <= i.stockMinimo;
-    }).length,
+    () => insumos.filter((i: Insumo) => i.stockMinimo > 0 && i.stock <= i.stockMinimo).length,
     [insumos]
   );
 
@@ -237,14 +234,14 @@ const InsumosPage: React.FC = () => {
                       <td className="px-4 py-3 text-center">
                         {(() => {
                           const stockEnCompra = ins.factorConversion > 0 ? ins.stock / ins.factorConversion : ins.stock;
-                          const isLow = ins.stockMinimo > 0 && stockEnCompra <= ins.stockMinimo;
+                          const isLow = ins.stockMinimo > 0 && ins.stock <= ins.stockMinimo;
                           const isEmpty = ins.stock <= 0;
                           return (
                             <div>
                               <span className={clsx('font-semibold', isEmpty ? 'text-red-600' : isLow ? 'text-amber-600' : 'text-emerald-700')}>
-                                {Math.round(stockEnCompra)} {ins.unidadCompra}
+                                {Math.ceil(stockEnCompra)} {ins.unidadCompra}
                               </span>
-                              <p className="text-xs text-coffee-400">{Math.round(ins.stock)} {ins.unidadMinima}</p>
+                              <p className="text-xs text-coffee-400">{Math.ceil(ins.stock)} {ins.unidadMinima}</p>
                               {ins.stockMinimo > 0 && (
                                 <p className="text-xs text-coffee-400">Mín: {Math.ceil(ins.stockMinimo / ins.factorConversion)} {ins.unidadCompra}</p>
                               )}
