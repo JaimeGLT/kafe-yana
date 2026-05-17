@@ -183,11 +183,12 @@ export const SalesListPage: React.FC = () => {
     setStats({ totalSalesToday, totalSalesMonth, averageTicket });
   }, [sales]);
 
-  const handleSimpleRefund = async (id: string, amount: number, reason: string) => {
+  const handleSimpleRefund = async (id: string, amount: number, reason: string, paymentType: string) => {
     if (!refundingSale) return;
     await api.post(`/Venta/reembolso/${id}`, {
       monto: amount,
       nota: reason,
+      tipoPago: paymentType,
     });
     setSales(prev => prev.map(s =>
       s.id === refundingSale.id ? { ...s, status: 'refunded' as const } : s
