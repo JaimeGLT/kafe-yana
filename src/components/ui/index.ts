@@ -19,3 +19,4 @@ export { Skeleton, SkeletonRow, SkeletonRecetaCard, SkeletonStatCard, SkeletonAj
 export { Overlay } from './Overlay';
 export { ImageUploadField } from './ImageUpload';
 export { IconPicker } from './IconPicker';
+export { ProductImage, ProductImageFill } from './ProductImage';

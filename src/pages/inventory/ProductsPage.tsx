@@ -13,6 +13,7 @@ import { toast } from '../../components/ui/Toast';
 import { ProductModal } from '../../components/modals/ProductModal';
 import { gql } from '../../lib/graphql';
 import { api } from '../../lib/api';
+import { ProductImage } from '../../components/ui/ProductImage';
 import { GET_COMPRADOS_WITH_CATEGORIES_QUERY, GET_COMPRADO_DETAIL } from '../../lib/queries/products.queries';
 import { formatCurrency } from '../../utils';
 import type { Product, Category } from '../../types';
@@ -467,9 +468,7 @@ const ProductsPage: React.FC = () => {
                   onClick={() => setDetailProduct(p)}
                   className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-coffee-50/60 active:bg-coffee-100 transition-colors"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xl leading-none">{p.image || '🛒'}</span>
-                  </div>
+                  <ProductImage src={p.image} tipo="comprado" size="sm" className="!w-10 !h-10" rounded="rounded-xl" />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-coffee-900 truncate text-sm">{p.name}</p>
                     <p className="text-xs text-coffee-400 mt-0.5">{p.categoryName || '—'}</p>
@@ -510,9 +509,7 @@ const ProductsPage: React.FC = () => {
                     <tr key={p.id} className="hover:bg-coffee-50/50 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                            <span className="text-base leading-none">{p.image || '🛒'}</span>
-                          </div>
+                          <ProductImage src={p.image} tipo="comprado" size="sm" rounded="rounded-lg" />
                           <p className="font-medium text-coffee-900">{p.name}</p>
                         </div>
                       </td>
@@ -623,9 +620,7 @@ const ProductsPage: React.FC = () => {
               <div className="px-5 pt-5 pb-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xl leading-none">{p.image || '🛒'}</span>
-                    </div>
+                    <ProductImage src={p.image} tipo="comprado" size="md" />
                     <div className="min-w-0">
                       <h2 className="font-bold text-coffee-900 text-base leading-tight truncate">{p.name}</h2>
                       {p.categoryName && (

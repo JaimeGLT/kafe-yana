@@ -17,6 +17,10 @@ export const ImageUploadField: React.FC<ImageUploadFieldProps> = ({
   const [preview, setPreview] = useState<string | null>(existingUrl ?? null);
   const [isDragging, setIsDragging] = useState(false);
 
+  React.useEffect(() => {
+    setPreview(existingUrl ?? null);
+  }, [existingUrl]);
+
   const applyFile = (file: File) => {
     if (!file.type.startsWith('image/')) return;
     const url = URL.createObjectURL(file);

@@ -15,6 +15,7 @@ import { useCombosPage } from '../../hooks/useCombosPage';
 import { usePagination } from '../../hooks/usePagination';
 import type { Combo, Product } from '../../types';
 import { formatCurrency } from '../../utils';
+import { ProductImage } from '../../components/ui/ProductImage';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -76,7 +77,7 @@ const ComboCard: React.FC<ComboCardProps> = ({
         {/* Header */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-base leading-none shrink-0">{combo.image || '🎁'}</span>
+            <ProductImage src={combo.image} tipo="combo" size="sm" />
             <div className="min-w-0">
               <h3 className="font-semibold text-coffee-900 truncate">{combo.name}</h3>
               {combo.description && (

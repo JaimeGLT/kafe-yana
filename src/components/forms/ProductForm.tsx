@@ -2,7 +2,7 @@ import React from 'react';
 import type { Product, ProductInput, ProductTipo, ProductDestino, Category, Brand, Location, Receta, CategoryInput } from '../../types';
 import { Form, FormField, FormRow, FormActions } from './FormField';
 import { Input, Textarea, Select, SearchableSelect } from '../ui';
-import { Button, IconPicker } from '../ui';
+import { Button, ImageUploadField } from '../ui';
 import { AlertTriangle, BookOpen, Layers, Plus } from 'lucide-react';
 import { formatCurrency } from '../../utils';
 import { CategoryModal } from '../modals/CategoryModal';
@@ -158,7 +158,9 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) onSubmit({ ...formData, variations: [] });
+    if (!validate()) return;
+    const { imagen: _img, ...submitData } = formData;
+    onSubmit({ ...submitData, variations: [] });
   };
 
   return (
@@ -206,12 +208,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
           </div>
         )}
 
-        {/* Ícono */}
-        <FormField label="Ícono del producto">
-          <IconPicker
-            value={formData.imagen || undefined}
-            onChange={(v) => handleChange('imagen', v ?? '')}
-            tipo={formData.tipo as ProductTipo}
+        {/* Foto */}
+        <FormField label="Foto del producto">
+          <ImageUploadField
+            existingUrl={product?.image?.startsWith('http') || product?.image?.startsWith('data:') || product?.image?.startsWith('blob:') ? product.image : undefined}
           />
         </FormField>
 
