@@ -642,7 +642,7 @@ export const FidelizacionPage: React.FC = () => {
 
   const [profiles, setProfiles] = useState<LoyaltyProfile[]>([]);
   const [transactions, setTransactions] = useState<LoyaltyTransaction[]>([]);
-  const [rewards, setRewards] = useState<Reward[]>([]);
+  const [, setRewards] = useState<Reward[]>([]);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [milestones, setMilestones] = useState<MilestoneReward[]>([]);
   const [vouchers, setVouchers] = useState<MilestoneVoucher[]>([]);
@@ -727,22 +727,6 @@ export const FidelizacionPage: React.FC = () => {
 
     return { level: currentLevel, nextLevel, pointsToNext, progress };
   }, []);
-
-  const redeemPoints = useCallback((_customerId: string, rewardId: string): boolean => {
-    const profile = getProfile(_customerId);
-    const reward = rewards.find((r: Reward) => r.id === rewardId);
-    if (!profile || !reward || profile.points < reward.pointsCost) return false;
-    setProfiles(prev => prev.map((p: LoyaltyProfile) =>
-      p.customerId === _customerId ? { ...p, points: p.points - reward.pointsCost } : p
-    ));
-    const tx: LoyaltyTransaction = {
-      id: `tx-${Date.now()}`, customerId: _customerId, points: -reward.pointsCost,
-      type: 'redeemed', description: `Canje: ${reward.name}`, date: new Date().toISOString(),
-      createdAt: new Date(), updatedAt: new Date(),
-    };
-    setTransactions(prev => [tx, ...prev]);
-    return true;
-  }, [getProfile, rewards]);
 
   const addTransaction = useCallback((_customerId: string, _saleId: string | undefined, points: number, type: LoyaltyTransaction['type'], description: string) => {
     const tx: LoyaltyTransaction = {
@@ -1495,7 +1479,7 @@ export const FidelizacionPage: React.FC = () => {
                           {/* Canjear button (only for canje_puntos when customer selected) */}
                           {isCanjeType && selectedCustomer && (
                             <button
-                              onClick={() => handleRedeem(promo.id)}
+                              onClick={() => handleRedeemVoucher(promo.id)}
                               disabled={!promo.isActive || !canCustomerRedeem}
                               className={clsx(
                                 'px-3 py-1.5 rounded-xl text-xs font-body font-semibold transition-all',

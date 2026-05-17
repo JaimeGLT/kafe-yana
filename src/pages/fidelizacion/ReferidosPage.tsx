@@ -102,7 +102,7 @@ const AddReferralModal: React.FC<AddReferralModalProps> = ({ clients: initialCli
 
   const handleCreateClient = () => {
     const nombre = newNombre.trim();
-    const celular = newCelular.trim();
+
     if (!nombre) return;
     const initials = nombre.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 3);
     const code = `${initials}${Date.now().toString().slice(-4)}`;
