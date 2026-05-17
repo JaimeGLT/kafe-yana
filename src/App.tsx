@@ -64,7 +64,7 @@ function App() {
                 {/* Inventory — solo admin */}
                 <Route path="/inventory/products"    element={<ProtectedRoute allowedRoles={[ADMIN]}><ProductsPage /></ProtectedRoute>} />
                 <Route path="/inventory/categories"  element={<ProtectedRoute allowedRoles={[ADMIN]}><CategoriesPage /></ProtectedRoute>} />
-                <Route path="/inventory/adjustments" element={<ProtectedRoute allowedRoles={[ADMIN]}><AdjustmentsPage /></ProtectedRoute>} />
+                <Route path="/inventory/adjustments" element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><AdjustmentsPage /></ProtectedRoute>} />
                 <Route path="/inventory/kardex"      element={<ProtectedRoute allowedRoles={[ADMIN]}><KardexPage /></ProtectedRoute>} />
                 <Route path="/inventory/elaborados"  element={<ProtectedRoute allowedRoles={[ADMIN]}><ElaboradosPage /></ProtectedRoute>} />
                 <Route path="/inventory/combos"      element={<ProtectedRoute allowedRoles={[ADMIN]}><CombosPage /></ProtectedRoute>} />

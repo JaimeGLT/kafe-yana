@@ -19,7 +19,8 @@ export const Header: React.FC = () => {
   const { currentBranch } = useSettings();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { products, insumos, isLoading, hasLoaded, loadNotifications } = useHeaderNotifications();
+  const { products, insumos, isLoading } = useHeaderNotifications();
+  const isAdmin = user?.rol?.toLowerCase() === 'admin';
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -125,15 +126,10 @@ export const Header: React.FC = () => {
             </div>
           )}
 
-          {/* Notifications */}
-          <div ref={notificationRef} className="relative">
+          {/* Notifications — solo admin */}
+          {isAdmin && <div ref={notificationRef} className="relative">
             <button
-              onClick={() => {
-                if (!hasLoaded && !isLoading) {
-                  loadNotifications();
-                }
-                setNotificationsOpen(!notificationsOpen);
-              }}
+              onClick={() => setNotificationsOpen(!notificationsOpen)}
               className="relative p-2 rounded-lg hover:bg-coffee-50 transition-colors"
             >
               <Bell className="h-5 w-5 text-coffee-600" />
@@ -212,7 +208,7 @@ export const Header: React.FC = () => {
                 )}
               </div>
             )}
-          </div>
+          </div>}
 
           {/* User Menu */}
           <Dropdown
