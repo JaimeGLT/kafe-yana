@@ -17,6 +17,7 @@ interface ProductFormProps {
   locations: Location[];
   recetaExistente?: Receta;
   onSubmit: (data: ProductInput) => void;
+  onImageChange?: (file: File | null) => void;
   onCancel: () => void;
   isLoading?: boolean;
   hideTipo?: boolean;
@@ -55,6 +56,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   locations,
   recetaExistente,
   onSubmit,
+  onImageChange,
   onCancel,
   isLoading = false,
   hideTipo = false,
@@ -212,6 +214,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         <FormField label="Foto del producto">
           <ImageUploadField
             existingUrl={product?.image?.startsWith('http') || product?.image?.startsWith('data:') || product?.image?.startsWith('blob:') ? product.image : undefined}
+            onChange={onImageChange}
           />
         </FormField>
 

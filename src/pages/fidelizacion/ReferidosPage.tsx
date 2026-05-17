@@ -1,8 +1,30 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { clsx } from 'clsx';
-import { Users, Plus, Settings, UserPlus, Gift, Star, Clock, Copy, CheckCircle } from 'lucide-react';
+import { Users, Plus, Settings, UserPlus, Gift, Star, Clock, Copy, CheckCircle, Trash2 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { toast } from '../../components/ui/Toast';
+
+interface ClientOption {
+  id: string;
+  nombre: string;
+  code: string;
+}
+
+const MOCK_CLIENTS: ClientOption[] = [
+  { id: 'c1', nombre: 'Ana Quispe', code: 'ANA520' },
+  { id: 'c2', nombre: 'Carlos Mamani', code: 'CAR150' },
+  { id: 'c3', nombre: 'Lucía Flores', code: 'LUC1120' },
+  { id: 'c4', nombre: 'Diego Vargas', code: 'DIE030' },
+];
+
+interface PendingReferral {
+  referrerId: string;
+  referrerName: string;
+  referrerCode: string;
+  referredId: string;
+  referredName: string;
+  referredCode: string;
+}
 
 interface ReferralConfig {
   id: string;
@@ -35,6 +57,210 @@ const MOCK_REFERRAL_RECORDS: ReferralRecord[] = [
   { id: 'ref2', referrerId: 'c3', referrerName: 'Lucía Flores', referrerCode: 'LUC1120', referredId: 'c2', referredName: 'Carlos Mamani', referredCode: 'CAR150', pointsAwarded: 50, date: '2026-03-15T10:30:00Z' },
   { id: 'ref3', referrerId: 'c3', referrerName: 'Lucía Flores', referrerCode: 'LUC1120', referredId: 'c1', referredName: 'Ana Quispe', referredCode: 'ANA520', pointsAwarded: 50, date: '2026-02-20T09:00:00Z' },
 ];
+
+interface AddReferralModalProps {
+  clients: ClientOption[];
+  pointsAwarded: number;
+  onSave: (entries: PendingReferral[]) => void;
+  onClose: () => void;
+}
+
+const AddReferralModal: React.FC<AddReferralModalProps> = ({ clients: initialClients, pointsAwarded, onSave, onClose }) => {
+  const [localClients, setLocalClients] = useState<ClientOption[]>(initialClients);
+  const [referrerId, setReferrerId] = useState('');
+  const [referredId, setReferredId] = useState('');
+  const [pending, setPending] = useState<PendingReferral[]>([]);
+  const [showNewClient, setShowNewClient] = useState(false);
+  const [newNombre, setNewNombre] = useState('');
+  const [newCelular, setNewCelular] = useState('');
+
+  const canAdd =
+    referrerId !== '' &&
+    referredId !== '' &&
+    referrerId !== referredId &&
+    !pending.some(p => p.referrerId === referrerId && p.referredId === referredId);
+
+  const handleAdd = () => {
+    if (!canAdd) return;
+    const referrer = localClients.find(c => c.id === referrerId)!;
+    const referred = localClients.find(c => c.id === referredId)!;
+    setPending(prev => [...prev, {
+      referrerId,
+      referrerName: referrer.nombre,
+      referrerCode: referrer.code,
+      referredId,
+      referredName: referred.nombre,
+      referredCode: referred.code,
+    }]);
+    setReferrerId('');
+    setReferredId('');
+  };
+
+  const handleRemove = (idx: number) => {
+    setPending(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleCreateClient = () => {
+    const nombre = newNombre.trim();
+    const celular = newCelular.trim();
+    if (!nombre) return;
+    const initials = nombre.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 3);
+    const code = `${initials}${Date.now().toString().slice(-4)}`;
+    const newClient: ClientOption = { id: `new-${Date.now()}`, nombre, code };
+    setLocalClients(prev => [...prev, newClient]);
+    setReferredId(newClient.id);
+    setNewNombre('');
+    setNewCelular('');
+    setShowNewClient(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-3xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+        <h3 className="font-display font-bold text-xl text-coffee-900 mb-1">Agregar Referidos</h3>
+        <p className="text-sm font-body text-coffee-500 mb-5">
+          Selecciona quién refirió a quién. Podés agregar varios antes de confirmar.
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-3 mb-2">
+          <div className="flex-1">
+            <label className="block text-xs font-body font-medium text-coffee-600 mb-1">Referidor</label>
+            <select
+              value={referrerId}
+              onChange={e => setReferrerId(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-coffee-200 text-coffee-900 text-sm font-body focus:outline-none focus:ring-2 focus:ring-coffee-400 bg-white"
+            >
+              <option value="">Seleccionar...</option>
+              {localClients.map(c => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-end pb-0.5 text-coffee-400 font-body text-sm hidden sm:flex">→</div>
+
+          <div className="flex-1">
+            <label className="block text-xs font-body font-medium text-coffee-600 mb-1">Referido</label>
+            <select
+              value={referredId}
+              onChange={e => { setReferredId(e.target.value); setShowNewClient(false); }}
+              className="w-full px-3 py-2.5 rounded-xl border border-coffee-200 text-coffee-900 text-sm font-body focus:outline-none focus:ring-2 focus:ring-coffee-400 bg-white"
+            >
+              <option value="">Seleccionar...</option>
+              {localClients.filter(c => c.id !== referrerId).map(c => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={handleAdd}
+            disabled={!canAdd}
+            className="sm:self-end flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-coffee-500 text-white text-sm font-body font-semibold hover:bg-coffee-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Agregar
+          </button>
+        </div>
+
+        <button
+          onClick={() => { setShowNewClient(v => !v); setReferredId(''); }}
+          className="flex items-center gap-1.5 text-xs font-body font-semibold text-coffee-500 hover:text-coffee-700 mb-4 transition-colors"
+        >
+          <UserPlus className="w-3.5 h-3.5" />
+          {showNewClient ? 'Cancelar nuevo cliente' : '+ El referido no existe aún, crearlo como cliente'}
+        </button>
+
+        {showNewClient && (
+          <div className="mb-4 p-4 rounded-xl bg-blue-50 border border-blue-100 space-y-3">
+            <p className="text-xs font-body font-semibold text-blue-700">Nuevo cliente referido</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-body font-medium text-coffee-600 mb-1">Nombre *</label>
+                <input
+                  type="text"
+                  placeholder="Nombre completo"
+                  value={newNombre}
+                  onChange={e => setNewNombre(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-coffee-200 text-coffee-900 text-sm font-body focus:outline-none focus:ring-2 focus:ring-coffee-400 placeholder-coffee-300"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-body font-medium text-coffee-600 mb-1">Celular</label>
+                <input
+                  type="text"
+                  placeholder="70012345"
+                  value={newCelular}
+                  onChange={e => setNewCelular(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-coffee-200 text-coffee-900 text-sm font-body focus:outline-none focus:ring-2 focus:ring-coffee-400 placeholder-coffee-300"
+                />
+              </div>
+            </div>
+            <button
+              onClick={handleCreateClient}
+              disabled={!newNombre.trim()}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-body font-semibold hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <CheckCircle className="w-4 h-4" />
+              Crear y seleccionar
+            </button>
+          </div>
+        )}
+
+        {pending.length > 0 && (
+          <div className="mb-5">
+            <p className="text-xs font-body font-medium text-coffee-600 mb-2">
+              Para agregar ({pending.length}):
+            </p>
+            <div className="space-y-2 max-h-52 overflow-y-auto">
+              {pending.map((entry, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-coffee-50 border border-coffee-100"
+                >
+                  <div className="flex items-center gap-2 text-sm font-body min-w-0">
+                    <span className="font-semibold text-coffee-900 truncate">{entry.referrerName}</span>
+                    <span className="text-coffee-400 flex-shrink-0">→</span>
+                    <span className="font-semibold text-coffee-900 truncate">{entry.referredName}</span>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <span className="flex items-center gap-1 text-xs font-body text-yellow-600 font-semibold">
+                      <Star className="w-3.5 h-3.5 fill-yellow-400" />
+                      {pointsAwarded} pts c/u
+                    </span>
+                    <button
+                      onClick={() => handleRemove(idx)}
+                      className="p-1 rounded-lg text-coffee-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-coffee-200 text-coffee-600 text-sm font-body font-medium hover:bg-coffee-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onSave(pending)}
+            disabled={pending.length === 0}
+            className="flex-1 py-2.5 rounded-xl bg-coffee-500 text-white text-sm font-body font-medium hover:bg-coffee-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Confirmar ({pending.length})
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 interface ConfigModalProps {
   config: ReferralConfig;
@@ -165,6 +391,7 @@ export const ReferidosPage: React.FC = () => {
   const [records, setRecords] = useState<ReferralRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   useEffect(() => {
     setRecords(MOCK_REFERRAL_RECORDS);
@@ -176,6 +403,28 @@ export const ReferidosPage: React.FC = () => {
     toast.success('Configuración guardada', `Referidor: ${newConfig.referrerPoints}pts / Referido: ${newConfig.referredPoints}pts`);
     setShowConfigModal(false);
   }, []);
+
+  const handleSaveReferrals = useCallback((entries: PendingReferral[]) => {
+    if (entries.length === 0) return;
+    const now = new Date().toISOString();
+    const newRecords: ReferralRecord[] = entries.map((entry, i) => ({
+      id: `ref-${Date.now()}-${i}`,
+      referrerId: entry.referrerId,
+      referrerName: entry.referrerName,
+      referrerCode: entry.referrerCode,
+      referredId: entry.referredId,
+      referredName: entry.referredName,
+      referredCode: entry.referredCode,
+      pointsAwarded: config.referrerPoints,
+      date: now,
+    }));
+    setRecords(prev => [...newRecords, ...prev]);
+    toast.success(
+      `${entries.length} referido${entries.length > 1 ? 's' : ''} agregado${entries.length > 1 ? 's' : ''}`,
+      `${config.referrerPoints} pts asignados a cada par`,
+    );
+    setShowAddModal(false);
+  }, [config.referrerPoints]);
 
   if (loading) {
     return (
@@ -218,7 +467,7 @@ export const ReferidosPage: React.FC = () => {
               Configurar puntos
             </button>
             <button
-              onClick={() => setShowConfigModal(true)}
+              onClick={() => setShowAddModal(true)}
               className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-yellow-400 text-coffee-900 font-body font-semibold text-sm hover:bg-yellow-300 shadow-lg hover:shadow-xl transition-all duration-200"
             >
               <Plus className="w-4 h-4" />
@@ -335,6 +584,15 @@ export const ReferidosPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {showAddModal && (
+        <AddReferralModal
+          clients={MOCK_CLIENTS}
+          pointsAwarded={config.referrerPoints}
+          onSave={handleSaveReferrals}
+          onClose={() => setShowAddModal(false)}
+        />
+      )}
 
       {showConfigModal && (
         <ConfigModal

@@ -24,51 +24,46 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   isLoadingDetail = false,
 }) => {
   const [isLoading, setIsLoading] = React.useState(false);
+  const [imageFile, setImageFile] = React.useState<File | null>(null);
   const toast = useToast();
 
+  React.useEffect(() => {
+    if (isOpen) setImageFile(null);
+  }, [isOpen]);
+
   const handleSubmit = async (data: ProductInput) => {
+    if (!product && !imageFile) {
+      toast.error('Imagen requerida', 'Debes subir una imagen para el producto.');
+      return;
+    }
     setIsLoading(true);
     try {
+      const fd = new FormData();
+      fd.append('Nombre', data.name);
+      if (data.barcode) fd.append('Codigo_barra', data.barcode);
+      if (data.description) fd.append('Descripcion', data.description);
+      fd.append('Categoria_Id', String(Number(data.categoryId) || 0));
+      fd.append('Unidad_medida', data.unit);
+      if (data.brandId) fd.append('Marca', data.brandId);
+      const ubicacion = data.destino === 'barra' ? 'Barra' : data.destino === 'cocina' ? 'Cocina' : '';
+      if (ubicacion) fd.append('Ubicacion', ubicacion);
+      fd.append('Costo_compra', String(data.costPrice));
+      fd.append('Precio', String(data.salePrice));
+      fd.append('Stock_actual', String(data.stock ?? 0));
+      fd.append('Stock_minimo', String(data.minStock ?? 0));
+      fd.append('Disponible', String(data.isActive ?? true));
+      if (imageFile) fd.append('Imagen', imageFile);
+
       if (product) {
-        await api.put(`/Producto/${product.id}`, {
-          nombre: data.name,
-          codigo_barra: data.barcode ?? '',
-          descripcion: data.description ?? '',
-          categoria_Id: Number(data.categoryId) || 0,
-          unidad_medida: data.unit,
-          marca: data.brandId ?? '',
-          ubicacion: data.destino === 'barra' ? 'Barra' : data.destino === 'cocina' ? 'Cocina' : '',
-          costo_compra: data.costPrice,
-          precio: data.salePrice,
-          stock_actual: data.stock ?? 0,
-          stock_minimo: data.minStock ?? 0,
-          disponible: data.isActive ?? true,
-          imagen: data.imagen ?? '',
-        });
+        await api.putForm(`/Producto/${product.id}`, fd);
         toast.success('Producto actualizado', `"${data.name}" fue actualizado correctamente.`);
       } else {
-        // CREATE — always comprado (compradoOnly enforces tipo='comprado')
-        const payload = {
-          nombre: data.name,
-          codigo_barra: data.barcode ?? '',
-          descripcion: data.description ?? '',
-          categoria_Id: Number(data.categoryId) || 0,
-          unidad_medida: data.unit,
-          marca: data.brandId ?? '',
-          ubicacion: data.destino === 'barra' ? 'Barra' : data.destino === 'cocina' ? 'Cocina' : '',
-          costo_compra: data.costPrice,
-          precio: data.salePrice,
-          stock_actual: data.stock ?? 0,
-          stock_minimo: data.minStock ?? 0,
-          disponible: data.isActive ?? true,
-          imagen: data.imagen ?? '',
-        };
-        await api.post('/Producto', payload);
+        await api.postForm('/Producto', fd);
         toast.success('Producto creado', `"${data.name}" fue agregado al inventario.`);
       }
       onSuccess();
       onClose();
-    } catch (error){
+    } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo guardar el producto. Intente nuevamente.';
       toast.error('Error', message);
     } finally {
@@ -93,6 +88,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           brands={[]}
           locations={[]}
           onSubmit={handleSubmit}
+          onImageChange={setImageFile}
           onCancel={onClose}
           isLoading={isLoading}
           hideTipo

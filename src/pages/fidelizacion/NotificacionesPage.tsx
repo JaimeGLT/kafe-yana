@@ -1,32 +1,22 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState } from 'react';
 import { clsx } from 'clsx';
 import {
-  Bell, MessageCircle, Mail, Pencil, CheckCircle,
-  ShoppingBag, Gift, Cake, ChevronRight,
+  Bell, MessageCircle, Mail,
+  ShoppingBag, Gift, Cake,
 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
-import { Button } from '../../components/ui/Button';
-import { Modal } from '../../components/ui/Modal';
-import { toast } from '../../components/ui/Toast';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ChannelKey = 'whatsapp' | 'email';
-
-interface ChannelMessages {
-  whatsapp: string;
-  emailSubject: string;
-  emailBody: string;
-}
 
 interface EventNotification {
   id: string;
   name: string;
   description: string;
   icon: React.ReactNode;
-  channels: ChannelKey[];   // which channels this event uses (fixed per event in Phase 1)
+  channels: ChannelKey[];
   isActive: boolean;
-  messages: ChannelMessages;
 }
 
 interface GlobalChannels {
@@ -44,13 +34,6 @@ const DEFAULT_EVENTS: EventNotification[] = [
     icon: <ShoppingBag className="w-4 h-4" />,
     channels: ['whatsapp', 'email'],
     isActive: true,
-    messages: {
-      whatsapp:
-        'Hola {nombre_cliente} 👋 ¡Gracias por tu compra de Bs. {total_compra}!\n\nGanaste *{puntos_ganados} puntos*. Tu saldo actual es *{saldo_actual} puntos*.\n\n¡Nos vemos pronto en Kafe Yana! ☕',
-      emailSubject: '¡Gracias por tu compra en Kafe Yana, {nombre_cliente}!',
-      emailBody:
-        'Hola {nombre_cliente},\n\nGracias por visitarnos. Tu compra de Bs. {total_compra} fue registrada con éxito.\n\nGanaste {puntos_ganados} puntos con esta compra.\nTu saldo actual es: {saldo_actual} puntos.\n\n¡Te esperamos pronto!\nEl equipo de Kafe Yana',
-    },
   },
   {
     id: 'points_redeemed',
@@ -59,12 +42,6 @@ const DEFAULT_EVENTS: EventNotification[] = [
     icon: <Gift className="w-4 h-4" />,
     channels: ['whatsapp'],
     isActive: true,
-    messages: {
-      whatsapp:
-        'Hola {nombre_cliente} 🎁 ¡Canjeaste *{puntos_canjeados} puntos* por *{producto_canjeado}*!\n\nTu saldo restante es *{saldo_actual} puntos*. ¡Disfrútalo!',
-      emailSubject: 'Canje realizado — {producto_canjeado}',
-      emailBody: '',
-    },
   },
   {
     id: 'birthday_bonus',
@@ -73,42 +50,8 @@ const DEFAULT_EVENTS: EventNotification[] = [
     icon: <Cake className="w-4 h-4" />,
     channels: ['whatsapp', 'email'],
     isActive: true,
-    messages: {
-      whatsapp:
-        '¡Feliz cumpleaños {nombre_cliente}! 🎂🎉\n\nHoy es tu día especial, y en Kafe Yana te lo celebramos: *tus puntos de hoy son ×3*.\n\nSaldo actual: *{saldo_actual} puntos*.\n\n¡Ven a celebrar con nosotros! ☕🎈',
-      emailSubject: '¡Feliz cumpleaños, {nombre_cliente}! 🎂 Hoy tus puntos se triplican',
-      emailBody:
-        'Hola {nombre_cliente},\n\n¡Hoy es tu día especial! En Kafe Yana queremos celebrarlo contigo.\n\nComo regalo de cumpleaños, todos los puntos que ganes hoy se triplican automáticamente.\n\nTu saldo actual: {saldo_actual} puntos.\n\n¡Te esperamos hoy en el café!\nEl equipo de Kafe Yana',
-    },
   },
 ];
-
-// ─── Variables disponibles ────────────────────────────────────────────────────
-
-const VARIABLES = [
-  { key: '{nombre_cliente}',  label: 'Nombre del cliente' },
-  { key: '{puntos_ganados}',  label: 'Puntos ganados' },
-  { key: '{puntos_canjeados}',label: 'Puntos canjeados' },
-  { key: '{saldo_actual}',    label: 'Saldo actual' },
-  { key: '{producto_canjeado}',label: 'Producto canjeado' },
-  { key: '{total_compra}',    label: 'Total de la compra' },
-];
-
-// Sample data for preview
-const SAMPLE: Record<string, string> = {
-  '{nombre_cliente}':   'Ana Quispe',
-  '{puntos_ganados}':   '15',
-  '{puntos_canjeados}': '20',
-  '{saldo_actual}':     '340',
-  '{producto_canjeado}':'Café Americano',
-  '{total_compra}':     '150',
-};
-
-function renderPreview(text: string): string {
-  let out = text;
-  for (const [key, val] of Object.entries(SAMPLE)) out = out.replaceAll(key, val);
-  return out;
-}
 
 // ─── Subcomponents ────────────────────────────────────────────────────────────
 
@@ -177,127 +120,6 @@ const ChannelBadges: React.FC<ChannelBadgesProps> = ({ channels, globalChannels 
   </div>
 );
 
-// ─── Message editor inside modal ──────────────────────────────────────────────
-
-interface EditorPanelProps {
-  channel: ChannelKey;
-  subject?: string;
-  onSubjectChange?: (v: string) => void;
-  message: string;
-  onMessageChange: (v: string) => void;
-}
-
-const WHATSAPP_WARN = 400;
-
-const EditorPanel: React.FC<EditorPanelProps> = ({
-  channel, subject, onSubjectChange, message, onMessageChange,
-}) => {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const isWA = channel === 'whatsapp';
-  const charCount = message.length;
-
-  const insertVar = useCallback((variable: string) => {
-    const el = textareaRef.current;
-    if (!el) return;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const next = message.substring(0, start) + variable + message.substring(end);
-    onMessageChange(next);
-    requestAnimationFrame(() => {
-      el.selectionStart = start + variable.length;
-      el.selectionEnd = start + variable.length;
-      el.focus();
-    });
-  }, [message, onMessageChange]);
-
-  return (
-    <div className="space-y-4">
-      {/* Subject — email only */}
-      {!isWA && onSubjectChange && (
-        <div>
-          <label className="block text-xs font-body font-semibold text-coffee-600 uppercase tracking-wide mb-1.5">
-            Asunto del email
-          </label>
-          <input
-            type="text"
-            value={subject ?? ''}
-            onChange={(e) => onSubjectChange(e.target.value)}
-            placeholder="Escribe el asunto..."
-            className="w-full rounded-xl border border-coffee-200 px-3 py-2.5 text-sm font-body text-coffee-900 placeholder-coffee-300 focus:outline-none focus:ring-2 focus:ring-coffee-400 transition-colors"
-          />
-        </div>
-      )}
-
-      {/* Message textarea */}
-      <div>
-        <div className="flex items-center justify-between mb-1.5">
-          <label className="text-xs font-body font-semibold text-coffee-600 uppercase tracking-wide">
-            Mensaje
-          </label>
-          {isWA && (
-            <span
-              className={clsx(
-                'text-xs font-body font-semibold tabular-nums',
-                charCount > WHATSAPP_WARN ? 'text-amber-600' : 'text-coffee-400'
-              )}
-            >
-              {charCount} caracteres
-              {charCount > WHATSAPP_WARN && ' — mensajes largos pueden cortarse'}
-            </span>
-          )}
-        </div>
-        <textarea
-          ref={textareaRef}
-          rows={isWA ? 5 : 7}
-          value={message}
-          onChange={(e) => onMessageChange(e.target.value)}
-          className="w-full rounded-xl border border-coffee-200 px-3 py-2.5 text-sm font-body text-coffee-900 placeholder-coffee-300 focus:outline-none focus:ring-2 focus:ring-coffee-400 transition-colors resize-none"
-          placeholder="Escribe el mensaje..."
-        />
-      </div>
-
-      {/* Variable chips */}
-      <div>
-        <p className="text-xs font-body text-coffee-500 mb-2">
-          Variables disponibles — clic para insertar en el cursor:
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {VARIABLES.map((v) => (
-            <button
-              key={v.key}
-              type="button"
-              onClick={() => insertVar(v.key)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-coffee-50 border border-coffee-200 text-xs font-body font-medium text-coffee-700 hover:bg-coffee-100 hover:border-coffee-300 transition-colors"
-            >
-              <span className="font-display font-bold text-coffee-500 text-xs">{'{}'}</span>
-              {v.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Preview */}
-      {message.trim() && (
-        <div>
-          <p className="text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide mb-2">
-            Vista previa
-          </p>
-          <div
-            className={clsx(
-              'rounded-xl p-4 text-sm font-body whitespace-pre-wrap leading-relaxed',
-              isWA
-                ? 'bg-[#d9fdd3] text-gray-800 border border-green-200'
-                : 'bg-blue-50 text-gray-800 border border-blue-100'
-            )}
-          >
-            {renderPreview(message)}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export const NotificacionesPage: React.FC = () => {
@@ -307,15 +129,6 @@ export const NotificacionesPage: React.FC = () => {
   });
 
   const [events, setEvents] = useState<EventNotification[]>(DEFAULT_EVENTS);
-
-  // Editor modal
-  const [editingEvent, setEditingEvent] = useState<EventNotification | null>(null);
-  const [editorTab, setEditorTab] = useState<ChannelKey>('whatsapp');
-
-  // Draft state for the editor
-  const [draftWhatsapp, setDraftWhatsapp] = useState('');
-  const [draftEmailSubject, setDraftEmailSubject] = useState('');
-  const [draftEmailBody, setDraftEmailBody] = useState('');
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
@@ -327,34 +140,6 @@ export const NotificacionesPage: React.FC = () => {
     setEvents((prev) =>
       prev.map((e) => (e.id === id ? { ...e, isActive: !e.isActive } : e))
     );
-  };
-
-  const openEditor = (ev: EventNotification) => {
-    setEditingEvent(ev);
-    setDraftWhatsapp(ev.messages.whatsapp);
-    setDraftEmailSubject(ev.messages.emailSubject);
-    setDraftEmailBody(ev.messages.emailBody);
-    setEditorTab(ev.channels[0]);
-  };
-
-  const saveEditor = () => {
-    if (!editingEvent) return;
-    setEvents((prev) =>
-      prev.map((e) =>
-        e.id === editingEvent.id
-          ? {
-              ...e,
-              messages: {
-                whatsapp: draftWhatsapp,
-                emailSubject: draftEmailSubject,
-                emailBody: draftEmailBody,
-              },
-            }
-          : e
-      )
-    );
-    setEditingEvent(null);
-    toast.success('Mensaje guardado');
   };
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -521,14 +306,6 @@ export const NotificacionesPage: React.FC = () => {
                     <ChannelBadges channels={ev.channels} globalChannels={globalChannels} />
                   </div>
 
-                  {/* Edit button */}
-                  <button
-                    onClick={() => openEditor(ev)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-body font-semibold text-coffee-600 border border-coffee-200 hover:bg-coffee-100 hover:border-coffee-300 transition-colors flex-shrink-0"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                    Editar mensaje
-                  </button>
                 </div>
               );
             })}
@@ -536,83 +313,6 @@ export const NotificacionesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ═══════════════════════ EDITOR MODAL ═══════════════════════ */}
-      <Modal
-        isOpen={!!editingEvent}
-        onClose={() => setEditingEvent(null)}
-        title={editingEvent ? `Editar mensaje — ${editingEvent.name}` : ''}
-        size="xl"
-        footer={
-          <div className="flex items-center justify-end gap-3">
-            <Button variant="ghost" onClick={() => setEditingEvent(null)}>
-              Cancelar
-            </Button>
-            <Button variant="primary" onClick={saveEditor} leftIcon={<CheckCircle className="w-4 h-4" />}>
-              Guardar mensaje
-            </Button>
-          </div>
-        }
-      >
-        {editingEvent && (
-          <div className="space-y-4">
-            {/* Event info strip */}
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-coffee-50 border border-coffee-100">
-              <div className="w-8 h-8 rounded-lg bg-coffee-200 text-coffee-700 flex items-center justify-center flex-shrink-0">
-                {editingEvent.icon}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-body font-semibold text-coffee-800">{editingEvent.name}</p>
-                <p className="text-xs font-body text-coffee-500">{editingEvent.description}</p>
-              </div>
-              <ChannelBadges channels={editingEvent.channels} globalChannels={globalChannels} />
-            </div>
-
-            {/* Channel tabs — only if event uses both channels */}
-            {editingEvent.channels.length > 1 && (
-              <div className="bg-coffee-50 rounded-xl p-1 flex gap-1">
-                {editingEvent.channels.map((ch) => (
-                  <button
-                    key={ch}
-                    onClick={() => setEditorTab(ch)}
-                    className={clsx(
-                      'flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-body font-medium transition-all duration-200',
-                      editorTab === ch
-                        ? 'bg-white shadow text-coffee-900'
-                        : 'text-coffee-500 hover:text-coffee-700'
-                    )}
-                  >
-                    {ch === 'whatsapp' ? (
-                      <MessageCircle className="w-4 h-4 text-green-600" />
-                    ) : (
-                      <Mail className="w-4 h-4 text-blue-600" />
-                    )}
-                    {ch === 'whatsapp' ? 'WhatsApp' : 'Email'}
-                    <ChevronRight className={clsx('w-3.5 h-3.5 transition-transform', editorTab === ch && 'rotate-90')} />
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Editor panel */}
-            {(editingEvent.channels.length === 1 ? editingEvent.channels[0] : editorTab) === 'whatsapp' && (
-              <EditorPanel
-                channel="whatsapp"
-                message={draftWhatsapp}
-                onMessageChange={setDraftWhatsapp}
-              />
-            )}
-            {(editingEvent.channels.length === 1 ? editingEvent.channels[0] : editorTab) === 'email' && (
-              <EditorPanel
-                channel="email"
-                subject={draftEmailSubject}
-                onSubjectChange={setDraftEmailSubject}
-                message={draftEmailBody}
-                onMessageChange={setDraftEmailBody}
-              />
-            )}
-          </div>
-        )}
-      </Modal>
     </MainLayout>
   );
 };

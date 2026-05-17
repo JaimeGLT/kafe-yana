@@ -21,6 +21,30 @@ export const GET_CLIENTES = `
   }
 `;
 
+export const GET_CLIENTES_SEARCH = `
+  query GetClientesSearch($q: String!) {
+    clientes(
+      first: 20,
+      where: { or: [
+        { nombre: { contains: $q } },
+        { celular: { contains: $q } }
+      ]}
+    ) {
+      nodes {
+        id
+        nombre
+        celular
+        correo
+        dni
+        fecha_nacimiento
+        direccion
+        puntos
+        estado
+      }
+    }
+  }
+`;
+
 export const GET_CLIENTE_BY_ID = `
   query GetClienteById($id: Int!) {
     clientes(where: { id: { eq: $id } }) {

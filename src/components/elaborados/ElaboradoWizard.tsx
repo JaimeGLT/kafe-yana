@@ -40,6 +40,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
   const [unit, setUnit] = useState('unidad');
   const [preparationType, setPreparationType] = useState<'al_momento' | 'en_lote'>('al_momento');
   const [destino, setDestino] = useState<ProductDestino>('sin_destino');
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [localCategories, setLocalCategories] = useState(categories);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
@@ -59,6 +60,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
     setUnit('unidad');
     setPreparationType('al_momento');
     setDestino('sin_destino');
+    setImageFile(null);
   };
 
   const handleSaveCategory = async (input: CategoryInput) => {
@@ -101,17 +103,23 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
   const handleStep1Submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep1()) return;
-    
+    if (!imageFile) {
+      toast.error('Imagen requerida', 'Debes subir una imagen para el producto.');
+      return;
+    }
+
     try {
-      const res = await api.post<{ Id: number; Nombre: string; message?: string }>('/Elaborado', {
-        nombre: name.trim(),
-        descripcion: description.trim() || '',
-        precio: parseFloat(rawSalePrice),
-        categoria_Id: Number(categoryId) || 0,
-        unidad_medida: unit,
-        producible: preparationType === 'en_lote',
-        ubicacion: destino === 'barra' ? 'Barra' : destino === 'cocina' ? 'Cocina' : '',
-      });
+      const fd = new FormData();
+      fd.append('Nombre', name.trim());
+      if (description.trim()) fd.append('Descripcion', description.trim());
+      fd.append('Precio', String(parseFloat(rawSalePrice)));
+      fd.append('Categoria_Id', String(Number(categoryId) || 0));
+      fd.append('Unidad_medida', unit);
+      fd.append('Producible', String(preparationType === 'en_lote'));
+      const ubicacion = destino === 'barra' ? 'Barra' : destino === 'cocina' ? 'Cocina' : '';
+      if (ubicacion) fd.append('Ubicacion', ubicacion);
+      fd.append('Imagen', imageFile);
+      const res = await api.postForm<{ Id: number; Nombre: string; message?: string }>('/Elaborado', fd);
       const id = String(res.Id);
       setNewProductId(id);
       setNewProductName(name.trim());
@@ -188,7 +196,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
               {/* Foto */}
               <div>
                 <label className="text-sm font-medium text-coffee-700 mb-1 block">Foto del producto</label>
-                <ImageUploadField />
+                <ImageUploadField onChange={setImageFile} />
               </div>
 
               {/* Preparation type */}

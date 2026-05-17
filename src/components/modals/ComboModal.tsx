@@ -37,6 +37,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
   const [description, setDescription] = useState('');
   const [rawPrice, setRawPrice] = useState('');
   const [existingImageUrl, setExistingImageUrl] = useState<string | undefined>(undefined);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [items, setItems] = useState<ComboLine[]>([{ productId: '', quantity: 1 }]);
 
   // Products that can be in a combo (not another combo)
@@ -73,6 +74,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
       setExistingImageUrl(undefined);
       setItems([{ productId: '', quantity: 1 }]);
     }
+    setImageFile(null);
   }, [combo, isOpen]);
 
   // Live cost calculation
@@ -126,23 +128,28 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+    if (!combo && !imageFile) {
+      toast.error('Imagen requerida', 'Debes subir una imagen para el combo.');
+      return;
+    }
     setIsLoading(true);
     try {
-      const body = {
-        nombre: name.trim(),
-        descripcion: description.trim() || '',
-        precio: comboPrice,
-        productos: items.map((i) => ({
-          productoId: Number(i.productId),
-          cantidad: i.quantity,
-          opcional: false,
-        })),
-      };
+      const fd = new FormData();
+      fd.append('Nombre', name.trim());
+      if (description.trim()) fd.append('Descripcion', description.trim());
+      fd.append('Precio', String(comboPrice));
+      if (imageFile) fd.append('Imagen', imageFile);
+      items.forEach((item, i) => {
+        fd.append(`Productos[${i}].ProductoId`, item.productId);
+        fd.append(`Productos[${i}].Cantidad`, String(item.quantity));
+        fd.append(`Productos[${i}].Opcional`, 'false');
+      });
+
       if (combo) {
-        await api.put(`/Combo/${combo.id}`, body);
+        await api.putForm(`/Combo/${combo.id}`, fd);
         toast.success('Combo actualizado', `"${name}" fue actualizado.`);
       } else {
-        await api.post('/Combo', body);
+        await api.postForm('/Combo', fd);
         toast.success('Combo creado', `"${name}" — precio: ${formatCurrency(Number(comboPrice))}`);
       }
       onSuccess();
@@ -205,7 +212,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
         {/* Foto */}
         <div>
           <label className="text-sm font-medium text-coffee-700 mb-1 block">Foto del combo</label>
-          <ImageUploadField existingUrl={existingImageUrl} key={existingImageUrl} />
+          <ImageUploadField existingUrl={existingImageUrl} key={existingImageUrl} onChange={setImageFile} />
         </div>
 
         {/* Items table */}

@@ -150,6 +150,46 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
   }
 }
 
+async function requestForm<T>(path: string, method: 'POST' | 'PUT', body: FormData, isRetry = false): Promise<T> {
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = {
+    'X-Requested-With': 'XMLHttpRequest',
+    ...(csrfToken ? { 'X-CSRFToken': csrfToken } : {}),
+  };
+
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, { method, body, credentials: 'include', headers });
+  } catch {
+    throw new ApiError('Sin conexión. Verifica tu red e intenta de nuevo.', 0);
+  }
+
+  if (response.status === 401 && !isRetry) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) return requestForm<T>(path, method, body, true);
+    window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+  }
+
+  if (response.status === 204) return undefined as T;
+
+  if (!response.ok) {
+    let message = 'Error del servidor. Intenta de nuevo.';
+    try {
+      const b = await response.json() as { message?: string; detail?: string; error?: string; mensaje?: string };
+      message = b.message ?? b.detail ?? b.error ?? b.mensaje ?? message;
+    } catch { /* body no es JSON */ }
+    throw new ApiError(message, response.status);
+  }
+
+  const text = await response.text();
+  if (!text) return undefined as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return undefined as T;
+  }
+}
+
 export const api = {
   get: <T>(path: string, options?: RequestInit) =>
     request<T>(path, { method: 'GET', ...options }),
@@ -179,4 +219,7 @@ export const api = {
 
   delete: <T>(path: string, options?: RequestInit) =>
     request<T>(path, { method: 'DELETE', ...options }),
+
+  postForm: <T>(path: string, body: FormData) => requestForm<T>(path, 'POST', body),
+  putForm: <T>(path: string, body: FormData) => requestForm<T>(path, 'PUT', body),
 };

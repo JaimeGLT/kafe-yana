@@ -65,3 +65,27 @@ export const GET_PERMANENT_PROMOTIONS = `
     }
   }
 `;
+
+export const GET_VENTAS_CLIENTE = `
+  query GetVentasCliente($nombre: String!) {
+    ventas(
+      first: 100,
+      where: { cliente: { contains: $nombre } },
+      order: [{ fecha: DESC }]
+    ) {
+      nodes {
+        id
+        codigo
+        fecha
+        total
+        cliente
+        detalles {
+          nombre
+          cantidad
+          precio
+          total
+        }
+      }
+    }
+  }
+`;

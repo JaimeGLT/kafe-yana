@@ -205,7 +205,7 @@ export const POSPage: React.FC = () => {
         elaborados: { nodes: Array<{
           id_Producto: number; unidad_medida: string;
           producible: boolean; stock_actual: number; ubicacion: string;
-          producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; imagen?: string;
+          producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; urlImagen?: string;
             categoria: { id: number; nombre: string; descripcion: string; estado: boolean; color: string } | null };
           receta: { id: number; cantidadProducible: number };
           variaciones: Array<{ id: number; nombre: string; requerido: boolean;
@@ -214,13 +214,13 @@ export const POSPage: React.FC = () => {
         }> };
         comprados: { nodes: Array<{
           costo_compra: number; stock_actual: number; disponible: boolean; ubicacion: string;
-          producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; imagen?: string;
+          producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; urlImagen?: string;
             categoria: { id: number; nombre: string; descripcion: string; estado: boolean; color: string } | null };
         }> };
         combos: { nodes: Array<{
           cantidadProducible: number;
-          producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; imagen?: string };
-          detalles: Array<{ producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; imagen?: string }; cantidad: number; opcional: boolean }>;
+          producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; urlImagen?: string };
+          detalles: Array<{ producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; urlImagen?: string }; cantidad: number; opcional: boolean }>;
         }> };
         categorias: { nodes: Array<{ id: number; nombre: string; descripcion: string; color: string; estado: boolean }> };
         clientes: { nodes: Array<{ dni: string; nombre: string; celular: string; correo: string; fecha_nacimiento: string; direccion: string; puntos: number; estado: boolean; id: string }> };
@@ -252,7 +252,7 @@ export const POSPage: React.FC = () => {
         elaboradoProducts.push({
           id: productId, code: productId,
           name: n.producto.nombre, description: n.producto.descripcion ?? '',
-          image: n.producto.imagen ?? undefined,
+          image: n.producto.urlImagen ?? undefined,
           tipo: 'elaborado', categoryId: cat ? String(cat.id) : '',
           unit: n.unidad_medida ?? 'unidad', costPrice: 0,
           salePrice: n.producto.precio, stock: n.stock_actual ?? 999,
@@ -297,7 +297,7 @@ export const POSPage: React.FC = () => {
           return {
             id: String(n.producto.id), code: String(n.producto.id),
             name: n.producto.nombre, description: n.producto.descripcion ?? '',
-            image: n.producto.imagen ?? undefined,
+            image: n.producto.urlImagen ?? undefined,
             tipo: 'comprado' as const,
             categoryId: cat ? String(cat.id) : '',
             unit: 'unidad', costPrice: n.costo_compra,
@@ -326,7 +326,7 @@ export const POSPage: React.FC = () => {
         comboProducts.push({
           id, code: id,
           name: n.producto.nombre, description: n.producto.descripcion ?? '',
-          image: n.producto.imagen ?? undefined,
+          image: n.producto.urlImagen ?? undefined,
           tipo: 'combo', categoryId: COMBO_CAT_ID,
           unit: 'unidad', costPrice: 0,
           salePrice: n.producto.precio, stock: n.cantidadProducible,

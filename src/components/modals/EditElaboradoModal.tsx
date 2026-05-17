@@ -68,6 +68,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
   const [categoryId, setCategoryId] = useState(product.categoryId || '');
   const [unit, setUnit] = useState(product.unit || 'unidad');
   const [destino, setDestino] = useState<ProductDestino>(product.destino ?? 'sin_destino');
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const existingImageUrl = product.image?.startsWith('http') || product.image?.startsWith('data:') || product.image?.startsWith('blob:') ? product.image : undefined;
 
   useEffect(() => {
@@ -79,6 +80,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
       setCategoryId(product.categoryId || '');
       setUnit(product.unit || 'unidad');
       setDestino(product.destino ?? 'sin_destino');
+      setImageFile(null);
       setErrors({});
       setLocalCategoryOptions(categoryOptions);
       setIsLoadingData(true);
@@ -125,14 +127,16 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
 
     setIsSaving(true);
     try {
-      await api.put(`/Elaborado/${product.id}`, {
-        nombre: name.trim(),
-        descripcion: description.trim() || '',
-        precio: Number(salePrice),
-        categoria_Id: Number(categoryId) || 0,
-        unidad_medida: unit,
-        ubicacion: destino === 'barra' ? 'Barra' : destino === 'cocina' ? 'Cocina' : '',
-      });
+      const fd = new FormData();
+      fd.append('Nombre', name.trim());
+      if (description.trim()) fd.append('Descripcion', description.trim());
+      fd.append('Precio', String(Number(salePrice)));
+      fd.append('Categoria_Id', String(Number(categoryId) || 0));
+      fd.append('Unidad_medida', unit);
+      const ubicacion = destino === 'barra' ? 'Barra' : destino === 'cocina' ? 'Cocina' : '';
+      if (ubicacion) fd.append('Ubicacion', ubicacion);
+      if (imageFile) fd.append('Imagen', imageFile);
+      await api.putForm(`/Elaborado/${product.id}`, fd);
       const catName = categoryOptions.find((o) => o.value === categoryId)?.label ?? '';
       const updated = { ...product, name: name.trim(), description: description.trim(), salePrice: Number(salePrice), categoryId, categoryName: catName, unit };
       onSaved(updated);
@@ -264,7 +268,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
               {/* Foto */}
               <div>
                 <label className="text-sm font-medium text-coffee-700 mb-1 block">Foto del producto</label>
-                <ImageUploadField existingUrl={existingImageUrl} key={existingImageUrl} />
+                <ImageUploadField existingUrl={existingImageUrl} key={existingImageUrl} onChange={setImageFile} />
               </div>
 
               {/* Preparation type */}

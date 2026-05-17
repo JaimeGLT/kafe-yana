@@ -64,7 +64,7 @@ interface CompradoListNode {
     descripcion: string;
     precio: number;
     tipo: string;
-    imagen?: string;
+    urlImagen?: string;
     categoria: CategoriaNode;
     detalles: { cantidad: number; opcional: boolean }[];
   };
@@ -125,7 +125,7 @@ function mapNode(node: CompradoListNode): Product {
     barcode: node.codigo_barra,
     locationId: rawUbicacion || undefined,
     destino,
-    image: node.producto.imagen ?? undefined,
+    image: node.producto.urlImagen ?? undefined,
     variations: [],
     hasVariations: false,
     isActive: node.disponible,

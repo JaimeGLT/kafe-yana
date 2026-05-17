@@ -16,7 +16,7 @@ interface ElaboradoNode {
     descripcion: string;
     precio: number;
     tipo: string;
-    imagen?: string;
+    urlImagen?: string;
     categoria: { id: number; nombre: string; descripcion: string; estado: boolean; color: string } | null;
   };
   receta: {
@@ -135,7 +135,7 @@ export function useElaboradosPage(options: UseElaboradosPageOptions): UseElabora
           barcode: '',
           locationId: rawUbicacion || undefined,
           destino,
-          image: n.producto.imagen ?? undefined,
+          image: n.producto.urlImagen ?? undefined,
           variations: [],
           hasVariations: false,
           isActive: Boolean(n.producible),
