@@ -11,6 +11,7 @@ import { SalesChart } from '../components/dashboard/SalesChart';
 import { TopProductsChart } from '../components/dashboard/TopProductsChart';
 import { RecentActivity, LowStockAlert } from '../components/dashboard/RecentActivity';
 import { SaleDetailModal } from '../components/modals/SaleDetailModal';
+import { SkeletonKpiCard, SkeletonChart, SkeletonActivityList } from '../components/ui';
 import { formatCurrency } from '../utils';
 import { useDashboard } from '../hooks/useDashboard';
 import { useVentaDetalle } from '../hooks/useVentaDetalle';
@@ -36,8 +37,20 @@ const DashboardPage: React.FC = () => {
       <MainLayout>
         <PageContainer>
           <PageHeader title="Dashboard" subtitle="" />
-          <div className="flex items-center justify-center h-64">
-            <p className="text-gray-500">Cargando...</p>
+          <KPIGrid columns={4}>
+            <SkeletonKpiCard />
+            <SkeletonKpiCard />
+            <SkeletonKpiCard />
+            <SkeletonKpiCard />
+          </KPIGrid>
+          <div className="grid grid-cols-1 gap-6">
+            <SkeletonChart />
+            <SkeletonChart />
+          </div>
+          <SkeletonChart />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <SkeletonActivityList rows={5} />
+            <SkeletonActivityList rows={4} />
           </div>
         </PageContainer>
       </MainLayout>

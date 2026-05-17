@@ -15,7 +15,7 @@ export { SearchInput, SearchWithSuggestions } from './SearchInput';
 export { DatePicker, DateRangePicker } from './DatePicker';
 export { ToastProvider, ToastContainer, useToast, toast } from './Toast';
 export { Tooltip, HelpTooltip } from './Tooltip';
-export { Skeleton, SkeletonRow, SkeletonRecetaCard, SkeletonStatCard, SkeletonAjusteRow, SkeletonProductForm, SkeletonKpiCard, SkeletonMesaCard, SkeletonMesaGrid, SkeletonProductCard, SkeletonProductGrid, SkeletonCategoryTabs, SkeletonProductScroll, SkeletonSalesTable } from './Skeleton';
+export { Skeleton, SkeletonRow, SkeletonRecetaCard, SkeletonStatCard, SkeletonAjusteRow, SkeletonProductForm, SkeletonKpiCard, SkeletonMesaCard, SkeletonMesaGrid, SkeletonProductCard, SkeletonProductGrid, SkeletonCategoryTabs, SkeletonProductScroll, SkeletonSalesTable, SkeletonChart, SkeletonActivityList } from './Skeleton';
 export { Overlay } from './Overlay';
 export { ImageUploadField } from './ImageUpload';
 export { IconPicker } from './IconPicker';
