@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { api, ApiError } from '../lib/api';
 import { gql } from '../lib/graphql';
-import { GET_CAJA_ESTADO, GET_CAJA_MOVIMIENTOS, GET_CAJA_HISTORIAL } from '../lib/queries/caja.queries';
+import { GET_CAJA_ESTADO, GET_CAJA_MOVIMIENTOS, GET_ULTIMA_CAJA_HISTORIAL } from '../lib/queries/caja.queries';
 import { toast } from '../components/ui/Toast';
 import { getConnection, startConnection } from '../lib/signalr';
 import type { CajaHistorialNode } from '../types/cajaHistorial';
@@ -72,8 +72,8 @@ export function useCaja(): UseCajaReturn {
         ...m,
         tipo: (m.tipo as string).toLowerCase() === 'ingreso' ? 'ingreso' : 'egreso',
       })) as CajaMovimiento[]);
-      if (!estadoData.caja.abierta) {
-        const histData = await gql<{ cajaHistorial: { nodes: CajaHistorialNode[] } }>(GET_CAJA_HISTORIAL);
+      if (!estadoData.caja || !estadoData.caja.abierta) {
+        const histData = await gql<{ cajaHistorial: { nodes: CajaHistorialNode[] } }>(GET_ULTIMA_CAJA_HISTORIAL);
         setUltimaSesion(histData.cajaHistorial.nodes[0] ?? null);
       } else {
         setUltimaSesion(null);

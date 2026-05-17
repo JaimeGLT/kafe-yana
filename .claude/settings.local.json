@@ -48,7 +48,8 @@
       "Bash(pnpm approve-builds *)",
       "Bash(Find /c/Users/jaime/Desktop/kafeyana-complete/frontend/lib -type f -name \"*query*\" -o -name \"*gql*\")",
       "Bash(Find /c/Users/jaime/Desktop/kafeyana-complete/frontend/src/components/ui -name \"*Tab*\" -o -name \"*tab*\")",
-      "Bash(dir \"C:\\\\Users\\\\jaime\\\\Desktop\\\\kafeyana-complete\\\\frontend\\\\src\\\\pages\")"
+      "Bash(dir \"C:\\\\Users\\\\jaime\\\\Desktop\\\\kafeyana-complete\\\\frontend\\\\src\\\\pages\")",
+      "Bash(Select-Object -ExpandProperty FullName)"
     ]
   }
 }

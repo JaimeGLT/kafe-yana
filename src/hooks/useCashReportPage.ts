@@ -83,7 +83,7 @@ export function useCashReportPage(
   const categoryData = useMemo<CashCategoryData[]>(() => {
     const map: Record<string, CashCategoryData> = {};
     filteredSessions.forEach(s => {
-      s.movimientos.forEach(m => {
+      (s.movimientos ?? []).forEach(m => {
         const key = `${m.tipo}__${m.categoria}`;
         if (!map[key]) map[key] = { category: m.categoria, tipo: m.tipo, total: 0, count: 0 };
         map[key].total += Math.abs(m.monto);
