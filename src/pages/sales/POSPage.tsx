@@ -122,7 +122,7 @@ export const POSPage: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
   const [comboDetails, setComboDetails] = useState<Record<string, { name: string; quantity: number; emoji: string }[]>>({});
-  const [rewards, _setRewards] = useState<Reward[]>([]);
+  const [rewards, setRewards] = useState<Reward[]>([]);
   const [milestones, _setMilestones] = useState<MilestoneReward[]>([]);
   const [, setLoading] = useState(true);
   const [productsLoaded, setProductsLoaded] = useState(false);
@@ -224,6 +224,7 @@ export const POSPage: React.FC = () => {
         }> };
         categorias: { nodes: Array<{ id: number; nombre: string; descripcion: string; color: string; estado: boolean }> };
         clientes: { nodes: Array<{ dni: string; nombre: string; celular: string; correo: string; fecha_nacimiento: string; direccion: string; puntos: number; estado: boolean; id: string }> };
+        productosCanjeables: { nodes: Array<{ id: number; id_Producto: number; puntos: number; disponible: string; activo: boolean }> };
       }>(GET_POS_DATA);
 
       const catMap = new Map<string, Category>();
@@ -356,6 +357,21 @@ export const POSPage: React.FC = () => {
       setComboDetails(newComboDetails);
       setComboRecipes(newComboRecipes);
       setCustomers(data.clientes.nodes as Customer[]);
+      setRewards(
+        data.productosCanjeables.nodes
+          .filter(n => n.activo)
+          .map(n => ({
+            id: String(n.id),
+            name: '',
+            description: '',
+            pointsCost: n.puntos,
+            category: 'diario' as const,
+            icon: '⭐',
+            isActive: true,
+            productId: String(n.id_Producto),
+            disponible: n.disponible,
+          }))
+      );
       setProductsLoaded(true);
       enviarCatalogo(data.comprados.nodes, data.elaborados.nodes, data.combos.nodes);
     } catch {
@@ -380,6 +396,23 @@ export const POSPage: React.FC = () => {
       return p;
     }));
     setElaboradoExtras({});
+    if (data.productosCanjeables?.nodes) {
+      setRewards(
+        data.productosCanjeables.nodes
+          .filter((n: any) => n.activo)
+          .map((n: any) => ({
+            id: String(n.id),
+            name: '',
+            description: '',
+            pointsCost: n.puntos,
+            category: 'diario' as const,
+            icon: '⭐',
+            isActive: true,
+            productId: String(n.id_Producto),
+            disponible: n.disponible,
+          }))
+      );
+    }
   } catch {
     // silencioso
   }
@@ -1191,11 +1224,17 @@ export const POSPage: React.FC = () => {
                         ) : pickerProducts.map(product => {
                           const stock = getEffectiveStock(product);
                           const qty = getTempQty(product.id);
-                          const reward = loyaltyProfile
-                            ? rewards.find(r => r.isActive && r.productId === product.id) ?? null
+                          const mesaTipo = activeMesa?.tipo ?? 'mesa';
+                          const reward = rewards.find(r =>
+                            r.isActive &&
+                            r.productId === String(product.id) &&
+                            (r.disponible === 'MesasYParaLlevar' ||
+                              (mesaTipo === 'para_llevar' ? r.disponible === 'ParaLlevar' : r.disponible === 'Mesas'))
+                          ) ?? null;
+                          const canAfford = reward != null && !!loyaltyProfile && availablePoints >= reward.pointsCost;
+                          const pointsShortfall = reward != null && !!loyaltyProfile && !canAfford
+                            ? reward.pointsCost - availablePoints
                             : null;
-                          const canAfford = reward != null && availablePoints >= reward.pointsCost;
-                          const pointsShortfall = reward != null && !canAfford ? reward.pointsCost - availablePoints : null;
                           const attrCount = getAtributosByProductId(product.id).length;
                           return (
                             <ProdCard

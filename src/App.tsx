@@ -9,15 +9,15 @@ import KardexPage from './pages/inventory/KardexPage';
 import { SalesListPage } from './pages/sales/SalesListPage';
 import { POSPage } from './pages/sales/POSPage';
 import { CustomersPage } from './pages/sales/CustomersPage';
-import { FidelizacionPage } from './pages/sales/FidelizacionPage';
-import { PromocionesPermanentesPage } from './pages/sales/PromocionesPermanentesPage';
-import { PromocionesTemporadaPage } from './pages/sales/PromocionesTemporadaPage';
-import { HitosPage } from './pages/sales/HitosPage';
-import { SorteosPage } from './pages/sales/SorteosPage';
-import { ReferidosPage } from './pages/sales/ReferidosPage';
-import { ConfiguracionPuntosPage } from './pages/sales/ConfiguracionPuntosPage';
-import { ProductosCanjeablesPage } from './pages/sales/ProductosCanjeablesPage';
-import { NotificacionesPage } from './pages/sales/NotificacionesPage';
+import { FidelizacionPage } from './pages/fidelizacion/FidelizacionPage';
+import { PromocionesPermanentesPage } from './pages/fidelizacion/PromocionesPermanentesPage';
+import { PromocionesTemporadaPage } from './pages/fidelizacion/PromocionesTemporadaPage';
+import { HitosPage } from './pages/fidelizacion/HitosPage';
+import { SorteosPage } from './pages/fidelizacion/SorteosPage';
+import { ReferidosPage } from './pages/fidelizacion/ReferidosPage';
+import { ConfiguracionPuntosPage } from './pages/fidelizacion/ConfiguracionPuntosPage';
+import { ProductosCanjeablesPage } from './pages/fidelizacion/ProductosCanjeablesPage';
+import { NotificacionesPage } from './pages/fidelizacion/NotificacionesPage';
 import { PurchaseOrdersPage } from './pages/purchases/PurchaseOrdersPage';
 import { SuppliersPage } from './pages/purchases/SuppliersPage';
 import { CashRegisterPage } from './pages/cash/CashRegisterPage';
@@ -74,15 +74,16 @@ function App() {
                 <Route path="/sales/pos"       element={<ProtectedRoute allowedRoles={ALL}><POSPage /></ProtectedRoute>} />
                 <Route path="/sales"           element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><SalesListPage /></ProtectedRoute>} />
                 <Route path="/sales/customers" element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><CustomersPage /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion"                          element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><FidelizacionPage /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/config"                   element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><ConfiguracionPuntosPage /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/productos"                element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><ProductosCanjeablesPage /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/notificaciones"           element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><NotificacionesPage /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/promociones-permanentes"  element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><PromocionesPermanentesPage /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/promociones-temporada"    element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><PromocionesTemporadaPage /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/hitos"                    element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><HitosPage /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/sorteos"                  element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><SorteosPage /></ProtectedRoute>} />
-                <Route path="/sales/fidelizacion/referidos"                element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><ReferidosPage /></ProtectedRoute>} />
+                {/* Fidelización — admin + cajero */}
+                <Route path="/fidelizacion"                          element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><FidelizacionPage /></ProtectedRoute>} />
+                <Route path="/fidelizacion/config"                   element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><ConfiguracionPuntosPage /></ProtectedRoute>} />
+                <Route path="/fidelizacion/productos"                element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><ProductosCanjeablesPage /></ProtectedRoute>} />
+                <Route path="/fidelizacion/notificaciones"           element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><NotificacionesPage /></ProtectedRoute>} />
+                <Route path="/fidelizacion/promociones-permanentes"  element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><PromocionesPermanentesPage /></ProtectedRoute>} />
+                <Route path="/fidelizacion/promociones-temporada"    element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><PromocionesTemporadaPage /></ProtectedRoute>} />
+                <Route path="/fidelizacion/hitos"                    element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><HitosPage /></ProtectedRoute>} />
+                <Route path="/fidelizacion/sorteos"                  element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><SorteosPage /></ProtectedRoute>} />
+                <Route path="/fidelizacion/referidos"                element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><ReferidosPage /></ProtectedRoute>} />
 
                 {/* Purchases — solo admin */}
                 <Route path="/purchases/orders"    element={<ProtectedRoute allowedRoles={[ADMIN]}><PurchaseOrdersPage /></ProtectedRoute>} />

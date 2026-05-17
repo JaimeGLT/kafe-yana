@@ -208,6 +208,15 @@ export const GET_POS_DATA = `
         id
       }
     }
+    productosCanjeables {
+      nodes {
+        id
+        id_Producto
+        puntos
+        disponible
+        activo
+      }
+    }
   }
 `;
 

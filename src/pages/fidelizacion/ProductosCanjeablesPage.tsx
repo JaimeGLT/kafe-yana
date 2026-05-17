@@ -8,78 +8,12 @@ import { MainLayout } from '../../components/layout';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { toast } from '../../components/ui/Toast';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type Availability = 'mesas' | 'para_llevar' | 'ambos';
-
-interface CatalogProduct {
-  id: string;
-  name: string;
-  category: string;
-  isActive: boolean; // reflects current inventory status
-}
-
-interface RedeemableProduct {
-  id: string;
-  catalogProductId: string;
-  catalogProductName: string;
-  catalogProductCategory: string;
-  catalogProductAvailable: boolean; // false when inventory product was deactivated/deleted
-  pointsCost: number;
-  availability: Availability;
-  isActive: boolean;
-}
-
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const MOCK_CATALOG: CatalogProduct[] = [
-  { id: 'cp1', name: 'Café Americano', category: 'Bebidas', isActive: true },
-  { id: 'cp2', name: 'Café con Leche', category: 'Bebidas', isActive: true },
-  { id: 'cp3', name: 'Té de Hierbas', category: 'Bebidas', isActive: true },
-  { id: 'cp4', name: 'Limonada Fresca', category: 'Bebidas', isActive: true },
-  { id: 'cp5', name: 'Cold Brew', category: 'Bebidas', isActive: true },
-  { id: 'cp6', name: 'Brownie de Chocolate', category: 'Postres', isActive: true },
-  { id: 'cp7', name: 'Cookie Artesanal', category: 'Postres', isActive: true },
-  { id: 'cp8', name: 'Tarta de Fresas', category: 'Postres', isActive: true },
-  { id: 'cp9', name: 'Empanada de Queso', category: 'Snacks', isActive: true },
-  { id: 'cp10', name: 'Tostada con Mantequilla', category: 'Snacks', isActive: true },
-  { id: 'cp11', name: 'Almuerzo del Día', category: 'Almuerzos', isActive: true },
-  { id: 'cp12', name: 'Wrap de Pollo', category: 'Almuerzos', isActive: false }, // desactivado en inventario
-];
-
-const INITIAL_REDEEMABLES: RedeemableProduct[] = [
-  {
-    id: 'r1', catalogProductId: 'cp1', catalogProductName: 'Café Americano',
-    catalogProductCategory: 'Bebidas', catalogProductAvailable: true,
-    pointsCost: 20, availability: 'ambos', isActive: true,
-  },
-  {
-    id: 'r2', catalogProductId: 'cp3', catalogProductName: 'Té de Hierbas',
-    catalogProductCategory: 'Bebidas', catalogProductAvailable: true,
-    pointsCost: 15, availability: 'mesas', isActive: true,
-  },
-  {
-    id: 'r3', catalogProductId: 'cp6', catalogProductName: 'Brownie de Chocolate',
-    catalogProductCategory: 'Postres', catalogProductAvailable: true,
-    pointsCost: 25, availability: 'ambos', isActive: true,
-  },
-  {
-    id: 'r4', catalogProductId: 'cp7', catalogProductName: 'Cookie Artesanal',
-    catalogProductCategory: 'Postres', catalogProductAvailable: true,
-    pointsCost: 20, availability: 'para_llevar', isActive: false,
-  },
-  {
-    id: 'r5', catalogProductId: 'cp12', catalogProductName: 'Wrap de Pollo',
-    catalogProductCategory: 'Almuerzos', catalogProductAvailable: false, // simulates deactivated in inventory
-    pointsCost: 45, availability: 'ambos', isActive: false,
-  },
-  {
-    id: 'r6', catalogProductId: 'cp11', catalogProductName: 'Almuerzo del Día',
-    catalogProductCategory: 'Almuerzos', catalogProductAvailable: true,
-    pointsCost: 200, availability: 'mesas', isActive: true,
-  },
-];
+import {
+  useProductosCanjeables,
+  type Availability,
+  type CatalogProduct,
+  type RedeemableProduct,
+} from '../../hooks/useProductosCanjeables';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -89,29 +23,25 @@ const AVAILABILITY_LABELS: Record<Availability, string> = {
   ambos: 'Mesas y para llevar',
 };
 
-const CATEGORY_COLORS: Record<string, string> = {
-  'Bebidas': 'bg-blue-50 text-blue-700 border-blue-200',
-  'Postres': 'bg-pink-50 text-pink-700 border-pink-200',
-  'Snacks': 'bg-amber-50 text-amber-700 border-amber-200',
-  'Almuerzos': 'bg-green-50 text-green-700 border-green-200',
-};
-
-function categoryBadge(cat: string) {
-  return CATEGORY_COLORS[cat] ?? 'bg-coffee-50 text-coffee-600 border-coffee-200';
+function categoryBadgeStyle(color: string): React.CSSProperties {
+  if (!color) return { backgroundColor: '#f5f0eb', color: '#6b4f3a', borderColor: '#d4bfaa' };
+  return {
+    backgroundColor: `${color}20`,
+    color,
+    borderColor: `${color}60`,
+  };
 }
-
-let nextId = 10;
-function genId() { return `r${nextId++}`; }
 
 // ─── Product search dropdown ───────────────────────────────────────────────────
 
 interface ProductSearchProps {
+  catalog: CatalogProduct[];
   value: CatalogProduct | null;
   onChange: (p: CatalogProduct | null) => void;
-  excludeIds: string[];
+  excludeIds: number[];
 }
 
-const ProductSearch: React.FC<ProductSearchProps> = ({ value, onChange, excludeIds }) => {
+const ProductSearch: React.FC<ProductSearchProps> = ({ catalog, value, onChange, excludeIds }) => {
   const [query, setQuery] = useState(value?.name ?? '');
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -130,13 +60,12 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ value, onChange, excludeI
 
   const filtered = useMemo(
     () =>
-      MOCK_CATALOG.filter(
+      catalog.filter(
         (p) =>
-          p.isActive &&
           !excludeIds.includes(p.id) &&
-          p.name.toLowerCase().includes(query.toLowerCase())
+          p.name.toLowerCase().includes(query.toLowerCase()),
       ),
-    [query, excludeIds]
+    [catalog, query, excludeIds],
   );
 
   return (
@@ -182,7 +111,7 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ value, onChange, excludeI
                     className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-coffee-50 transition-colors text-left"
                   >
                     <span className="text-sm font-body font-medium text-coffee-900">{p.name}</span>
-                    <span className={clsx('text-xs font-body px-2 py-0.5 rounded-full border', categoryBadge(p.category))}>
+                    <span className="text-xs font-body px-2 py-0.5 rounded-full border" style={categoryBadgeStyle(p.color)}>
                       {p.category}
                     </span>
                   </button>
@@ -215,13 +144,13 @@ const Toggle: React.FC<ToggleProps> = ({ checked, onChange, disabled }) => (
       'relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent',
       'transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-coffee-400 focus:ring-offset-1',
       checked ? 'bg-coffee-500' : 'bg-gray-300',
-      disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'
+      disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
     )}
   >
     <span
       className={clsx(
         'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200',
-        checked ? 'translate-x-4' : 'translate-x-0'
+        checked ? 'translate-x-4' : 'translate-x-0',
       )}
     />
   </button>
@@ -246,34 +175,35 @@ const EMPTY_FORM: FormState = {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export const ProductosCanjeablesPage: React.FC = () => {
-  const [products, setProducts] = useState<RedeemableProduct[]>(INITIAL_REDEEMABLES);
+  const { products, catalog, isLoading, error, isSaving, createProduct, updateProduct, deleteProduct } =
+    useProductosCanjeables();
+
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editingProduct, setEditingProduct] = useState<RedeemableProduct | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<RedeemableProduct | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // IDs already added (excluding the one being edited)
   const usedCatalogIds = useMemo(
     () =>
       products
-        .filter((p) => p.id !== editingId)
+        .filter((p) => p.id !== editingProduct?.id)
         .map((p) => p.catalogProductId),
-    [products, editingId]
+    [products, editingProduct],
   );
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
   const openAdd = () => {
-    setEditingId(null);
+    setEditingProduct(null);
     setForm(EMPTY_FORM);
     setFormError(null);
     setModalOpen(true);
   };
 
   const openEdit = (p: RedeemableProduct) => {
-    const catalogP = MOCK_CATALOG.find((c) => c.id === p.catalogProductId) ?? null;
-    setEditingId(p.id);
+    const catalogP = catalog.find((c) => c.id === p.catalogProductId) ?? null;
+    setEditingProduct(p);
     setForm({
       selectedProduct: catalogP,
       pointsCost: p.pointsCost,
@@ -284,7 +214,7 @@ export const ProductosCanjeablesPage: React.FC = () => {
     setModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.selectedProduct) {
       setFormError('Debes seleccionar un producto del catálogo.');
       return;
@@ -294,64 +224,55 @@ export const ProductosCanjeablesPage: React.FC = () => {
       return;
     }
 
-    if (editingId) {
-      setProducts((prev) =>
-        prev.map((p) =>
-          p.id === editingId
-            ? {
-                ...p,
-                catalogProductId: form.selectedProduct!.id,
-                catalogProductName: form.selectedProduct!.name,
-                catalogProductCategory: form.selectedProduct!.category,
-                catalogProductAvailable: form.selectedProduct!.isActive,
-                pointsCost: form.pointsCost,
-                availability: form.availability,
-                isActive: form.isActive,
-              }
-            : p
-        )
-      );
-      toast.success('Producto actualizado');
-    } else {
-      const newItem: RedeemableProduct = {
-        id: genId(),
-        catalogProductId: form.selectedProduct.id,
-        catalogProductName: form.selectedProduct.name,
-        catalogProductCategory: form.selectedProduct.category,
-        catalogProductAvailable: form.selectedProduct.isActive,
-        pointsCost: form.pointsCost,
-        availability: form.availability,
-        isActive: form.isActive,
-      };
-      setProducts((prev) => [newItem, ...prev]);
-      toast.success('Producto canjeable agregado');
-    }
+    const payload = {
+      catalogProductId: form.selectedProduct.id,
+      pointsCost: form.pointsCost,
+      availability: form.availability,
+      isActive: form.isActive,
+    };
 
-    setModalOpen(false);
+    try {
+      if (editingProduct) {
+        await updateProduct(editingProduct.id, payload);
+        toast.success('Producto actualizado');
+      } else {
+        await createProduct(payload);
+        toast.success('Producto canjeable agregado');
+      }
+      setModalOpen(false);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Error al guardar';
+      toast.error(msg);
+    }
   };
 
-  const handleToggleActive = (id: string) => {
-    const p = products.find((x) => x.id === id);
-    if (!p) return;
-    if (!p.catalogProductAvailable && !p.isActive) {
-      toast.error('No se puede activar', 'El producto ya no está disponible en el catálogo.');
-      return;
+  const handleToggleActive = async (p: RedeemableProduct) => {
+    try {
+      await updateProduct(p.id, {
+        catalogProductId: p.catalogProductId,
+        pointsCost: p.pointsCost,
+        availability: p.availability,
+        isActive: !p.isActive,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Error al actualizar el estado';
+      toast.error(msg);
     }
-    setProducts((prev) =>
-      prev.map((x) => (x.id === id ? { ...x, isActive: !x.isActive } : x))
-    );
   };
 
-  const handleDelete = () => {
-    if (!deleteId) return;
-    setProducts((prev) => prev.filter((p) => p.id !== deleteId));
-    setDeleteId(null);
-    toast.success('Producto eliminado de la lista de canjeables');
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteProduct(deleteTarget.id);
+      setDeleteTarget(null);
+      toast.success('Producto eliminado de la lista de canjeables');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Error al eliminar';
+      toast.error(msg);
+    }
   };
 
   // ── Render ───────────────────────────────────────────────────────────────────
-
-  const unavailableCount = products.filter((p) => !p.catalogProductAvailable).length;
 
   return (
     <MainLayout>
@@ -378,12 +299,6 @@ export const ProductosCanjeablesPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3 flex-shrink-0">
-            {unavailableCount > 0 && (
-              <div className="flex items-center gap-2 bg-amber-400/20 border border-amber-300/40 text-amber-200 px-3 py-2 rounded-xl text-xs font-body">
-                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                {unavailableCount} producto{unavailableCount > 1 ? 's' : ''} sin disponibilidad
-              </div>
-            )}
             <button
               onClick={openAdd}
               className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-yellow-400 text-coffee-900 font-body font-semibold text-sm hover:bg-yellow-300 shadow-lg hover:shadow-xl transition-all duration-200"
@@ -395,22 +310,35 @@ export const ProductosCanjeablesPage: React.FC = () => {
         </div>
       </div>
 
+      {/* ═══════════════════════ ERROR ═══════════════════════ */}
+      {error && (
+        <div className="mb-4 flex items-center gap-2 p-4 rounded-xl bg-red-50 border border-red-200 text-sm font-body text-red-700">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          {error}
+        </div>
+      )}
+
       {/* ═══════════════════════ PRODUCT LIST ═══════════════════════ */}
       <div className="bg-white rounded-2xl border border-coffee-100 shadow-coffee overflow-hidden">
-        {/* Table header */}
         <div className="px-5 py-3.5 border-b border-coffee-50 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShoppingBag className="w-4 h-4 text-coffee-500" />
             <h2 className="font-display font-semibold text-coffee-900">
               Lista de productos canjeables
             </h2>
-            <span className="text-xs font-body bg-coffee-100 text-coffee-600 font-semibold px-2 py-0.5 rounded-full">
-              {products.length}
-            </span>
+            {!isLoading && (
+              <span className="text-xs font-body bg-coffee-100 text-coffee-600 font-semibold px-2 py-0.5 rounded-full">
+                {products.length}
+              </span>
+            )}
           </div>
         </div>
 
-        {products.length === 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="w-8 h-8 border-2 border-coffee-300 border-t-coffee-600 rounded-full animate-spin" />
+          </div>
+        ) : products.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="w-14 h-14 rounded-2xl bg-coffee-50 flex items-center justify-center mb-4">
               <Gift className="w-7 h-7 text-coffee-300" />
@@ -458,41 +386,26 @@ export const ProductosCanjeablesPage: React.FC = () => {
                     key={p.id}
                     className={clsx(
                       'transition-colors',
-                      !p.isActive || !p.catalogProductAvailable
-                        ? 'bg-gray-50/60'
-                        : 'hover:bg-coffee-50/40'
+                      !p.isActive ? 'bg-gray-50/60' : 'hover:bg-coffee-50/40',
                     )}
                   >
-                    {/* Product name + catalog warning */}
                     <td className="px-5 py-4">
-                      <div className="flex flex-col gap-1">
-                        <span
-                          className={clsx(
-                            'font-body font-semibold text-sm',
-                            !p.catalogProductAvailable ? 'text-coffee-400 line-through' : 'text-coffee-900'
-                          )}
-                        >
-                          {p.catalogProductName}
-                        </span>
-                        {!p.catalogProductAvailable && (
-                          <div className="flex items-center gap-1.5">
-                            <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" />
-                            <span className="text-xs font-body text-amber-600">
-                              Este producto ya no está disponible en el catálogo
-                            </span>
-                          </div>
+                      <span
+                        className={clsx(
+                          'font-body font-semibold text-sm',
+                          !p.isActive ? 'text-coffee-400' : 'text-coffee-900',
                         )}
-                      </div>
+                      >
+                        {p.catalogProductName}
+                      </span>
                     </td>
 
-                    {/* Category */}
                     <td className="px-3 py-4">
-                      <span className={clsx('text-xs font-body font-semibold px-2 py-0.5 rounded-full border', categoryBadge(p.catalogProductCategory))}>
+                      <span className="text-xs font-body font-semibold px-2 py-0.5 rounded-full border" style={categoryBadgeStyle(p.catalogProductColor)}>
                         {p.catalogProductCategory}
                       </span>
                     </td>
 
-                    {/* Points */}
                     <td className="px-3 py-4">
                       <span className="font-display font-bold text-coffee-900 text-sm">
                         {p.pointsCost}
@@ -500,25 +413,22 @@ export const ProductosCanjeablesPage: React.FC = () => {
                       <span className="text-xs font-body text-coffee-400 ml-1">pts</span>
                     </td>
 
-                    {/* Availability */}
                     <td className="px-3 py-4 hidden md:table-cell">
                       <span className="text-xs font-body text-coffee-600">
                         {AVAILABILITY_LABELS[p.availability]}
                       </span>
                     </td>
 
-                    {/* Status toggle */}
                     <td className="px-3 py-4">
                       <div className="flex justify-center">
                         <Toggle
                           checked={p.isActive}
-                          onChange={() => handleToggleActive(p.id)}
-                          disabled={!p.catalogProductAvailable}
+                          onChange={() => handleToggleActive(p)}
+                          disabled={isSaving}
                         />
                       </div>
                     </td>
 
-                    {/* Actions */}
                     <td className="px-3 py-4">
                       <div className="flex items-center justify-end gap-1">
                         <button
@@ -529,7 +439,7 @@ export const ProductosCanjeablesPage: React.FC = () => {
                           <Pencil className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => setDeleteId(p.id)}
+                          onClick={() => setDeleteTarget(p)}
                           className="p-2 rounded-xl text-coffee-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                           title="Eliminar"
                         >
@@ -549,15 +459,15 @@ export const ProductosCanjeablesPage: React.FC = () => {
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingId ? 'Editar producto canjeable' : 'Agregar producto canjeable'}
+        title={editingProduct ? 'Editar producto canjeable' : 'Agregar producto canjeable'}
         size="md"
         footer={
           <div className="flex items-center justify-end gap-3">
-            <Button variant="ghost" onClick={() => setModalOpen(false)}>
+            <Button variant="ghost" onClick={() => setModalOpen(false)} disabled={isSaving}>
               Cancelar
             </Button>
-            <Button variant="primary" onClick={handleSave}>
-              {editingId ? 'Guardar cambios' : 'Agregar'}
+            <Button variant="primary" onClick={handleSave} disabled={isSaving}>
+              {isSaving ? 'Guardando...' : editingProduct ? 'Guardar cambios' : 'Agregar'}
             </Button>
           </div>
         }
@@ -570,22 +480,21 @@ export const ProductosCanjeablesPage: React.FC = () => {
             </div>
           )}
 
-          {/* Product selector */}
           <div>
             <label className="block text-sm font-body font-semibold text-coffee-700 mb-1.5">
               Producto <span className="text-red-500">*</span>
             </label>
             <ProductSearch
+              catalog={catalog}
               value={form.selectedProduct}
               onChange={(p) => { setForm((f) => ({ ...f, selectedProduct: p })); setFormError(null); }}
               excludeIds={usedCatalogIds}
             />
             <p className="mt-1.5 text-xs font-body text-coffee-400">
-              Solo muestra productos activos del catálogo que no estén ya en la lista
+              Solo muestra productos del catálogo que no estén ya en la lista
             </p>
           </div>
 
-          {/* Points cost */}
           <div>
             <label className="block text-sm font-body font-semibold text-coffee-700 mb-1.5">
               Puntos necesarios para canjearlo <span className="text-red-500">*</span>
@@ -606,7 +515,6 @@ export const ProductosCanjeablesPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Availability */}
           <div>
             <label className="block text-sm font-body font-semibold text-coffee-700 mb-2">
               Disponible en
@@ -619,7 +527,7 @@ export const ProductosCanjeablesPage: React.FC = () => {
                     'flex items-center gap-2 px-4 py-2.5 rounded-xl border cursor-pointer transition-all',
                     form.availability === opt
                       ? 'bg-coffee-500 border-coffee-500 text-white'
-                      : 'bg-white border-coffee-200 text-coffee-700 hover:border-coffee-400'
+                      : 'bg-white border-coffee-200 text-coffee-700 hover:border-coffee-400',
                   )}
                 >
                   <input
@@ -641,7 +549,6 @@ export const ProductosCanjeablesPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Active toggle */}
           <div className="flex items-center justify-between p-4 rounded-xl bg-coffee-50 border border-coffee-100">
             <div>
               <p className="text-sm font-body font-semibold text-coffee-800">Activo</p>
@@ -659,17 +566,17 @@ export const ProductosCanjeablesPage: React.FC = () => {
 
       {/* ═══════════════════════ DELETE CONFIRM ═══════════════════════ */}
       <Modal
-        isOpen={!!deleteId}
-        onClose={() => setDeleteId(null)}
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
         title="Eliminar producto canjeable"
         size="sm"
         footer={
           <div className="flex items-center justify-end gap-3">
-            <Button variant="ghost" onClick={() => setDeleteId(null)}>
+            <Button variant="ghost" onClick={() => setDeleteTarget(null)} disabled={isSaving}>
               Cancelar
             </Button>
-            <Button variant="danger" onClick={handleDelete}>
-              Eliminar
+            <Button variant="danger" onClick={handleDelete} disabled={isSaving}>
+              {isSaving ? 'Eliminando...' : 'Eliminar'}
             </Button>
           </div>
         }
