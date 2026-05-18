@@ -37,7 +37,6 @@ export const CustomerCombobox: React.FC<CustomerComboboxProps> = ({
           c.celular.includes(q) ||
           (c.dni || '').toLowerCase().includes(q)
       )
-      .slice(0, 8);
   }, [customers, query]);
 
   // Close on outside click
@@ -75,7 +74,7 @@ export const CustomerCombobox: React.FC<CustomerComboboxProps> = ({
 
   return (
     <>
-      <div className="w-full" ref={containerRef}>
+      <div className="w-full relative" ref={containerRef}>
         {label && (
           <label className="block text-sm font-medium text-coffee-700 mb-1">{label}</label>
         )}

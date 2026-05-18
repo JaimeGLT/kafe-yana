@@ -6,12 +6,14 @@ interface ImageUploadFieldProps {
   existingUrl?: string;
   onChange?: (file: File | null) => void;
   className?: string;
+  square?: boolean;
 }
 
 export const ImageUploadField: React.FC<ImageUploadFieldProps> = ({
   existingUrl,
   onChange,
   className,
+  square = false,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(existingUrl ?? null);
@@ -46,7 +48,7 @@ export const ImageUploadField: React.FC<ImageUploadFieldProps> = ({
       />
 
       {preview ? (
-        <div className="relative w-full h-32 rounded-xl overflow-hidden border border-coffee-200 bg-coffee-50">
+        <div className={clsx('relative rounded-xl overflow-hidden border border-coffee-200 bg-coffee-50', square ? 'h-48 w-48 mx-auto' : 'w-full h-32')}>
           <img src={preview} alt="Imagen del producto" className="w-full h-full object-cover" />
           <button
             type="button"
@@ -77,7 +79,8 @@ export const ImageUploadField: React.FC<ImageUploadFieldProps> = ({
             if (f) applyFile(f);
           }}
           className={clsx(
-            'w-full h-28 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer',
+            'border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer',
+            square ? 'h-48 w-48 mx-auto' : 'w-full h-28',
             isDragging
               ? 'border-coffee-400 bg-coffee-50 text-coffee-600'
               : 'border-coffee-200 text-coffee-400 hover:border-coffee-400 hover:text-coffee-600 hover:bg-coffee-50',

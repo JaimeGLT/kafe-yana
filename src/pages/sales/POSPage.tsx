@@ -636,7 +636,7 @@ export const POSPage: React.FC = () => {
       uniqueProductsBought: [], completedMissions: [],
       createdAt: now, updatedAt: now,
     };
-    setCustomers(prev => [...prev, newCustomer]);
+    setCustomers(prev => [newCustomer, ...prev]);
     setLoyaltyProfiles(prev => [...prev, newProfile as any]);
     onCreated(id);
     setNewCustomerName('');
@@ -661,7 +661,7 @@ export const POSPage: React.FC = () => {
       uniqueProductsBought: [], completedMissions: [],
       createdAt: now, updatedAt: now,
     };
-    setCustomers(prev => [...prev, newCustomer]);
+    setCustomers(prev => [newCustomer, ...prev]);
     setLoyaltyProfiles(prev => [...prev, newProfile as any]);
     onCreated(id);
     setIsCreatingCustomer(false);
@@ -669,7 +669,7 @@ export const POSPage: React.FC = () => {
   };
 
   const handleCreateCustomerCombobox = async (input: CustomerInput): Promise<Customer> => {
-    const res = await api.post<{ message: string; id: number }>('/Cliente', {
+    const res = await api.post<{ message: string; Id: number }>('/Cliente', {
       nombre: input.nombre,
       celular: input.celular,
       correo: input.correo ?? null,
@@ -678,10 +678,9 @@ export const POSPage: React.FC = () => {
       direccion: null,
       estado: true,
     });
-    const id = String(res.id);
+    const id = String(res.Id);
     const newCustomer: Customer = { id, nombre: input.nombre, celular: input.celular, puntos: 0, estado: true };
-    setCustomers(prev => [...prev, newCustomer]);
-    toast.success('Cliente registrado', `${input.nombre} añadido correctamente.`);
+    setCustomers(prev => [newCustomer, ...prev]);
     return newCustomer;
   };
 
