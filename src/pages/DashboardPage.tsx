@@ -118,7 +118,7 @@ const DashboardPage: React.FC = () => {
 
         {/* Charts Row */}
         <div className="grid grid-cols-1 gap-6">
-          <RevenueChart data={revenueData} title="Ingresos y Gastos (últimos 7 días)" />
+          <RevenueChart data={revenueData} title="Ingresos y Gastos (últimos 1537 días)" />
           <TopProductsChart data={topProductsData} title="Productos Más Vendidos" />
         </div>
 
