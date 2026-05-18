@@ -41,7 +41,7 @@ export const NotificationBell: React.FC = () => {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-1 w-80 bg-white rounded-lg border border-coffee-200 shadow-lg z-30 overflow-hidden">
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 w-[calc(100vw-2rem)] max-w-sm bg-white rounded-lg border border-coffee-200 shadow-lg z-30 overflow-hidden md:absolute md:top-auto md:left-auto md:translate-x-0 md:right-0 md:mt-1 md:w-80">
           <div className="px-4 py-3 border-b border-coffee-100">
             <p className="text-sm font-semibold text-coffee-900">Alertas de inventario</p>
           </div>
