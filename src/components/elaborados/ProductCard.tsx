@@ -1,5 +1,6 @@
 import React from 'react';
 import { BookOpen, Edit2, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { ProductImage } from '../ui/ProductImage';
 import { clsx } from 'clsx';
 import { getMarginInfo } from '../../lib/elaborados.utils';
 import type { Product, Receta, ProductDestino } from '../../types';
@@ -44,7 +45,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {/* Header */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-base leading-none shrink-0">{product.image || '☕'}</span>
+            <ProductImage src={product.image} tipo="elaborado" size="sm" />
             <div className="min-w-0">
               <h3 className="font-semibold text-coffee-900 truncate">{product.name}</h3>
               {product.categoryName && (

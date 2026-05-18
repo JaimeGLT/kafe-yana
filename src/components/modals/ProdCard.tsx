@@ -2,7 +2,7 @@ import React from 'react';
 import { clsx } from 'clsx';
 import { Plus, Minus, Gift, FlaskConical, Layers } from 'lucide-react';
 import { formatCurrency } from '../../utils';
-import { getProductEmoji } from '../../utils/productUtils';
+import { ProductImageFill } from '../ui/ProductImage';
 import type { Product } from '../../types';
 
 interface ProdCardProps {
@@ -28,8 +28,8 @@ export const ProdCard: React.FC<ProdCardProps> = ({
     'flex-shrink-0 w-32 sm:w-40 bg-white rounded-2xl overflow-hidden shadow-sm flex flex-col select-none',
     unavailable && 'opacity-50',
   )}>
-    <div className="relative h-20 sm:h-32 bg-coffee-50 flex items-center justify-center">
-      <span className="text-4xl sm:text-5xl">{getProductEmoji(product)}</span>
+    <div className="relative h-20 sm:h-32 overflow-hidden">
+      <ProductImageFill src={product.image} tipo={product.tipo} iconSize="h-10 w-10 sm:h-12 sm:w-12" />
       {product.tipo === 'elaborado' && (
         <span className="absolute top-1.5 left-1.5 text-[9px] bg-white text-amber-700 rounded-full px-1.5 py-0.5 font-semibold flex items-center gap-0.5 shadow-sm">
           <FlaskConical className="h-2 w-2" />Elab.

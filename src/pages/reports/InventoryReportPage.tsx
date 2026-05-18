@@ -1,10 +1,10 @@
 import React from 'react';
 import {
-  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { Package, AlertTriangle, DollarSign, FileText } from 'lucide-react';
 import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
-import { Button, Badge } from '../../components/ui';
+import { Button, Badge, Skeleton, SkeletonKpiCard } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
 import { formatCurrency } from '../../utils';
 import { useInventoryReportPage } from '../../hooks/useInventoryReportPage';
@@ -72,8 +72,29 @@ const InventoryReportPage: React.FC = () => {
     return (
       <MainLayout>
         <PageContainer>
-          <div className="flex items-center justify-center h-64">
-            <div className="text-coffee-500">Cargando reporte de inventario...</div>
+          <div className="space-y-2 mb-6">
+            <Skeleton className="h-7 w-56" />
+            <Skeleton className="h-4 w-72" />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            {Array.from({ length: 4 }).map((_, i) => <SkeletonKpiCard key={i} />)}
+          </div>
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 mb-6">
+            <Skeleton className="h-5 w-40 mb-4" />
+            <Skeleton className="h-64 w-full rounded-lg" />
+          </div>
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4">
+            <Skeleton className="h-5 w-48 mb-4" />
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex gap-4 py-3 border-b border-coffee-50">
+                <Skeleton className="h-5 w-16 rounded-full" />
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-12 ml-auto" />
+                <Skeleton className="h-4 w-12" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+            ))}
           </div>
         </PageContainer>
       </MainLayout>
@@ -148,26 +169,37 @@ const InventoryReportPage: React.FC = () => {
 
         <PageSection title="Productos por Categoría" description="Distribución de productos por categoría">
           {categoryData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  dataKey="count"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                  labelLine={false}
-                >
-                  {categoryData.map((_, idx) => (
-                    <Cell key={idx} fill={PIE_PALETTE[idx % PIE_PALETTE.length]} />
-                  ))}
-                </Pie>
-                <Tooltip {...tooltipStyle} formatter={(value) => [value, 'Productos']} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            <div className="flex flex-col items-center gap-4">
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    dataKey="count"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                  >
+                    {categoryData.map((_, idx) => (
+                      <Cell key={idx} fill={PIE_PALETTE[idx % PIE_PALETTE.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip {...tooltipStyle} formatter={(value) => [value, 'Productos']} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 w-full px-2">
+                {categoryData.map((entry, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5 text-xs text-coffee-700">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: PIE_PALETTE[idx % PIE_PALETTE.length] }}
+                    />
+                    <span>{entry.name}</span>
+                    <span className="text-coffee-400 font-medium">({entry.count})</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           ) : (
             <div className="flex items-center justify-center h-48 text-coffee-400">
               No hay datos de categorías

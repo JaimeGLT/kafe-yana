@@ -28,6 +28,7 @@ interface Raffle {
   winnerId?: string;
   winnerName?: string;
   isDrawn: boolean;
+  isClaimed: boolean;
   productIds: string[];
 }
 
@@ -77,6 +78,7 @@ const MOCK_RAFFLES: Raffle[] = [
     isActive: true,
     createdAt: new Date().toISOString(),
     isDrawn: false,
+    isClaimed: false,
     participants: [
       { id: 'p1', customerId: 'c1', customerName: 'Ana Quispe', registeredAt: '2026-04-10T10:00:00Z' },
       { id: 'p2', customerId: 'c3', customerName: 'Lucía Flores', registeredAt: '2026-04-11T14:30:00Z' },
@@ -95,6 +97,7 @@ const MOCK_RAFFLES: Raffle[] = [
     isActive: true,
     createdAt: new Date().toISOString(),
     isDrawn: false,
+    isClaimed: false,
     participants: [
       { id: 'p4', customerId: 'c1', customerName: 'Ana Quispe', registeredAt: '2026-04-15T11:00:00Z' },
     ],
@@ -111,6 +114,7 @@ const MOCK_RAFFLES: Raffle[] = [
     isActive: false,
     createdAt: new Date().toISOString(),
     isDrawn: true,
+    isClaimed: false,
     winnerId: 'c3',
     winnerName: 'Lucía Flores',
     participants: [
@@ -162,6 +166,7 @@ const RaffleModal: React.FC<RaffleModalProps> = ({ raffle, products, onSave, onC
       createdAt: raffle?.createdAt ?? new Date().toISOString(),
       participants: raffle?.participants ?? [],
       isDrawn: raffle?.isDrawn ?? false,
+      isClaimed: raffle?.isClaimed ?? false,
       winnerId: raffle?.winnerId,
       winnerName: raffle?.winnerName,
       productIds,
@@ -333,7 +338,8 @@ export const SorteosPage: React.FC = () => {
   const [editingRaffle, setEditingRaffle] = useState<Raffle | null>(null);
   const [showDrawModal, setShowDrawModal] = useState(false);
   const [selectedRaffle, setSelectedRaffle] = useState<Raffle | null>(null);
-  const [filterTab, setFilterTab] = useState<'active' | 'past'>('active');
+  const [filterTab, setFilterTab] = useState<'active' | 'pending_claim' | 'past'>('active');
+  const [claimingRaffle, setClaimingRaffle] = useState<Raffle | null>(null);
   const [showAddParticipantModal, setShowAddParticipantModal] = useState(false);
   const [addParticipantRaffle, setAddParticipantRaffle] = useState<Raffle | null>(null);
 
@@ -430,6 +436,14 @@ export const SorteosPage: React.FC = () => {
     setSelectedRaffle(null);
   };
 
+  const handleClaim = (raffleId: string) => {
+    setRaffles(prev => prev.map(r =>
+      r.id === raffleId ? { ...r, isClaimed: true } : r
+    ));
+    const raffle = raffles.find(r => r.id === raffleId);
+    if (raffle) toast.success('Premio entregado', `${raffle.winnerName} — ${raffle.prize}`);
+  };
+
   if (loading) {
     return (
       <MainLayout>
@@ -441,8 +455,9 @@ export const SorteosPage: React.FC = () => {
   }
 
   const activeRaffles = raffles.filter(r => r.isActive && !r.isDrawn);
-  const pastRaffles = raffles.filter(r => !r.isActive || r.isDrawn);
-  const displayRaffles = filterTab === 'active' ? activeRaffles : pastRaffles;
+  const pendingClaimRaffles = raffles.filter(r => r.isDrawn && !r.isClaimed);
+  const pastRaffles = raffles.filter(r => r.isDrawn && r.isClaimed);
+  const displayRaffles = filterTab === 'active' ? activeRaffles : filterTab === 'pending_claim' ? pendingClaimRaffles : pastRaffles;
 
   return (
     <MainLayout>
@@ -502,6 +517,26 @@ export const SorteosPage: React.FC = () => {
           </span>
         </button>
         <button
+          onClick={() => setFilterTab('pending_claim')}
+          className={clsx(
+            'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-body font-medium transition-all border',
+            filterTab === 'pending_claim'
+              ? 'bg-amber-500 text-white border-amber-500 shadow-md'
+              : 'bg-white text-coffee-600 border-coffee-100 hover:border-coffee-300 hover:bg-coffee-50',
+          )}
+        >
+          <Trophy className="w-4 h-4" />
+          Por Entregar
+          {pendingClaimRaffles.length > 0 && (
+            <span className={clsx(
+              'text-xs font-bold px-1.5 py-0.5 rounded-full',
+              filterTab === 'pending_claim' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700',
+            )}>
+              {pendingClaimRaffles.length}
+            </span>
+          )}
+        </button>
+        <button
           onClick={() => setFilterTab('past')}
           className={clsx(
             'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-body font-medium transition-all border',
@@ -511,7 +546,7 @@ export const SorteosPage: React.FC = () => {
           )}
         >
           <Clock className="w-4 h-4" />
-          Historial
+          Entregados
           <span className={clsx(
             'text-xs font-bold px-1.5 py-0.5 rounded-full',
             filterTab === 'past' ? 'bg-white/20 text-white' : 'bg-coffee-100 text-coffee-600',
@@ -526,7 +561,7 @@ export const SorteosPage: React.FC = () => {
           <div className="text-center py-10 bg-coffee-50 rounded-2xl border border-dashed border-coffee-200">
             <Gift className="w-8 h-8 text-coffee-200 mx-auto mb-2" />
             <p className="text-sm font-body text-coffee-400">
-              {filterTab === 'active' ? 'Sin sorteos activos' : 'Sin sorteos finalizados'}
+              {filterTab === 'active' ? 'Sin sorteos activos' : filterTab === 'pending_claim' ? 'Sin premios pendientes de entrega' : 'Sin premios entregados aún'}
             </p>
             {filterTab === 'active' && (
               <button
@@ -560,10 +595,11 @@ export const SorteosPage: React.FC = () => {
                       <span className="font-display font-bold text-coffee-900">{raffle.name}</span>
                       <span className={clsx(
                         'flex items-center gap-1 text-xs font-body font-bold px-2 py-0.5 rounded-full',
-                        raffle.isDrawn ? 'bg-purple-100 text-purple-700' :
-                          raffle.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500',
+                        raffle.isDrawn && raffle.isClaimed ? 'bg-green-100 text-green-700' :
+                          raffle.isDrawn ? 'bg-amber-100 text-amber-700' :
+                          raffle.isActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500',
                       )}>
-                        {raffle.isDrawn ? '🎉 Finalizado' : raffle.isActive ? 'Activo' : 'Inactivo'}
+                        {raffle.isDrawn && raffle.isClaimed ? '✅ Entregado' : raffle.isDrawn ? '🎉 Sorteado' : raffle.isActive ? 'Activo' : 'Inactivo'}
                       </span>
                     </div>
                     <p className="text-xs font-body text-coffee-500 mb-2">{raffle.description}</p>
@@ -587,25 +623,29 @@ export const SorteosPage: React.FC = () => {
                   </div>
 
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => handleToggle(raffle.id)}
-                      className={clsx(
-                        'relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none',
-                        raffle.isActive ? 'bg-green-400' : 'bg-gray-200',
-                      )}
-                    >
-                      <span className={clsx(
-                        'inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200',
-                        raffle.isActive ? 'translate-x-6' : 'translate-x-1',
-                      )} />
-                    </button>
-                    <button
-                      onClick={() => handleOpenModal(raffle)}
-                      className="p-1.5 rounded-lg bg-coffee-50 text-coffee-600 hover:bg-coffee-100 transition-colors"
-                      title="Editar"
-                    >
-                      <Settings className="w-4 h-4" />
-                    </button>
+                    {!raffle.isDrawn && (
+                      <>
+                        <button
+                          onClick={() => handleToggle(raffle.id)}
+                          className={clsx(
+                            'relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none',
+                            raffle.isActive ? 'bg-green-400' : 'bg-gray-200',
+                          )}
+                        >
+                          <span className={clsx(
+                            'inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200',
+                            raffle.isActive ? 'translate-x-6' : 'translate-x-1',
+                          )} />
+                        </button>
+                        <button
+                          onClick={() => handleOpenModal(raffle)}
+                          className="p-1.5 rounded-lg bg-coffee-50 text-coffee-600 hover:bg-coffee-100 transition-colors"
+                          title="Editar"
+                        >
+                          <Settings className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -654,6 +694,21 @@ export const SorteosPage: React.FC = () => {
                         <Zap className="w-4 h-4" />
                         Realizar Sorteo
                       </button>
+                    )}
+                    {raffle.isDrawn && !raffle.isClaimed && (
+                      <button
+                        onClick={() => setClaimingRaffle(raffle)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-body font-semibold hover:bg-amber-600 transition-colors shadow-md"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Marcar Entregado
+                      </button>
+                    )}
+                    {raffle.isDrawn && raffle.isClaimed && (
+                      <span className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-50 text-green-700 text-xs font-body font-semibold border border-green-200">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        Entregado
+                      </span>
                     )}
                   </div>
                 </div>
@@ -800,6 +855,47 @@ export const SorteosPage: React.FC = () => {
                 )}
               </div>
             </div>
+          </div>
+        )}
+      </Modal>
+      <Modal
+        isOpen={!!claimingRaffle}
+        onClose={() => setClaimingRaffle(null)}
+        title="Confirmar entrega"
+        size="sm"
+        footer={
+          <div className="flex items-center justify-end gap-3">
+            <Button variant="ghost" onClick={() => setClaimingRaffle(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (claimingRaffle) handleClaim(claimingRaffle.id);
+                setClaimingRaffle(null);
+              }}
+            >
+              Confirmar entrega
+            </Button>
+          </div>
+        }
+      >
+        {claimingRaffle && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200">
+              <span className="text-3xl">{claimingRaffle.prizeIcon}</span>
+              <div>
+                <p className="font-display font-bold text-coffee-900">{claimingRaffle.prize}</p>
+                <p className="text-sm font-body text-coffee-500">{claimingRaffle.name}</p>
+              </div>
+            </div>
+            <p className="text-sm font-body text-coffee-700">
+              ¿Confirmás que el premio fue entregado a{' '}
+              <strong>{claimingRaffle.winnerName}</strong>?
+            </p>
+            <p className="text-xs font-body text-coffee-400">
+              Esta acción marcará el sorteo como entregado y no se puede deshacer.
+            </p>
           </div>
         )}
       </Modal>

@@ -121,7 +121,7 @@ export function useInventoryReportPage(): UseInventoryReportPageReturn {
         categoryName: n.categoria || 'Sin categoría',
         categoryColor: '#8B4513',
         stock: n.stock_actual,
-        minStock: n.stock_min * n.factor_conversion,
+        minStock: n.stock_min,
         costPrice: n.costo,
         available: true,
         unidad: n.unidad_min_uso,

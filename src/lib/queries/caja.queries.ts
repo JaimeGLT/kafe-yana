@@ -10,8 +10,11 @@ export const GET_CAJA_ESTADO = `
       nombre
       saldoEsperado
       saldoInicial
+      totalEfectivo
       totalEgresos
       totalIngresos
+      totalQr
+      totalTarjeta
       totalVentas
     }
   }
@@ -63,6 +66,31 @@ export const GET_CAJA_HISTORIAL = `
           monto
           tipo
         }
+      }
+    }
+  }
+`
+
+export const GET_ULTIMA_CAJA_HISTORIAL = `
+  query GetUltimaCajaHistorial {
+    cajaHistorial(first: 1, order: [{ id: DESC }]) {
+      nodes {
+        abiertaPor
+        apertura
+        cerradaPor
+        cierre
+        codigo
+        diferencia
+        estado
+        id
+        nota
+        saldoInicial
+        totalEgresos
+        totalEfectivo
+        totalIngresos
+        totalQr
+        totalTarjeta
+        totalVentas
       }
     }
   }

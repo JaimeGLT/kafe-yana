@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import https from 'node:https'
 
-const API_TARGET = 'https://kafeyanaapi20260321224446-bqdjh9acame8gydt.centralus-01.azurewebsites.net'
+const API_TARGET = 'https://kafeyanaapi20260321224446-bqdjh9acame8gydt.centralus-01.azurewebsites.net/'
 
 // Agente HTTPS con keep-alive: reutiliza la conexión TCP+TLS entre peticiones
 // Esto elimina los ~400-660ms de TLS handshake por cada request en desarrollo
@@ -20,21 +20,21 @@ export default defineConfig({
       '/api': {
         target: API_TARGET,
         changeOrigin: true,
-        secure: true,
+        secure: false,
         cookieDomainRewrite: 'localhost',
         agent: keepAliveAgent,
       },
       '/graphql': {
         target: API_TARGET,
         changeOrigin: true,
-        secure: true,
+        secure: false,
         cookieDomainRewrite: 'localhost',
         agent: keepAliveAgent,
       },
       '/hubs': {
         target: API_TARGET,
         changeOrigin: true,
-        secure: true,
+        secure: false,
         cookieDomainRewrite: 'localhost',
         ws: true,
       },

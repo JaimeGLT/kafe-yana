@@ -38,6 +38,7 @@ interface PagoPanelProps {
   reviewNewCustomerPhone: string;
   onReviewNewCustomerNameChange: (v: string) => void;
   onReviewNewCustomerPhoneChange: (v: string) => void;
+  qrImageUrl?: string | null;
 }
 
 export const PagoPanel: React.FC<PagoPanelProps> = ({
@@ -67,6 +68,7 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
   reviewNewCustomerPhone,
   onReviewNewCustomerNameChange,
   onReviewNewCustomerPhoneChange,
+  qrImageUrl,
 }) => {
   const selectedCliente = reviewClienteId ? customers.find(c => String(c.id) === reviewClienteId) : null;
 
@@ -81,8 +83,8 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
   };
 
   return (
-    <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
-      <div className="bg-coffee-800 px-5 py-4 flex items-center justify-between">
+    <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh]">
+      <div className="bg-coffee-800 px-5 py-4 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl bg-white/10 flex items-center justify-center">
             <AlertTriangle className="h-5 w-5 text-cream" />
@@ -97,7 +99,7 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
         </button>
       </div>
 
-      <div className="p-5 space-y-5">
+      <div className="p-5 space-y-5 overflow-y-auto flex-1">
         <div className="text-center py-2">
           <p className="text-xs text-coffee-400 uppercase tracking-widest font-semibold mb-1">Total a pagar</p>
           <p className="text-5xl font-display font-black text-coffee-900">{formatCurrency(mesaTotal)}</p>
@@ -204,6 +206,23 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
             ))}
           </div>
         </div>
+
+        {paymentMethod === 'transfer' && (
+          <div className="flex flex-col items-center gap-2">
+            {qrImageUrl ? (
+              <img
+                src={qrImageUrl}
+                alt="QR de pago"
+                className="w-48 h-48 object-contain rounded-xl border border-coffee-200 bg-coffee-50 p-2"
+              />
+            ) : (
+              <div className="w-48 h-48 rounded-xl border-2 border-dashed border-coffee-200 bg-coffee-50 flex items-center justify-center">
+                <p className="text-xs text-coffee-400 text-center px-4">Sin imagen QR configurada</p>
+              </div>
+            )}
+            <p className="text-xs text-coffee-500">Muestra este QR al cliente para el pago</p>
+          </div>
+        )}
 
         {paymentMethod === 'cash' && (
           <div>

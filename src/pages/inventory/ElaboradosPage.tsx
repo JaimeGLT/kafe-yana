@@ -28,7 +28,6 @@ import type { Product, Receta } from '../../types';
 
 const ElaboradosPage: React.FC = () => {
   const { page, pageSize, search, debouncedSearch, cursors, setPage, setSearch, setCursors } = usePagination({ pageSize: 15 });
-  const [cursorsRef] = useState(() => ({ current: {} as Record<number, string> }));
 
   const [filterStatus, setFilterStatus] = useState('');
   const { elaborados, recetas, insumos, categorias, totalCount, isLoading, refresh, endCursor } = useElaboradosPage({
@@ -36,10 +35,6 @@ const ElaboradosPage: React.FC = () => {
     pageSize,
     afterCursor: page > 1 ? cursors[page - 1] : undefined,
   });
-
-  useEffect(() => {
-    cursorsRef.current = cursors;
-  }, [cursors]);
 
   useEffect(() => {
     if (endCursor) {
@@ -101,8 +96,14 @@ const ElaboradosPage: React.FC = () => {
   }, [elaborados, debouncedSearch, filterStatus, getRecetaByProductId, getElaboradoAvailability]);
 
   // KPIs
-  const sinReceta = elaborados.filter((p) => !getRecetaByProductId(p.id)).length;
-  const conReceta = elaborados.filter((p) => !!getRecetaByProductId(p.id));
+  const sinReceta = useMemo(
+    () => elaborados.filter((p) => !getRecetaByProductId(p.id)).length,
+    [elaborados, getRecetaByProductId],
+  );
+  const conReceta = useMemo(
+    () => elaborados.filter((p) => !!getRecetaByProductId(p.id)),
+    [elaborados, getRecetaByProductId],
+  );
   const avgMargen = useMemo(() => {
     const valid = conReceta.filter((p) => {
       const r = getRecetaByProductId(p.id);
@@ -114,9 +115,12 @@ const ElaboradosPage: React.FC = () => {
       return s + ((p.salePrice - r.costoPorPorcion) / p.salePrice) * 100;
     }, 0);
     return sum / valid.length;
-  }, [conReceta, recetas]);
+  }, [conReceta, getRecetaByProductId]);
 
-  const sinStock = elaborados.filter((p) => getElaboradoAvailability(p.id) === 0).length;
+  const sinStock = useMemo(
+    () => elaborados.filter((p) => getElaboradoAvailability(p.id) === 0).length,
+    [elaborados, getElaboradoAvailability],
+  );
 
   const handleDelete = useCallback(async () => {
     if (!deletingProduct) return;
@@ -326,6 +330,8 @@ const ElaboradosPage: React.FC = () => {
           onClose={() => setEditingProduct(null)}
           product={editingProduct}
           categoryOptions={categories}
+          insumos={insumos}
+          products={elaborados}
           onSaved={() => {
             setEditingProduct(null);
             refresh();

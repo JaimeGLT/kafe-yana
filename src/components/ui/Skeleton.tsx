@@ -234,4 +234,33 @@ export const SkeletonSalesTable: React.FC = () => (
   </div>
 );
 
+export const SkeletonChart: React.FC<{ className?: string }> = ({ className }) => (
+  <div className={clsx('bg-white rounded-xl border border-coffee-100 shadow-sm', className)}>
+    <div className="px-6 py-4 border-b border-coffee-100">
+      <Skeleton className="h-5 w-48" />
+    </div>
+    <div className="p-6">
+      <Skeleton className="w-full h-72 rounded-lg" />
+    </div>
+  </div>
+);
 
+export const SkeletonActivityList: React.FC<{ rows?: number; className?: string }> = ({ rows = 5, className }) => (
+  <div className={clsx('bg-white rounded-xl border border-coffee-100 shadow-sm', className)}>
+    <div className="px-6 py-4 border-b border-coffee-100">
+      <Skeleton className="h-5 w-36" />
+    </div>
+    <div className="divide-y divide-coffee-100">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="px-6 py-4 flex items-start gap-3">
+          <Skeleton className="h-8 w-8 rounded-lg flex-shrink-0" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-3 w-48" />
+          </div>
+          <Skeleton className="h-4 w-12 ml-auto" />
+        </div>
+      ))}
+    </div>
+  </div>
+);

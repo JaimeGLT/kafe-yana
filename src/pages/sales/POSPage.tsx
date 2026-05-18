@@ -17,8 +17,10 @@ import { useVenta } from '../../hooks/useVenta';
 import { usePOSCart } from '../../hooks/usePOSCart';
 import { usePOSLoyalty } from '../../hooks/usePOSLoyalty';
 import { formatCurrency } from '../../utils';
-import { formatOpcionLabel, formatOpcionLabelString } from '../../utils/opcionUtils';
+import { formatOpcionLabel } from '../../utils/opcionUtils';
 import { enviarCatalogo } from '../../utils/comandas';
+import { PrintComandaModal } from '../../components/pos/PrintComandaModal';
+import type { PrintComandaData } from '../../components/pos/PrintComandaModal';
 import { SkeletonMesaGrid, SkeletonCategoryTabs, SkeletonProductScroll, Overlay, ConfirmModal } from '../../components/ui';
 import { MesaCard } from '../../components/pos/MesaCard';
 import { NuevaMesaModal } from '../../components/pos/NuevaMesaModal';
@@ -46,32 +48,6 @@ type DetalleView = 'none' | 'pedido' | 'historial';
 const mesaOrderTotal = (order: any[]) =>
   order.reduce((s, i) => s + i.precioFinal * i.quantity, 0);
 
-const printComanda = (mesaName: string, roundNumber: number, items: any[]) => {
-  const win = window.open('', '_blank', 'width=320,height=500');
-  if (!win) return;
-  const now = new Date().toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
-  const rows = items.map(i => {
-    const nota = i.notes ? `<div style="font-size:10px;color:#555;padding-left:8px">↳ ${i.notes}</div>` : '';
-    const opciones = i.opciones?.map((o: any) => `<div style="font-size:10px;color:#555;padding-left:8px">· ${formatOpcionLabelString(o)}</div>`).join('') ?? '';
-    return `<div style="margin-bottom:6px"><strong>${i.quantity}×</strong> ${i.product.name}${opciones}${nota}</div>`;
-  }).join('');
-  win.document.write(`
-    <html><body style="font-family:monospace;font-size:13px;padding:16px;max-width:300px">
-      <div style="text-align:center;border-bottom:2px dashed #000;padding-bottom:8px;margin-bottom:8px">
-        <strong style="font-size:16px">${mesaName}</strong><br/>
-        <span>Ronda #${roundNumber} · ${now}</span>
-      </div>
-      ${rows}
-      <div style="border-top:2px dashed #000;margin-top:8px;padding-top:6px;text-align:center;font-size:11px">
-        — COMANDA —
-      </div>
-    </body></html>
-  `);
-  win.document.close();
-  win.focus();
-  win.print();
-  win.close();
-};
 
 function useDragScroll<T extends HTMLElement>() {
   const ref = useRef<T>(null);
@@ -120,9 +96,11 @@ export const POSPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
+  const [printComandaData, setPrintComandaData] = useState<PrintComandaData | null>(null);
   const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
   const [comboDetails, setComboDetails] = useState<Record<string, { name: string; quantity: number; emoji: string }[]>>({});
-  const [rewards, _setRewards] = useState<Reward[]>([]);
+  const [rewards, setRewards] = useState<Reward[]>([]);
   const [milestones, _setMilestones] = useState<MilestoneReward[]>([]);
   const [, setLoading] = useState(true);
   const [productsLoaded, setProductsLoaded] = useState(false);
@@ -164,7 +142,7 @@ export const POSPage: React.FC = () => {
 
   const {
     loyaltyProfiles: _lp,
-    setLoyaltyProfiles,
+    setLoyaltyProfiles: _setLoyaltyProfiles,
     getOrCreateProfile,
     calculatePointsForAmount,
     awardPointsForSale,
@@ -198,6 +176,12 @@ export const POSPage: React.FC = () => {
 
   const { cobrarParaLlevar } = useVenta();
 
+  useEffect(() => {
+    api.get<{ Url: string }>('/Qr')
+      .then(data => setQrImageUrl(data.Url || null))
+      .catch(() => {});
+  }, []);
+
   const loadProducts = useCallback(async () => {
     if (productsLoaded) return;
     try {
@@ -205,7 +189,7 @@ export const POSPage: React.FC = () => {
         elaborados: { nodes: Array<{
           id_Producto: number; unidad_medida: string;
           producible: boolean; stock_actual: number; ubicacion: string;
-          producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; imagen?: string;
+          producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; urlImagen?: string;
             categoria: { id: number; nombre: string; descripcion: string; estado: boolean; color: string } | null };
           receta: { id: number; cantidadProducible: number };
           variaciones: Array<{ id: number; nombre: string; requerido: boolean;
@@ -214,16 +198,17 @@ export const POSPage: React.FC = () => {
         }> };
         comprados: { nodes: Array<{
           costo_compra: number; stock_actual: number; disponible: boolean; ubicacion: string;
-          producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; imagen?: string;
+          producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; urlImagen?: string;
             categoria: { id: number; nombre: string; descripcion: string; estado: boolean; color: string } | null };
         }> };
         combos: { nodes: Array<{
           cantidadProducible: number;
-          producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; imagen?: string };
-          detalles: Array<{ producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; imagen?: string }; cantidad: number; opcional: boolean }>;
+          producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; urlImagen?: string };
+          detalles: Array<{ producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; urlImagen?: string }; cantidad: number; opcional: boolean }>;
         }> };
         categorias: { nodes: Array<{ id: number; nombre: string; descripcion: string; color: string; estado: boolean }> };
         clientes: { nodes: Array<{ dni: string; nombre: string; celular: string; correo: string; fecha_nacimiento: string; direccion: string; puntos: number; estado: boolean; id: string }> };
+        productosCanjeables: { nodes: Array<{ id: number; id_Producto: number; puntos: number; disponible: string; activo: boolean }> };
       }>(GET_POS_DATA);
 
       const catMap = new Map<string, Category>();
@@ -251,7 +236,7 @@ export const POSPage: React.FC = () => {
         elaboradoProducts.push({
           id: productId, code: productId,
           name: n.producto.nombre, description: n.producto.descripcion ?? '',
-          image: n.producto.imagen ?? undefined,
+          image: n.producto.urlImagen ?? undefined,
           tipo: 'elaborado', categoryId: cat ? String(cat.id) : '',
           unit: n.unidad_medida ?? 'unidad', costPrice: 0,
           salePrice: n.producto.precio, stock: n.stock_actual ?? 999,
@@ -259,6 +244,7 @@ export const POSPage: React.FC = () => {
           hasVariations: n.variaciones.length > 0,
           producible: n.producible,
           cantidadProducible: n.receta?.cantidadProducible,
+          tieneReceta: n.receta != null,
           createdAt: new Date(), updatedAt: new Date(),
         });
         for (const v of n.variaciones) {
@@ -295,7 +281,7 @@ export const POSPage: React.FC = () => {
           return {
             id: String(n.producto.id), code: String(n.producto.id),
             name: n.producto.nombre, description: n.producto.descripcion ?? '',
-            image: n.producto.imagen ?? undefined,
+            image: n.producto.urlImagen ?? undefined,
             tipo: 'comprado' as const,
             categoryId: cat ? String(cat.id) : '',
             unit: 'unidad', costPrice: n.costo_compra,
@@ -324,7 +310,7 @@ export const POSPage: React.FC = () => {
         comboProducts.push({
           id, code: id,
           name: n.producto.nombre, description: n.producto.descripcion ?? '',
-          image: n.producto.imagen ?? undefined,
+          image: n.producto.urlImagen ?? undefined,
           tipo: 'combo', categoryId: COMBO_CAT_ID,
           unit: 'unidad', costPrice: 0,
           salePrice: n.producto.precio, stock: n.cantidadProducible,
@@ -355,6 +341,21 @@ export const POSPage: React.FC = () => {
       setComboDetails(newComboDetails);
       setComboRecipes(newComboRecipes);
       setCustomers(data.clientes.nodes as Customer[]);
+      setRewards(
+        data.productosCanjeables.nodes
+          .filter(n => n.activo)
+          .map(n => ({
+            id: String(n.id),
+            name: '',
+            description: '',
+            pointsCost: n.puntos,
+            category: 'diario' as const,
+            icon: '⭐',
+            isActive: true,
+            productId: String(n.id_Producto),
+            disponible: n.disponible,
+          }))
+      );
       setProductsLoaded(true);
       enviarCatalogo(data.comprados.nodes, data.elaborados.nodes, data.combos.nodes);
     } catch {
@@ -379,6 +380,23 @@ export const POSPage: React.FC = () => {
       return p;
     }));
     setElaboradoExtras({});
+    if (data.productosCanjeables?.nodes) {
+      setRewards(
+        data.productosCanjeables.nodes
+          .filter((n: any) => n.activo)
+          .map((n: any) => ({
+            id: String(n.id),
+            name: '',
+            description: '',
+            pointsCost: n.puntos,
+            category: 'diario' as const,
+            icon: '⭐',
+            isActive: true,
+            productId: String(n.id_Producto),
+            disponible: n.disponible,
+          }))
+      );
+    }
   } catch {
     // silencioso
   }
@@ -388,7 +406,7 @@ export const POSPage: React.FC = () => {
     const conn = getConnection();
     const handler = (data: {
       comprados?: { id: number; stock: number }[];
-      elaborados?: { id: number; stock: number; cantidadProducible: number }[];
+      elaborados?: { id: number; stock: number; cantidadProducible: number | null }[];
       combos?: { id: number; cantidadProducible: number }[];
     }) => {
       setProducts(prev => prev.map(p => {
@@ -398,7 +416,12 @@ export const POSPage: React.FC = () => {
         }
         if (p.tipo === 'elaborado') {
           const u = data.elaborados?.find(e => String(e.id) === p.id);
-          return u ? { ...p, stock: u.stock, cantidadProducible: u.cantidadProducible } : p;
+          if (!u) return p;
+          // cantidadProducible=null → Producible=true, usa stock físico
+          // cantidadProducible=number → Producible=false, usa cantidadProducible
+          return u.cantidadProducible !== null
+            ? { ...p, stock: u.stock, cantidadProducible: u.cantidadProducible }
+            : { ...p, stock: u.stock };
         }
         if (p.tipo === 'combo') {
           const u = data.combos?.find(c => String(c.id) === p.id);
@@ -406,6 +429,7 @@ export const POSPage: React.FC = () => {
         }
         return p;
       }));
+      setElaboradoExtras({});
     };
     conn.on('StockActualizado', handler);
     return () => { conn.off('StockActualizado', handler); };
@@ -470,6 +494,7 @@ export const POSPage: React.FC = () => {
     const p = elaboradoDetailProduct;
     const reserved = tempCart.filter(i => i.product.id === p.id).reduce((s, i) => s + i.quantity, 0);
     if (p.producible === true) return Math.max(0, p.stock - reserved);
+    if (!p.tieneReceta) return 9999;
     return Math.max(0, (p.cantidadProducible ?? 999) - reserved);
   }, [elaboradoDetailProduct, tempCart]);
 
@@ -497,6 +522,7 @@ export const POSPage: React.FC = () => {
     const reserved = getTempQty(p.id);
     if (p.tipo === 'elaborado') {
       if (!p.producible) {
+        if (!p.tieneReceta) return { label: 'Disponible', ok: true };
         const available = (p.cantidadProducible ?? 0) - reserved;
         return available <= 0 ? { label: 'Agotado', ok: false } : { label: `Disponible: ${available}`, ok: true };
       }
@@ -576,62 +602,77 @@ export const POSPage: React.FC = () => {
     setNewCustomerPhone('');
   };
 
-  const handleCreateCustomer = (onCreated: (id: string) => void) => {
+  const handleCreateCustomer = async (onCreated: (id: string) => void) => {
     const name = newCustomerName.trim();
     const phone = newCustomerPhone.trim();
     if (!name || !phone) return;
     setIsCreatingCustomer(true);
-    const id = `cust_${Date.now()}`;
-    const now = new Date();
-    const newCustomer: Customer = {
-      id, nombre: name, celular: phone, puntos: 0, estado: true,
-    };
-    const newProfile = {
-      id: `prof_${Date.now()}`, customerId: id,
-      points: 0, lifetimePoints: 0, purchaseCount: 0,
-      level: 'bronce' as const, referralCode: id.slice(-6).toUpperCase(),
-      referralCount: 0, consecutiveDays: 0,
-      uniqueProductsBought: [], completedMissions: [],
-      createdAt: now, updatedAt: now,
-    };
-    setCustomers(prev => [...prev, newCustomer]);
-    setLoyaltyProfiles(prev => [...prev, newProfile as any]);
-    onCreated(id);
-    setNewCustomerName('');
-    setNewCustomerPhone('');
-    setIsCreatingCustomer(false);
-    toast.success('Cliente registrado', `${name} añadido correctamente.`);
+    try {
+      const res = await api.post<{ message: string; Id: number }>('/Cliente', {
+        nombre: name,
+        celular: phone,
+        correo: null,
+        dni: null,
+        fecha_nacimiento: null,
+        direccion: null,
+        estado: true,
+      });
+      const id = String(res.Id);
+      const newCustomer: Customer = { id, nombre: name, celular: phone, puntos: 0, estado: true };
+      setCustomers(prev => [newCustomer, ...prev]);
+      onCreated(id);
+      setNewCustomerName('');
+      setNewCustomerPhone('');
+      toast.success('Cliente registrado', `${name} añadido correctamente.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo crear el cliente.';
+      toast.error('Error', message);
+    } finally {
+      setIsCreatingCustomer(false);
+    }
   };
 
-  const handleCreateCustomerReview = (name: string, phone: string, onCreated: (id: string) => void) => {
+  const handleCreateCustomerReview = async (name: string, phone: string, onCreated: (id: string) => void) => {
     if (!name || !phone) return;
     setIsCreatingCustomer(true);
-    const id = `cust_${Date.now()}`;
-    const now = new Date();
-    const newCustomer: Customer = {
-      id, nombre: name, celular: phone, puntos: 0, estado: true,
-    };
-    const newProfile = {
-      id: `prof_${Date.now()}`, customerId: id,
-      points: 0, lifetimePoints: 0, purchaseCount: 0,
-      level: 'bronce' as const, referralCode: id.slice(-6).toUpperCase(),
-      referralCount: 0, consecutiveDays: 0,
-      uniqueProductsBought: [], completedMissions: [],
-      createdAt: now, updatedAt: now,
-    };
-    setCustomers(prev => [...prev, newCustomer]);
-    setLoyaltyProfiles(prev => [...prev, newProfile as any]);
-    onCreated(id);
-    setIsCreatingCustomer(false);
-    toast.success('Cliente registrado', `${name} añadido correctamente.`);
+    try {
+      const res = await api.post<{ message: string; Id: number }>('/Cliente', {
+        nombre: name,
+        celular: phone,
+        correo: null,
+        dni: null,
+        fecha_nacimiento: null,
+        direccion: null,
+        estado: true,
+      });
+      const id = String(res.Id);
+      const newCustomer: Customer = { id, nombre: name, celular: phone, puntos: 0, estado: true };
+      setCustomers(prev => [newCustomer, ...prev]);
+      onCreated(id);
+      toast.success('Cliente registrado', `${name} añadido correctamente.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo crear el cliente.';
+      toast.error('Error', message);
+    } finally {
+      setIsCreatingCustomer(false);
+    }
   };
 
-  const handleCreateCustomerCombobox = (input: CustomerInput): Promise<Customer> =>
-    new Promise((resolve) => {
-      handleCreateCustomerReview(input.nombre, input.celular, (id) => {
-        resolve({ id, nombre: input.nombre, celular: input.celular, puntos: 0, estado: true });
-      });
+  const handleCreateCustomerCombobox = async (input: CustomerInput): Promise<Customer> => {
+    const res = await api.post<{ message: string; Id: number }>('/Cliente', {
+      nombre: input.nombre,
+      celular: input.celular,
+      correo: input.correo ?? null,
+      dni: input.dni ?? null,
+      fecha_nacimiento: null,
+      direccion: null,
+      estado: true,
     });
+    const id = String(res.Id);
+    const newCustomer: Customer = { id, nombre: input.nombre, celular: input.celular, puntos: 0, estado: true };
+    setCustomers(prev => [newCustomer, ...prev]);
+    return newCustomer;
+  };
 
   const addTempProduct = (product: Product) => {
     if (product.tipo === 'combo') {
@@ -722,14 +763,21 @@ export const POSPage: React.FC = () => {
     const mesa = mesas.find(m => m.id === activeMesaId);
     if (!mesa) return;
 
-    const success = await sendToKitchen(activeMesaId, tempCart, printComanda);
+    const itemCount = tempCart.reduce((s, i) => s + i.quantity, 0);
+    const success = await sendToKitchen(
+      activeMesaId,
+      tempCart,
+      (mesaName, roundNumber, _items, rondaDesc, comandaItems) => {
+        setPrintComandaData({ mesaName, roundNumber, rondaDesc, items: comandaItems });
+      },
+    );
     if (!success) return;
 
     clearTempCart();
     setProductSearch('');
     setDetalleView('historial');
     refreshStock();
-    toast.success('🖨️ Comanda enviada', `Ronda ${mesa.currentRound - 1} · ${tempCart.reduce((s, i) => s + i.quantity, 0)} producto(s)`);
+    toast.success('🖨️ Comanda enviada', `Ronda ${mesa.currentRound - 1} · ${itemCount} producto(s)`);
   };
 
   const handleRequestPayment = () => {
@@ -1172,11 +1220,17 @@ export const POSPage: React.FC = () => {
                         ) : pickerProducts.map(product => {
                           const stock = getEffectiveStock(product);
                           const qty = getTempQty(product.id);
-                          const reward = loyaltyProfile
-                            ? rewards.find(r => r.isActive && r.productId === product.id) ?? null
+                          const mesaTipo = activeMesa?.tipo ?? 'mesa';
+                          const reward = rewards.find(r =>
+                            r.isActive &&
+                            r.productId === String(product.id) &&
+                            (r.disponible === 'MesasYParaLlevar' ||
+                              (mesaTipo === 'para_llevar' ? r.disponible === 'ParaLlevar' : r.disponible === 'Mesas'))
+                          ) ?? null;
+                          const canAfford = reward != null && !!loyaltyProfile && availablePoints >= reward.pointsCost;
+                          const pointsShortfall = reward != null && !!loyaltyProfile && !canAfford
+                            ? reward.pointsCost - availablePoints
                             : null;
-                          const canAfford = reward != null && availablePoints >= reward.pointsCost;
-                          const pointsShortfall = reward != null && !canAfford ? reward.pointsCost - availablePoints : null;
                           const attrCount = getAtributosByProductId(product.id).length;
                           return (
                             <ProdCard
@@ -1608,6 +1662,7 @@ export const POSPage: React.FC = () => {
                 selectedClienteId={reviewClienteId ?? ''}
                 onClienteChange={(id) => setReviewClienteId(id || null)}
                 onCreateCustomer={handleCreateCustomerCombobox}
+                qrImageUrl={qrImageUrl}
               />
             </Suspense>
           </Overlay>
@@ -1643,6 +1698,7 @@ export const POSPage: React.FC = () => {
                 reviewNewCustomerPhone={reviewNewCustomerPhone}
                 onReviewNewCustomerNameChange={setReviewNewCustomerName}
                 onReviewNewCustomerPhoneChange={setReviewNewCustomerPhone}
+                qrImageUrl={qrImageUrl}
               />
             </Suspense>
           </Overlay>
@@ -1761,6 +1817,11 @@ export const POSPage: React.FC = () => {
           />
         )}
       </div>
+
+      <PrintComandaModal
+        data={printComandaData}
+        onClose={() => setPrintComandaData(null)}
+      />
     </MainLayout>
   );
 };

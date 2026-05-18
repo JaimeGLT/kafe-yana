@@ -137,9 +137,6 @@ export const CashMovementModal: React.FC<CashMovementModalProps> = ({
       };
 
       onSave?.(input);
-
-      const typeLabel = formData.type === 'income' ? 'Ingreso' : 'Egreso';
-      toast.success(`${typeLabel} registrado`, `Se registró S/ ${parseFloat(formData.amount).toFixed(2)} correctamente.`);
       onSuccess();
       onClose();
     } catch (error) {

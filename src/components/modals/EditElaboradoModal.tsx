@@ -4,19 +4,17 @@ import { FlaskConical, ArrowRight, CheckCircle2, Plus, Info } from 'lucide-react
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { SearchableSelect, Select } from '../ui/Select';
-import { IconPicker } from '../ui/IconPicker';
+import { ImageUploadField } from '../ui/ImageUpload';
 import { HelpTooltip } from '../ui/Tooltip';
 import { RecetaFormContent } from './RecetaModal';
 import { CategoryModal } from './CategoryModal';
 import { toast } from '../ui/Toast';
 import { api } from '../../lib/api';
 import { gql } from '../../lib/graphql';
-import { GET_ALL_INSUMOS } from '../../lib/queries/insumos.queries';
-import { GET_ALL_ELABORADOS, GET_ELABORADO_BY_ID } from '../../lib/queries/elaborados.queries';
-import { mapInsumo } from '../../lib/mappers/insumos.mappers';
-import { mapElaborado, mapRecetaFromElaborado } from '../../lib/mappers/elaborados.mappers';
-import type { InsumosResponse, ElaboradosResponse } from '../../types/graphql';
-import type { Product, Receta, Insumo, CategoryInput, ProductDestino } from '../../types';
+import { GET_ELABORADO_BY_ID } from '../../lib/queries/elaborados.queries';
+import { mapRecetaFromElaborado } from '../../lib/mappers/elaborados.mappers';
+import type { ElaboradosResponse } from '../../types/graphql';
+import type { Product, Receta, Insumo, ProductDestino } from '../../types';
 
 const DESTINO_OPTIONS = [
   { value: 'sin_destino', label: 'Sin destino' },
@@ -38,6 +36,8 @@ export interface EditElaboradoModalProps {
   onClose: () => void;
   product: Product;
   categoryOptions: { value: string; label: string }[];
+  insumos: Insumo[];
+  products: Product[];
   onSaved: (updated: Product) => void;
   onRecetaSaved?: () => void;
   onRefreshInventory?: () => Promise<void>;
@@ -49,6 +49,8 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
   onClose,
   product,
   categoryOptions,
+  insumos,
+  products,
   onSaved,
   onRefreshInventory,
 }) => {
@@ -56,8 +58,6 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [insumos, setInsumos] = useState<Insumo[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const [receta, setReceta] = useState<Receta | undefined>(undefined);
   const [localCategoryOptions, setLocalCategoryOptions] = useState(categoryOptions);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -68,7 +68,8 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
   const [categoryId, setCategoryId] = useState(product.categoryId || '');
   const [unit, setUnit] = useState(product.unit || 'unidad');
   const [destino, setDestino] = useState<ProductDestino>(product.destino ?? 'sin_destino');
-  const [icon, setIcon] = useState(product.image ?? '');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const existingImageUrl = product.image?.startsWith('http') || product.image?.startsWith('data:') || product.image?.startsWith('blob:') ? product.image : undefined;
 
   useEffect(() => {
     if (isOpen) {
@@ -79,32 +80,21 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
       setCategoryId(product.categoryId || '');
       setUnit(product.unit || 'unidad');
       setDestino(product.destino ?? 'sin_destino');
-      setIcon(product.image ?? '');
+      setImageFile(null);
       setErrors({});
       setLocalCategoryOptions(categoryOptions);
       setIsLoadingData(true);
-      Promise.all([
-        gql<InsumosResponse>(GET_ALL_INSUMOS),
-        gql<ElaboradosResponse>(GET_ALL_ELABORADOS),
-        gql<ElaboradosResponse>(GET_ELABORADO_BY_ID, { id: Number(product.id) }),
-      ]).then(([ins, prods, byId]) => {
-        setInsumos(ins.insumos.nodes.map(mapInsumo));
-        setProducts(prods.elaborados.nodes.map(mapElaborado));
-        const node = byId.elaborados.nodes[0];
-        if (node) {
-          setReceta(mapRecetaFromElaborado(node) ?? undefined);
-        }
-      }).catch(() => {}).finally(() => setIsLoadingData(false));
+      gql<ElaboradosResponse>(GET_ELABORADO_BY_ID, { id: Number(product.id) })
+        .then((byId) => {
+          const node = byId.elaborados.nodes[0];
+          if (node) setReceta(mapRecetaFromElaborado(node) ?? undefined);
+        })
+        .catch(() => {})
+        .finally(() => setIsLoadingData(false));
     }
   }, [isOpen, product]);
 
-  const handleSaveCategory = async (input: CategoryInput) => {
-    await api.post('/Categoria', {
-      nombre: input.name,
-      descripcion: input.description ?? '',
-      color: input.color,
-      estado: input.isActive,
-    });
+  const handleCategoryCreated = async (createdName?: string) => {
     const data = await gql<{ categorias: { nodes: { id: number; nombre: string; estado: boolean }[] } }>(
       `query { categorias { nodes { id nombre estado } } }`
     );
@@ -112,9 +102,10 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
       .filter((n) => n.estado)
       .map((n) => ({ value: String(n.id), label: n.nombre }));
     setLocalCategoryOptions(cats);
-    const created = cats.find((c) => c.label === input.name);
-    if (created) setCategoryId(created.value);
-    toast.success('Categoría creada', `"${input.name}" fue creada y seleccionada.`);
+    if (createdName) {
+      const created = cats.find((c) => c.label === createdName);
+      if (created) setCategoryId(created.value);
+    }
   };
 
   const handleSaveDatos = async (e: React.FormEvent) => {
@@ -126,15 +117,16 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
 
     setIsSaving(true);
     try {
-      await api.put(`/Elaborado/${product.id}`, {
-        nombre: name.trim(),
-        descripcion: description.trim() || '',
-        precio: Number(salePrice),
-        categoria_Id: Number(categoryId) || 0,
-        unidad_medida: unit,
-        ubicacion: destino === 'barra' ? 'Barra' : destino === 'cocina' ? 'Cocina' : '',
-        imagen: icon || '',
-      });
+      const fd = new FormData();
+      fd.append('Nombre', name.trim());
+      if (description.trim()) fd.append('Descripcion', description.trim());
+      fd.append('Precio', String(Number(salePrice)));
+      fd.append('Categoria_Id', String(Number(categoryId) || 0));
+      fd.append('Unidad_medida', unit);
+      const ubicacion = destino === 'barra' ? 'Barra' : destino === 'cocina' ? 'Cocina' : '';
+      if (ubicacion) fd.append('Ubicacion', ubicacion);
+      if (imageFile) fd.append('Imagen', imageFile);
+      await api.putForm(`/Elaborado/${product.id}`, fd);
       const catName = categoryOptions.find((o) => o.value === categoryId)?.label ?? '';
       const updated = { ...product, name: name.trim(), description: description.trim(), salePrice: Number(salePrice), categoryId, categoryName: catName, unit };
       onSaved(updated);
@@ -263,14 +255,10 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
                 {errors.name && <p className="text-xs text-red-600 mt-1">{errors.name}</p>}
               </div>
 
-              {/* Ícono */}
+              {/* Foto */}
               <div>
-                <label className="text-sm font-medium text-coffee-700 mb-1 block">Ícono del producto</label>
-                <IconPicker
-                  value={icon || undefined}
-                  onChange={(v) => setIcon(v ?? '')}
-                  tipo="elaborado"
-                />
+                <label className="text-sm font-medium text-coffee-700 mb-1 block">Foto del producto</label>
+                <ImageUploadField existingUrl={existingImageUrl} key={existingImageUrl} onChange={setImageFile} />
               </div>
 
               {/* Preparation type */}
@@ -394,8 +382,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
     <CategoryModal
       isOpen={isCategoryModalOpen}
       onClose={() => setIsCategoryModalOpen(false)}
-      onSave={(input) => handleSaveCategory(input)}
-      onSuccess={() => setIsCategoryModalOpen(false)}
+      onSuccess={handleCategoryCreated}
     />
     </>
   );

@@ -2,7 +2,7 @@ import React from 'react';
 import { Plus, Minus, Gift } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
-import { getProductEmoji } from '../../utils/productUtils';
+import { ProductImage } from '../ui/ProductImage';
 import type { Product, Reward } from '../../types';
 
 interface RedeemQtyModalProps {
@@ -29,7 +29,7 @@ export const RedeemQtyModal: React.FC<RedeemQtyModalProps> = ({
     <Modal isOpen={isOpen} onClose={onClose} title="Canjear recompensa" size="sm">
       <div className="space-y-4">
         <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-          <span className="text-2xl">{getProductEmoji(product)}</span>
+          <ProductImage src={product.image} tipo={product.tipo} size="sm" />
           <div>
             <p className="font-semibold text-coffee-900">{product.name}</p>
             <p className="text-xs text-amber-700">{reward.pointsCost} pts por unidad · gratis</p>

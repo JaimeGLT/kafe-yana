@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { startOfDay, endOfDay } from 'date-fns';
+import { startOfDay, endOfDay, startOfWeek, startOfMonth, differenceInDays, format } from 'date-fns';
 import { gql } from '../lib/graphql';
 import { GET_VENTAS_REPORT } from '../lib/queries/ventas.queries';
 import type {
@@ -8,6 +8,8 @@ import type {
   VentaReportStats,
   VentaDailyData,
   VentaPaymentData,
+  VentaTopProduct,
+  ChartGranularity,
   UseSalesReportPageReturn,
 } from '../types/ventas';
 
@@ -35,7 +37,9 @@ export function useSalesReportPage(
     unitsSold: 0,
   });
   const [dailySalesData, setDailySalesData] = useState<VentaDailyData[]>([]);
+  const [chartGranularity, setChartGranularity] = useState<ChartGranularity>('day');
   const [paymentMethodData, setPaymentMethodData] = useState<VentaPaymentData[]>([]);
+  const [topProducts, setTopProducts] = useState<VentaTopProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,17 +78,27 @@ export function useSalesReportPage(
 
       setStats({ totalRevenue, totalSalesCount, avgTicket, unitsSold });
 
-      const dailyMap: Record<string, VentaDailyData> = {};
+      const days = differenceInDays(new Date(dateTo + 'T00:00:00'), new Date(dateFrom + 'T00:00:00'));
+      const granularity: ChartGranularity = days <= 31 ? 'day' : days <= 90 ? 'week' : 'month';
+      setChartGranularity(granularity);
+
+      const periodMap: Record<string, VentaDailyData> = {};
       allNodes.forEach((v) => {
-        const dayKey = v.fecha.split('T')[0];
-        if (!dailyMap[dayKey]) {
-          dailyMap[dayKey] = { fecha: dayKey, ingresos: 0, ventas: 0 };
+        const date = new Date(v.fecha);
+        let periodKey: string;
+        if (granularity === 'day') {
+          periodKey = v.fecha.split('T')[0];
+        } else if (granularity === 'week') {
+          periodKey = format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        } else {
+          periodKey = format(startOfMonth(date), 'yyyy-MM-dd');
         }
-        dailyMap[dayKey].ingresos += parseDecimal(v.total);
-        dailyMap[dayKey].ventas += 1;
+        if (!periodMap[periodKey]) periodMap[periodKey] = { fecha: periodKey, ingresos: 0, ventas: 0 };
+        periodMap[periodKey].ingresos += parseDecimal(v.total);
+        periodMap[periodKey].ventas += 1;
       });
       setDailySalesData(
-        Object.values(dailyMap).sort((a, b) => a.fecha.localeCompare(b.fecha)),
+        Object.values(periodMap).sort((a, b) => a.fecha.localeCompare(b.fecha)),
       );
 
       const paymentMap: Record<string, number> = {};
@@ -95,6 +109,21 @@ export function useSalesReportPage(
       });
       setPaymentMethodData(
         Object.entries(paymentMap).map(([metodo, total]) => ({ metodo, total })),
+      );
+
+      const productMap: Record<string, { qty: number; revenue: number }> = {};
+      allNodes.forEach((v) => {
+        v.detalles?.forEach((d) => {
+          if (!productMap[d.nombre]) productMap[d.nombre] = { qty: 0, revenue: 0 };
+          productMap[d.nombre].qty += d.cantidad;
+          productMap[d.nombre].revenue += parseDecimal(d.total);
+        });
+      });
+      setTopProducts(
+        Object.entries(productMap)
+          .map(([name, { qty, revenue }]) => ({ name, qty, revenue }))
+          .sort((a, b) => b.qty - a.qty)
+          .slice(0, 10),
       );
     } catch (e) {
       console.error('Error loading sales report:', e);
@@ -112,5 +141,5 @@ export function useSalesReportPage(
     await loadData();
   }, [loadData]);
 
-  return { stats, dailySalesData, paymentMethodData, isLoading, error, refresh };
+  return { stats, dailySalesData, chartGranularity, paymentMethodData, topProducts, isLoading, error, refresh };
 }

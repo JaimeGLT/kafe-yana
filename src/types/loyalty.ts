@@ -39,6 +39,7 @@ export interface Reward {
   isActive: boolean;
   highlight?: boolean;
   productId?: string;  // producto canjeable en el POS
+  disponible?: string; // 'Mesas' | 'ParaLlevar' | 'MesasYParaLlevar'
 }
 
 export interface Mission {
