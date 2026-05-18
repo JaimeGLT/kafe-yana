@@ -180,11 +180,28 @@ const InsumosPage: React.FC = () => {
         {/* Table */}
         <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
           {loading ? (
-            <table className="w-full text-sm">
-              <tbody>
-                {Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
-              </tbody>
-            </table>
+            <>
+              {/* Mobile skeleton */}
+              <div className="sm:hidden divide-y divide-coffee-50 animate-pulse">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="px-4 py-3 flex items-center gap-3">
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 w-40 bg-coffee-200 rounded" />
+                      <div className="h-3 w-24 bg-coffee-100 rounded" />
+                    </div>
+                    <div className="h-3 w-16 bg-coffee-100 rounded" />
+                  </div>
+                ))}
+              </div>
+              {/* Desktop skeleton */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full min-w-[700px] text-sm">
+                  <tbody>
+                    {Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
+                  </tbody>
+                </table>
+              </div>
+            </>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-coffee-400">
               <FlaskConical className="h-10 w-10 mb-3 opacity-40" />
@@ -198,45 +215,94 @@ const InsumosPage: React.FC = () => {
               )}
             </div>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-coffee-100 bg-coffee-50 text-left">
-                  <th className="px-4 py-3 font-medium text-coffee-600">Nombre</th>
-                  <th className="px-4 py-3 font-medium text-coffee-600">Categoría</th>
-                  <th className="px-4 py-3 font-medium text-coffee-600">Unidad uso</th>
-                  <th className="px-4 py-3 font-medium text-coffee-600 text-right">Costo / unidad</th>
-                  <th className="px-4 py-3 font-medium text-coffee-600 text-right">Costo compra</th>
-                  <th className="px-4 py-3 font-medium text-coffee-600 text-center">Stock</th>
-                  <th className="px-4 py-3 font-medium text-coffee-600 text-center">En recetas</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-coffee-50">
+            <>
+              {/* Mobile cards */}
+              <div className="sm:hidden divide-y divide-coffee-50">
                 {filtered.map((ins) => {
-                  return (<tr key={ins.id} className="hover:bg-coffee-50/50 transition-colors">
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-coffee-900">{ins.name}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs bg-coffee-100 text-coffee-600 px-2 py-0.5 rounded-full">
-                          {ins.categoriaInsumo}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-coffee-600">{ins.unidadMinima}</td>
-                      <td className="px-4 py-3 text-right font-medium text-coffee-900">
-                        {formatCurrency(ins.costoUnitario)}/{ins.unidadMinima}
-                      </td>
-                      <td className="px-4 py-3 text-right text-coffee-500 text-xs">
-                        {formatCurrency(ins.costoCompra)}/{ins.unidadCompra}
-                        <br />
-                        <span className="text-coffee-400">÷ {ins.factorConversion}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {(() => {
-                          const stockEnCompra = ins.factorConversion > 0 ? ins.stock / ins.factorConversion : ins.stock;
-                          const isLow = ins.stockMinimo > 0 && ins.stock <= ins.stockMinimo;
-                          const isEmpty = ins.stock <= 0;
-                          return (
+                  const stockEnCompra = ins.factorConversion > 0 ? ins.stock / ins.factorConversion : ins.stock;
+                  const isLow = ins.stockMinimo > 0 && ins.stock <= ins.stockMinimo;
+                  const isEmpty = ins.stock <= 0;
+                  return (
+                    <div key={ins.id} className="px-4 py-3 flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-coffee-900 truncate text-sm">{ins.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                          <span className="text-xs bg-coffee-100 text-coffee-600 px-2 py-0.5 rounded-full">
+                            {ins.categoriaInsumo}
+                          </span>
+                          {isEmpty && (
+                            <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-medium">Sin stock</span>
+                          )}
+                          {!isEmpty && isLow && (
+                            <span className="text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full font-medium">Stock bajo</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        <p className={clsx('font-semibold text-sm', isEmpty ? 'text-red-600' : isLow ? 'text-amber-600' : 'text-emerald-700')}>
+                          {Math.ceil(stockEnCompra)} {ins.unidadCompra}
+                        </p>
+                        <p className="text-xs text-coffee-400">{formatCurrency(ins.costoUnitario)}/{ins.unidadMinima}</p>
+                      </div>
+                      <div className="flex-shrink-0 flex gap-1">
+                        <button
+                          onClick={() => openEdit(ins)}
+                          className="p-1.5 text-coffee-400 hover:text-coffee-700 hover:bg-coffee-100 rounded transition-colors"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => setDeleting(ins)}
+                          className="p-1.5 text-coffee-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full min-w-[700px] text-sm">
+                  <thead>
+                    <tr className="border-b border-coffee-100 bg-coffee-50 text-left">
+                      <th className="px-4 py-3 font-medium text-coffee-600">Nombre</th>
+                      <th className="px-4 py-3 font-medium text-coffee-600">Categoría</th>
+                      <th className="px-4 py-3 font-medium text-coffee-600">Unidad uso</th>
+                      <th className="px-4 py-3 font-medium text-coffee-600 text-right">Costo / unidad</th>
+                      <th className="px-4 py-3 font-medium text-coffee-600 text-right">Costo compra</th>
+                      <th className="px-4 py-3 font-medium text-coffee-600 text-center">Stock</th>
+                      <th className="px-4 py-3 font-medium text-coffee-600 text-center">En recetas</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-coffee-50">
+                    {filtered.map((ins) => {
+                      const stockEnCompra = ins.factorConversion > 0 ? ins.stock / ins.factorConversion : ins.stock;
+                      const isLow = ins.stockMinimo > 0 && ins.stock <= ins.stockMinimo;
+                      const isEmpty = ins.stock <= 0;
+                      return (
+                        <tr key={ins.id} className="hover:bg-coffee-50/50 transition-colors">
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-coffee-900">{ins.name}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-xs bg-coffee-100 text-coffee-600 px-2 py-0.5 rounded-full">
+                              {ins.categoriaInsumo}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-coffee-600">{ins.unidadMinima}</td>
+                          <td className="px-4 py-3 text-right font-medium text-coffee-900">
+                            {formatCurrency(ins.costoUnitario)}/{ins.unidadMinima}
+                          </td>
+                          <td className="px-4 py-3 text-right text-coffee-500 text-xs">
+                            {formatCurrency(ins.costoCompra)}/{ins.unidadCompra}
+                            <br />
+                            <span className="text-coffee-400">÷ {ins.factorConversion}</span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
                             <div>
                               <span className={clsx('font-semibold', isEmpty ? 'text-red-600' : isLow ? 'text-amber-600' : 'text-emerald-700')}>
                                 {Math.ceil(stockEnCompra)} {ins.unidadCompra}
@@ -252,41 +318,41 @@ const InsumosPage: React.FC = () => {
                                 <span className="text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full font-medium">Stock bajo</span>
                               )}
                             </div>
-                          );
-                        })()}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {usageCount[ins.id] ? (
-                          <span className="inline-block bg-emerald-100 text-emerald-700 text-xs font-medium px-2 py-0.5 rounded-full">
-                            {usageCount[ins.id]} receta{usageCount[ins.id] !== 1 ? 's' : ''}
-                          </span>
-                        ) : (
-                          <span className="text-coffee-300 text-xs">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => openEdit(ins)}
-                            className="p-1.5 text-coffee-400 hover:text-coffee-700 hover:bg-coffee-100 rounded transition-colors"
-                            title="Editar"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => setDeleting(ins)}
-                            className="p-1.5 text-coffee-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                            title="Eliminar"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {usageCount[ins.id] ? (
+                              <span className="inline-block bg-emerald-100 text-emerald-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                                {usageCount[ins.id]} receta{usageCount[ins.id] !== 1 ? 's' : ''}
+                              </span>
+                            ) : (
+                              <span className="text-coffee-300 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => openEdit(ins)}
+                                className="p-1.5 text-coffee-400 hover:text-coffee-700 hover:bg-coffee-100 rounded transition-colors"
+                                title="Editar"
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => setDeleting(ins)}
+                                className="p-1.5 text-coffee-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                title="Eliminar"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
 

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useUI } from '../../contexts/UIContext';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { NotificationBell } from './NotificationBell';
 
 export const Header: React.FC = () => {
   const { toggleMobileSidebar } = useUI();
@@ -46,6 +47,8 @@ export const Header: React.FC = () => {
               <ChevronDown className="h-4 w-4 text-coffee-500" />
             </div>
           )}
+
+          <NotificationBell />
 
           {/* User Menu */}
           <Dropdown

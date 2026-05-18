@@ -142,7 +142,7 @@ export const POSPage: React.FC = () => {
 
   const {
     loyaltyProfiles: _lp,
-    setLoyaltyProfiles,
+    setLoyaltyProfiles: _setLoyaltyProfiles,
     getOrCreateProfile,
     calculatePointsForAmount,
     awardPointsForSale,

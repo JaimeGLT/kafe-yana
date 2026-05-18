@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { Package, AlertTriangle, DollarSign, FileText } from 'lucide-react';
 import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
@@ -169,26 +169,37 @@ const InventoryReportPage: React.FC = () => {
 
         <PageSection title="Productos por Categoría" description="Distribución de productos por categoría">
           {categoryData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  dataKey="count"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                  labelLine={false}
-                >
-                  {categoryData.map((_, idx) => (
-                    <Cell key={idx} fill={PIE_PALETTE[idx % PIE_PALETTE.length]} />
-                  ))}
-                </Pie>
-                <Tooltip {...tooltipStyle} formatter={(value) => [value, 'Productos']} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            <div className="flex flex-col items-center gap-4">
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    dataKey="count"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                  >
+                    {categoryData.map((_, idx) => (
+                      <Cell key={idx} fill={PIE_PALETTE[idx % PIE_PALETTE.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip {...tooltipStyle} formatter={(value) => [value, 'Productos']} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 w-full px-2">
+                {categoryData.map((entry, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5 text-xs text-coffee-700">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: PIE_PALETTE[idx % PIE_PALETTE.length] }}
+                    />
+                    <span>{entry.name}</span>
+                    <span className="text-coffee-400 font-medium">({entry.count})</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           ) : (
             <div className="flex items-center justify-center h-48 text-coffee-400">
               No hay datos de categorías

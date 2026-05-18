@@ -147,10 +147,10 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onSucces
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={insumo ? 'Editar Insumo' : 'Nuevo Insumo'} size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title={insumo ? 'Editar Insumo' : 'Nuevo Insumo'} size="lg" bottomSheet>
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Nombre + Categoría */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-coffee-700 mb-1">Nombre <span className="text-red-500">*</span></label>
             <Input
@@ -174,7 +174,7 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onSucces
         </div>
 
         {/* Unidades */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-coffee-700 mb-1">
               Unidad mínima de uso <span className="text-red-500">*</span>
@@ -202,7 +202,7 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onSucces
         </div>
 
         {/* Factor + Costo compra */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-coffee-700 mb-1">
               Factor de conversión <span className="text-red-500">*</span>
@@ -252,7 +252,7 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onSucces
         )}
 
         {/* Stock */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-coffee-700 mb-1">
               Stock actual ({form.unidadCompra})
@@ -285,7 +285,7 @@ export const InsumoModal: React.FC<Props> = ({ isOpen, onClose, insumo, onSucces
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 pt-2">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
           <Button variant="ghost" type="button" onClick={onClose} disabled={isLoading}>
             Cancelar
           </Button>
