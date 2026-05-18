@@ -1,34 +1,32 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Plus, Search, ShoppingBag, Edit, Trash2,
-  X, TrendingUp, Tag, ChevronRight,
-  AlertTriangle, PackageX,
+  TrendingUp, ChevronRight, AlertTriangle, PackageX,
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { MainLayout } from '../../components/layout';
-import { PageHeader, PageContainer } from '../../components/layout';
+import { MainLayout, PageHeader, PageContainer } from '../../components/layout';
 import { Button, Input, Select, ConfirmModal, Badge, SkeletonKpiCard } from '../../components/ui';
 import { Pagination } from '../../components/ui/Pagination';
 import { toast } from '../../components/ui/Toast';
 import { ProductModal } from '../../components/modals/ProductModal';
+import { ProductDetailModal } from '../../components/modals/ProductDetailModal';
 import { gql } from '../../lib/graphql';
 import { api } from '../../lib/api';
 import { ProductImage } from '../../components/ui/ProductImage';
-import { GET_COMPRADOS_WITH_CATEGORIES_QUERY, GET_COMPRADO_DETAIL } from '../../lib/queries/products.queries';
+import { GET_COMPRADO_DETAIL } from '../../lib/queries/products.queries';
 import { formatCurrency } from '../../utils';
-import type { Product, Category } from '../../types';
+import { useProductsPage } from '../../hooks/useProductsPage';
+import { usePagination } from '../../hooks/usePagination';
+import type { Product } from '../../types';
 import type { ProductDestino } from '../../types';
-import type { CompradoFilterInput } from '../../types/graphql';
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 const destinoBadge = (d: ProductDestino | undefined) => {
   if (d === 'barra') return { label: 'Barra', cls: 'bg-blue-100 text-blue-700' };
   if (d === 'cocina') return { label: 'Cocina', cls: 'bg-amber-100 text-amber-700' };
   return { label: 'Sin destino', cls: 'bg-coffee-100 text-coffee-500' };
 };
-
-// ── Constantes ─────────────────────────────────────────────────────────────────
-
-const DEFAULT_PAGE_SIZE = 15;
 
 const calcMargin = (costPrice: number, salePrice: number): number | null =>
   costPrice > 0 && salePrice > 0
@@ -41,46 +39,13 @@ const getMarginColor = (pct: number) => {
   return 'text-red-600 font-semibold';
 };
 
-// ── GraphQL response types ─────────────────────────────────────────────────────
-
-interface CategoriaNode {
-  id: number;
-  nombre: string;
-  estado: boolean;
-  color: string;
-}
-
-interface CompradoListNode {
-  codigo_barra: string;
-  unidad_medida: string;
-  ubicacion: string;
-  costo_compra: number;
-  stock_actual: number;
-  stock_minimo: number;
-  disponible: boolean;
-  producto: {
-    id: number;
-    nombre: string;
-    descripcion: string;
-    precio: number;
-    tipo: string;
-    urlImagen?: string;
-    categoria: CategoriaNode;
-    detalles: { cantidad: number; opcional: boolean }[];
-  };
-}
-
-interface CompradosWithCategoriesResponse {
-  comprados: { nodes: CompradoListNode[]; totalCount: number; pageInfo?: { endCursor?: string | null; hasNextPage?: boolean } };
-  categorias: { nodes: CategoriaNode[] };
-}
+// ── Types ──────────────────────────────────────────────────────────────────────
 
 interface CompradoDetailResponse {
   comprados: {
     nodes: {
       codigo_barra: string;
       unidad_medida: string;
-      marca: string;
       ubicacion: string;
       costo_compra: number;
       stock_actual: number;
@@ -99,53 +64,25 @@ interface CompradoDetailResponse {
   };
 }
 
-// ── Mapper ─────────────────────────────────────────────────────────────────────
-
-function mapNode(node: CompradoListNode): Product {
-  const cat = node.producto.categoria;
-  const rawUbicacion = node.ubicacion ?? '';
-  const destino: ProductDestino =
-    rawUbicacion === 'Barra' ? 'barra'
-    : rawUbicacion === 'Cocina' ? 'cocina'
-    : 'sin_destino';
-  return {
-    id: String(node.producto.id),
-    code: String(node.producto.id),
-    name: node.producto.nombre,
-    description: node.producto.descripcion,
-    tipo: 'comprado',
-    categoryId: cat ? String(cat.id) : '',
-    categoryName: cat ? cat.nombre : '',
-    unit: node.unidad_medida,
-    costPrice: node.costo_compra,
-    salePrice: node.producto.precio,
-    stock: node.stock_actual,
-    minStock: node.stock_minimo,
-    maxStock: 0,
-    barcode: node.codigo_barra,
-    locationId: rawUbicacion || undefined,
-    destino,
-    image: node.producto.urlImagen ?? undefined,
-    variations: [],
-    hasVariations: false,
-    isActive: node.disponible,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-}
-
 // ── Componente ─────────────────────────────────────────────────────────────────
 
 const ProductsPage: React.FC = () => {
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const { page, pageSize, search, debouncedSearch, cursors, setPage, setSearch, setCursors } = usePagination({ pageSize: 15 });
   const [category, setCategory] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(DEFAULT_PAGE_SIZE);
 
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { products, categories, totalCount, isLoading, endCursor, refresh } = useProductsPage({
+    page,
+    pageSize,
+    afterCursor: page > 1 ? cursors[page - 1] : undefined,
+    search: debouncedSearch,
+    category,
+  });
+
+  useEffect(() => {
+    if (endCursor) {
+      setCursors((prev) => ({ ...prev, [page]: endCursor }));
+    }
+  }, [endCursor, page]);
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
@@ -153,83 +90,8 @@ const ProductsPage: React.FC = () => {
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
-  const [totalCount, setTotalCount] = useState(0);
 
-  const [cursors, setCursors] = useState<Record<number, string>>({});
-  const cursorsRef = useRef<Record<number, string>>({});
-  cursorsRef.current = cursors;
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  useEffect(() => {
-    setCursors({});
-    setPage(1);
-  }, [debouncedSearch, category]);
-
-  // ── Carga de datos ─────────────────────────────────────────────────────────
-
-  const loadData = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const variables: Record<string, unknown> = { first: pageSize };
-      if (page > 1 && cursorsRef.current[page - 1]) {
-        variables.after = cursorsRef.current[page - 1];
-      }
-
-      const whereConditions: CompradoFilterInput[] = [];
-      if (debouncedSearch) {
-        whereConditions.push({
-          producto: { nombre: { contains: debouncedSearch } }
-        } as CompradoFilterInput);
-        whereConditions.push({
-          producto: { descripcion: { contains: debouncedSearch } }
-        } as CompradoFilterInput);
-      }
-      if (category) {
-        whereConditions.push({
-          producto: { categoria: { nombre: { eq: category } } }
-        } as CompradoFilterInput);
-      }
-      if (whereConditions.length > 0) {
-        variables.where = { or: whereConditions } as CompradoFilterInput;
-      }
-
-      const data = await gql<CompradosWithCategoriesResponse>(GET_COMPRADOS_WITH_CATEGORIES_QUERY, variables);
-      setTotalCount(data.comprados.totalCount);
-      if (data.comprados.pageInfo?.endCursor) {
-        setCursors((prev) => ({ ...prev, [page]: data.comprados.pageInfo!.endCursor as string }));
-      }
-      setCategories(
-        data.categorias.nodes.map((n) => ({
-          id: String(n.id),
-          name: n.nombre,
-          description: '',
-          isActive: n.estado,
-          color: n.color,
-          sortOrder: 0,
-          productCount: 0,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })),
-      );
-      setProducts(data.comprados.nodes.map(mapNode));
-    } catch (err) {
-      toast.error('Error al cargar', err instanceof Error ? err.message : 'No se pudieron cargar los productos. Intenta de nuevo.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [page, pageSize, debouncedSearch, category]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  // ── Filtros ────────────────────────────────────────────────────────────────
+  // ── Filtros ──────────────────────────────────────────────────────────────────
 
   const categoryOptions = useMemo(
     () => [
@@ -251,14 +113,14 @@ const ProductsPage: React.FC = () => {
     return { total: totalCount, sinStock, stockBajo, avgMargin };
   }, [products, totalCount]);
 
-  // ── Acciones ───────────────────────────────────────────────────────────────
+  // ── Acciones ─────────────────────────────────────────────────────────────────
 
   const handleOpenCreate = () => {
     setEditingProduct(undefined);
     setIsProductModalOpen(true);
   };
 
-  const handleEdit = async (p: Product) => {
+  const handleEdit = useCallback(async (p: Product) => {
     const catId = categories.find((c) => c.name === p.categoryName)?.id || p.categoryId || '';
     setEditingProduct({ ...p, categoryId: catId });
     setIsLoadingEditDetail(true);
@@ -288,7 +150,7 @@ const ProductsPage: React.FC = () => {
     } finally {
       setIsLoadingEditDetail(false);
     }
-  };
+  }, [categories]);
 
   const handleConfirmDelete = async () => {
     if (!deletingProduct) return;
@@ -297,7 +159,7 @@ const ProductsPage: React.FC = () => {
       await api.delete(`/Producto/${deletingProduct.id}`);
       toast.success('Producto eliminado', `"${deletingProduct.name}" fue eliminado.`);
       setDeletingProduct(null);
-      await loadData();
+      await refresh();
     } catch (err) {
       toast.error('Error', err instanceof Error ? err.message : 'No se pudo eliminar el producto.');
     } finally {
@@ -305,7 +167,7 @@ const ProductsPage: React.FC = () => {
     }
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <MainLayout>
@@ -460,7 +322,7 @@ const ProductsPage: React.FC = () => {
         ) : (
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
 
-            {/* ── Mobile: tarjetas ─────────────────────────────────────────── */}
+            {/* Mobile */}
             <div className="sm:hidden divide-y divide-coffee-50">
               {products.map((p) => (
                 <button
@@ -487,85 +349,84 @@ const ProductsPage: React.FC = () => {
               ))}
             </div>
 
-            {/* ── Desktop: tabla ───────────────────────────────────────────── */}
+            {/* Desktop */}
             <div className="hidden sm:block overflow-x-auto">
               <table className="min-w-full divide-y divide-coffee-100 text-sm">
                 <thead className="bg-coffee-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Producto</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Categoría</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Destino</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Precio venta</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Costo</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Margen</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-coffee-600 uppercase tracking-wider">Stock</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-coffee-50">
-                {products.map((p) => {
-                  const margin = calcMargin(p.costPrice, p.salePrice);
-                  return (
-                    <tr key={p.id} className="hover:bg-coffee-50/50 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <ProductImage src={p.image} tipo="comprado" size="sm" rounded="rounded-lg" />
-                          <p className="font-medium text-coffee-900">{p.name}</p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge variant="default" size="sm">{p.categoryName || '—'}</Badge>
-                      </td>
-                      <td className="px-4 py-3">
-                        {(() => { const d = destinoBadge(p.destino); return <span className={clsx('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', d.cls)}>{d.label}</span>; })()}
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium text-coffee-900">
-                        {formatCurrency(p.salePrice)}
-                      </td>
-                      <td className="px-4 py-3 text-right text-coffee-600">
-                        {formatCurrency(p.costPrice)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {margin !== null
-                          ? <span className={getMarginColor(margin)}>{margin.toFixed(1)}%</span>
-                          : <span className="text-coffee-300">—</span>
-                        }
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={clsx(
-                          'font-medium',
-                          p.stock <= 0 ? 'text-red-600' : p.stock <= p.minStock ? 'text-amber-600' : 'text-coffee-700',
-                        )}>
-                          {p.stock}
-                          {p.stock > 0 && p.stock <= p.minStock && (
-                            <span className="text-xs text-coffee-400 block">Mín: {p.minStock}</span>
-                          )}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => handleEdit(p)}
-                            className="p-1.5 text-coffee-400 hover:text-coffee-700 hover:bg-coffee-100 rounded transition-colors"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => setDeletingProduct(p)}
-                            className="p-1.5 text-coffee-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Producto</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Categoría</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Destino</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Precio venta</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Costo</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Margen</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-coffee-600 uppercase tracking-wider">Stock</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-coffee-50">
+                  {products.map((p) => {
+                    const margin = calcMargin(p.costPrice, p.salePrice);
+                    return (
+                      <tr key={p.id} className="hover:bg-coffee-50/50 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <ProductImage src={p.image} tipo="comprado" size="sm" rounded="rounded-lg" />
+                            <p className="font-medium text-coffee-900">{p.name}</p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant="default" size="sm">{p.categoryName || '—'}</Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          {(() => { const d = destinoBadge(p.destino); return <span className={clsx('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', d.cls)}>{d.label}</span>; })()}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-coffee-900">
+                          {formatCurrency(p.salePrice)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-coffee-600">
+                          {formatCurrency(p.costPrice)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {margin !== null
+                            ? <span className={getMarginColor(margin)}>{margin.toFixed(1)}%</span>
+                            : <span className="text-coffee-300">—</span>
+                          }
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={clsx(
+                            'font-medium',
+                            p.stock <= 0 ? 'text-red-600' : p.stock <= p.minStock ? 'text-amber-600' : 'text-coffee-700',
+                          )}>
+                            {p.stock}
+                            {p.stock > 0 && p.stock <= p.minStock && (
+                              <span className="text-xs text-coffee-400 block">Mín: {p.minStock}</span>
+                            )}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => handleEdit(p)}
+                              className="p-1.5 text-coffee-400 hover:text-coffee-700 hover:bg-coffee-100 rounded transition-colors"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => setDeletingProduct(p)}
+                              className="p-1.5 text-coffee-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
 
-            {/* ── Pagination ───────────────────────────────────────────────── */}
             <Pagination
               totalCount={totalCount}
               page={page}
@@ -575,13 +436,14 @@ const ProductsPage: React.FC = () => {
             />
           </div>
         )}
-</PageContainer>
+      </PageContainer>
+
       <ProductModal
         isOpen={isProductModalOpen}
         onClose={() => setIsProductModalOpen(false)}
         product={editingProduct}
         categories={categories}
-        onSuccess={() => { loadData(); }}
+        onSuccess={refresh}
         isLoadingDetail={isLoadingEditDetail}
       />
 
@@ -596,131 +458,14 @@ const ProductsPage: React.FC = () => {
         isLoading={isDeleting}
       />
 
-      {/* ── Modal de detalle ───────────────────────────────────────────────── */}
-      {detailProduct && (() => {
-        const p = detailProduct;
-        const margin = calcMargin(p.costPrice, p.salePrice);
-        const ganancia = p.salePrice - p.costPrice;
-        const marginBg = margin === null ? 'bg-coffee-50 text-coffee-500'
-          : margin >= 60 ? 'bg-emerald-50 text-emerald-800'
-          : margin >= 30 ? 'bg-amber-50 text-amber-800'
-          : 'bg-red-50 text-red-700';
-        const stockStatus = p.stock <= 0
-          ? { label: 'Agotado',    bg: 'bg-red-100 text-red-700',     dot: 'bg-red-500' }
-          : p.stock <= p.minStock
-          ? { label: 'Stock bajo', bg: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' }
-          : { label: 'Normal',     bg: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' };
-
-        return (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDetailProduct(null)} />
-            <div className="relative bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl overflow-hidden">
-
-              {/* Header */}
-              <div className="px-5 pt-5 pb-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <ProductImage src={p.image} tipo="comprado" size="md" />
-                    <div className="min-w-0">
-                      <h2 className="font-bold text-coffee-900 text-base leading-tight truncate">{p.name}</h2>
-                      {p.categoryName && (
-                        <span className="inline-flex items-center gap-1 mt-1 text-xs bg-coffee-100 text-coffee-600 px-2 py-0.5 rounded-full font-medium">
-                          <Tag className="h-3 w-3" /> {p.categoryName}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setDetailProduct(null)}
-                    className="p-1.5 rounded-lg hover:bg-coffee-100 transition-colors text-coffee-400 flex-shrink-0"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="px-5 pb-5 space-y-4">
-
-                {/* Precios */}
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-coffee-400 mb-2">Precios</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="bg-coffee-50 rounded-xl p-3 text-center">
-                      <p className="text-xs text-coffee-400 mb-1">Venta</p>
-                      <p className="font-bold text-coffee-900 tabular-nums text-sm">{formatCurrency(p.salePrice)}</p>
-                    </div>
-                    <div className="bg-coffee-50 rounded-xl p-3 text-center">
-                      <p className="text-xs text-coffee-400 mb-1">Costo</p>
-                      <p className="font-bold text-coffee-900 tabular-nums text-sm">{formatCurrency(p.costPrice)}</p>
-                    </div>
-                    <div className={clsx('rounded-xl p-3 text-center', marginBg)}>
-                      <p className="text-xs opacity-70 mb-1">Margen</p>
-                      <p className="font-bold tabular-nums text-sm">
-                        {margin !== null ? `${margin.toFixed(1)}%` : '—'}
-                      </p>
-                    </div>
-                  </div>
-                  {ganancia > 0 && (
-                    <p className="text-xs text-coffee-400 mt-2 text-center">
-                      Ganancia por unidad: <span className="font-semibold text-coffee-700">{formatCurrency(ganancia)}</span>
-                    </p>
-                  )}
-                </div>
-
-                {/* Destino */}
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-coffee-400 mb-2">Destino</p>
-                  {(() => {
-                    const d = destinoBadge(p.destino);
-                    return <span className={clsx('inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium', d.cls)}>{d.label}</span>;
-                  })()}
-                </div>
-
-                {/* Stock */}
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-coffee-400 mb-2">Inventario</p>
-                  <div className="bg-coffee-50 rounded-xl p-4 flex items-center justify-between gap-4">
-                    <div>
-                      <p className={clsx(
-                        'text-3xl font-bold tabular-nums leading-none',
-                        p.stock <= 0 ? 'text-red-600'
-                        : p.stock <= p.minStock ? 'text-amber-600'
-                        : 'text-coffee-900',
-                      )}>
-                        {p.stock}
-                      </p>
-                      <p className="text-xs text-coffee-400 mt-1">
-                        unidades en stock
-                        {p.minStock > 0 && ` · mín. ${p.minStock}`}
-                      </p>
-                    </div>
-                    <span className={clsx('inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full', stockStatus.bg)}>
-                      <span className={clsx('w-1.5 h-1.5 rounded-full', stockStatus.dot)} />
-                      {stockStatus.label}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div className="px-5 py-3 border-t border-coffee-100 flex gap-2">
-                <button
-                  onClick={() => { setDetailProduct(null); setDeletingProduct(p); }}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors text-sm font-medium"
-                >
-                  <Trash2 className="h-4 w-4" /> Eliminar
-                </button>
-                <button
-                  onClick={() => { setDetailProduct(null); handleEdit(p); }}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-coffee-600 text-white hover:bg-coffee-700 transition-colors text-sm font-medium"
-                >
-                  <Edit className="h-4 w-4" /> Editar
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {detailProduct && (
+        <ProductDetailModal
+          product={detailProduct}
+          onClose={() => setDetailProduct(null)}
+          onEdit={(p) => { setDetailProduct(null); handleEdit(p); }}
+          onDelete={(p) => { setDetailProduct(null); setDeletingProduct(p); }}
+        />
+      )}
     </MainLayout>
   );
 };

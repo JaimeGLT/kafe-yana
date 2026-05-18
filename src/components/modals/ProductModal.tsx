@@ -32,10 +32,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   }, [isOpen]);
 
   const handleSubmit = async (data: ProductInput) => {
-    if (!product && !imageFile) {
-      toast.error('Imagen requerida', 'Debes subir una imagen para el producto.');
-      return;
-    }
     setIsLoading(true);
     try {
       const fd = new FormData();

@@ -7,7 +7,8 @@ import { toast } from '../../components/ui/Toast';
 import { CategoryModal } from '../../components/modals/CategoryModal';
 import { gql } from '../../lib/graphql';
 import { api, ApiError } from '../../lib/api';
-import type { Category, CategoryInput } from '../../types';
+import { GET_CATEGORIAS_QUERY } from '../../lib/queries/inventory.queries';
+import type { Category } from '../../types';
 
 interface CategoriaNode {
   id: number;
@@ -27,29 +28,29 @@ const CategoriesPage: React.FC = () => {
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
 
   const loadCategories = useCallback(async () => {
-    const data = await gql<CategoriasGqlResponse>(`
-      query {
-        categorias(order: [{ nombre: ASC }]) {
-          nodes { id nombre descripcion estado color productos { id } }
-        }
-      }
-    `);
-    const mapped: Category[] = data.categorias.nodes.map((n) => ({
-      id: String(n.id),
-      name: n.nombre,
-      description: n.descripcion,
-      isActive: n.estado,
-      color: n.color,
-      productCount: n.productos.length,
-      sortOrder: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }));
-    setCategories(mapped);
+    try {
+      const data = await gql<CategoriasGqlResponse>(GET_CATEGORIAS_QUERY);
+      const mapped: Category[] = data.categorias.nodes.map((n) => ({
+        id: String(n.id),
+        name: n.nombre,
+        description: n.descripcion,
+        isActive: n.estado,
+        color: n.color,
+        productCount: n.productos.length,
+        sortOrder: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+      setCategories(mapped);
+    } catch {
+      toast.error('Error', 'No se pudieron cargar las categorías.');
+    } finally {
+      setIsLoadingCategories(false);
+    }
   }, []);
 
   useEffect(() => {
-    loadCategories().finally(() => setIsLoadingCategories(false));
+    loadCategories();
   }, [loadCategories]);
 
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -87,32 +88,6 @@ const CategoriesPage: React.FC = () => {
     }
   };
 
-
-  const handleSave = async (input: CategoryInput, isEdit: boolean, categoryId?: string) => {
-    try {
-      if (isEdit && categoryId) {
-        await api.put(`/Categoria/${categoryId}`, {
-          nombre: input.name,
-          descripcion: input.description ?? '',
-          color: input.color,
-          estado: input.isActive,
-        });
-
-        toast.success('Categoría actualizada', `"${input.name}" fue actualizada correctamente.`);
-      } else {
-        await api.post('/Categoria', {
-          nombre: input.name,
-          descripcion: input.description ?? '',
-          color: input.color,
-          estado: input.isActive,
-        });
-        toast.success('Categoría creada', `"${input.name}" fue creada correctamente.`);
-      }
-    } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'No se pudo guardar la categoría. Intente nuevamente.';
-      toast.error('Error', message);
-    }
-  };
 
   return (
     <MainLayout>
@@ -243,10 +218,7 @@ const CategoriesPage: React.FC = () => {
         isOpen={isCategoryModalOpen}
         onClose={() => setIsCategoryModalOpen(false)}
         category={editingCategory}
-        onSave={handleSave}
-        onSuccess={() => { setIsCategoryModalOpen(false);
-          loadCategories();
-        }}
+        onSuccess={loadCategories}
       />
 
       {/* Confirm Delete */}

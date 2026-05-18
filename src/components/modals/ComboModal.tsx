@@ -128,10 +128,6 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    if (!combo && !imageFile) {
-      toast.error('Imagen requerida', 'Debes subir una imagen para el combo.');
-      return;
-    }
     setIsLoading(true);
     try {
       const fd = new FormData();

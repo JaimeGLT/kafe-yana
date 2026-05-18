@@ -1,12 +1,11 @@
 import React from 'react';
-import type { Product, ProductInput, ProductTipo, ProductDestino, Category, Brand, Location, Receta, CategoryInput } from '../../types';
+import type { Product, ProductInput, ProductTipo, ProductDestino, Category, Brand, Location, Receta } from '../../types';
 import { Form, FormField, FormRow, FormActions } from './FormField';
 import { Input, Textarea, Select, SearchableSelect } from '../ui';
 import { Button, ImageUploadField } from '../ui';
 import { AlertTriangle, BookOpen, Layers, Plus } from 'lucide-react';
 import { formatCurrency } from '../../utils';
 import { CategoryModal } from '../modals/CategoryModal';
-import { api } from '../../lib/api';
 import { gql } from '../../lib/graphql';
 import { toast } from '../ui/Toast';
 
@@ -95,13 +94,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   const [localCategories, setLocalCategories] = React.useState<Category[]>(categories);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = React.useState(false);
 
-  const handleSaveCategory = async (input: CategoryInput) => {
-    await api.post('/Categoria', {
-      nombre: input.name,
-      descripcion: input.description ?? '',
-      color: input.color,
-      estado: input.isActive,
-    });
+  const handleCategoryCreated = async (createdName?: string) => {
     const data = await gql<{ categorias: { nodes: { id: number; nombre: string; estado: boolean; descripcion: string }[] } }>(
       `query { categorias { nodes { id nombre estado descripcion } } }`
     );
@@ -116,9 +109,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       updatedAt: new Date(),
     }));
     setLocalCategories(cats);
-    const created = cats.find((c) => c.name === input.name);
-    if (created) handleChange('categoryId', created.id);
-    toast.success('Categoría creada', `"${input.name}" fue creada y seleccionada.`);
+    if (createdName) {
+      const created = cats.find((c) => c.name === createdName);
+      if (created) handleChange('categoryId', created.id);
+    }
   };
 
   const tipo = formData.tipo as ProductTipo;
@@ -398,8 +392,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     <CategoryModal
       isOpen={isCategoryModalOpen}
       onClose={() => setIsCategoryModalOpen(false)}
-      onSave={(input) => handleSaveCategory(input)}
-      onSuccess={() => setIsCategoryModalOpen(false)}
+      onSuccess={handleCategoryCreated}
     />
     </>
   );

@@ -408,3 +408,11 @@ export const GET_INSUMOS_QUERY = `
     }
   }
 `;
+
+export const GET_CATEGORIAS_QUERY = `
+  query GetCategorias {
+    categorias(order: [{ nombre: ASC }]) {
+      nodes { id nombre descripcion estado color productos { id } }
+    }
+  }
+`;
