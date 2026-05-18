@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { ShoppingBag, Clock, Users, Calendar, FileText, DollarSign } from 'lucide-react';
 import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
-import { Button, Input, Badge } from '../../components/ui';
+import { Button, Input, Badge, Skeleton, SkeletonKpiCard } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
 import { formatCurrency, formatDate } from '../../utils';
 import { usePurchasesReportPage } from '../../hooks/usePurchasesReportPage';
@@ -37,8 +37,46 @@ const PurchasesReportPage: React.FC = () => {
     return (
       <MainLayout>
         <PageContainer>
-          <div className="flex items-center justify-center h-64">
-            <div className="text-coffee-500">Cargando reporte de compras...</div>
+          <div className="flex items-center justify-between mb-6">
+            <div className="space-y-2">
+              <Skeleton className="h-7 w-52" />
+              <Skeleton className="h-4 w-72" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-36 rounded-lg" />
+              <Skeleton className="h-9 w-36 rounded-lg" />
+              <Skeleton className="h-9 w-28 rounded-lg" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            {Array.from({ length: 4 }).map((_, i) => <SkeletonKpiCard key={i} />)}
+          </div>
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 mb-6">
+            <Skeleton className="h-5 w-36 mb-4" />
+            <Skeleton className="h-64 w-full rounded-lg" />
+          </div>
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 mb-6">
+            <Skeleton className="h-5 w-40 mb-4" />
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex gap-4 py-3 border-b border-coffee-50">
+                <Skeleton className="h-4 w-4" />
+                <Skeleton className="h-4 w-44" />
+                <Skeleton className="h-4 w-10 ml-auto" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4">
+            <Skeleton className="h-5 w-44 mb-4" />
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex gap-4 py-3 border-b border-coffee-50">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-5 w-20 rounded-full mx-auto" />
+                <Skeleton className="h-4 w-20 ml-auto" />
+              </div>
+            ))}
           </div>
         </PageContainer>
       </MainLayout>

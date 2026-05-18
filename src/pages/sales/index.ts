@@ -1,9 +1,3 @@
 export { SalesListPage } from './SalesListPage';
 export { POSPage } from './POSPage';
 export { CustomersPage } from './CustomersPage';
-export { FidelizacionPage } from './FidelizacionPage';
-export { PromocionesPermanentesPage } from './PromocionesPermanentesPage';
-export { PromocionesTemporadaPage } from './PromocionesTemporadaPage';
-export { HitosPage } from './HitosPage';
-export { SorteosPage } from './SorteosPage';
-export { ReferidosPage } from './ReferidosPage';

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { gql } from '../lib/graphql';
 import { GET_HEADER_NOTIFICATIONS } from '../lib/queries/inventory.queries';
 import type { Product } from '../types';
@@ -75,9 +75,11 @@ export function useHeaderNotifications(): UseHeaderNotificationsReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isLoadingRef = useRef(false);
 
   const loadNotifications = useCallback(async () => {
-    if (isLoading) return;
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
     setIsLoading(true);
     setError(null);
     try {
@@ -152,9 +154,16 @@ export function useHeaderNotifications(): UseHeaderNotificationsReturn {
       console.error('Error loading header notifications:', e);
       setError('No se pudieron cargar los datos de notificaciones.');
     } finally {
+      isLoadingRef.current = false;
       setIsLoading(false);
     }
-  }, [isLoading]);
+  }, []);
+
+  useEffect(() => {
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [loadNotifications]);
 
   return { products, insumos, isLoading, hasLoaded, error, loadNotifications };
 }

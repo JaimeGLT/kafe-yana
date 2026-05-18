@@ -1,21 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { clsx } from 'clsx';
-import { Calendar, Plus, Settings, Star } from 'lucide-react';
+import { Calendar, Plus, Settings, Star, Trash2 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { toast } from '../../components/ui/Toast';
-import type { Reward } from '../../types/loyalty';
-
-interface SeasonalPromotion {
-  id: string;
-  name: string;
-  month: number;
-  startDate: string;
-  endDate: string;
-  isActive: boolean;
-  rewardIds: string[];
-  createdAt: string;
-  updatedAt: string;
-}
+import { usePromocionesTemporada, type PromocionTemporada, type ProductoCanjeableItem, type PromocionInput } from '../../hooks/usePromocionesTemporada';
 
 const MONTH_NAMES: Record<number, string> = {
   1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
@@ -29,64 +17,49 @@ const MONTH_ICONS: Record<number, string> = {
   9: '🌺', 10: '🌕', 11: '🍂', 12: '🎄',
 };
 
-const MOCK_REWARDS: Reward[] = [
-  { id: 'r1', name: 'Café Americano Gratis', description: 'Un americano de 12oz', pointsCost: 20, category: 'diario', icon: '☕', isActive: true },
-  { id: 'r2', name: 'Té de Hierbas Gratis', description: 'Té caliente a elección', pointsCost: 15, category: 'diario', icon: '🍵', isActive: true },
-  { id: 'r3', name: 'Brownie Casero Gratis', description: 'Brownie de chocolate', pointsCost: 25, category: 'diario', icon: '🍫', isActive: true },
-  { id: 'r4', name: 'Cookie de Choco Gratis', description: 'Cookie artesanal', pointsCost: 20, category: 'diario', icon: '🍪', isActive: true },
-  { id: 'r5', name: 'Empanada de Queso Gratis', description: 'Empanada horneada', pointsCost: 30, category: 'diario', icon: '🥐', isActive: true },
-  { id: 'r6', name: 'Almuerzo Completo Gratis', description: 'Almuerzo del día', pointsCost: 200, category: 'premio_mayor', icon: '🍽️', isActive: true },
-];
+function getMonth(isoDate: string): number {
+  return new Date(isoDate).getMonth() + 1;
+}
 
-const MOCK_PROMOTIONS: SeasonalPromotion[] = [
-  { id: 's1', name: 'Día de la Madre', month: 5, startDate: '2026-05-01', endDate: '2026-05-31', isActive: false, rewardIds: ['r2', 'r6'], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 's2', name: 'Día del Padre', month: 6, startDate: '2026-06-01', endDate: '2026-06-30', isActive: false, rewardIds: ['r1', 'r6'], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 's3', name: 'Navidad', month: 12, startDate: '2026-12-01', endDate: '2026-12-31', isActive: false, rewardIds: ['r3', 'r4', 'r5'], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 's4', name: 'Día de la Café', month: 4, startDate: '2026-04-01', endDate: '2026-04-30', isActive: true, rewardIds: ['r1'], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-];
+function toDateInput(iso: string): string {
+  return iso ? iso.slice(0, 10) : '';
+}
 
-interface SeasonalPromotionModalProps {
-  promo: SeasonalPromotion | null;
-  rewards: Reward[];
-  onSave: (promo: SeasonalPromotion) => void;
+interface ModalProps {
+  promo: PromocionTemporada | null;
+  canjeables: ProductoCanjeableItem[];
+  isSaving: boolean;
+  onSave: (input: PromocionInput) => void;
   onClose: () => void;
 }
 
-const SeasonalPromotionModal: React.FC<SeasonalPromotionModalProps> = ({ promo, rewards, onSave, onClose }) => {
-  const [name, setName] = useState(promo?.name ?? '');
-  const [month, setMonth] = useState(promo?.month ?? 5);
-  const [startDate, setStartDate] = useState(promo?.startDate ?? '');
-  const [endDate, setEndDate] = useState(promo?.endDate ?? '');
-  const [isActive, setIsActive] = useState(promo?.isActive ?? true);
-  const [rewardIds, setRewardIds] = useState<string[]>(promo?.rewardIds ?? []);
+const SeasonalPromotionModal: React.FC<ModalProps> = ({ promo, canjeables, isSaving, onSave, onClose }) => {
+  const [nombre, setNombre] = useState(promo?.nombre ?? '');
+  const [startDate, setStartDate] = useState(promo ? toDateInput(promo.fechaInicio) : '');
+  const [endDate, setEndDate] = useState(promo ? toDateInput(promo.fechaFin) : '');
+  const [activo, setActivo] = useState(promo?.activo ?? true);
+  const [selectedIds, setSelectedIds] = useState<number[]>(
+    promo?.productosCanjeables.map(pc => pc.id) ?? []
+  );
 
-  const toggleReward = (rewardId: string) => {
-    setRewardIds(prev =>
-      prev.includes(rewardId)
-        ? prev.filter(id => id !== rewardId)
-        : [...prev, rewardId]
+  const toggleCanjeable = (id: number) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     );
   };
 
   const handleSubmit = () => {
-    if (!name.trim() || !startDate || !endDate) return;
+    if (!nombre.trim() || !startDate || !endDate) return;
     onSave({
-      id: promo?.id ?? '',
-      name: name.trim(),
-      month,
-      startDate,
-      endDate,
-      isActive,
-      rewardIds,
-      createdAt: promo?.createdAt ?? new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      Nombre: nombre.trim(),
+      FechaInicio: new Date(startDate).toISOString(),
+      FechaFin: new Date(endDate).toISOString(),
+      Activo: activo,
+      IdsProductosCanjeables: selectedIds,
     });
   };
 
-  const MONTH_OPTIONS = [5, 6, 7, 8, 9, 10, 11, 12].map(m => ({
-    value: m,
-    label: `${MONTH_ICONS[m]} ${MONTH_NAMES[m]}`,
-  }));
+  const valid = nombre.trim() && startDate && endDate && selectedIds.length > 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -105,23 +78,10 @@ const SeasonalPromotionModal: React.FC<SeasonalPromotionModalProps> = ({ promo, 
             <input
               type="text"
               placeholder="Ej: Día de la Madre"
-              value={name}
-              onChange={e => setName(e.target.value)}
+              value={nombre}
+              onChange={e => setNombre(e.target.value)}
               className="w-full px-4 py-2.5 rounded-xl border border-coffee-200 text-coffee-900 text-sm font-body focus:outline-none focus:ring-2 focus:ring-coffee-400 placeholder-coffee-300"
             />
-          </div>
-
-          <div>
-            <label className="block text-xs font-body font-medium text-coffee-600 mb-1">Mes asignado</label>
-            <select
-              value={month}
-              onChange={e => setMonth(parseInt(e.target.value))}
-              className="w-full px-4 py-2.5 rounded-xl border border-coffee-200 text-coffee-900 text-sm font-body focus:outline-none focus:ring-2 focus:ring-coffee-400"
-            >
-              {MONTH_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -146,39 +106,46 @@ const SeasonalPromotionModal: React.FC<SeasonalPromotionModalProps> = ({ promo, 
           </div>
 
           <div>
-            <label className="block text-xs font-body font-medium text-coffee-600 mb-2">Canjeables incluidos</label>
-            <div className="flex flex-wrap gap-2">
-              {rewards.filter(r => r.isActive).map(reward => (
-                <button
-                  key={reward.id}
-                  onClick={() => toggleReward(reward.id)}
-                  className={clsx(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-body font-medium transition-all border',
-                    rewardIds.includes(reward.id)
-                      ? 'bg-coffee-500 text-white border-coffee-500'
-                      : 'bg-white text-coffee-600 border-coffee-200 hover:border-coffee-300',
-                  )}
-                >
-                  <span>{reward.icon}</span>
-                  <span>{reward.name.replace(' Gratis', '')}</span>
-                  <span className="opacity-70">{reward.pointsCost}pts</span>
-                </button>
-              ))}
-            </div>
+            <label className="block text-xs font-body font-medium text-coffee-600 mb-2">
+              Canjeables incluidos <span className="text-red-400">*</span>
+            </label>
+            {canjeables.length === 0 ? (
+              <p className="text-xs text-coffee-400 font-body">No hay productos canjeables activos.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {canjeables.map(pc => (
+                  <button
+                    key={pc.id}
+                    type="button"
+                    onClick={() => toggleCanjeable(pc.id)}
+                    className={clsx(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-body font-medium transition-all border',
+                      selectedIds.includes(pc.id)
+                        ? 'bg-coffee-500 text-white border-coffee-500'
+                        : 'bg-white text-coffee-600 border-coffee-200 hover:border-coffee-300',
+                    )}
+                  >
+                    <span>{pc.nombreProducto}</span>
+                    <span className="opacity-70">{pc.puntos}pts</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between">
             <span className="text-sm font-body text-coffee-700">Activo / Inactivo</span>
             <button
-              onClick={() => setIsActive(!isActive)}
+              type="button"
+              onClick={() => setActivo(!activo)}
               className={clsx(
                 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none',
-                isActive ? 'bg-green-400' : 'bg-gray-200',
+                activo ? 'bg-green-400' : 'bg-gray-200',
               )}
             >
               <span className={clsx(
                 'inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200',
-                isActive ? 'translate-x-6' : 'translate-x-1',
+                activo ? 'translate-x-6' : 'translate-x-1',
               )} />
             </button>
           </div>
@@ -186,17 +153,19 @@ const SeasonalPromotionModal: React.FC<SeasonalPromotionModalProps> = ({ promo, 
 
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={onClose}
             className="flex-1 py-2.5 rounded-xl border border-coffee-200 text-coffee-600 text-sm font-body font-medium hover:bg-coffee-50 transition-colors"
           >
             Cancelar
           </button>
           <button
+            type="button"
             onClick={handleSubmit}
-            disabled={!name.trim() || !startDate || !endDate}
+            disabled={!valid || isSaving}
             className="flex-1 py-2.5 rounded-xl bg-coffee-500 text-white text-sm font-body font-medium hover:bg-coffee-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            {promo ? 'Guardar Cambios' : 'Crear'}
+            {isSaving ? 'Guardando...' : promo ? 'Guardar Cambios' : 'Crear'}
           </button>
         </div>
       </div>
@@ -205,54 +174,61 @@ const SeasonalPromotionModal: React.FC<SeasonalPromotionModalProps> = ({ promo, 
 };
 
 export const PromocionesTemporadaPage: React.FC = () => {
-  const [promotions, setPromotions] = useState<SeasonalPromotion[]>([]);
-  const [rewards, setRewards] = useState<Reward[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { promociones, productosCanjeables, isLoading, isSaving, load, create, update, remove, toggle } = usePromocionesTemporada();
   const [showModal, setShowModal] = useState(false);
-  const [editingPromo, setEditingPromo] = useState<SeasonalPromotion | null>(null);
+  const [editingPromo, setEditingPromo] = useState<PromocionTemporada | null>(null);
   const [filterMonth, setFilterMonth] = useState<number | null>(null);
 
-  useEffect(() => {
-    setRewards(MOCK_REWARDS);
-    setPromotions(MOCK_PROMOTIONS);
-    setLoading(false);
-  }, []);
+  useEffect(() => { load(); }, [load]);
 
   const currentMonth = new Date().getMonth() + 1;
 
-  const filteredPromotions = useCallback(() => {
-    if (!filterMonth) return promotions;
-    return promotions.filter(p => p.month === filterMonth);
-  }, [promotions, filterMonth]);
+  const filteredPromociones = useCallback(() => {
+    if (!filterMonth) return promociones;
+    return promociones.filter(p => getMonth(p.fechaInicio) === filterMonth);
+  }, [promociones, filterMonth]);
 
-  const handleTogglePromo = useCallback((promoId: string) => {
-    setPromotions(prev => prev.map(p =>
-      p.id === promoId ? { ...p, isActive: !p.isActive } : p
-    ));
-  }, []);
+  const availableMonths = [...new Set(promociones.map(p => getMonth(p.fechaInicio)))].sort((a, b) => a - b);
 
-  const handleOpenModal = (promo?: SeasonalPromotion) => {
+  const handleOpenModal = (promo?: PromocionTemporada) => {
     setEditingPromo(promo ?? null);
     setShowModal(true);
   };
 
-  const handleSavePromo = (promo: SeasonalPromotion) => {
-    if (editingPromo) {
-      setPromotions(prev => prev.map(p => p.id === promo.id ? promo : p));
-      toast.success('Promoción actualizada', promo.name);
-    } else {
-      setPromotions(prev => [...prev, { ...promo, id: `s-${Date.now()}` }]);
-      toast.success('Promoción creada', promo.name);
+  const handleSave = async (input: PromocionInput) => {
+    try {
+      if (editingPromo) {
+        await update(editingPromo.id, input);
+        toast.success('Promoción actualizada', input.Nombre);
+      } else {
+        await create(input);
+        toast.success('Promoción creada', input.Nombre);
+      }
+      setShowModal(false);
+      setEditingPromo(null);
+    } catch {
+      toast.error('Error al guardar la promoción');
     }
-    setShowModal(false);
-    setEditingPromo(null);
   };
 
-  const getRewardsForPromo = (promo: SeasonalPromotion) => {
-    return rewards.filter(r => promo.rewardIds.includes(r.id));
+  const handleToggle = async (promo: PromocionTemporada) => {
+    try {
+      await toggle(promo);
+    } catch {
+      toast.error('Error al cambiar estado');
+    }
   };
 
-  if (loading) {
+  const handleRemove = async (promo: PromocionTemporada) => {
+    try {
+      await remove(promo.id);
+      toast.success('Promoción eliminada', promo.nombre);
+    } catch {
+      toast.error('Error al eliminar la promoción');
+    }
+  };
+
+  if (isLoading) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center h-64">
@@ -261,8 +237,6 @@ export const PromocionesTemporadaPage: React.FC = () => {
       </MainLayout>
     );
   }
-
-  const availableMonths = [...new Set(promotions.map(p => p.month))].sort((a, b) => a - b);
 
   return (
     <MainLayout>
@@ -334,36 +308,36 @@ export const PromocionesTemporadaPage: React.FC = () => {
         </div>
 
         <div className="space-y-3">
-          {filteredPromotions().map(promo => {
-            const promoRewards = getRewardsForPromo(promo);
-            const isCurrentMonth = promo.month === currentMonth;
+          {filteredPromociones().map(promo => {
+            const month = getMonth(promo.fechaInicio);
+            const isCurrentMonth = month === currentMonth;
 
             return (
               <div
                 key={promo.id}
                 className={clsx(
                   'bg-white rounded-2xl border transition-all duration-200',
-                  promo.isActive ? 'border-coffee-200 shadow-coffee' : 'border-coffee-100 opacity-70',
+                  promo.activo ? 'border-coffee-200 shadow-coffee' : 'border-coffee-100 opacity-70',
                 )}
               >
                 <div className="p-4 flex items-start gap-4">
                   <div className={clsx(
                     'w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0',
-                    promo.isActive ? 'bg-coffee-100' : 'bg-gray-100',
+                    promo.activo ? 'bg-coffee-100' : 'bg-gray-100',
                   )}>
-                    {MONTH_ICONS[promo.month]}
+                    {MONTH_ICONS[month] ?? '📅'}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start gap-2 flex-wrap mb-1">
-                      <span className="font-display font-bold text-coffee-900">{promo.name}</span>
+                      <span className="font-display font-bold text-coffee-900">{promo.nombre}</span>
                       <span className={clsx(
                         'flex items-center gap-1 text-xs font-body font-bold px-2 py-0.5 rounded-full',
-                        promo.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500',
+                        promo.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500',
                       )}>
-                        {promo.isActive ? 'Activa' : 'Inactiva'}
+                        {promo.activo ? 'Activa' : 'Inactiva'}
                       </span>
-                      {isCurrentMonth && promo.isActive && (
+                      {isCurrentMonth && promo.activo && (
                         <span className="flex items-center gap-1 text-xs font-body font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
                           <Star className="w-3 h-3 fill-yellow-400" />
                           Este mes
@@ -371,15 +345,15 @@ export const PromocionesTemporadaPage: React.FC = () => {
                       )}
                     </div>
                     <p className="text-xs font-body text-coffee-500 mb-2">
-                      {MONTH_NAMES[promo.month]} · {new Date(promo.startDate).toLocaleDateString('es-BO', { day: 'numeric', month: 'short' })} — {new Date(promo.endDate).toLocaleDateString('es-BO', { day: 'numeric', month: 'short' })}
+                      {MONTH_NAMES[month]} · {new Date(promo.fechaInicio).toLocaleDateString('es-BO', { day: 'numeric', month: 'short' })} — {new Date(promo.fechaFin).toLocaleDateString('es-BO', { day: 'numeric', month: 'short' })}
                     </p>
 
-                    {promoRewards.length > 0 && (
+                    {promo.productosCanjeables.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
-                        {promoRewards.map(r => (
-                          <span key={r.id} className="flex items-center gap-1 text-xs font-body bg-coffee-50 text-coffee-600 px-2 py-0.5 rounded-full border border-coffee-100">
-                            <span>{r.icon}</span>
-                            <span>{r.name.replace(' Gratis', '')}</span>
+                        {promo.productosCanjeables.map(pc => (
+                          <span key={pc.id} className="flex items-center gap-1 text-xs font-body bg-coffee-50 text-coffee-600 px-2 py-0.5 rounded-full border border-coffee-100">
+                            <span>{pc.nombreProducto}</span>
+                            <span className="opacity-60">{pc.puntos}pts</span>
                           </span>
                         ))}
                       </div>
@@ -388,34 +362,47 @@ export const PromocionesTemporadaPage: React.FC = () => {
 
                   <div className="flex flex-col items-end gap-3 flex-shrink-0">
                     <button
-                      onClick={() => handleTogglePromo(promo.id)}
+                      onClick={() => handleToggle(promo)}
+                      disabled={isSaving}
                       className={clsx(
-                        'relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none',
-                        promo.isActive ? 'bg-green-400' : 'bg-gray-200',
+                        'relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50',
+                        promo.activo ? 'bg-green-400' : 'bg-gray-200',
                       )}
                     >
                       <span className={clsx(
                         'inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200',
-                        promo.isActive ? 'translate-x-6' : 'translate-x-1',
+                        promo.activo ? 'translate-x-6' : 'translate-x-1',
                       )} />
                     </button>
-                    <button
-                      onClick={() => handleOpenModal(promo)}
-                      className="p-1.5 rounded-lg bg-coffee-50 text-coffee-600 hover:bg-coffee-100 transition-colors"
-                      title="Editar"
-                    >
-                      <Settings className="w-4 h-4" />
-                    </button>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => handleOpenModal(promo)}
+                        className="p-1.5 rounded-lg bg-coffee-50 text-coffee-600 hover:bg-coffee-100 transition-colors"
+                        title="Editar"
+                      >
+                        <Settings className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleRemove(promo)}
+                        disabled={isSaving}
+                        className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors disabled:opacity-50"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             );
           })}
 
-          {filteredPromotions().length === 0 && (
+          {filteredPromociones().length === 0 && (
             <div className="text-center py-10 bg-coffee-50 rounded-2xl border border-dashed border-coffee-200">
               <Calendar className="w-8 h-8 text-coffee-200 mx-auto mb-2" />
-              <p className="text-sm font-body text-coffee-400">Sin promociones de temporada{filterMonth ? ` para ${MONTH_NAMES[filterMonth]}` : ''}</p>
+              <p className="text-sm font-body text-coffee-400">
+                Sin promociones de temporada{filterMonth ? ` para ${MONTH_NAMES[filterMonth]}` : ''}
+              </p>
               <button
                 onClick={() => handleOpenModal()}
                 className="mt-3 text-sm font-body font-semibold text-coffee-600 hover:text-coffee-700"
@@ -430,8 +417,9 @@ export const PromocionesTemporadaPage: React.FC = () => {
       {showModal && (
         <SeasonalPromotionModal
           promo={editingPromo}
-          rewards={rewards}
-          onSave={handleSavePromo}
+          canjeables={productosCanjeables}
+          isSaving={isSaving}
+          onSave={handleSave}
           onClose={() => { setShowModal(false); setEditingPromo(null); }}
         />
       )}

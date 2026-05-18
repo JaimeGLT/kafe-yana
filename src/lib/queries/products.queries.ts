@@ -59,7 +59,7 @@ export const GET_COMPRADOS_WITH_CATEGORIES_QUERY = `
           descripcion
           precio
           tipo
-          imagen
+          urlImagen
           categoria { id nombre estado color }
           detalles { cantidad opcional }
         }
@@ -89,7 +89,7 @@ export const GET_COMPRADO_DETAIL = `
           descripcion
           precio
           tipo
-          imagen
+          urlImagen
           categoria { id nombre descripcion estado color }
           detalles { cantidad opcional }
         }
@@ -139,7 +139,7 @@ export const GET_POS_DATA = `
         stock_actual
         ubicacion
         producto {
-          id nombre descripcion precio tipo imagen
+          id nombre descripcion precio tipo urlImagen
           categoria { id nombre descripcion estado color }
         }
         receta {
@@ -160,7 +160,7 @@ export const GET_POS_DATA = `
       nodes {
         costo_compra stock_actual disponible ubicacion
         producto {
-          id nombre descripcion precio tipo imagen
+          id nombre descripcion precio tipo urlImagen
           categoria { id nombre descripcion estado color }
         }
       }
@@ -168,12 +168,12 @@ export const GET_POS_DATA = `
     combos {
       nodes {
         cantidadProducible
-        producto { id nombre descripcion precio tipo imagen }
+        producto { id nombre descripcion precio tipo urlImagen }
         detalles {
           cantidad
           opcional
           producto {
-            id nombre descripcion precio tipo imagen
+            id nombre descripcion precio tipo urlImagen
           }
         }
       }
@@ -206,6 +206,15 @@ export const GET_POS_DATA = `
         puntos
         estado
         id
+      }
+    }
+    productosCanjeables {
+      nodes {
+        id
+        id_Producto
+        puntos
+        disponible
+        activo
       }
     }
   }

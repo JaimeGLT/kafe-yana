@@ -6,6 +6,8 @@ import { Input, Select, SkeletonSalesTable } from '../../components/ui';
 import { SalesTable } from '../../components/tables/SalesTable';
 import { SaleDetailModal } from '../../components/modals/SaleDetailModal';
 import { RefundModal } from '../../components/modals/RefundModal';
+import { PrintComandaModal } from '../../components/pos/PrintComandaModal';
+import type { PrintComandaData } from '../../components/pos/PrintComandaModal';
 import { api } from '../../lib/api';
 import { toast } from '../../components/ui/Toast';
 import { formatCurrency } from '../../utils';
@@ -116,6 +118,7 @@ export const SalesListPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [refundingSale, setRefundingSale] = useState<Sale | null>(null);
+  const [printComandaData, setPrintComandaData] = useState<PrintComandaData | null>(null);
 
   // ── Pagination ────────────────────────────────────────────────────────────────
   const [afterCursor, setAfterCursor] = useState<string | null>(null);
@@ -183,11 +186,12 @@ export const SalesListPage: React.FC = () => {
     setStats({ totalSalesToday, totalSalesMonth, averageTicket });
   }, [sales]);
 
-  const handleSimpleRefund = async (id: string, amount: number, reason: string) => {
+  const handleSimpleRefund = async (id: string, amount: number, reason: string, paymentType: string) => {
     if (!refundingSale) return;
     await api.post(`/Venta/reembolso/${id}`, {
       monto: amount,
       nota: reason,
+      tipoPago: paymentType,
     });
     setSales(prev => prev.map(s =>
       s.id === refundingSale.id ? { ...s, status: 'refunded' as const } : s
@@ -230,6 +234,20 @@ export const SalesListPage: React.FC = () => {
     { value: 'refunded',           label: 'Reembolsada' },
     { value: 'partially_refunded', label: 'Parcialmente reembolsada' },
   ];
+
+  const handlePrintComanda = (sale: Sale) => {
+    setPrintComandaData({
+      mesaName: sale.customerName ?? sale.code,
+      roundNumber: 1,
+      rondaDesc: sale.code,
+      items: sale.items.map((item) => ({
+        cantidad: item.quantity,
+        nombre: item.productName ?? 'Producto',
+        nota: '',
+        ubicacion: '',
+      })),
+    });
+  };
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -319,6 +337,7 @@ export const SalesListPage: React.FC = () => {
                 sales={filteredSales}
                 onView={(sale) => setSelectedSale(sale)}
                 onRefund={(sale) => setRefundingSale(sale)}
+                onPrint={handlePrintComanda}
               />
               {hasNextPage && (
                 <div className="mt-4 flex justify-center">
@@ -353,6 +372,11 @@ export const SalesListPage: React.FC = () => {
           onClose={() => setRefundingSale(null)}
           sale={refundingSale}
           onConfirm={handleSimpleRefund}
+        />
+
+        <PrintComandaModal
+          data={printComandaData}
+          onClose={() => setPrintComandaData(null)}
         />
       </PageContainer>
     </MainLayout>

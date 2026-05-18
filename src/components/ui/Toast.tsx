@@ -25,9 +25,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const addToast = useCallback((toast: Omit<ToastItem, 'id'>) => {
-    const id = crypto.randomUUID();
+    const id = Math.random().toString(36).substring(2) + Date.now().toString(36);
     setToasts((prev) => [...prev, { ...toast, id }]);
-    // Auto-remove after 5 seconds
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 5000);

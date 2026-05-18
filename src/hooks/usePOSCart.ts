@@ -199,6 +199,10 @@ export function usePOSCart() {
       const item = prev.find(i => i.cartKey === cartKey);
       if (!item) return prev;
 
+      if (item.product.tipo === 'elaborado' && !item.product.tieneReceta) {
+        return prev.map(i => i.cartKey === cartKey ? { ...i, quantity: i.quantity + 1 } : i);
+      }
+
       const stockMax = item.product.tipo === 'elaborado' && !item.product.producible
         ? (item.product.cantidadProducible ?? 999)
         : item.product.stock;

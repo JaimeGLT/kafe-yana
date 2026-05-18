@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, User as UserIcon, Users } from 'lucide-react';
+import { Plus, User as UserIcon, Users, QrCode } from 'lucide-react';
 import { MainLayout, PageHeader, PageContainer } from '../../components/layout';
 import { Button, ConfirmModal, BottomSheet, UserDetailSheet, Tabs } from '../../components/ui';
 import { toast } from '../../components/ui/Toast';
@@ -9,9 +9,10 @@ import { UserTable } from '../../components/settings/UserTable';
 import { UserForm } from '../../components/settings/UserForm';
 import { SkeletonUserTable } from '../../components/settings/SkeletonUserTable';
 import { SettingsProfilePage } from './SettingsProfilePage';
+import { SettingsQRPage } from './SettingsQRPage';
 import type { User } from '../../types/user';
 
-type TabId = 'mi-cuenta' | 'usuarios';
+type TabId = 'mi-cuenta' | 'usuarios' | 'qr';
 
 export const SettingsUsersPage: React.FC = () => {
   const { usuarios, loading, fetchUsuarios, createUsuario, deleteUsuario, blockUsuario, unblockUsuario } = useUsuarios();
@@ -89,11 +90,14 @@ export const SettingsUsersPage: React.FC = () => {
           tabs={[
             { id: 'mi-cuenta', label: 'Mi Cuenta', icon: <UserIcon className="h-4 w-4" /> },
             { id: 'usuarios', label: 'Usuarios', icon: <Users className="h-4 w-4" /> },
+            { id: 'qr', label: 'QR Pago', icon: <QrCode className="h-4 w-4" /> },
           ]}
         />
 
         {activeTab === 'mi-cuenta' ? (
           <SettingsProfilePage embedded />
+        ) : activeTab === 'qr' ? (
+          <SettingsQRPage />
         ) : (
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden mb-6">
             <div className="p-6">

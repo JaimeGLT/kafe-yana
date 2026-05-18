@@ -4,13 +4,14 @@ import type { Sale } from '../../types';
 import { StatusBadge, Badge } from '../ui';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Eye, FileText, RotateCcw } from 'lucide-react';
+import { Eye, FileText, RotateCcw, Printer } from 'lucide-react';
 
 interface SalesTableProps {
   sales: Sale[];
   onView?: (sale: Sale) => void;
   onInvoice?: (sale: Sale) => void;
   onRefund?: (sale: Sale) => void;
+  onPrint?: (sale: Sale) => void;
   isLoading?: boolean;
 }
 
@@ -31,6 +32,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
   onView,
   onInvoice,
   onRefund,
+  onPrint,
   isLoading = false,
 }) => {
   return (
@@ -85,6 +87,14 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                     className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-coffee-200 text-coffee-600 hover:bg-coffee-50 text-xs font-medium transition-colors"
                   >
                     <Eye className="h-3.5 w-3.5" /> Ver detalle
+                  </button>
+                )}
+                {onPrint && (
+                  <button
+                    onClick={() => onPrint(sale)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-coffee-200 text-coffee-600 hover:bg-coffee-50 text-xs font-medium transition-colors"
+                  >
+                    <Printer className="h-3.5 w-3.5" /> Comanda
                   </button>
                 )}
                 {onRefund && sale.status === 'completed' && (
@@ -163,6 +173,11 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                       {onView && (
                         <button className="p-1.5 rounded-lg hover:bg-coffee-100 text-coffee-500 hover:text-coffee-700" onClick={() => onView(sale)} title="Ver detalle">
                           <Eye className="h-4 w-4" />
+                        </button>
+                      )}
+                      {onPrint && (
+                        <button className="p-1.5 rounded-lg hover:bg-coffee-100 text-coffee-500 hover:text-coffee-700" onClick={() => onPrint(sale)} title="Imprimir comanda">
+                          <Printer className="h-4 w-4" />
                         </button>
                       )}
                       {onInvoice && sale.status === 'completed' && (

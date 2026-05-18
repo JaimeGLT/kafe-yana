@@ -19,10 +19,13 @@ export interface CajaHistorialNode {
   totalIngresos: number;
   totalEgresos: number;
   totalVentas: number;
+  totalEfectivo: number;
+  totalTarjeta: number;
+  totalQr: number;
   diferencia: number;
   estado: string;
   nota: string;
-  movimientos: CajaMovimientoNode[];
+  movimientos?: CajaMovimientoNode[];
 }
 
 export interface CashReportStats {

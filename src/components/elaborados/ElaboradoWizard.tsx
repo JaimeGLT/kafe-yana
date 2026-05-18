@@ -6,9 +6,9 @@ import { gql } from '../../lib/graphql';
 import { toast } from '../ui/Toast';
 import { RecetaStepTwo } from './RecetaStepTwo';
 import { CategoryModal } from '../modals/CategoryModal';
-import { Button, Input, Select, IconPicker } from '../ui';
+import { Button, Input, Select, ImageUploadField } from '../ui';
 import { HelpTooltip } from '../ui/Tooltip';
-import type { Receta, Insumo, CategoryInput, ProductDestino } from '../../types';
+import type { Receta, Insumo, ProductDestino } from '../../types';
 
 const DESTINO_OPTIONS = [
   { value: 'sin_destino', label: 'Sin destino' },
@@ -40,9 +40,10 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
   const [unit, setUnit] = useState('unidad');
   const [preparationType, setPreparationType] = useState<'al_momento' | 'en_lote'>('al_momento');
   const [destino, setDestino] = useState<ProductDestino>('sin_destino');
-  const [icon, setIcon] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [localCategories, setLocalCategories] = useState(categories);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (isOpen) setLocalCategories(categories);
@@ -60,16 +61,10 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
     setUnit('unidad');
     setPreparationType('al_momento');
     setDestino('sin_destino');
-    setIcon('');
+    setImageFile(null);
   };
 
-  const handleSaveCategory = async (input: CategoryInput) => {
-    await api.post('/Categoria', {
-      nombre: input.name,
-      descripcion: input.description ?? '',
-      color: input.color,
-      estado: input.isActive,
-    });
+  const handleCategoryCreated = async (createdName?: string) => {
     const data = await gql<{ categorias: { nodes: { id: number; nombre: string; estado: boolean }[] } }>(
       `query { categorias { nodes { id nombre estado } } }`
     );
@@ -77,9 +72,10 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
       .filter((n) => n.estado)
       .map((n) => ({ value: String(n.id), label: n.nombre }));
     setLocalCategories(cats);
-    const created = cats.find((c) => c.label === input.name);
-    if (created) setCategoryId(created.value);
-    toast.success('Categoría creada', `"${input.name}" fue creada y seleccionada.`);
+    if (createdName) {
+      const created = cats.find((c) => c.label === createdName);
+      if (created) setCategoryId(created.value);
+    }
   };
 
   const handleClose = () => {
@@ -103,18 +99,19 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
   const handleStep1Submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep1()) return;
-    
+    setIsSaving(true);
     try {
-      const res = await api.post<{ Id: number; Nombre: string; message?: string }>('/Elaborado', {
-        nombre: name.trim(),
-        descripcion: description.trim() || '',
-        precio: parseFloat(rawSalePrice),
-        categoria_Id: Number(categoryId) || 0,
-        unidad_medida: unit,
-        producible: preparationType === 'en_lote',
-        ubicacion: destino === 'barra' ? 'Barra' : destino === 'cocina' ? 'Cocina' : '',
-        imagen: icon || '',
-      });
+      const fd = new FormData();
+      fd.append('Nombre', name.trim());
+      if (description.trim()) fd.append('Descripcion', description.trim());
+      fd.append('Precio', String(parseFloat(rawSalePrice)));
+      fd.append('Categoria_Id', String(Number(categoryId) || 0));
+      fd.append('Unidad_medida', unit);
+      fd.append('Producible', String(preparationType === 'en_lote'));
+      const ubicacion = destino === 'barra' ? 'Barra' : destino === 'cocina' ? 'Cocina' : '';
+      if (ubicacion) fd.append('Ubicacion', ubicacion);
+      if (imageFile) fd.append('Imagen', imageFile);
+      const res = await api.postForm<{ Id: number; Nombre: string; message?: string }>('/Elaborado', fd);
       const id = String(res.Id);
       setNewProductId(id);
       setNewProductName(name.trim());
@@ -125,6 +122,8 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo crear el producto. Intente nuevamente.';
       toast.error('Error', message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -188,14 +187,10 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
                 />
               </div>
 
-              {/* Icon */}
+              {/* Foto */}
               <div>
-                <label className="text-sm font-medium text-coffee-700 mb-1 block">Ícono del producto</label>
-                <IconPicker
-                  value={icon || undefined}
-                  onChange={(v) => setIcon(v ?? '')}
-                  tipo="elaborado"
-                />
+                <label className="text-sm font-medium text-coffee-700 mb-1 block">Foto del producto</label>
+                <ImageUploadField onChange={setImageFile} />
               </div>
 
               {/* Preparation type */}
@@ -347,10 +342,10 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
               </div>
 
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
-                <Button variant="ghost" type="button" onClick={handleClose} className="w-full sm:w-auto">
+                <Button variant="ghost" type="button" onClick={handleClose} disabled={isSaving} className="w-full sm:w-auto">
                   Cancelar
                 </Button>
-                <Button variant="primary" type="submit" rightIcon={<ChevronRight className="h-4 w-4" />} className="w-full sm:w-auto">
+                <Button variant="primary" type="submit" isLoading={isSaving} rightIcon={!isSaving ? <ChevronRight className="h-4 w-4" /> : undefined} className="w-full sm:w-auto">
                   Siguiente — Definir receta
                 </Button>
               </div>
@@ -380,8 +375,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
     <CategoryModal
       isOpen={isCategoryModalOpen}
       onClose={() => setIsCategoryModalOpen(false)}
-      onSave={(input) => handleSaveCategory(input)}
-      onSuccess={() => setIsCategoryModalOpen(false)}
+      onSuccess={handleCategoryCreated}
     />
     </>
   );

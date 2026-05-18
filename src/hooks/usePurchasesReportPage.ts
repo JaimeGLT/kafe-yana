@@ -81,13 +81,17 @@ export function usePurchasesReportPage(
   }, [filteredOrders]);
 
   const monthlyData = useMemo<PurchasesMonthlyData[]>(() => {
-    const map: Record<string, number> = {};
+    const map: Record<string, { display: string; total: number }> = {};
     filteredOrders.forEach(o => {
       if (o.estado?.toLowerCase() === CANCELLED) return;
-      const key = format(new Date(o.fecha), 'MMM yyyy', { locale: es });
-      map[key] = (map[key] || 0) + o.total;
+      const sortKey = format(new Date(o.fecha), 'yyyy-MM');
+      const display = format(new Date(o.fecha), 'MMM yyyy', { locale: es });
+      if (!map[sortKey]) map[sortKey] = { display, total: 0 };
+      map[sortKey].total += o.total;
     });
-    return Object.entries(map).map(([mes, total]) => ({ mes, total }));
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, { display, total }]) => ({ mes: display, total }));
   }, [filteredOrders]);
 
   const topSuppliers = useMemo<PurchasesSupplierData[]>(() => {

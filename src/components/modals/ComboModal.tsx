@@ -4,7 +4,7 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { SearchableSelect } from '../ui/Select';
-import { IconPicker } from '../ui/IconPicker';
+import { ImageUploadField } from '../ui/ImageUpload';
 import { HelpTooltip } from '../ui/Tooltip';
 import { toast } from '../ui/Toast';
 import { api } from '../../lib/api';
@@ -36,7 +36,8 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [rawPrice, setRawPrice] = useState('');
-  const [icon, setIcon] = useState('');
+  const [existingImageUrl, setExistingImageUrl] = useState<string | undefined>(undefined);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [items, setItems] = useState<ComboLine[]>([{ productId: '', quantity: 1 }]);
 
   // Products that can be in a combo (not another combo)
@@ -58,7 +59,8 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
       setName(combo.name);
       setDescription(combo.description ?? '');
       setRawPrice(String(combo.price));
-      setIcon(combo.image ?? '');
+      const img = combo.image;
+      setExistingImageUrl(img?.startsWith('http') || img?.startsWith('data:') || img?.startsWith('blob:') ? img : undefined);
       setItems(
         combo.items.map((i) => ({
           productId: i.productId,
@@ -69,9 +71,10 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
       setName('');
       setDescription('');
       setRawPrice('');
-      setIcon('');
+      setExistingImageUrl(undefined);
       setItems([{ productId: '', quantity: 1 }]);
     }
+    setImageFile(null);
   }, [combo, isOpen]);
 
   // Live cost calculation
@@ -127,22 +130,22 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
     if (!validate()) return;
     setIsLoading(true);
     try {
-      const body = {
-        nombre: name.trim(),
-        descripcion: description.trim() || '',
-        precio: comboPrice,
-        imagen: icon || '',
-        productos: items.map((i) => ({
-          productoId: Number(i.productId),
-          cantidad: i.quantity,
-          opcional: false,
-        })),
-      };
+      const fd = new FormData();
+      fd.append('Nombre', name.trim());
+      if (description.trim()) fd.append('Descripcion', description.trim());
+      fd.append('Precio', String(comboPrice));
+      if (imageFile) fd.append('Imagen', imageFile);
+      items.forEach((item, i) => {
+        fd.append(`Productos[${i}].ProductoId`, item.productId);
+        fd.append(`Productos[${i}].Cantidad`, String(item.quantity));
+        fd.append(`Productos[${i}].Opcional`, 'false');
+      });
+
       if (combo) {
-        await api.put(`/Combo/${combo.id}`, body);
+        await api.putForm(`/Combo/${combo.id}`, fd);
         toast.success('Combo actualizado', `"${name}" fue actualizado.`);
       } else {
-        await api.post('/Combo', body);
+        await api.postForm('/Combo', fd);
         toast.success('Combo creado', `"${name}" — precio: ${formatCurrency(Number(comboPrice))}`);
       }
       onSuccess();
@@ -202,14 +205,10 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
           />
         </div>
 
-        {/* Ícono */}
+        {/* Foto */}
         <div>
-          <label className="text-sm font-medium text-coffee-700 mb-1 block">Ícono del combo</label>
-          <IconPicker
-            value={icon || undefined}
-            onChange={(v) => setIcon(v ?? '')}
-            tipo="combo"
-          />
+          <label className="text-sm font-medium text-coffee-700 mb-1 block">Foto del combo</label>
+          <ImageUploadField existingUrl={existingImageUrl} key={existingImageUrl} onChange={setImageFile} />
         </div>
 
         {/* Items table */}

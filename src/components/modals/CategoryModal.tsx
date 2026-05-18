@@ -4,14 +4,14 @@ import { Button } from '../ui/Button';
 import { Input, Textarea } from '../ui/Input';
 import { FormField, Form, FormRow } from '../forms/FormField';
 import { toast } from '../ui/Toast';
+import { api, ApiError } from '../../lib/api';
 import type { Category, CategoryInput } from '../../types';
 
 interface CategoryModalProps {
   isOpen: boolean;
   onClose: () => void;
   category?: Category;
-  onSuccess: () => void;
-  onSave: (input: CategoryInput, isEdit: boolean, categoryId?: string) => Promise<void>;
+  onSuccess: (createdName?: string) => void;
 }
 
 interface CategoryFormData {
@@ -26,7 +26,6 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
   onClose,
   category,
   onSuccess,
-  onSave,
 }) => {
   const [isLoading, setIsLoading] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
@@ -82,11 +81,24 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
         isActive: formData.isActive,
       };
 
-      await onSave(input, !!category, category?.id);
-      onSuccess();
+      const body = {
+        nombre: input.name,
+        descripcion: input.description ?? '',
+        color: input.color,
+        estado: input.isActive,
+      };
+
+      if (category) {
+        await api.put(`/Categoria/${category.id}`, body);
+        toast.success('Categoría actualizada', `"${input.name}" fue actualizada correctamente.`);
+      } else {
+        await api.post('/Categoria', body);
+        toast.success('Categoría creada', `"${input.name}" fue creada correctamente.`);
+      }
+      onSuccess(input.name);
       onClose();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'No se pudo guardar la categoría. Intente nuevamente.';
+      const message = error instanceof ApiError ? error.message : 'No se pudo guardar la categoría. Intente nuevamente.';
       toast.error('Error', message);
     } finally {
       setIsLoading(false);

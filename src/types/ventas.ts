@@ -60,12 +60,14 @@ export interface VentaTopCustomer {
   count: number;
 }
 
+export type ChartGranularity = 'day' | 'week' | 'month';
+
 export interface UseSalesReportPageReturn {
   stats: VentaReportStats;
   dailySalesData: VentaDailyData[];
+  chartGranularity: ChartGranularity;
   paymentMethodData: VentaPaymentData[];
-  // topProducts: VentaTopProduct[];     // pendiente
-  // topCustomers: VentaTopCustomer[];   // pendiente
+  topProducts: VentaTopProduct[];
   isLoading: boolean;
   error: string | null;
   refresh: () => Promise<void>;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ChevronRight, Gift } from 'lucide-react';
-import { getProductEmoji } from '../../utils/productUtils';
+import { ProductImage } from '../ui/ProductImage';
 import { formatOpcionLabel } from '../../utils/opcionUtils';
 
 interface ReviewOrderItem {
@@ -56,7 +56,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
     <div className="flex-1 overflow-y-auto divide-y divide-coffee-50 min-h-0">
       {order.map(item => (
         <div key={item.cartKey} className="flex items-center gap-3 px-5 py-3">
-          <div className="h-9 w-9 rounded-xl bg-coffee-50 flex items-center justify-center text-xl flex-shrink-0">{getProductEmoji(item.product as any)}</div>
+          <ProductImage src={(item.product as any).image} tipo={(item.product as any).tipo ?? 'comprado'} size="sm" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               <p className="text-sm font-semibold text-coffee-900 line-clamp-1">{item.product.name}</p>

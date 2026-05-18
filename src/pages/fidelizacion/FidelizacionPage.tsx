@@ -5,25 +5,22 @@ import {
   Sparkles, Heart, Target, CheckCircle,
   Search, TrendingUp, RotateCcw, Plus, Minus, ArrowUpCircle,
   ArrowDownCircle, Crown, Flame, Cake, Settings, ShoppingBag,
+  UserPlus, Info, ShoppingCart,
 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
-// UI primitives not needed - page uses custom inline components
 import { toast } from '../../components/ui/Toast';
 import { SearchableSelect } from '../../components/ui/Select';
+import { CustomerModal } from '../../components/modals/CustomerModal';
 import { formatDateTime } from '../../utils/formatters';
+import { useFidelizacion } from '../../hooks/useFidelizacion';
+import type { ProductoCanjeable, VentaResumen } from '../../hooks/useFidelizacion';
 import type { LoyaltyProfile, LoyaltyLevel, MilestoneReward, MilestoneVoucher, LoyaltyTransaction, Reward, Mission, Promotion, PermanentPromotion, ConditionType, RewardType } from '../../types/loyalty';
-import type { Customer } from '../../types';
+import type { Customer, CustomerInput } from '../../types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type TabId = 'recompensas' | 'promos' | 'promos_permanentes' | 'misiones' | 'historial' | 'config';
+type TabId = 'recompensas' | 'promos' | 'promos_permanentes' | 'misiones' | 'historial' | 'config' | 'info' | 'compras';
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
-const MOCK_CUSTOMERS: Customer[] = [
-  { id: 'c1', nombre: 'Ana Quispe',    celular: '70011122', correo: 'ana@email.com', estado: true, puntos: 0 },
-  { id: 'c2', nombre: 'Carlos Mamani', celular: '70033344', estado: true, puntos: 0 },
-  { id: 'c3', nombre: 'Lucía Flores',  celular: '70055566', correo: 'lucia@email.com', estado: true, puntos: 0 },
-  { id: 'c4', nombre: 'Diego Vargas',  celular: '70077788', estado: true, puntos: 0 },
-];
 
 const MOCK_PROFILES: LoyaltyProfile[] = [
   { id: 'p1', customerId: 'c1', points: 340, lifetimePoints: 520, purchaseCount: 18, level: 'plata', birthday: '1995-04-14', referralCode: 'ANA520', referralCount: 2, consecutiveDays: 3, lastPurchaseDate: '2026-04-13', uniqueProductsBought: ['prod1','prod2','prod3'], completedMissions: ['m2'], createdAt: new Date('2024-01-10'), updatedAt: new Date() },
@@ -633,28 +630,38 @@ const PermanentPromotionModal: React.FC<PermanentPromotionModalProps> = ({ promo
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export const FidelizacionPage: React.FC = () => {
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const {
+    clientes,
+    productosCanjeables,
+    ventasCliente,
+    isLoadingVentas,
+    refreshClientes,
+    fetchVentasCliente,
+    createCliente,
+  } = useFidelizacion();
+
   const [profiles, setProfiles] = useState<LoyaltyProfile[]>([]);
   const [transactions, setTransactions] = useState<LoyaltyTransaction[]>([]);
-  const [rewards, setRewards] = useState<Reward[]>([]);
+  const [, setRewards] = useState<Reward[]>([]);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [milestones, setMilestones] = useState<MilestoneReward[]>([]);
   const [vouchers, setVouchers] = useState<MilestoneVoucher[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [permanentPromotions, setPermanentPromotions] = useState<PermanentPromotion[]>([]);
   const [activePromoMonth, setActivePromoMonth] = useState<number>(new Date().getMonth() + 1);
-  const [_loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('recompensas');
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [showPromoModal, setShowPromoModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingPromo, setEditingPromo] = useState<PermanentPromotion | null>(null);
+  const [confirmReward, setConfirmReward] = useState<ProductoCanjeable | null>(null);
+  const [redeemSales, setRedeemSales] = useState<VentaResumen[]>([]);
 
-  // Load mock data
+  // Load mock data for features not yet backed by API
   useEffect(() => {
-    setCustomers(MOCK_CUSTOMERS);
     setProfiles(MOCK_PROFILES);
     setTransactions(MOCK_TRANSACTIONS);
     setRewards(MOCK_REWARDS);
@@ -663,7 +670,6 @@ export const FidelizacionPage: React.FC = () => {
     setVouchers(MOCK_VOUCHERS);
     setPromotions(MOCK_PROMOTIONS);
     setPermanentPromotions(MOCK_PERMANENT_PROMOTIONS);
-    setLoading(false);
   }, []);
 
   const getProfile = useCallback((customerId: string): LoyaltyProfile | undefined => {
@@ -722,22 +728,6 @@ export const FidelizacionPage: React.FC = () => {
     return { level: currentLevel, nextLevel, pointsToNext, progress };
   }, []);
 
-  const redeemPoints = useCallback((_customerId: string, rewardId: string): boolean => {
-    const profile = getProfile(_customerId);
-    const reward = rewards.find((r: Reward) => r.id === rewardId);
-    if (!profile || !reward || profile.points < reward.pointsCost) return false;
-    setProfiles(prev => prev.map((p: LoyaltyProfile) =>
-      p.customerId === _customerId ? { ...p, points: p.points - reward.pointsCost } : p
-    ));
-    const tx: LoyaltyTransaction = {
-      id: `tx-${Date.now()}`, customerId: _customerId, points: -reward.pointsCost,
-      type: 'redeemed', description: `Canje: ${reward.name}`, date: new Date().toISOString(),
-      createdAt: new Date(), updatedAt: new Date(),
-    };
-    setTransactions(prev => [tx, ...prev]);
-    return true;
-  }, [getProfile, rewards]);
-
   const addTransaction = useCallback((_customerId: string, _saleId: string | undefined, points: number, type: LoyaltyTransaction['type'], description: string) => {
     const tx: LoyaltyTransaction = {
       id: `tx-${Date.now()}`, customerId: _customerId, saleId: _saleId,
@@ -756,12 +746,12 @@ export const FidelizacionPage: React.FC = () => {
 
   // ── Derived data ────────────────────────────────────────────────────────────
   const activeCustomers = useMemo(
-    () => customers.filter(c => c.estado),
-    [customers],
+    () => clientes.filter(c => c.estado),
+    [clientes],
   );
 
   const filteredCustomers = useMemo(() => {
-    if (!search.trim()) return activeCustomers;
+    if (!search.trim()) return [];
     const q = search.toLowerCase();
     return activeCustomers.filter(c =>
       c.nombre.toLowerCase().includes(q) ||
@@ -775,11 +765,31 @@ export const FidelizacionPage: React.FC = () => {
     [activeCustomers, selectedCustomerId],
   );
 
-  const selectedProfile = useMemo(
-    () => selectedCustomerId ? getProfile(selectedCustomerId) : null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedCustomerId, profiles],
-  );
+  const selectedProfile = useMemo((): LoyaltyProfile | null => {
+    if (!selectedCustomerId) return null;
+    // Check mock profiles first (for demo data)
+    const mockProfile = profiles.find(p => p.customerId === selectedCustomerId);
+    if (mockProfile) return mockProfile;
+    // Build profile from real customer data
+    const customer = activeCustomers.find(c => c.id === selectedCustomerId);
+    if (!customer) return null;
+    const levelInfo = getLevelInfo(customer.puntos);
+    return {
+      id: '',
+      customerId: selectedCustomerId,
+      points: customer.puntos,
+      lifetimePoints: customer.puntos,
+      purchaseCount: ventasCliente.length,
+      level: levelInfo.level,
+      referralCode: '',
+      referralCount: 0,
+      consecutiveDays: 0,
+      uniqueProductsBought: [],
+      completedMissions: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  }, [selectedCustomerId, profiles, activeCustomers, ventasCliente, getLevelInfo]);
 
   const levelInfo = useMemo(
     () => selectedProfile ? getLevelInfo(selectedProfile.lifetimePoints) : null,
@@ -797,8 +807,8 @@ export const FidelizacionPage: React.FC = () => {
   );
 
   // ── Global stats ────────────────────────────────────────────────────────────
-  const statsCustomersWithPoints = profiles.filter(p => p.points > 0).length;
-  const statsCirculatingPoints = profiles.reduce((s, p) => s + p.points, 0);
+  const statsCustomersWithPoints = clientes.filter(c => c.puntos > 0).length;
+  const statsCirculatingPoints = clientes.reduce((s, c) => s + c.puntos, 0);
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const statsRedeemedThisWeek = transactions.filter(
@@ -808,8 +818,6 @@ export const FidelizacionPage: React.FC = () => {
   // ── Current month ────────────────────────────────────────────────────────────
   const currentMonth = new Date().getMonth() + 1;
 
-  const dailyRewards = useMemo(() => rewards.filter(r => r.category === 'diario'), [rewards]);
-  const grandPrize = useMemo(() => rewards.filter(r => r.category === 'premio_mayor'), [rewards]);
 
   // ── Stamp card progress (mock based on purchase count) ───────────────────────
   const cafeStamps = selectedProfile
@@ -837,18 +845,55 @@ export const FidelizacionPage: React.FC = () => {
     setSelectedCustomerId(id);
     getOrCreateProfile(id);
     setSearch('');
+    const customer = activeCustomers.find(c => c.id === id);
+    if (customer) fetchVentasCliente(customer.nombre);
   };
 
-  const handleRedeem = (rewardId: string) => {
+  const handleCreateCliente = async (input: CustomerInput, _isEdit: boolean, _id?: string) => {
+    await createCliente(input);
+    await refreshClientes();
+  };
+
+  const handleRedeem = (prod: ProductoCanjeable) => {
     if (!selectedCustomerId || !selectedProfile) return;
-    const reward = rewards.find(r => r.id === rewardId);
-    if (!reward) return;
-    const ok = redeemPoints(selectedCustomerId, rewardId);
-    if (ok) {
-      toast.success('¡Recompensa canjeada!', `${reward.name} canjeado exitosamente.`);
-    } else {
-      toast.error('Puntos insuficientes', `Necesitas ${reward.pointsCost} pts.`);
+    if (selectedProfile.points < prod.puntos) {
+      toast.error('Puntos insuficientes', `Necesitas ${prod.puntos} pts.`);
+      return;
     }
+    setConfirmReward(prod);
+  };
+
+  const handleConfirmRedeem = () => {
+    if (!confirmReward || !selectedCustomerId || !selectedProfile || !selectedCustomer) return;
+    // Descontar puntos
+    setProfiles(prev => prev.map((p: LoyaltyProfile) =>
+      p.customerId === selectedCustomerId
+        ? { ...p, points: p.points - confirmReward.puntos }
+        : p,
+    ));
+    const tx: LoyaltyTransaction = {
+      id: `tx-${Date.now()}`,
+      customerId: selectedCustomerId,
+      points: -confirmReward.puntos,
+      type: 'redeemed',
+      description: `Canje: ${confirmReward.nombreProducto}`,
+      date: new Date().toISOString(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    setTransactions(prev => [tx, ...prev]);
+    // Venta gratuita para historial
+    const ventaGratis: VentaResumen = {
+      id: `canje-${Date.now()}`,
+      codigo: `CANJE-${Date.now().toString().slice(-6)}`,
+      fecha: new Date().toISOString(),
+      total: 0,
+      cliente: selectedCustomer.nombre,
+      detalles: [{ nombre: confirmReward.nombreProducto, cantidad: 1, precio: 0, total: 0 }],
+    };
+    setRedeemSales(prev => [ventaGratis, ...prev]);
+    toast.success('¡Recompensa canjeada!', `${confirmReward.nombreProducto} registrado como venta gratuita.`);
+    setConfirmReward(null);
   };
 
   const handleTogglePromo = (promoId: string) => {
@@ -915,12 +960,9 @@ export const FidelizacionPage: React.FC = () => {
 
   // ── Tabs config ───────────────────────────────────────────────────────────────
   const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
-    { id: 'recompensas', label: 'Recompensas Diarias', icon: <Gift className="w-4 h-4" /> },
-    { id: 'promos', label: 'Promos del Mes', icon: <Calendar className="w-4 h-4" /> },
-    { id: 'promos_permanentes', label: 'Promos Permanentes', icon: <Zap className="w-4 h-4" /> },
-    { id: 'misiones', label: 'Misiones Yana', icon: <Target className="w-4 h-4" /> },
-    { id: 'historial', label: 'Historial', icon: <Clock className="w-4 h-4" /> },
-    { id: 'config', label: 'Configuración', icon: <Settings className="w-4 h-4" /> },
+    { id: 'recompensas', label: 'Recompensas', icon: <Gift className="w-4 h-4" /> },
+    { id: 'compras', label: 'Historial Compras', icon: <ShoppingCart className="w-4 h-4" /> },
+    { id: 'info', label: 'Info Cliente', icon: <Info className="w-4 h-4" /> },
   ];
 
   // ── Transaction type labels/icons ─────────────────────────────────────────────
@@ -996,9 +1038,18 @@ export const FidelizacionPage: React.FC = () => {
 
           {/* Search panel */}
           <div className="bg-white rounded-2xl border border-coffee-100 shadow-coffee p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Search className="w-4 h-4 text-coffee-400" />
-              <h2 className="font-display font-semibold text-coffee-900">Buscar Cliente</h2>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Search className="w-4 h-4 text-coffee-400" />
+                <h2 className="font-display font-semibold text-coffee-900">Buscar Cliente</h2>
+              </div>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-coffee-500 text-white text-xs font-body font-semibold hover:bg-coffee-600 transition-colors shadow-coffee"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                Nuevo
+              </button>
             </div>
 
             <div className="relative mb-3">
@@ -1070,7 +1121,7 @@ export const FidelizacionPage: React.FC = () => {
                 profile={selectedProfile}
                 customerName={selectedCustomer.nombre}
                 levelInfo={levelInfo}
-                onViewHistory={() => setActiveTab('historial')}
+                onViewHistory={() => setActiveTab('compras')}
                 onAdjustPoints={() => setShowAdjustModal(true)}
               />
 
@@ -1176,98 +1227,123 @@ export const FidelizacionPage: React.FC = () => {
             </div>
           </div>
 
-          {/* ── TAB: Recompensas Diarias ─────────────────────────────────────── */}
+          {/* ── TAB: Recompensas ─────────────────────────────────────────────── */}
           {activeTab === 'recompensas' && (
-            <div className="space-y-4">
-              {/* Grand Prize spotlight */}
-              {grandPrize.map(r => (
-                <div
-                  key={r.id}
-                  className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-400 p-5 shadow-lg"
-                >
-                  <div className="absolute -top-4 -right-4 w-24 h-24 bg-white/20 rounded-full pointer-events-none" />
-                  <div className="relative flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="text-4xl">{r.icon}</div>
-                      <div>
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="bg-white/30 text-white text-xs font-body font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
-                            Premio Mayor
+            <div className="space-y-5">
+              {productosCanjeables.length === 0 ? (
+                <div className="text-center py-12 bg-white rounded-2xl border border-coffee-100">
+                  <Gift className="w-10 h-10 text-coffee-200 mx-auto mb-3" />
+                  <p className="font-body text-coffee-400">Sin productos canjeables configurados</p>
+                </div>
+              ) : (
+                <>
+                  {/* Puede reclamar ahora */}
+                  {selectedCustomer && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                        <h3 className="font-display font-semibold text-coffee-900 text-sm">
+                          Puede reclamar ahora
+                          <span className="ml-2 text-xs font-body font-normal text-coffee-400">
+                            ({selectedCustomer.puntos} pts disponibles)
                           </span>
-                        </div>
-                        <h3 className="font-display font-bold text-white text-lg">{r.name}</h3>
-                        <p className="text-yellow-100 text-xs font-body">{r.description}</p>
+                        </h3>
                       </div>
+                      {(() => {
+                        const disponibles = productosCanjeables.filter(p => p.activo && p.puntos <= selectedCustomer.puntos);
+                        if (disponibles.length === 0) {
+                          return (
+                            <div className="text-center py-6 bg-coffee-50 rounded-xl text-sm font-body text-coffee-400">
+                              Sin puntos suficientes para ninguna recompensa aún
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {disponibles.map(prod => (
+                              <div
+                                key={prod.id}
+                                className="relative bg-white rounded-2xl border border-green-200 p-4 flex flex-col gap-2 hover:border-green-300 hover:shadow-md transition-all"
+                              >
+                                <div className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-green-400" />
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="font-body font-semibold text-coffee-900 text-sm leading-tight">{prod.nombreProducto}</h4>
+                                  <p className="text-coffee-400 text-xs font-body mt-0.5">{prod.categoria}</p>
+                                  <p className="text-coffee-300 text-xs font-body">{prod.disponible}</p>
+                                </div>
+                                <div className="flex items-center justify-between mt-auto">
+                                  <div className="flex items-center gap-1">
+                                    <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-400" />
+                                    <span className="text-sm font-display font-bold text-coffee-700">{prod.puntos} pts</span>
+                                  </div>
+                                  <button
+                                    onClick={() => handleRedeem(prod)}
+                                    className="flex items-center gap-1 px-3 py-1 rounded-lg bg-green-500 text-white text-xs font-body font-semibold hover:bg-green-600 transition-colors"
+                                  >
+                                    <Gift className="w-3 h-3" />
+                                    Canjear
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
-                    <div className="text-right">
-                      <div className="text-3xl font-display font-black text-white">{r.pointsCost}</div>
-                      <div className="text-yellow-100 text-xs font-body">puntos</div>
-                      <button
-                        onClick={() => handleRedeem(r.id)}
-                        disabled={!selectedProfile || (selectedProfile?.points ?? 0) < r.pointsCost}
-                        className="mt-2 px-4 py-1.5 rounded-xl bg-white text-amber-600 text-sm font-body font-bold hover:bg-yellow-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                      >
-                        Canjear
-                      </button>
+                  )}
+
+                  {/* Todas las recompensas activas */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Gift className="w-4 h-4 text-coffee-500" />
+                      <h3 className="font-display font-semibold text-coffee-900 text-sm">Todas las recompensas activas</h3>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {productosCanjeables.filter(p => p.activo).map(prod => {
+                        const canRedeem = selectedCustomer && selectedCustomer.puntos >= prod.puntos;
+                        return (
+                          <div
+                            key={prod.id}
+                            className={clsx(
+                              'bg-white rounded-2xl border p-4 flex flex-col gap-2 transition-all',
+                              selectedCustomer
+                                ? canRedeem
+                                  ? 'border-coffee-200 hover:shadow-coffee'
+                                  : 'border-coffee-100 opacity-60'
+                                : 'border-coffee-100',
+                            )}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-body font-semibold text-coffee-900 text-sm leading-tight">{prod.nombreProducto}</h4>
+                              <p className="text-coffee-400 text-xs font-body mt-0.5">{prod.categoria}</p>
+                              <p className="text-coffee-300 text-xs font-body">{prod.disponible}</p>
+                            </div>
+                            <div className="flex items-center justify-between mt-auto">
+                              <div className="flex items-center gap-1">
+                                <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-400" />
+                                <span className="text-sm font-display font-bold text-coffee-700">{prod.puntos} pts</span>
+                              </div>
+                              {selectedCustomer && (
+                                <span className={clsx(
+                                  'text-xs font-body font-semibold px-2 py-0.5 rounded-lg',
+                                  canRedeem ? 'bg-coffee-100 text-coffee-600' : 'bg-gray-100 text-gray-400',
+                                )}>
+                                  {canRedeem ? 'Alcanzable' : `Faltan ${prod.puntos - selectedCustomer.puntos} pts`}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                </div>
-              ))}
 
-              {/* Daily rewards grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {dailyRewards.map(reward => {
-                  const canRedeem = selectedProfile && selectedProfile.points >= reward.pointsCost;
-                  const hasCustomer = !!selectedCustomer;
-                  return (
-                    <div
-                      key={reward.id}
-                      className={clsx(
-                        'relative bg-white rounded-2xl border p-4 flex flex-col gap-2 transition-all duration-200',
-                        hasCustomer
-                          ? canRedeem
-                            ? 'border-green-200 hover:border-green-300 hover:shadow-md'
-                            : 'border-coffee-100 opacity-70'
-                          : 'border-coffee-100',
-                      )}
-                    >
-                      {canRedeem && hasCustomer && (
-                        <div className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-green-400" />
-                      )}
-                      <div className="flex items-start gap-3">
-                        <span className="text-2xl leading-none">{reward.icon}</span>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-body font-semibold text-coffee-900 text-sm leading-tight">{reward.name}</h4>
-                          <p className="text-coffee-400 text-xs font-body mt-0.5 leading-snug">{reward.description}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between mt-auto">
-                        <div className="flex items-center gap-1">
-                          <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-400" />
-                          <span className="text-sm font-display font-bold text-coffee-700">{reward.pointsCost} pts</span>
-                        </div>
-                        <button
-                          onClick={() => handleRedeem(reward.id)}
-                          disabled={!hasCustomer || !canRedeem}
-                          className={clsx(
-                            'px-3 py-1 rounded-lg text-xs font-body font-semibold transition-all',
-                            canRedeem && hasCustomer
-                              ? 'bg-coffee-500 text-white hover:bg-coffee-600 shadow-coffee'
-                              : 'bg-coffee-100 text-coffee-300 cursor-not-allowed',
-                          )}
-                        >
-                          Canjear
-                        </button>
-                      </div>
+                  {!selectedCustomer && (
+                    <div className="text-center py-3 text-sm font-body text-coffee-400 bg-coffee-50 rounded-xl">
+                      Selecciona un cliente para ver qué puede reclamar
                     </div>
-                  );
-                })}
-              </div>
-
-              {!selectedCustomer && (
-                <div className="text-center py-4 text-sm font-body text-coffee-400 bg-coffee-50 rounded-xl">
-                  Selecciona un cliente para habilitar los canjes
-                </div>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -1403,7 +1479,7 @@ export const FidelizacionPage: React.FC = () => {
                           {/* Canjear button (only for canje_puntos when customer selected) */}
                           {isCanjeType && selectedCustomer && (
                             <button
-                              onClick={() => handleRedeem(promo.id)}
+                              onClick={() => handleRedeemVoucher(promo.id)}
                               disabled={!promo.isActive || !canCustomerRedeem}
                               className={clsx(
                                 'px-3 py-1.5 rounded-xl text-xs font-body font-semibold transition-all',
@@ -1817,26 +1893,285 @@ export const FidelizacionPage: React.FC = () => {
             </div>
           )}
 
-          {/* ── TAB: Historial ───────────────────────────────────────────────── */}
+          {/* ── TAB: Historial Compras ───────────────────────────────────────── */}
+          {activeTab === 'compras' && (
+            <div>
+              {!selectedCustomer ? (
+                <div className="text-center py-12 bg-white rounded-2xl border border-coffee-100">
+                  <ShoppingCart className="w-10 h-10 text-coffee-200 mx-auto mb-3" />
+                  <p className="font-body text-coffee-400">Selecciona un cliente para ver su historial de compras</p>
+                </div>
+              ) : isLoadingVentas ? (
+                <div className="text-center py-12 bg-white rounded-2xl border border-coffee-100">
+                  <RotateCcw className="w-10 h-10 text-coffee-200 mx-auto mb-3 animate-spin" />
+                  <p className="font-body text-coffee-400">Cargando compras...</p>
+                </div>
+              ) : (() => {
+                const clienteRedeemSales = redeemSales.filter(v => v.cliente === selectedCustomer.nombre);
+                const allVentas = [...clienteRedeemSales, ...ventasCliente].sort(
+                  (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime(),
+                );
+                if (allVentas.length === 0) return (
+                  <div className="text-center py-12 bg-white rounded-2xl border border-coffee-100">
+                    <ShoppingCart className="w-10 h-10 text-coffee-200 mx-auto mb-3" />
+                    <p className="font-body text-coffee-500 font-medium">{selectedCustomer.nombre}</p>
+                    <p className="font-body text-coffee-400 text-sm mt-1">Sin compras registradas todavía</p>
+                  </div>
+                );
+                return (
+                <div className="bg-white rounded-2xl border border-coffee-100 overflow-hidden">
+                  <div className="px-5 py-4 border-b border-coffee-50 flex items-center justify-between">
+                    <div>
+                      <h3 className="font-display font-semibold text-coffee-900">{selectedCustomer.nombre}</h3>
+                      <p className="text-xs font-body text-coffee-400">{allVentas.length} registros</p>
+                    </div>
+                    <span className="text-sm font-body font-bold px-3 py-1 rounded-full bg-coffee-100 text-coffee-700">
+                      {selectedCustomer.puntos} pts
+                    </span>
+                  </div>
+
+                  <div className="divide-y divide-coffee-50 max-h-[500px] overflow-y-auto">
+                    {allVentas.map((venta) => {
+                      const isGratis = venta.total === 0;
+                      return (
+                      <div key={venta.id} className={clsx('px-5 py-4 transition-colors', isGratis ? 'bg-green-50/40 hover:bg-green-50' : 'hover:bg-coffee-50/40')}>
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-body font-semibold text-coffee-500 bg-coffee-100 px-2 py-0.5 rounded-full">
+                                #{venta.codigo}
+                              </span>
+                              {isGratis && (
+                                <span className="text-xs font-body font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                  <Gift className="w-3 h-3" />
+                                  Canje gratuito
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs font-body text-coffee-400 mt-1">
+                              {formatDateTime(venta.fecha)}
+                            </p>
+                          </div>
+                          <span className={clsx('text-base font-display font-black flex-shrink-0', isGratis ? 'text-green-600' : 'text-coffee-800')}>
+                            {isGratis ? 'Gratis' : `Bs. ${venta.total.toFixed(2)}`}
+                          </span>
+                        </div>
+                        {venta.detalles && venta.detalles.length > 0 && (
+                          <div className="mt-2 space-y-0.5">
+                            {venta.detalles.map((d, i) => (
+                              <div key={i} className="flex justify-between text-xs font-body text-coffee-500">
+                                <span>{d.cantidad}× {d.nombre}</span>
+                                <span>{isGratis ? '— Gratis' : `Bs. ${d.total.toFixed(2)}`}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* ── TAB: Info Cliente ─────────────────────────────────────────────── */}
+          {activeTab === 'info' && (
+            <div className="space-y-5">
+              {!selectedCustomer ? (
+                <div className="text-center py-12 bg-white rounded-2xl border border-coffee-100">
+                  <Info className="w-10 h-10 text-coffee-200 mx-auto mb-3" />
+                  <p className="font-body text-coffee-400">Selecciona un cliente para ver su información completa</p>
+                </div>
+              ) : (
+                <>
+                  {/* Datos personales */}
+                  <div className="bg-white rounded-2xl border border-coffee-100 shadow-coffee overflow-hidden">
+                    <div className="px-5 py-3 border-b border-coffee-50 flex items-center gap-2">
+                      <Users className="w-4 h-4 text-coffee-500" />
+                      <h3 className="font-display font-semibold text-coffee-900">Datos del Cliente</h3>
+                    </div>
+                    <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs font-body text-coffee-400 uppercase tracking-wide mb-0.5">Nombre</p>
+                        <p className="font-body font-semibold text-coffee-900">{selectedCustomer.nombre}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-body text-coffee-400 uppercase tracking-wide mb-0.5">Teléfono</p>
+                        <p className="font-body font-semibold text-coffee-900">{selectedCustomer.celular}</p>
+                      </div>
+                      {selectedCustomer.correo && (
+                        <div>
+                          <p className="text-xs font-body text-coffee-400 uppercase tracking-wide mb-0.5">Correo</p>
+                          <p className="font-body font-semibold text-coffee-900">{selectedCustomer.correo}</p>
+                        </div>
+                      )}
+                      {selectedCustomer.dni && (
+                        <div>
+                          <p className="text-xs font-body text-coffee-400 uppercase tracking-wide mb-0.5">CI</p>
+                          <p className="font-body font-semibold text-coffee-900">{selectedCustomer.dni}</p>
+                        </div>
+                      )}
+                      {selectedCustomer.fecha_nacimiento && (
+                        <div>
+                          <p className="text-xs font-body text-coffee-400 uppercase tracking-wide mb-0.5">Cumpleaños</p>
+                          <p className="font-body font-semibold text-coffee-900">
+                            {new Date(selectedCustomer.fecha_nacimiento).toLocaleDateString('es-BO', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          </p>
+                        </div>
+                      )}
+                      {selectedCustomer.direccion && (
+                        <div>
+                          <p className="text-xs font-body text-coffee-400 uppercase tracking-wide mb-0.5">Dirección</p>
+                          <p className="font-body font-semibold text-coffee-900">{selectedCustomer.direccion}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Estadísticas de fidelización */}
+                  <div className="bg-white rounded-2xl border border-coffee-100 shadow-coffee overflow-hidden">
+                    <div className="px-5 py-3 border-b border-coffee-50 flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-coffee-500" />
+                      <h3 className="font-display font-semibold text-coffee-900">Resumen de Fidelización</h3>
+                    </div>
+                    <div className="p-5 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      <div className="text-center p-3 bg-coffee-50 rounded-xl">
+                        <div className="text-2xl font-display font-black text-coffee-800">{selectedCustomer.puntos}</div>
+                        <div className="text-xs font-body text-coffee-500 mt-0.5">Puntos actuales</div>
+                      </div>
+                      <div className="text-center p-3 bg-blue-50 rounded-xl">
+                        <div className="text-2xl font-display font-black text-blue-700">{ventasCliente.length}</div>
+                        <div className="text-xs font-body text-blue-500 mt-0.5">Total compras</div>
+                      </div>
+                      <div className="text-center p-3 bg-green-50 rounded-xl">
+                        <div className="text-2xl font-display font-black text-green-700">
+                          {transactions.filter(t => t.customerId === selectedCustomerId && t.type === 'redeemed').length}
+                        </div>
+                        <div className="text-xs font-body text-green-500 mt-0.5">Canjes realizados</div>
+                      </div>
+                      <div className="text-center p-3 bg-amber-50 rounded-xl">
+                        <div className="text-2xl font-display font-black text-amber-700">
+                          {selectedProfile ? LEVEL_CONFIG[selectedProfile.level].icon : '🥉'}
+                        </div>
+                        <div className="text-xs font-body text-amber-500 mt-0.5">
+                          {selectedProfile ? LEVEL_CONFIG[selectedProfile.level].label : 'Bronce'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Gasto total estimado */}
+                    {ventasCliente.length > 0 && (
+                      <div className="px-5 pb-4">
+                        <div className="flex items-center justify-between p-3 bg-coffee-50 rounded-xl">
+                          <div className="flex items-center gap-2">
+                            <ShoppingBag className="w-4 h-4 text-coffee-500" />
+                            <span className="text-sm font-body font-medium text-coffee-700">Gasto total registrado</span>
+                          </div>
+                          <span className="font-display font-black text-coffee-900">
+                            Bs. {ventasCliente.reduce((s, v) => s + v.total, 0).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Recompensas reclamadas */}
+                  {transactions.filter(t => t.customerId === selectedCustomerId && t.type === 'redeemed').length > 0 && (
+                    <div className="bg-white rounded-2xl border border-coffee-100 shadow-coffee overflow-hidden">
+                      <div className="px-5 py-3 border-b border-coffee-50 flex items-center gap-2">
+                        <Gift className="w-4 h-4 text-coffee-500" />
+                        <h3 className="font-display font-semibold text-coffee-900">Recompensas Reclamadas</h3>
+                      </div>
+                      <div className="divide-y divide-coffee-50 max-h-48 overflow-y-auto">
+                        {transactions
+                          .filter(t => t.customerId === selectedCustomerId && t.type === 'redeemed')
+                          .map(tx => (
+                            <div key={tx.id} className="flex items-center justify-between px-5 py-3">
+                              <div>
+                                <p className="text-sm font-body font-medium text-coffee-800">{tx.description.replace('Canje: ', '')}</p>
+                                <p className="text-xs font-body text-coffee-400">{formatDateTime(tx.date)}</p>
+                              </div>
+                              <span className="text-sm font-display font-bold text-red-500">{tx.points} pts</span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Hitos: todos + posición actual */}
+                  <div className="bg-white rounded-2xl border border-coffee-100 shadow-coffee overflow-hidden">
+                    <div className="px-5 py-3 border-b border-coffee-50 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Trophy className="w-4 h-4 text-yellow-500" />
+                        <h3 className="font-display font-semibold text-coffee-900">Hitos de Compra</h3>
+                      </div>
+                      <span className="text-xs font-body text-coffee-400">
+                        {selectedProfile?.purchaseCount ?? ventasCliente.length} visitas
+                      </span>
+                    </div>
+                    <div className="p-4 overflow-x-auto">
+                      <div className="flex items-start gap-2 min-w-max">
+                        {[...milestones]
+                          .sort((a, b) => a.purchaseNumber - b.purchaseNumber)
+                          .map((milestone, idx, arr) => {
+                            const purchaseCount = selectedProfile?.purchaseCount ?? ventasCliente.length;
+                            const reached = purchaseCount >= milestone.purchaseNumber;
+                            const isNext = !reached && (idx === 0 || purchaseCount >= arr[idx - 1].purchaseNumber);
+                            return (
+                              <React.Fragment key={milestone.purchaseNumber}>
+                                {idx > 0 && (
+                                  <div className={clsx('flex-shrink-0 h-0.5 w-6 mt-5 self-start', reached ? 'bg-coffee-400' : 'bg-coffee-100')} />
+                                )}
+                                <div className="flex flex-col items-center gap-1 w-20 text-center flex-shrink-0">
+                                  <div className={clsx(
+                                    'w-10 h-10 rounded-xl flex items-center justify-center text-lg border-2 transition-all',
+                                    reached ? 'bg-coffee-500 border-coffee-400' : isNext ? 'bg-coffee-50 border-coffee-300 ring-2 ring-coffee-300 ring-offset-1 animate-pulse' : 'bg-white border-coffee-100',
+                                  )}>
+                                    {reached ? <CheckCircle className="w-5 h-5 text-white" /> : <span className={isNext ? '' : 'opacity-40'}>{milestone.icon}</span>}
+                                  </div>
+                                  <span className={clsx(
+                                    'text-xs font-body font-bold px-1.5 py-0.5 rounded-full',
+                                    reached ? 'bg-coffee-100 text-coffee-700' : isNext ? 'bg-coffee-500 text-white' : 'bg-gray-100 text-gray-400',
+                                  )}>
+                                    #{milestone.purchaseNumber}
+                                  </span>
+                                  <p className={clsx('text-xs font-body leading-tight', reached ? 'text-coffee-600 font-medium' : isNext ? 'text-coffee-500' : 'text-coffee-200')}>
+                                    {milestone.reward}
+                                  </p>
+                                </div>
+                              </React.Fragment>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── TAB: Historial Puntos ─────────────────────────────────────────── */}
           {activeTab === 'historial' && (
             <div>
               {!selectedCustomer ? (
                 <div className="text-center py-12 bg-white rounded-2xl border border-coffee-100">
                   <Clock className="w-10 h-10 text-coffee-200 mx-auto mb-3" />
-                  <p className="font-body text-coffee-400">Selecciona un cliente para ver su historial</p>
+                  <p className="font-body text-coffee-400">Selecciona un cliente para ver su historial de puntos</p>
                 </div>
               ) : customerTransactions.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-2xl border border-coffee-100">
                   <RotateCcw className="w-10 h-10 text-coffee-200 mx-auto mb-3" />
                   <p className="font-body text-coffee-500 font-medium">{selectedCustomer.nombre}</p>
-                  <p className="font-body text-coffee-400 text-sm mt-1">Sin transacciones registradas todavía</p>
+                  <p className="font-body text-coffee-400 text-sm mt-1">Sin transacciones de puntos registradas todavía</p>
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl border border-coffee-100 overflow-hidden">
                   <div className="px-5 py-4 border-b border-coffee-50 flex items-center justify-between">
                     <div>
                       <h3 className="font-display font-semibold text-coffee-900">{selectedCustomer.nombre}</h3>
-                      <p className="text-xs font-body text-coffee-400">{customerTransactions.length} transacciones</p>
+                      <p className="text-xs font-body text-coffee-400">{customerTransactions.length} transacciones de puntos</p>
                     </div>
                     <span className={clsx(
                       'text-sm font-body font-bold px-3 py-1 rounded-full',
@@ -2000,6 +2335,62 @@ export const FidelizacionPage: React.FC = () => {
         </div>
       </div>
 
+      {/* ── Confirm Redeem Modal ────────────────────────────────────────────── */}
+      {confirmReward && selectedCustomer && selectedProfile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmReward(null)} />
+          <div className="relative bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="font-display font-bold text-xl text-coffee-900 mb-1">Confirmar canje</h3>
+            <p className="text-sm font-body text-coffee-500 mb-5">
+              Verificá que el producto está listo para entregar al cliente.
+            </p>
+
+            <div className="p-4 rounded-2xl bg-green-50 border border-green-200 mb-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+                  <Gift className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="font-display font-bold text-coffee-900">{confirmReward.nombreProducto}</p>
+                  <p className="text-xs font-body text-coffee-500">{confirmReward.categoria}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-sm font-body border-t border-green-200 pt-3">
+                <span className="text-coffee-600">Cliente</span>
+                <span className="font-semibold text-coffee-900">{selectedCustomer.nombre}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm font-body">
+                <span className="text-coffee-600">Puntos a descontar</span>
+                <span className="font-display font-bold text-red-500">−{confirmReward.puntos} pts</span>
+              </div>
+              <div className="flex items-center justify-between text-sm font-body">
+                <span className="text-coffee-600">Saldo después</span>
+                <span className="font-display font-bold text-coffee-900">{selectedProfile.points - confirmReward.puntos} pts</span>
+              </div>
+              <div className="flex items-center justify-between text-sm font-body">
+                <span className="text-coffee-600">Total cobrado</span>
+                <span className="font-display font-bold text-green-600">Bs. 0.00 — Gratis</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmReward(null)}
+                className="flex-1 py-2.5 rounded-xl border border-coffee-200 text-coffee-600 text-sm font-body font-medium hover:bg-coffee-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmRedeem}
+                className="flex-1 py-2.5 rounded-xl bg-green-500 text-white text-sm font-body font-semibold hover:bg-green-600 transition-colors"
+              >
+                Confirmar entrega
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Adjust Points Modal ─────────────────────────────────────────────── */}
       {showAdjustModal && selectedCustomer && selectedProfile && (
         <AdjustModal
@@ -2018,6 +2409,14 @@ export const FidelizacionPage: React.FC = () => {
           onClose={() => { setShowPromoModal(false); setEditingPromo(null); }}
         />
       )}
+
+      {/* ── Create Customer Modal ─────────────────────────────────────────── */}
+      <CustomerModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => refreshClientes()}
+        onSave={handleCreateCliente}
+      />
     </MainLayout>
   );
 };

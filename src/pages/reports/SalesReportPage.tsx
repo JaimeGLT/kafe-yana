@@ -11,7 +11,7 @@ import {
   Calendar, FileText,
 } from 'lucide-react';
 import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
-import { Button, Input } from '../../components/ui';
+import { Button, Input, Skeleton, SkeletonKpiCard } from '../../components/ui';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
 import { formatCurrency } from '../../utils';
 import { useSalesReportPage } from '../../hooks/useSalesReportPage';
@@ -44,7 +44,9 @@ const SalesReportPage: React.FC = () => {
   const {
     stats,
     dailySalesData,
+    chartGranularity,
     paymentMethodData,
+    topProducts,
     isLoading,
     error,
   } = useSalesReportPage(dateFrom, dateTo);
@@ -53,17 +55,55 @@ const SalesReportPage: React.FC = () => {
     generateSalesReportPdf({ dateFrom, dateTo, stats, dailySalesData, paymentMethodData });
   };
 
+  const dateFormatByGranularity = { day: 'dd MMM', week: "'Sem' dd MMM", month: 'MMM yyyy' };
   const dailyChartData = dailySalesData.map(d => ({
     ...d,
-    fecha: format(new Date(d.fecha + 'T00:00:00'), 'dd MMM', { locale: es }),
+    fecha: format(new Date(d.fecha + 'T00:00:00'), dateFormatByGranularity[chartGranularity], { locale: es }),
   }));
+
+  const chartTitleByGranularity = { day: 'Ventas Diarias', week: 'Ventas Semanales', month: 'Ventas Mensuales' };
+  const chartDescByGranularity = {
+    day: 'Ingresos por día en el período seleccionado',
+    week: 'Ingresos agrupados por semana',
+    month: 'Ingresos agrupados por mes',
+  };
 
   if (isLoading) {
     return (
       <MainLayout>
         <PageContainer>
-          <div className="flex items-center justify-center h-64">
-            <div className="text-coffee-500">Cargando reporte de ventas...</div>
+          <div className="flex items-center justify-between mb-6">
+            <div className="space-y-2">
+              <Skeleton className="h-7 w-52" />
+              <Skeleton className="h-4 w-72" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-36 rounded-lg" />
+              <Skeleton className="h-9 w-36 rounded-lg" />
+              <Skeleton className="h-9 w-28 rounded-lg" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            {Array.from({ length: 4 }).map((_, i) => <SkeletonKpiCard key={i} />)}
+          </div>
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 mb-6">
+            <Skeleton className="h-5 w-36 mb-4" />
+            <Skeleton className="h-72 w-full rounded-lg" />
+          </div>
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4 mb-6">
+            <Skeleton className="h-5 w-52 mb-4" />
+            <Skeleton className="h-56 w-full rounded-lg" />
+          </div>
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4">
+            <Skeleton className="h-5 w-48 mb-4" />
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex gap-4 py-3 border-b border-coffee-50">
+                <Skeleton className="h-4 w-4" />
+                <Skeleton className="h-4 w-44" />
+                <Skeleton className="h-4 w-10 ml-auto" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+            ))}
           </div>
         </PageContainer>
       </MainLayout>
@@ -155,8 +195,7 @@ const SalesReportPage: React.FC = () => {
           />
         </KPIGrid>
 
-        {/* Area Chart - Daily Sales */}
-        <PageSection title="Ventas Diarias" description="Ingresos por día en el período seleccionado">
+        <PageSection title={chartTitleByGranularity[chartGranularity]} description={chartDescByGranularity[chartGranularity]}>
           {dailyChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={dailyChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -210,8 +249,38 @@ const SalesReportPage: React.FC = () => {
           )}
         </PageSection>
 
-        {/* Top Productos — pendiente integración */}
-        {/* Top Clientes — pendiente integración */}
+        <PageSection title="Top 10 Productos más vendidos" description="Por unidades vendidas en el período">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-coffee-100">
+                  <th className="text-left py-3 px-4 font-semibold text-coffee-700">#</th>
+                  <th className="text-left py-3 px-4 font-semibold text-coffee-700">Producto</th>
+                  <th className="text-right py-3 px-4 font-semibold text-coffee-700">Unidades</th>
+                  <th className="text-right py-3 px-4 font-semibold text-coffee-700">Ingresos</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topProducts.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="text-center py-8 text-coffee-400">
+                      No hay datos para el período seleccionado
+                    </td>
+                  </tr>
+                ) : (
+                  topProducts.map((p, idx) => (
+                    <tr key={p.name} className="border-b border-coffee-50 hover:bg-coffee-50 transition-colors">
+                      <td className="py-3 px-4 text-coffee-500 font-medium">{idx + 1}</td>
+                      <td className="py-3 px-4 font-medium text-coffee-900">{p.name}</td>
+                      <td className="py-3 px-4 text-right text-coffee-700">{p.qty}</td>
+                      <td className="py-3 px-4 text-right font-semibold text-coffee-800">{formatCurrency(p.revenue)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </PageSection>
       </PageContainer>
     </MainLayout>
   );
