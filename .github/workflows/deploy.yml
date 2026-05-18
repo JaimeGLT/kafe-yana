@@ -1,0 +1,14 @@
+﻿name: Deploy Frontend
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Deploy
+        shell: powershell
+        run: |
+          PowerShell -ExecutionPolicy Bypass -File "C:\inetpub\kafeyana\scripts\deploy-frontend.ps1"
