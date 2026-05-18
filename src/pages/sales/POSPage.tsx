@@ -17,8 +17,10 @@ import { useVenta } from '../../hooks/useVenta';
 import { usePOSCart } from '../../hooks/usePOSCart';
 import { usePOSLoyalty } from '../../hooks/usePOSLoyalty';
 import { formatCurrency } from '../../utils';
-import { formatOpcionLabel, formatOpcionLabelString } from '../../utils/opcionUtils';
+import { formatOpcionLabel } from '../../utils/opcionUtils';
 import { enviarCatalogo } from '../../utils/comandas';
+import { PrintComandaModal } from '../../components/pos/PrintComandaModal';
+import type { PrintComandaData } from '../../components/pos/PrintComandaModal';
 import { SkeletonMesaGrid, SkeletonCategoryTabs, SkeletonProductScroll, Overlay, ConfirmModal } from '../../components/ui';
 import { MesaCard } from '../../components/pos/MesaCard';
 import { NuevaMesaModal } from '../../components/pos/NuevaMesaModal';
@@ -46,32 +48,6 @@ type DetalleView = 'none' | 'pedido' | 'historial';
 const mesaOrderTotal = (order: any[]) =>
   order.reduce((s, i) => s + i.precioFinal * i.quantity, 0);
 
-const printComanda = (mesaName: string, roundNumber: number, items: any[]) => {
-  const win = window.open('', '_blank', 'width=320,height=500');
-  if (!win) return;
-  const now = new Date().toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
-  const rows = items.map(i => {
-    const nota = i.notes ? `<div style="font-size:10px;color:#555;padding-left:8px">↳ ${i.notes}</div>` : '';
-    const opciones = i.opciones?.map((o: any) => `<div style="font-size:10px;color:#555;padding-left:8px">· ${formatOpcionLabelString(o)}</div>`).join('') ?? '';
-    return `<div style="margin-bottom:6px"><strong>${i.quantity}×</strong> ${i.product.name}${opciones}${nota}</div>`;
-  }).join('');
-  win.document.write(`
-    <html><body style="font-family:monospace;font-size:13px;padding:16px;max-width:300px">
-      <div style="text-align:center;border-bottom:2px dashed #000;padding-bottom:8px;margin-bottom:8px">
-        <strong style="font-size:16px">${mesaName}</strong><br/>
-        <span>Ronda #${roundNumber} · ${now}</span>
-      </div>
-      ${rows}
-      <div style="border-top:2px dashed #000;margin-top:8px;padding-top:6px;text-align:center;font-size:11px">
-        — COMANDA —
-      </div>
-    </body></html>
-  `);
-  win.document.close();
-  win.focus();
-  win.print();
-  win.close();
-};
 
 function useDragScroll<T extends HTMLElement>() {
   const ref = useRef<T>(null);
@@ -121,6 +97,7 @@ export const POSPage: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
+  const [printComandaData, setPrintComandaData] = useState<PrintComandaData | null>(null);
   const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
   const [comboDetails, setComboDetails] = useState<Record<string, { name: string; quantity: number; emoji: string }[]>>({});
   const [rewards, setRewards] = useState<Reward[]>([]);
@@ -625,31 +602,34 @@ export const POSPage: React.FC = () => {
     setNewCustomerPhone('');
   };
 
-  const handleCreateCustomer = (onCreated: (id: string) => void) => {
+  const handleCreateCustomer = async (onCreated: (id: string) => void) => {
     const name = newCustomerName.trim();
     const phone = newCustomerPhone.trim();
     if (!name || !phone) return;
     setIsCreatingCustomer(true);
-    const id = `cust_${Date.now()}`;
-    const now = new Date();
-    const newCustomer: Customer = {
-      id, nombre: name, celular: phone, puntos: 0, estado: true,
-    };
-    const newProfile = {
-      id: `prof_${Date.now()}`, customerId: id,
-      points: 0, lifetimePoints: 0, purchaseCount: 0,
-      level: 'bronce' as const, referralCode: id.slice(-6).toUpperCase(),
-      referralCount: 0, consecutiveDays: 0,
-      uniqueProductsBought: [], completedMissions: [],
-      createdAt: now, updatedAt: now,
-    };
-    setCustomers(prev => [newCustomer, ...prev]);
-    setLoyaltyProfiles(prev => [...prev, newProfile as any]);
-    onCreated(id);
-    setNewCustomerName('');
-    setNewCustomerPhone('');
-    setIsCreatingCustomer(false);
-    toast.success('Cliente registrado', `${name} añadido correctamente.`);
+    try {
+      const res = await api.post<{ message: string; Id: number }>('/Cliente', {
+        nombre: name,
+        celular: phone,
+        correo: null,
+        dni: null,
+        fecha_nacimiento: null,
+        direccion: null,
+        estado: true,
+      });
+      const id = String(res.Id);
+      const newCustomer: Customer = { id, nombre: name, celular: phone, puntos: 0, estado: true };
+      setCustomers(prev => [newCustomer, ...prev]);
+      onCreated(id);
+      setNewCustomerName('');
+      setNewCustomerPhone('');
+      toast.success('Cliente registrado', `${name} añadido correctamente.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo crear el cliente.';
+      toast.error('Error', message);
+    } finally {
+      setIsCreatingCustomer(false);
+    }
   };
 
   const handleCreateCustomerReview = async (name: string, phone: string, onCreated: (id: string) => void) => {
@@ -783,14 +763,21 @@ export const POSPage: React.FC = () => {
     const mesa = mesas.find(m => m.id === activeMesaId);
     if (!mesa) return;
 
-    const success = await sendToKitchen(activeMesaId, tempCart, printComanda);
+    const itemCount = tempCart.reduce((s, i) => s + i.quantity, 0);
+    const success = await sendToKitchen(
+      activeMesaId,
+      tempCart,
+      (mesaName, roundNumber, _items, rondaDesc, comandaItems) => {
+        setPrintComandaData({ mesaName, roundNumber, rondaDesc, items: comandaItems });
+      },
+    );
     if (!success) return;
 
     clearTempCart();
     setProductSearch('');
     setDetalleView('historial');
     refreshStock();
-    toast.success('🖨️ Comanda enviada', `Ronda ${mesa.currentRound - 1} · ${tempCart.reduce((s, i) => s + i.quantity, 0)} producto(s)`);
+    toast.success('🖨️ Comanda enviada', `Ronda ${mesa.currentRound - 1} · ${itemCount} producto(s)`);
   };
 
   const handleRequestPayment = () => {
@@ -1830,6 +1817,11 @@ export const POSPage: React.FC = () => {
           />
         )}
       </div>
+
+      <PrintComandaModal
+        data={printComandaData}
+        onClose={() => setPrintComandaData(null)}
+      />
     </MainLayout>
   );
 };

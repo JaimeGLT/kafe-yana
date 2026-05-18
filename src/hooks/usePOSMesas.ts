@@ -4,7 +4,6 @@ import { getConnection, startConnection } from '../lib/signalr';
 import { useVenta, type ParaLlevarPedido } from './useVenta';
 import type { CartItem, RondaRecord } from './usePOSCart';
 import type { ProductTipo } from '../types';
-import { enviarPedido } from '../utils/comandas';
 
 function formatearCambios(opciones: RondaCreatedOpcion[] | undefined): string {
   if (!opciones?.length) return '';
@@ -101,7 +100,7 @@ interface UsePOSMesasReturn {
   sendToKitchen: (
     mesaId: string,
     tempCart: CartItem[],
-    printComanda: (mesaName: string, roundNumber: number, items: CartItem[]) => void
+    printComanda: (mesaName: string, roundNumber: number, items: CartItem[], rondaDesc: string, comandaItems: Array<{ cantidad: number; nombre: string; nota: string; ubicacion: string }>) => void
   ) => Promise<boolean>;
   updateMesa: (id: string, patch: Partial<LocalMesa>) => void;
   updateMesaOrder: (mesaId: string, order: CartItem[]) => void;
@@ -547,7 +546,7 @@ export function usePOSMesas(): UsePOSMesasReturn {
   const sendToKitchen = useCallback(async (
     mesaId: string,
     tempCart: CartItem[],
-    printComanda: (mesaName: string, roundNumber: number, items: CartItem[]) => void,
+    printComanda: (mesaName: string, roundNumber: number, items: CartItem[], rondaDesc: string, comandaItems: Array<{ cantidad: number; nombre: string; nota: string; ubicacion: string }>) => void,
   ): Promise<boolean> => {
     if (!tempCart.length) return false;
     const allMesas = [...mesas, ...paraLlevarOrders];
@@ -556,61 +555,62 @@ export function usePOSMesas(): UsePOSMesasReturn {
     const round = mesa.currentRound;
 
     setIsSendingToKitchen(true);
-    let success = true;
+    let success = false;
 
-    const detalles = tempCart.map(i => ({
-      id_Producto: parseInt(i.product.id, 10),
-      cantidad: i.quantity,
-      ids_Opcion: i.opciones?.map(o => Number(o.opcionId)).filter(id => !isNaN(id)) ?? [],
-    }));
+    try {
+      const detalles = tempCart.map(i => ({
+        id_Producto: parseInt(i.product.id, 10),
+        cantidad: i.quantity,
+        ids_Opcion: i.opciones?.map(o => Number(o.opcionId)).filter(id => !isNaN(id)) ?? [],
+      }));
 
-    let rondaResponse: RondaCreatedResponse | null = null;
+      let rondaResponse: RondaCreatedResponse | null = null;
 
-    if (mesaId.startsWith('pl_')) {
-      const pedidoId = (mesa as LocalMesa).pedidoId;
-      if (!pedidoId) {
-        setIsSendingToKitchen(false);
-        return false;
+      if (mesaId.startsWith('pl_')) {
+        const pedidoId = (mesa as LocalMesa).pedidoId;
+        if (!pedidoId) return false;
+        rondaResponse = await crearRondaParaLlevar(pedidoId, detalles);
+      } else {
+        rondaResponse = await apiCrearRonda(mesaId, detalles);
       }
-      rondaResponse = await crearRondaParaLlevar(pedidoId, detalles);
-    } else {
-      rondaResponse = await apiCrearRonda(mesaId, detalles);
-    }
 
-    success = rondaResponse !== null;
+      success = rondaResponse !== null;
 
-    if (success && rondaResponse) {
-      const itemsWithRound = tempCart.map(i => ({ ...i, roundNumber: round }));
-      const rondaSubTotal = itemsWithRound.reduce((s, i) => s + i.precioFinal * i.quantity, 0);
+      if (success && rondaResponse) {
+        const itemsWithRound = tempCart.map(i => ({ ...i, roundNumber: round }));
+        const rondaSubTotal = itemsWithRound.reduce((s, i) => s + i.precioFinal * i.quantity, 0);
 
-      const updateFn = (prev: LocalMesa[]) => prev.map(m => {
-        if (m.id !== mesaId) return m;
-        const merged = [...m.order];
-        for (const newItem of itemsWithRound) {
-          const ex = merged.find(i => i.cartKey === newItem.cartKey && i.roundNumber === round);
-          if (ex) ex.quantity += newItem.quantity;
-          else merged.push({ ...newItem });
-        }
-        return { ...m, order: merged, currentRound: m.currentRound + 1, roundsSent: [...m.roundsSent, { number: round, sentAt: Date.now(), subTotal: rondaSubTotal }] };
-      });
+        const updateFn = (prev: LocalMesa[]) => prev.map(m => {
+          if (m.id !== mesaId) return m;
+          const merged = [...m.order];
+          for (const newItem of itemsWithRound) {
+            const ex = merged.find(i => i.cartKey === newItem.cartKey && i.roundNumber === round);
+            if (ex) ex.quantity += newItem.quantity;
+            else merged.push({ ...newItem });
+          }
+          return { ...m, order: merged, currentRound: m.currentRound + 1, roundsSent: [...m.roundsSent, { number: round, sentAt: Date.now(), subTotal: rondaSubTotal }] };
+        });
 
-      setMesas(updateFn);
-      setParaLlevarOrders(updateFn);
+        setMesas(updateFn);
+        setParaLlevarOrders(updateFn);
 
-      printComanda(mesa.name, round, itemsWithRound);
+        let comandaItems: Array<{ cantidad: number; nombre: string; nota: string; ubicacion: string }> = [];
+        try { comandaItems = buildComandaFromResponse(rondaResponse); } catch { /* ignorar */ }
 
-      try {
-        await enviarPedido(
-          rondaResponse.nombre_mesa,
-          rondaResponse.ronda.Ronda_Descripcion,
-          buildComandaFromResponse(rondaResponse),
+        printComanda(
+          mesa.name,
+          round,
+          itemsWithRound,
+          rondaResponse.ronda?.Ronda_Descripcion ?? `Ronda #${round}`,
+          comandaItems,
         );
-      } catch {
-        // error de impresión no bloquea el flujo
       }
+    } catch {
+      // error ya manejado en apiCrearRonda con toast
+    } finally {
+      setIsSendingToKitchen(false);
     }
 
-    setIsSendingToKitchen(false);
     return success;
   }, [mesas, paraLlevarOrders, apiCrearRonda, crearRondaParaLlevar]);
 

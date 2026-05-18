@@ -28,12 +28,13 @@ export async function enviarPedido(
   mesa: string,
   ronda: string,
   items: Array<{ cantidad: number; nombre: string; nota: string; ubicacion: string }>,
+  tamaño: 'pequeño' | 'mediano' = 'mediano',
 ): Promise<void> {
   try {
     const res = await fetch(`${PRINT_SERVER}/api/pedido`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mesa, ronda, items }),
+      body: JSON.stringify({ mesa, ronda, items, tamaño }),
     });
     const resultado: Array<{ ok: boolean; destino: string }> = await res.json();
     const fallas = resultado.filter(r => !r.ok);
