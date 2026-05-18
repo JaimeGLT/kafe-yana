@@ -108,7 +108,7 @@ const DashboardPage: React.FC = () => {
           />
           <KPICard
             title="Cajas Abiertas"
-            value={stats.openRegisters}
+            value={stats.openRegisters} 
             icon={<CreditCard className="h-6 w-6" />}
             color="yellow"
             subtitle="Registros activos"
