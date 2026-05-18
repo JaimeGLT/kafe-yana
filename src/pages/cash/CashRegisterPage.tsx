@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { clsx } from 'clsx';
 import {
   Wallet, TrendingUp, TrendingDown, DollarSign,
-  Plus, Minus, Lock, Unlock, Clock, Search,
+  Plus, Minus, Lock, Unlock, Clock, Search, User,
 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
@@ -255,7 +255,7 @@ export const CashRegisterPage: React.FC = () => {
   return (
     <MainLayout>
       <PageContainer>
-        <div className="flex items-start justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center gap-3 mb-1">
               <h1 className="text-2xl font-display font-bold text-coffee-900">{caja.nombre}</h1>
@@ -265,8 +265,14 @@ export const CashRegisterPage: React.FC = () => {
               <Clock className="h-3.5 w-3.5" />
               Abierta el {caja.fechaApertura ? formatDateTime(new Date(caja.fechaApertura)) : '-'}
             </p>
+            {caja.abiertaPor && (
+              <p className="text-sm text-coffee-500 flex items-center gap-1.5">
+                <User className="h-3.5 w-3.5" />
+                Abierta por {caja.abiertaPor}
+              </p>
+            )}
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <Button variant="outline" className="border-green-400 text-green-700 hover:bg-green-50" leftIcon={<Plus className="h-4 w-4" />} onClick={() => openMovementModal('income')}>
               Agregar Ingreso
             </Button>
@@ -286,7 +292,7 @@ export const CashRegisterPage: React.FC = () => {
             { label: 'Total Ventas',   value: formatCurrency(caja.totalVentas),      icon: <DollarSign className="h-5 w-5 text-blue-500" />, bg: 'bg-blue-100',   highlight: false },
             { label: 'Ingresos',       value: formatCurrency(caja.totalIngresos),    icon: <TrendingUp className="h-5 w-5 text-green-500" />,bg: 'bg-green-100',  highlight: false },
             { label: 'Egresos',        value: formatCurrency(caja.totalEgresos),     icon: <TrendingDown className="h-5 w-5 text-red-500" />,bg: 'bg-red-100',    highlight: false },
-            { label: 'Saldo Esperado', value: formatCurrency(caja.saldoEsperado),     icon: <Wallet className="h-5 w-5 text-coffee-700" />,  bg: 'bg-coffee-200', highlight: true  },
+            { label: 'Saldo Esperado', value: formatCurrency(caja.saldoEsperado),    icon: <Wallet className="h-5 w-5 text-coffee-700" />,  bg: 'bg-coffee-200', highlight: true  },
           ].map((kpi) => (
             <div key={kpi.label} className={clsx('bg-white rounded-xl border border-coffee-100 shadow-sm p-4', kpi.highlight && 'ring-2 ring-coffee-300')}>
               <div className={clsx('h-9 w-9 rounded-lg flex items-center justify-center mb-3', kpi.bg)}>{kpi.icon}</div>
@@ -296,11 +302,25 @@ export const CashRegisterPage: React.FC = () => {
           ))}
         </div>
 
+        {/* Desglose de pagos */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            { label: 'Efectivo',  value: formatCurrency(caja.totalEfectivo), color: 'text-green-700',  bg: 'bg-green-50',  border: 'border-green-100' },
+            { label: 'Tarjeta',   value: formatCurrency(caja.totalTarjeta),  color: 'text-blue-700',   bg: 'bg-blue-50',   border: 'border-blue-100'  },
+            { label: 'QR',        value: formatCurrency(caja.totalQr),       color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-100'},
+          ].map((item) => (
+            <div key={item.label} className={clsx('rounded-xl border shadow-sm p-4', item.bg, item.border)}>
+              <p className={clsx('text-xs font-medium mb-0.5', item.color)}>{item.label}</p>
+              <p className={clsx('text-lg font-display font-bold', item.color)}>{item.value}</p>
+            </div>
+          ))}
+        </div>
+
         {/* Movimientos */}
         <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-coffee-100 flex items-center justify-between gap-4">
+          <div className="px-4 sm:px-6 py-4 border-b border-coffee-100 flex flex-col sm:flex-row sm:items-center gap-3">
             <h2 className="font-display font-semibold text-coffee-900 flex-shrink-0">Movimientos</h2>
-            <div className="relative max-w-xs w-full">
+            <div className="relative w-full sm:max-w-xs sm:ml-auto">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-coffee-400" />
               <input
                 type="text"
@@ -311,7 +331,37 @@ export const CashRegisterPage: React.FC = () => {
               />
             </div>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Cards — móvil */}
+          <div className="md:hidden divide-y divide-coffee-100">
+            {filteredMovements.length === 0 ? (
+              <p className="px-4 py-10 text-center text-coffee-400 text-sm">
+                {search ? 'Sin resultados para esa búsqueda' : 'No hay movimientos en esta caja'}
+              </p>
+            ) : (
+              filteredMovements.map((mov) => (
+                <div key={mov.id} className="px-4 py-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <Badge variant={mov.tipo === 'ingreso' ? 'success' : 'danger'} size="sm">
+                        {mov.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}
+                      </Badge>
+                      <span className="text-xs text-coffee-500 truncate">{mov.categoria}</span>
+                    </div>
+                    <p className="text-sm text-coffee-900 truncate">{mov.descripcion}</p>
+                    <p className="text-xs text-coffee-400 mt-0.5">{formatDateTime(new Date(mov.fecha))}</p>
+                    {mov.referencia && <p className="text-xs text-coffee-400">{mov.referencia}</p>}
+                  </div>
+                  <span className={clsx('font-semibold text-sm whitespace-nowrap', mov.tipo === 'ingreso' ? 'text-green-600' : 'text-red-600')}>
+                    {mov.tipo === 'ingreso' ? '+' : '-'}{formatCurrency(mov.monto)}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Tabla — md+ */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="min-w-full divide-y divide-coffee-200">
               <thead className="bg-coffee-50">
                 <tr>
@@ -352,6 +402,7 @@ export const CashRegisterPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          {/* fin tabla md+ */}
         </div>
 
         <CashMovementModal

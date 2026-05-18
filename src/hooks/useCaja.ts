@@ -16,8 +16,11 @@ export interface CajaEstado {
   nombre: string;
   saldoEsperado: number;
   saldoInicial: number;
+  totalEfectivo: number;
   totalEgresos: number;
   totalIngresos: number;
+  totalQr: number;
+  totalTarjeta: number;
   totalVentas: number;
 }
 

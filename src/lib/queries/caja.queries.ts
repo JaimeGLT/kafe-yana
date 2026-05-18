@@ -10,8 +10,11 @@ export const GET_CAJA_ESTADO = `
       nombre
       saldoEsperado
       saldoInicial
+      totalEfectivo
       totalEgresos
       totalIngresos
+      totalQr
+      totalTarjeta
       totalVentas
     }
   }

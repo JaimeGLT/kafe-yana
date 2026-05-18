@@ -277,23 +277,23 @@ export const ProductosCanjeablesPage: React.FC = () => {
   return (
     <MainLayout>
       {/* ═══════════════════════ HERO HEADER ═══════════════════════ */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-coffee-800 via-coffee-700 to-coffee-500 px-8 py-8 mb-6 shadow-coffee-lg">
-        <div className="absolute top-0 right-0 w-72 h-72 bg-coffee-400/20 rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none" />
-        <div className="absolute bottom-0 left-1/2 w-48 h-48 bg-cream-light/10 rounded-full translate-y-1/2 pointer-events-none" />
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-coffee-800 via-coffee-700 to-coffee-500 px-6 py-5 mb-6 shadow-coffee-lg">
+        <div className="absolute top-0 right-0 w-56 h-56 bg-coffee-400/20 rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+        <div className="absolute bottom-0 left-1/2 w-36 h-36 bg-cream-light/10 rounded-full translate-y-1/2 pointer-events-none" />
 
-        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
+        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
-                <Gift className="w-5 h-5 text-yellow-300" />
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+                <Gift className="w-4 h-4 text-yellow-300" />
               </div>
-              <span className="font-accent text-cream-light text-lg">Fidelización</span>
+              <span className="font-accent text-cream-light text-sm">Fidelización</span>
             </div>
-            <h1 className="text-3xl font-display font-black text-white leading-tight mb-1">
+            <h1 className="text-2xl font-display font-black text-white leading-tight mb-1">
               Productos{' '}
               <span className="text-yellow-300">canjeables</span>
             </h1>
-            <p className="text-coffee-200 font-body text-sm">
+            <p className="text-coffee-200 font-body text-xs">
               Define qué productos pueden canjearse con puntos en el punto de venta
             </p>
           </div>
@@ -301,10 +301,11 @@ export const ProductosCanjeablesPage: React.FC = () => {
           <div className="flex items-center gap-3 flex-shrink-0">
             <button
               onClick={openAdd}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-yellow-400 text-coffee-900 font-body font-semibold text-sm hover:bg-yellow-300 shadow-lg hover:shadow-xl transition-all duration-200"
+              className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-yellow-400 text-coffee-900 font-body font-semibold text-sm hover:bg-yellow-300 shadow-lg hover:shadow-xl transition-all duration-200"
             >
               <Plus className="w-4 h-4" />
-              Agregar producto canjeable
+              <span className="hidden sm:inline">Agregar producto canjeable</span>
+              <span className="sm:hidden">Agregar</span>
             </button>
           </div>
         </div>
@@ -356,102 +357,99 @@ export const ProductosCanjeablesPage: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-coffee-50">
-                  <th className="px-5 py-3 text-left text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide">
-                    Producto
-                  </th>
-                  <th className="px-3 py-3 text-left text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide">
-                    Categoría
-                  </th>
-                  <th className="px-3 py-3 text-left text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide">
-                    Puntos
-                  </th>
-                  <th className="px-3 py-3 text-left text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide hidden md:table-cell">
-                    Disponible en
-                  </th>
-                  <th className="px-3 py-3 text-center text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide">
-                    Estado
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-coffee-50">
-                {products.map((p) => (
-                  <tr
-                    key={p.id}
-                    className={clsx(
-                      'transition-colors',
-                      !p.isActive ? 'bg-gray-50/60' : 'hover:bg-coffee-50/40',
-                    )}
-                  >
-                    <td className="px-5 py-4">
-                      <span
-                        className={clsx(
-                          'font-body font-semibold text-sm',
-                          !p.isActive ? 'text-coffee-400' : 'text-coffee-900',
-                        )}
-                      >
+          <>
+            {/* Cards — móvil */}
+            <div className="md:hidden divide-y divide-coffee-50">
+              {products.map((p) => (
+                <div
+                  key={p.id}
+                  className={clsx(
+                    'px-4 py-3 flex items-center justify-between gap-3',
+                    !p.isActive && 'bg-gray-50/60',
+                  )}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <span className={clsx('font-body font-semibold text-sm', !p.isActive ? 'text-coffee-400' : 'text-coffee-900')}>
                         {p.catalogProductName}
                       </span>
-                    </td>
-
-                    <td className="px-3 py-4">
                       <span className="text-xs font-body font-semibold px-2 py-0.5 rounded-full border" style={categoryBadgeStyle(p.catalogProductColor)}>
                         {p.catalogProductCategory}
                       </span>
-                    </td>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-coffee-500">
+                      <span><strong className="text-coffee-800">{p.pointsCost}</strong> pts</span>
+                      <span>·</span>
+                      <span>{AVAILABILITY_LABELS[p.availability]}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Toggle checked={p.isActive} onChange={() => handleToggleActive(p)} disabled={isSaving} />
+                    <button onClick={() => openEdit(p)} className="p-1.5 rounded-lg text-coffee-400 hover:text-coffee-700 hover:bg-coffee-100 transition-colors">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => setDeleteTarget(p)} className="p-1.5 rounded-lg text-coffee-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
 
-                    <td className="px-3 py-4">
-                      <span className="font-display font-bold text-coffee-900 text-sm">
-                        {p.pointsCost}
-                      </span>
-                      <span className="text-xs font-body text-coffee-400 ml-1">pts</span>
-                    </td>
-
-                    <td className="px-3 py-4 hidden md:table-cell">
-                      <span className="text-xs font-body text-coffee-600">
-                        {AVAILABILITY_LABELS[p.availability]}
-                      </span>
-                    </td>
-
-                    <td className="px-3 py-4">
-                      <div className="flex justify-center">
-                        <Toggle
-                          checked={p.isActive}
-                          onChange={() => handleToggleActive(p)}
-                          disabled={isSaving}
-                        />
-                      </div>
-                    </td>
-
-                    <td className="px-3 py-4">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEdit(p)}
-                          className="p-2 rounded-xl text-coffee-400 hover:text-coffee-700 hover:bg-coffee-100 transition-colors"
-                          title="Editar"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setDeleteTarget(p)}
-                          className="p-2 rounded-xl text-coffee-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
+            {/* Tabla — md+ */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-coffee-50">
+                    <th className="px-5 py-3 text-left text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide">Producto</th>
+                    <th className="px-3 py-3 text-left text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide">Categoría</th>
+                    <th className="px-3 py-3 text-left text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide">Puntos</th>
+                    <th className="px-3 py-3 text-left text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide">Disponible en</th>
+                    <th className="px-3 py-3 text-center text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide">Estado</th>
+                    <th className="px-3 py-3 text-right text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide">Acciones</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-coffee-50">
+                  {products.map((p) => (
+                    <tr key={p.id} className={clsx('transition-colors', !p.isActive ? 'bg-gray-50/60' : 'hover:bg-coffee-50/40')}>
+                      <td className="px-5 py-4">
+                        <span className={clsx('font-body font-semibold text-sm', !p.isActive ? 'text-coffee-400' : 'text-coffee-900')}>
+                          {p.catalogProductName}
+                        </span>
+                      </td>
+                      <td className="px-3 py-4">
+                        <span className="text-xs font-body font-semibold px-2 py-0.5 rounded-full border" style={categoryBadgeStyle(p.catalogProductColor)}>
+                          {p.catalogProductCategory}
+                        </span>
+                      </td>
+                      <td className="px-3 py-4">
+                        <span className="font-display font-bold text-coffee-900 text-sm">{p.pointsCost}</span>
+                        <span className="text-xs font-body text-coffee-400 ml-1">pts</span>
+                      </td>
+                      <td className="px-3 py-4">
+                        <span className="text-xs font-body text-coffee-600">{AVAILABILITY_LABELS[p.availability]}</span>
+                      </td>
+                      <td className="px-3 py-4">
+                        <div className="flex justify-center">
+                          <Toggle checked={p.isActive} onChange={() => handleToggleActive(p)} disabled={isSaving} />
+                        </div>
+                      </td>
+                      <td className="px-3 py-4">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => openEdit(p)} className="p-2 rounded-xl text-coffee-400 hover:text-coffee-700 hover:bg-coffee-100 transition-colors" title="Editar">
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => setDeleteTarget(p)} className="p-2 rounded-xl text-coffee-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Eliminar">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 

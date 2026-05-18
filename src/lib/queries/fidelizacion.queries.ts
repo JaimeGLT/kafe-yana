@@ -66,6 +66,72 @@ export const GET_PERMANENT_PROMOTIONS = `
   }
 `;
 
+export const GET_PROMOCIONES_TEMPORADA = `
+  query GetPromocionesTemporada {
+    promocionTemporadas {
+      totalCount
+      nodes {
+        id
+        nombre
+        fechaInicio
+        fechaFin
+        activo
+        productosCanjeables {
+          id_ProductoCanjeable
+          productoCanjeable {
+            id
+            nombreProducto
+            categoria
+            puntos
+            disponible
+            activo
+          }
+        }
+      }
+    }
+  }
+`;
+
+export const GET_HITOS_COMPRA = `
+  query GetHitosCompra {
+    hitosCompra(order: { numeroCompras: ASC }) {
+      totalCount
+      nodes {
+        id
+        numeroCompras
+        id_ProductoCanjeable
+        descripcion
+        icono
+        activo
+        productoCanjeable {
+          id
+          nombreProducto
+          categoria
+          puntos
+          disponible
+          activo
+        }
+      }
+    }
+  }
+`;
+
+export const GET_HISTORIAL_REFERIDOS = `
+  query GetHistorialReferidos {
+    historialReferidos(order: { fecha: DESC }) {
+      totalCount
+      nodes {
+        id
+        nombreReferidor
+        nombreReferido
+        puntosReferidor
+        puntosReferido
+        fecha
+      }
+    }
+  }
+`;
+
 export const GET_VENTAS_CLIENTE = `
   query GetVentasCliente($nombre: String!) {
     ventas(
