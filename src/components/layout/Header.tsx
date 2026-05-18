@@ -48,7 +48,7 @@ export const Header: React.FC = () => {
             </div>
           )}
 
-          <NotificationBell />
+          {user?.rol?.toLowerCase() === 'admin' && <NotificationBell />}
 
           {/* User Menu */}
           <Dropdown

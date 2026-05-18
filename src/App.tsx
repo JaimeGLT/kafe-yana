@@ -76,14 +76,14 @@ function App() {
                 <Route path="/sales/customers" element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><CustomersPage /></ProtectedRoute>} />
                 {/* Fidelización — admin + cajero */}
                 <Route path="/fidelizacion"                          element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><FidelizacionPage /></ProtectedRoute>} />
-                <Route path="/fidelizacion/config"                   element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><ConfiguracionPuntosPage /></ProtectedRoute>} />
-                <Route path="/fidelizacion/productos"                element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><ProductosCanjeablesPage /></ProtectedRoute>} />
-                <Route path="/fidelizacion/notificaciones"           element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><NotificacionesPage /></ProtectedRoute>} />
-                <Route path="/fidelizacion/promociones-permanentes"  element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><PromocionesPermanentesPage /></ProtectedRoute>} />
-                <Route path="/fidelizacion/promociones-temporada"    element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><PromocionesTemporadaPage /></ProtectedRoute>} />
-                <Route path="/fidelizacion/hitos"                    element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><HitosPage /></ProtectedRoute>} />
-                <Route path="/fidelizacion/sorteos"                  element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><SorteosPage /></ProtectedRoute>} />
-                <Route path="/fidelizacion/referidos"                element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><ReferidosPage /></ProtectedRoute>} />
+                <Route path="/fidelizacion/config"                   element={<ProtectedRoute allowedRoles={[ADMIN]}><ConfiguracionPuntosPage /></ProtectedRoute>} />
+                <Route path="/fidelizacion/productos"                element={<ProtectedRoute allowedRoles={[ADMIN]}><ProductosCanjeablesPage /></ProtectedRoute>} />
+                <Route path="/fidelizacion/notificaciones"           element={<ProtectedRoute allowedRoles={[ADMIN]}><NotificacionesPage /></ProtectedRoute>} />
+                <Route path="/fidelizacion/promociones-permanentes"  element={<ProtectedRoute allowedRoles={[ADMIN]}><PromocionesPermanentesPage /></ProtectedRoute>} />
+                <Route path="/fidelizacion/promociones-temporada"    element={<ProtectedRoute allowedRoles={[ADMIN]}><PromocionesTemporadaPage /></ProtectedRoute>} />
+                <Route path="/fidelizacion/hitos"                    element={<ProtectedRoute allowedRoles={[ADMIN]}><HitosPage /></ProtectedRoute>} />
+                <Route path="/fidelizacion/sorteos"                  element={<ProtectedRoute allowedRoles={[ADMIN]}><SorteosPage /></ProtectedRoute>} />
+                <Route path="/fidelizacion/referidos"                element={<ProtectedRoute allowedRoles={[ADMIN]}><ReferidosPage /></ProtectedRoute>} />
 
                 {/* Purchases — solo admin */}
                 <Route path="/purchases/orders"    element={<ProtectedRoute allowedRoles={[ADMIN]}><PurchaseOrdersPage /></ProtectedRoute>} />
