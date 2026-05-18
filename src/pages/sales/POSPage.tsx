@@ -120,6 +120,7 @@ export const POSPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
   const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
   const [comboDetails, setComboDetails] = useState<Record<string, { name: string; quantity: number; emoji: string }[]>>({});
   const [rewards, setRewards] = useState<Reward[]>([]);
@@ -197,6 +198,12 @@ export const POSPage: React.FC = () => {
   } = usePOSMesas();
 
   const { cobrarParaLlevar } = useVenta();
+
+  useEffect(() => {
+    api.get<{ Url: string }>('/Qr')
+      .then(data => setQrImageUrl(data.Url || null))
+      .catch(() => {});
+  }, []);
 
   const loadProducts = useCallback(async () => {
     if (productsLoaded) return;
@@ -645,27 +652,30 @@ export const POSPage: React.FC = () => {
     toast.success('Cliente registrado', `${name} añadido correctamente.`);
   };
 
-  const handleCreateCustomerReview = (name: string, phone: string, onCreated: (id: string) => void) => {
+  const handleCreateCustomerReview = async (name: string, phone: string, onCreated: (id: string) => void) => {
     if (!name || !phone) return;
     setIsCreatingCustomer(true);
-    const id = `cust_${Date.now()}`;
-    const now = new Date();
-    const newCustomer: Customer = {
-      id, nombre: name, celular: phone, puntos: 0, estado: true,
-    };
-    const newProfile = {
-      id: `prof_${Date.now()}`, customerId: id,
-      points: 0, lifetimePoints: 0, purchaseCount: 0,
-      level: 'bronce' as const, referralCode: id.slice(-6).toUpperCase(),
-      referralCount: 0, consecutiveDays: 0,
-      uniqueProductsBought: [], completedMissions: [],
-      createdAt: now, updatedAt: now,
-    };
-    setCustomers(prev => [newCustomer, ...prev]);
-    setLoyaltyProfiles(prev => [...prev, newProfile as any]);
-    onCreated(id);
-    setIsCreatingCustomer(false);
-    toast.success('Cliente registrado', `${name} añadido correctamente.`);
+    try {
+      const res = await api.post<{ message: string; Id: number }>('/Cliente', {
+        nombre: name,
+        celular: phone,
+        correo: null,
+        dni: null,
+        fecha_nacimiento: null,
+        direccion: null,
+        estado: true,
+      });
+      const id = String(res.Id);
+      const newCustomer: Customer = { id, nombre: name, celular: phone, puntos: 0, estado: true };
+      setCustomers(prev => [newCustomer, ...prev]);
+      onCreated(id);
+      toast.success('Cliente registrado', `${name} añadido correctamente.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo crear el cliente.';
+      toast.error('Error', message);
+    } finally {
+      setIsCreatingCustomer(false);
+    }
   };
 
   const handleCreateCustomerCombobox = async (input: CustomerInput): Promise<Customer> => {
@@ -1665,6 +1675,7 @@ export const POSPage: React.FC = () => {
                 selectedClienteId={reviewClienteId ?? ''}
                 onClienteChange={(id) => setReviewClienteId(id || null)}
                 onCreateCustomer={handleCreateCustomerCombobox}
+                qrImageUrl={qrImageUrl}
               />
             </Suspense>
           </Overlay>
@@ -1700,6 +1711,7 @@ export const POSPage: React.FC = () => {
                 reviewNewCustomerPhone={reviewNewCustomerPhone}
                 onReviewNewCustomerNameChange={setReviewNewCustomerName}
                 onReviewNewCustomerPhoneChange={setReviewNewCustomerPhone}
+                qrImageUrl={qrImageUrl}
               />
             </Suspense>
           </Overlay>

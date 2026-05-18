@@ -51,6 +51,7 @@ interface DividirCuentaPanelProps {
   selectedClienteId: string;
   onClienteChange: (id: string) => void;
   onCreateCustomer: (input: CustomerInput) => Promise<Customer>;
+  qrImageUrl?: string | null;
 }
 
 
@@ -69,7 +70,7 @@ function buildIguales(n: number, total: number): CuentaDividida[] {
 
 export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
   mesaName, order, mesaTotal, formatCurrency, onBack, onAllPaid,
-  clientes, selectedClienteId, onClienteChange, onCreateCustomer,
+  clientes, selectedClienteId, onClienteChange, onCreateCustomer, qrImageUrl,
 }) => {
   const [step, setStep] = useState<SplitStep>('modo');
   const [mode, setMode] = useState<SplitMode>('partes_iguales');
@@ -562,6 +563,22 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
                         </p>
                       )}
                       {cashError && <p className="text-xs text-red-500 mt-1">{cashError}</p>}
+                    </div>
+                  )}
+
+                  {payMethod === 'transfer' && (
+                    <div className="flex flex-col items-center gap-2">
+                      {qrImageUrl ? (
+                        <img
+                          src={qrImageUrl}
+                          alt="QR de pago"
+                          className="w-40 h-40 object-contain rounded-xl border border-coffee-200 bg-coffee-50 p-2"
+                        />
+                      ) : (
+                        <div className="w-40 h-40 rounded-xl border-2 border-dashed border-coffee-200 bg-coffee-50 flex items-center justify-center">
+                          <p className="text-xs text-coffee-400 text-center px-3">Sin imagen QR configurada</p>
+                        </div>
+                      )}
                     </div>
                   )}
 
