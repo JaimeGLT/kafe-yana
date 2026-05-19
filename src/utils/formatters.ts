@@ -15,7 +15,8 @@ export function formatCurrency(amount: number): string {
  */
 export function formatDate(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleDateString('es-BO', {
+  const utc = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  return utc.toLocaleDateString('es-BO', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',

@@ -1,81 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { clsx } from 'clsx';
 import { Settings, Zap, TrendingUp, FlaskConical, Save, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
-import { toast } from '../../components/ui/Toast';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type AcceleratorType = 'bonus' | 'multiplier';
-
-interface Accelerator {
-  id: string;
-  name: string;
-  description: string;
-  type: AcceleratorType;
-  value: number;
-  isActive: boolean;
-  // Only for time-based accelerators
-  startTime?: string;  // 'HH:MM'
-  endTime?: string;    // 'HH:MM'
-}
-
-interface PointsConfig {
-  bsPerPoint: number;
-  accelerators: Accelerator[];
-}
-
-// ─── Default config ───────────────────────────────────────────────────────────
-
-const DEFAULT_CONFIG: PointsConfig = {
-  bsPerPoint: 10,
-  accelerators: [
-    {
-      id: 'combo',
-      name: 'Compra con combo',
-      description: 'Al comprar café + comida juntos',
-      type: 'bonus',
-      value: 3,
-      isActive: true,
-    },
-    {
-      id: 'over100',
-      name: 'Compra mayor a Bs. 100',
-      description: 'Cuando el total supera ese monto',
-      type: 'multiplier',
-      value: 2,
-      isActive: true,
-    },
-    {
-      id: 'over70',
-      name: 'Compra mayor a Bs. 70',
-      description: 'Cuando el total supera ese monto',
-      type: 'bonus',
-      value: 2,
-      isActive: false,
-    },
-    {
-      id: 'birthday',
-      name: 'Cumpleaños',
-      description: 'El día del cumpleaños del cliente',
-      type: 'multiplier',
-      value: 3,
-      isActive: true,
-    },
-    {
-      id: 'horas_valle',
-      name: 'Horas valle',
-      description: 'Compras realizadas en el horario de baja afluencia',
-      type: 'bonus',
-      value: 2,
-      isActive: false,
-      startTime: '09:00',
-      endTime: '15:00',
-    },
-  ],
-};
+import { toast as _toast } from '../../components/ui/Toast';
+import { usePuntosConfig, type Accelerator, type AcceleratorType, type PointsConfig } from '../../hooks/usePuntosConfig';
 
 // ─── Simulator logic ──────────────────────────────────────────────────────────
 
@@ -101,8 +31,6 @@ function calculatePoints(
   const { bsPerPoint, accelerators } = config;
   const basePoints = bsPerPoint > 0 ? Math.floor(amount / bsPerPoint) : 0;
 
-  // over100 takes priority: if it's active and the amount qualifies,
-  // over70 is suppressed even if also active (only the better rule applies).
   const over100 = accelerators.find((a) => a.id === 'over100');
   const over100Wins = over100?.isActive && amount > 100;
 
@@ -110,13 +38,12 @@ function calculatePoints(
     if (!acc.isActive) return false;
     if (acc.id === 'birthday') return isBirthday;
     if (acc.id === 'over100') return amount > 100;
-    if (acc.id === 'over70') return !over100Wins && amount > 70; // suppressed when over100 wins
+    if (acc.id === 'over70') return !over100Wins && amount > 70;
     if (acc.id === 'combo') return isCombo;
     if (acc.id === 'horas_valle') return isHorasValle;
     return false;
   };
 
-  // Apply multipliers
   let multipliedPoints = basePoints;
   const breakdown: SimBreakdownItem[] = [];
 
@@ -128,7 +55,6 @@ function calculatePoints(
     }
   }
 
-  // Apply bonuses
   let bonusTotal = 0;
   for (const acc of accelerators.filter((a) => a.type === 'bonus')) {
     if (applies(acc)) {
@@ -137,11 +63,7 @@ function calculatePoints(
     }
   }
 
-  return {
-    basePoints,
-    breakdown,
-    total: multipliedPoints + bonusTotal,
-  };
+  return { basePoints, breakdown, total: multipliedPoints + bonusTotal };
 }
 
 // ─── Subcomponents ────────────────────────────────────────────────────────────
@@ -194,12 +116,9 @@ const AcceleratorRow: React.FC<AcceleratorRowProps> = ({ acc, onToggle, onValue,
           : 'bg-coffee-50 border-coffee-100 opacity-60'
       )}
     >
-      {/* Main row */}
       <div className="flex items-center gap-4 p-4">
-        {/* Toggle */}
         <Toggle checked={acc.isActive} onChange={(v) => onToggle(acc.id, v)} />
 
-        {/* Name + description */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-body font-semibold text-coffee-900 text-sm leading-tight">
@@ -220,7 +139,6 @@ const AcceleratorRow: React.FC<AcceleratorRowProps> = ({ acc, onToggle, onValue,
           </p>
         </div>
 
-        {/* Editable value */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <span className={clsx('text-sm font-body font-semibold', isMult ? 'text-violet-500' : 'text-emerald-500')}>
             {isMult ? '×' : '+'}
@@ -248,7 +166,6 @@ const AcceleratorRow: React.FC<AcceleratorRowProps> = ({ acc, onToggle, onValue,
         </div>
       </div>
 
-      {/* Time range row — only for horas_valle */}
       {hasTime && (
         <div
           className={clsx(
@@ -289,69 +206,63 @@ const AcceleratorRow: React.FC<AcceleratorRowProps> = ({ acc, onToggle, onValue,
   );
 };
 
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+const ConfigSkeleton: React.FC = () => (
+  <div className="space-y-5 animate-pulse">
+    <div className="bg-white rounded-2xl border border-coffee-100 h-40" />
+    <div className="bg-white rounded-2xl border border-coffee-100 h-72" />
+    <div className="bg-white rounded-2xl border border-coffee-100 h-64" />
+  </div>
+);
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export const ConfiguracionPuntosPage: React.FC = () => {
-  const [savedConfig, setSavedConfig] = useState<PointsConfig>(DEFAULT_CONFIG);
-  const [config, setConfig] = useState<PointsConfig>(DEFAULT_CONFIG);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const { config, setConfig, isLoading, isSaving, isDirty, save } = usePuntosConfig();
 
-  // Simulator
-  const [simAmount, setSimAmount] = useState(50);
-  const [simIsCombo, setSimIsCombo] = useState(false);
-  const [simIsBirthday, setSimIsBirthday] = useState(false);
-  const [simIsHorasValle, setSimIsHorasValle] = useState(false);
-
-  const isDirty = JSON.stringify(config) !== JSON.stringify(savedConfig);
+  const [showConfirmModal, setShowConfirmModal] = React.useState(false);
+  const [simAmount, setSimAmount] = React.useState(50);
+  const [simIsCombo, setSimIsCombo] = React.useState(false);
+  const [simIsBirthday, setSimIsBirthday] = React.useState(false);
+  const [simIsHorasValle, setSimIsHorasValle] = React.useState(false);
 
   const simResult = useMemo(
-    () => calculatePoints(simAmount, simIsCombo, simIsBirthday, simIsHorasValle, config),
+    () => config ? calculatePoints(simAmount, simIsCombo, simIsBirthday, simIsHorasValle, config) : null,
     [simAmount, simIsCombo, simIsBirthday, simIsHorasValle, config]
   );
 
-  // ── Handlers ────────────────────────────────────────────────────────────────
-
   const handleToggle = (id: string, v: boolean) =>
-    setConfig((prev) => ({
+    setConfig((prev) => prev ? ({
       ...prev,
       accelerators: prev.accelerators.map((a) => (a.id === id ? { ...a, isActive: v } : a)),
-    }));
+    }) : prev);
 
   const handleValue = (id: string, v: number) =>
-    setConfig((prev) => ({
+    setConfig((prev) => prev ? ({
       ...prev,
       accelerators: prev.accelerators.map((a) => (a.id === id ? { ...a, value: v } : a)),
-    }));
+    }) : prev);
 
   const handleTimeChange = (id: string, field: 'startTime' | 'endTime', v: string) =>
-    setConfig((prev) => ({
+    setConfig((prev) => prev ? ({
       ...prev,
       accelerators: prev.accelerators.map((a) => (a.id === id ? { ...a, [field]: v } : a)),
-    }));
+    }) : prev);
 
-  const handleConfirmSave = () => {
-    setIsSaving(true);
-    setTimeout(() => {
-      setSavedConfig(config);
-      setIsSaving(false);
-      setShowConfirmModal(false);
-      toast.success('Configuración guardada');
-    }, 800);
+  const handleConfirmSave = async () => {
+    await save();
+    setShowConfirmModal(false);
   };
-
-  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <MainLayout>
       {/* ═══════════════════════ HERO HEADER ═══════════════════════ */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-coffee-800 via-coffee-700 to-coffee-500 px-8 py-8 mb-6 shadow-coffee-lg">
-        {/* Decorative blobs */}
         <div className="absolute top-0 right-0 w-72 h-72 bg-coffee-400/20 rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none" />
         <div className="absolute bottom-0 left-1/2 w-48 h-48 bg-cream-light/10 rounded-full translate-y-1/2 pointer-events-none" />
 
         <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
-          {/* Title */}
           <div>
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
@@ -368,14 +279,13 @@ export const ConfiguracionPuntosPage: React.FC = () => {
             </p>
           </div>
 
-          {/* Save button */}
           <div className="flex-shrink-0">
             <button
               onClick={() => setShowConfirmModal(true)}
-              disabled={!isDirty}
+              disabled={!isDirty || isLoading}
               className={clsx(
                 'flex items-center gap-2 px-5 py-2.5 rounded-2xl font-body font-semibold text-sm transition-all duration-200',
-                isDirty
+                isDirty && !isLoading
                   ? 'bg-yellow-400 text-coffee-900 hover:bg-yellow-300 shadow-lg hover:shadow-xl'
                   : 'bg-white/10 text-white/40 cursor-not-allowed border border-white/20'
               )}
@@ -387,238 +297,226 @@ export const ConfiguracionPuntosPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="space-y-5">
-        {/* ═══════════════════════ SECCIÓN 1: REGLA BASE ═══════════════════════ */}
-        <div className="bg-white rounded-2xl border border-coffee-100 shadow-coffee overflow-hidden">
-          {/* Card header */}
-          <div className="px-5 py-3.5 border-b border-coffee-50 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-coffee-500" />
-              <h2 className="font-display font-semibold text-coffee-900">
-                Regla base de acumulación
-              </h2>
-            </div>
-            <span className="flex items-center gap-1 text-xs font-body bg-green-100 text-green-700 font-bold px-2.5 py-0.5 rounded-full">
-              <CheckCircle className="w-3 h-3" />
-              Activa
-            </span>
-          </div>
-
-          <div className="p-5">
-            <div className="max-w-md">
-              <p className="text-sm font-body text-coffee-600 mb-4">
-                Por cada{' '}
-                <span className="font-bold text-coffee-900">Bs.</span>{' '}
-                _____ el cliente gana 1 punto
-              </p>
-
-              {/* Input row */}
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-body font-semibold text-coffee-600">Bs.</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={1000}
-                  step={1}
-                  value={config.bsPerPoint}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value, 10);
-                    if (!isNaN(v) && v > 0)
-                      setConfig((prev) => ({ ...prev, bsPerPoint: v }));
-                  }}
-                  className="w-24 text-center rounded-xl border border-coffee-200 px-3 py-2 text-xl font-display font-bold text-coffee-900 focus:outline-none focus:ring-2 focus:ring-coffee-400 focus:border-coffee-400 transition-colors"
-                />
-                <span className="text-sm font-body font-semibold text-coffee-600">= 1 punto</span>
-              </div>
-
-              {/* Helper */}
-              <p className="mt-3 text-xs font-body text-coffee-400 bg-coffee-50 px-3 py-2 rounded-xl border border-coffee-100">
-                Ejemplo: si pones{' '}
-                <strong className="text-coffee-700">{config.bsPerPoint}</strong>, una compra de Bs.{' '}
-                <strong className="text-coffee-700">{config.bsPerPoint * 5}</strong> genera{' '}
-                <strong className="text-coffee-700">5 puntos</strong>
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* ═══════════════════════ SECCIÓN 2: ACELERADORES ═══════════════════════ */}
-        <div className="bg-white rounded-2xl border border-coffee-100 shadow-coffee overflow-hidden">
-          {/* Card header */}
-          <div className="px-5 py-3.5 border-b border-coffee-50 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-yellow-500" />
-              <div>
+      {isLoading || !config || !simResult ? (
+        <ConfigSkeleton />
+      ) : (
+        <div className="space-y-5">
+          {/* ═══════════════════════ SECCIÓN 1: REGLA BASE ═══════════════════════ */}
+          <div className="bg-white rounded-2xl border border-coffee-100 shadow-coffee overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-coffee-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-coffee-500" />
                 <h2 className="font-display font-semibold text-coffee-900">
-                  Aceleradores de puntos
+                  Regla base de acumulación
                 </h2>
-                <p className="text-xs font-body text-coffee-400 mt-0.5">
-                  Condiciones especiales que multiplican o suman puntos extra
+              </div>
+              <span className="flex items-center gap-1 text-xs font-body bg-green-100 text-green-700 font-bold px-2.5 py-0.5 rounded-full">
+                <CheckCircle className="w-3 h-3" />
+                Activa
+              </span>
+            </div>
+
+            <div className="p-5">
+              <div className="max-w-md">
+                <p className="text-sm font-body text-coffee-600 mb-4">
+                  Por cada{' '}
+                  <span className="font-bold text-coffee-900">Bs.</span>{' '}
+                  _____ el cliente gana 1 punto
                 </p>
-              </div>
-            </div>
-            {/* Legend */}
-            <div className="hidden sm:flex items-center gap-3 text-xs font-body">
-              <div className="flex items-center gap-1">
-                <span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-bold border border-violet-200">×N</span>
-                <span className="text-coffee-400">Multiplica</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold border border-emerald-200">+N</span>
-                <span className="text-coffee-400">Suma extra</span>
-              </div>
-            </div>
-          </div>
 
-          <div className="p-5 space-y-3">
-            {config.accelerators.map((acc) => (
-              <AcceleratorRow
-                key={acc.id}
-                acc={acc}
-                onToggle={handleToggle}
-                onValue={handleValue}
-                onTimeChange={handleTimeChange}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* ═══════════════════════ SECCIÓN 3: SIMULADOR ═══════════════════════ */}
-        <div className="bg-white rounded-2xl border border-coffee-100 shadow-coffee overflow-hidden">
-          {/* Card header */}
-          <div className="px-5 py-3.5 border-b border-coffee-50 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FlaskConical className="w-4 h-4 text-coffee-500" />
-              <div>
-                <h2 className="font-display font-semibold text-coffee-900">Simulador</h2>
-                <p className="text-xs font-body text-coffee-400 mt-0.5">
-                  Prueba cómo quedaría la acumulación con los valores actuales
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-5">
-            {/* Inputs row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-              {/* Monto */}
-              <div>
-                <label className="block text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide mb-1.5">
-                  Monto de la compra
-                </label>
-                <div className="flex items-center gap-2 rounded-xl border border-coffee-200 px-3 py-2.5 focus-within:ring-2 focus-within:ring-coffee-400 focus-within:border-coffee-400 transition-colors">
-                  <span className="text-sm font-body font-semibold text-coffee-500">Bs.</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-body font-semibold text-coffee-600">Bs.</span>
                   <input
                     type="number"
-                    min={0}
-                    step={5}
-                    value={simAmount}
+                    min={1}
+                    max={1000}
+                    step={1}
+                    value={config.bsPerPoint}
                     onChange={(e) => {
-                      const v = parseFloat(e.target.value);
-                      if (!isNaN(v) && v >= 0) setSimAmount(v);
+                      const v = parseInt(e.target.value, 10);
+                      if (!isNaN(v) && v > 0)
+                        setConfig((prev) => prev ? { ...prev, bsPerPoint: v } : prev);
                     }}
-                    className="flex-1 min-w-0 text-sm font-display font-bold text-coffee-900 focus:outline-none bg-transparent"
+                    className="w-24 text-center rounded-xl border border-coffee-200 px-3 py-2 text-xl font-display font-bold text-coffee-900 focus:outline-none focus:ring-2 focus:ring-coffee-400 focus:border-coffee-400 transition-colors"
                   />
+                  <span className="text-sm font-body font-semibold text-coffee-600">= 1 punto</span>
+                </div>
+
+                <p className="mt-3 text-xs font-body text-coffee-400 bg-coffee-50 px-3 py-2 rounded-xl border border-coffee-100">
+                  Ejemplo: si pones{' '}
+                  <strong className="text-coffee-700">{config.bsPerPoint}</strong>, una compra de Bs.{' '}
+                  <strong className="text-coffee-700">{config.bsPerPoint * 5}</strong> genera{' '}
+                  <strong className="text-coffee-700">5 puntos</strong>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* ═══════════════════════ SECCIÓN 2: ACELERADORES ═══════════════════════ */}
+          <div className="bg-white rounded-2xl border border-coffee-100 shadow-coffee overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-coffee-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-yellow-500" />
+                <div>
+                  <h2 className="font-display font-semibold text-coffee-900">
+                    Aceleradores de puntos
+                  </h2>
+                  <p className="text-xs font-body text-coffee-400 mt-0.5">
+                    Condiciones especiales que multiplican o suman puntos extra
+                  </p>
                 </div>
               </div>
-
-              {/* Combo */}
-              <div>
-                <label className="block text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide mb-1.5">
-                  ¿Es combo?
-                </label>
-                <div className="flex items-center gap-3 rounded-xl border border-coffee-200 px-3 py-2.5">
-                  <Toggle checked={simIsCombo} onChange={setSimIsCombo} />
-                  <span className="text-sm font-body font-semibold text-coffee-700">
-                    {simIsCombo ? 'Sí' : 'No'}
-                  </span>
+              <div className="hidden sm:flex items-center gap-3 text-xs font-body">
+                <div className="flex items-center gap-1">
+                  <span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-bold border border-violet-200">×N</span>
+                  <span className="text-coffee-400">Multiplica</span>
                 </div>
-              </div>
-
-              {/* Birthday */}
-              <div>
-                <label className="block text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide mb-1.5">
-                  ¿Es cumpleaños?
-                </label>
-                <div className="flex items-center gap-3 rounded-xl border border-coffee-200 px-3 py-2.5">
-                  <Toggle checked={simIsBirthday} onChange={setSimIsBirthday} />
-                  <span className="text-sm font-body font-semibold text-coffee-700">
-                    {simIsBirthday ? 'Sí' : 'No'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Horas valle */}
-              <div>
-                <label className="block text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide mb-1.5">
-                  ¿Hora valle?
-                </label>
-                <div className="flex items-center gap-3 rounded-xl border border-coffee-200 px-3 py-2.5">
-                  <Toggle checked={simIsHorasValle} onChange={setSimIsHorasValle} />
-                  <span className="text-sm font-body font-semibold text-coffee-700">
-                    {simIsHorasValle ? 'Sí' : 'No'}
-                  </span>
+                <div className="flex items-center gap-1">
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold border border-emerald-200">+N</span>
+                  <span className="text-coffee-400">Suma extra</span>
                 </div>
               </div>
             </div>
 
-            {/* Result */}
-            <div className="rounded-2xl bg-gradient-to-br from-coffee-800 to-coffee-600 p-5 text-white">
-              <div className="space-y-2.5">
-                {/* Base */}
-                <div className="flex items-center justify-between text-sm font-body">
-                  <span className="text-coffee-200">Puntos base</span>
-                  <span className="font-display font-bold text-white">{simResult.basePoints}</span>
+            <div className="p-5 space-y-3">
+              {config.accelerators.map((acc) => (
+                <AcceleratorRow
+                  key={acc.apiId}
+                  acc={acc}
+                  onToggle={handleToggle}
+                  onValue={handleValue}
+                  onTimeChange={handleTimeChange}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* ═══════════════════════ SECCIÓN 3: SIMULADOR ═══════════════════════ */}
+          <div className="bg-white rounded-2xl border border-coffee-100 shadow-coffee overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-coffee-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FlaskConical className="w-4 h-4 text-coffee-500" />
+                <div>
+                  <h2 className="font-display font-semibold text-coffee-900">Simulador</h2>
+                  <p className="text-xs font-body text-coffee-400 mt-0.5">
+                    Prueba cómo quedaría la acumulación con los valores actuales
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+                <div>
+                  <label className="block text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide mb-1.5">
+                    Monto de la compra
+                  </label>
+                  <div className="flex items-center gap-2 rounded-xl border border-coffee-200 px-3 py-2.5 focus-within:ring-2 focus-within:ring-coffee-400 focus-within:border-coffee-400 transition-colors">
+                    <span className="text-sm font-body font-semibold text-coffee-500">Bs.</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={5}
+                      value={simAmount}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value);
+                        if (!isNaN(v) && v >= 0) setSimAmount(v);
+                      }}
+                      className="flex-1 min-w-0 text-sm font-display font-bold text-coffee-900 focus:outline-none bg-transparent"
+                    />
+                  </div>
                 </div>
 
-                {/* Breakdown */}
-                {simResult.breakdown.map((item, i) => (
-                  <div key={i} className="flex items-center justify-between text-sm font-body">
-                    <span className="text-coffee-300 text-xs flex items-center gap-1">
-                      <span
-                        className={clsx(
-                          'inline-flex px-1.5 py-0.5 rounded text-xs font-bold',
-                          item.type === 'multiplier'
-                            ? 'bg-violet-500/30 text-violet-200'
-                            : 'bg-emerald-500/30 text-emerald-200'
-                        )}
-                      >
-                        {item.type === 'multiplier' ? '×' : '+'}
-                      </span>
-                      {item.label}
-                    </span>
-                    <span
-                      className={clsx(
-                        'font-display font-bold',
-                        item.type === 'multiplier' ? 'text-violet-300' : 'text-emerald-300'
-                      )}
-                    >
-                      +{item.value}
+                <div>
+                  <label className="block text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide mb-1.5">
+                    ¿Es combo?
+                  </label>
+                  <div className="flex items-center gap-3 rounded-xl border border-coffee-200 px-3 py-2.5">
+                    <Toggle checked={simIsCombo} onChange={setSimIsCombo} />
+                    <span className="text-sm font-body font-semibold text-coffee-700">
+                      {simIsCombo ? 'Sí' : 'No'}
                     </span>
                   </div>
-                ))}
+                </div>
 
-                {/* Divider */}
-                <div className="border-t border-white/20 pt-2.5 mt-1" />
+                <div>
+                  <label className="block text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide mb-1.5">
+                    ¿Es cumpleaños?
+                  </label>
+                  <div className="flex items-center gap-3 rounded-xl border border-coffee-200 px-3 py-2.5">
+                    <Toggle checked={simIsBirthday} onChange={setSimIsBirthday} />
+                    <span className="text-sm font-body font-semibold text-coffee-700">
+                      {simIsBirthday ? 'Sí' : 'No'}
+                    </span>
+                  </div>
+                </div>
 
-                {/* Total */}
-                <div className="flex items-center justify-between">
-                  <span className="font-body font-semibold text-coffee-100">Total de puntos</span>
-                  <span className="font-display font-black text-3xl text-yellow-300">
-                    {simResult.total}
-                  </span>
+                <div>
+                  <label className="block text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide mb-1.5">
+                    ¿Hora valle?
+                  </label>
+                  <div className="flex items-center gap-3 rounded-xl border border-coffee-200 px-3 py-2.5">
+                    <Toggle checked={simIsHorasValle} onChange={setSimIsHorasValle} />
+                    <span className="text-sm font-body font-semibold text-coffee-700">
+                      {simIsHorasValle ? 'Sí' : 'No'}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {simResult.total === 0 && simAmount > 0 && (
-                <p className="mt-3 text-xs font-body text-coffee-300 text-center">
-                  Con Bs. {simAmount} no se genera ningún punto (mínimo Bs. {config.bsPerPoint})
-                </p>
-              )}
+              <div className="rounded-2xl bg-gradient-to-br from-coffee-800 to-coffee-600 p-5 text-white">
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between text-sm font-body">
+                    <span className="text-coffee-200">Puntos base</span>
+                    <span className="font-display font-bold text-white">{simResult.basePoints}</span>
+                  </div>
+
+                  {simResult.breakdown.map((item, i) => (
+                    <div key={i} className="flex items-center justify-between text-sm font-body">
+                      <span className="text-coffee-300 text-xs flex items-center gap-1">
+                        <span
+                          className={clsx(
+                            'inline-flex px-1.5 py-0.5 rounded text-xs font-bold',
+                            item.type === 'multiplier'
+                              ? 'bg-violet-500/30 text-violet-200'
+                              : 'bg-emerald-500/30 text-emerald-200'
+                          )}
+                        >
+                          {item.type === 'multiplier' ? '×' : '+'}
+                        </span>
+                        {item.label}
+                      </span>
+                      <span
+                        className={clsx(
+                          'font-display font-bold',
+                          item.type === 'multiplier' ? 'text-violet-300' : 'text-emerald-300'
+                        )}
+                      >
+                        +{item.value}
+                      </span>
+                    </div>
+                  ))}
+
+                  <div className="border-t border-white/20 pt-2.5 mt-1" />
+
+                  <div className="flex items-center justify-between">
+                    <span className="font-body font-semibold text-coffee-100">Total de puntos</span>
+                    <span className="font-display font-black text-3xl text-yellow-300">
+                      {simResult.total}
+                    </span>
+                  </div>
+                </div>
+
+                {simResult.total === 0 && simAmount > 0 && (
+                  <p className="mt-3 text-xs font-body text-coffee-300 text-center">
+                    Con Bs. {simAmount} no se genera ningún punto (mínimo Bs. {config.bsPerPoint})
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ═══════════════════════ CONFIRM MODAL ═══════════════════════ */}
       <Modal

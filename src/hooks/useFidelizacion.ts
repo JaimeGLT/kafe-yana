@@ -2,7 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { gql } from '../lib/graphql';
 import { api } from '../lib/api';
 import { GET_CLIENTES, GET_CLIENTES_SEARCH } from '../lib/queries/clientes.queries';
-import { GET_PRODUCTOS_CANJEABLES, GET_VENTAS_CLIENTE } from '../lib/queries/fidelizacion.queries';
+import {
+  GET_PRODUCTOS_CANJEABLES,
+  GET_VENTAS_CLIENTE,
+  GET_HISTORIAL_PUNTOS,
+  GET_PROMOCIONES_PERMANENTES,
+  GET_PROMOCIONES_TEMPORADA,
+} from '../lib/queries/fidelizacion.queries';
 import type { Customer, CustomerInput } from '../types';
 
 export interface ProductoCanjeable {
@@ -29,6 +35,47 @@ export interface VentaResumen {
   total: number;
   cliente: string;
   detalles: VentaDetalle[];
+}
+
+export interface HistorialPuntosItem {
+  id: number;
+  id_Cliente: number;
+  codigoVenta: string;
+  puntosBase: number;
+  puntosFinales: number;
+  desglose: string | null;
+  fecha: string;
+}
+
+export interface PromocionPermanenteApi {
+  id: number;
+  nombre: string;
+  descripcion: string;
+  tipoCondicion: string;
+  valorCondicion: number;
+  tipoRecompensa: string;
+  valorRecompensa: number;
+  activo: boolean;
+  id_ProductoCanjeable: number | null;
+}
+
+export interface PromocionTemporadaApi {
+  id: number;
+  nombre: string;
+  fechaInicio: string;
+  fechaFin: string;
+  activo: boolean;
+  productosCanjeables: Array<{
+    id_ProductoCanjeable: number;
+    productoCanjeable: {
+      id: number;
+      nombreProducto: string;
+      categoria: string;
+      puntos: number;
+      disponible: string;
+      activo: boolean;
+    };
+  }>;
 }
 
 interface ClienteNode {
@@ -61,8 +108,12 @@ export function useFidelizacion() {
   const [clientes, setClientes] = useState<Customer[]>([]);
   const [productosCanjeables, setProductosCanjeables] = useState<ProductoCanjeable[]>([]);
   const [ventasCliente, setVentasCliente] = useState<VentaResumen[]>([]);
+  const [historialPuntos, setHistorialPuntos] = useState<HistorialPuntosItem[]>([]);
+  const [promocionesPermanentes, setPromocionesPermanentes] = useState<PromocionPermanenteApi[]>([]);
+  const [promocionesTemporada, setPromocionesTemporada] = useState<PromocionTemporadaApi[]>([]);
   const [isLoadingClientes, setIsLoadingClientes] = useState(true);
   const [isLoadingVentas, setIsLoadingVentas] = useState(false);
+  const [isLoadingHistorial, setIsLoadingHistorial] = useState(false);
   const [searchResults, setSearchResults] = useState<Customer[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
@@ -87,6 +138,19 @@ export function useFidelizacion() {
     }
   }, []);
 
+  const loadPromociones = useCallback(async () => {
+    try {
+      const [permData, tempData] = await Promise.all([
+        gql<{ promocionPermanentes: { nodes: PromocionPermanenteApi[] } }>(GET_PROMOCIONES_PERMANENTES),
+        gql<{ promocionTemporadas: { nodes: PromocionTemporadaApi[] } }>(GET_PROMOCIONES_TEMPORADA),
+      ]);
+      setPromocionesPermanentes(permData.promocionPermanentes.nodes);
+      setPromocionesTemporada(tempData.promocionTemporadas.nodes);
+    } catch (e) {
+      console.error('Error loading promociones:', e);
+    }
+  }, []);
+
   const fetchVentasCliente = useCallback(async (clienteNombre: string) => {
     if (!clienteNombre) return;
     setIsLoadingVentas(true);
@@ -101,6 +165,22 @@ export function useFidelizacion() {
       console.error('Error loading ventas cliente:', e);
     } finally {
       setIsLoadingVentas(false);
+    }
+  }, []);
+
+  const fetchHistorialPuntos = useCallback(async (clienteId: number) => {
+    setIsLoadingHistorial(true);
+    setHistorialPuntos([]);
+    try {
+      const data = await gql<{ historialPuntos: { nodes: HistorialPuntosItem[] } }>(
+        GET_HISTORIAL_PUNTOS,
+        { clienteId },
+      );
+      setHistorialPuntos(data.historialPuntos.nodes);
+    } catch (e) {
+      console.error('Error loading historial puntos:', e);
+    } finally {
+      setIsLoadingHistorial(false);
     }
   }, []);
 
@@ -129,18 +209,24 @@ export function useFidelizacion() {
   useEffect(() => {
     loadClientes();
     loadProductosCanjeables();
-  }, [loadClientes, loadProductosCanjeables]);
+    loadPromociones();
+  }, [loadClientes, loadProductosCanjeables, loadPromociones]);
 
   return {
     clientes,
     productosCanjeables,
     ventasCliente,
+    historialPuntos,
+    promocionesPermanentes,
+    promocionesTemporada,
     isLoadingClientes,
     isLoadingVentas,
+    isLoadingHistorial,
     searchResults,
     isSearching,
     refreshClientes: loadClientes,
     fetchVentasCliente,
+    fetchHistorialPuntos,
     searchClientes,
     createCliente,
   };

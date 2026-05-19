@@ -46,21 +46,39 @@ export const GET_PRODUCTOS_SELECTOR = `
   }
 `;
 
-export const GET_PERMANENT_PROMOTIONS = `
-  query GetPermanentPromotions {
-    permanentPromotions {
+export const GET_PROMOCIONES_PERMANENTES = `
+  query GetPromocionPermanentes {
+    promocionPermanentes(first: 100) {
       nodes {
         id
-        name
-        description
-        isActive
-        conditionType
-        conditionValue
-        rewardType
-        rewardValue
-        productId
-        createdAt
-        updatedAt
+        nombre
+        descripcion
+        tipoCondicion
+        valorCondicion
+        tipoRecompensa
+        valorRecompensa
+        activo
+        id_ProductoCanjeable
+      }
+    }
+  }
+`;
+
+export const GET_HISTORIAL_PUNTOS = `
+  query GetHistorialPuntos($clienteId: Int!) {
+    historialPuntos(
+      first: 100
+      where: { id_Cliente: { eq: $clienteId } }
+      order: [{ fecha: DESC }]
+    ) {
+      nodes {
+        id
+        id_Cliente
+        codigoVenta
+        puntosBase
+        puntosFinales
+        desglose
+        fecha
       }
     }
   }
