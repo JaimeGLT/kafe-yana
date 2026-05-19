@@ -178,16 +178,16 @@ export const HitosPage: React.FC = () => {
       }
       setShowModal(false);
       setEditingHito(null);
-    } catch {
-      toast.error('Error al guardar el hito');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al guardar el hito');
     }
   };
 
   const handleToggle = useCallback(async (hito: HitoCompra) => {
     try {
       await toggle(hito.id);
-    } catch {
-      toast.error('Error al cambiar estado');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al cambiar estado');
     }
   }, [toggle]);
 
@@ -195,8 +195,8 @@ export const HitosPage: React.FC = () => {
     try {
       await remove(hito.id);
       toast.success('Hito eliminado', `${hito.numeroCompras} compras`);
-    } catch {
-      toast.error('Error al eliminar el hito');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al eliminar el hito');
     }
   };
 
