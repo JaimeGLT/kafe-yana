@@ -19,7 +19,7 @@ import type { Insumo, Receta } from '../../types';
 import { formatCurrency } from '../../utils';
 
 const InsumosPage: React.FC = () => {
-  const { page, pageSize, search, debouncedSearch, cursors, setPage, setSearch, setCursors } = usePagination({ pageSize: 15 });
+  const { page, pageSize, search, debouncedSearch, cursors, maxReachablePage, setPage, setSearch, setCursors } = usePagination({ pageSize: 15 });
   const [cursorsRef] = useState(() => ({ current: {} as Record<number, string> }));
 
   const [insumos, setInsumos] = useState<Insumo[]>([]);
@@ -361,6 +361,7 @@ const InsumosPage: React.FC = () => {
           page={page}
           pageSize={pageSize}
           onPageChange={setPage}
+          maxPage={maxReachablePage}
           isLoading={loading}
         />
       </PageContainer>

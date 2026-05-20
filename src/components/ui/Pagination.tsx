@@ -11,6 +11,7 @@ interface PaginationProps {
   onPageSizeChange?: (size: number) => void;
   pageSizeOptions?: number[];
   isLoading?: boolean;
+  maxPage?: number;
 }
 
 const DEFAULT_PAGE_SIZES = [5, 15, 25, 50];
@@ -23,6 +24,7 @@ export const Pagination: React.FC<PaginationProps> = ({
   onPageSizeChange,
   pageSizeOptions = DEFAULT_PAGE_SIZES,
   isLoading = false,
+  maxPage,
 }) => {
   const hasPageSizeSelector = onPageSizeChange !== undefined;
 const totalPages = Math.ceil(totalCount / pageSize);
@@ -93,19 +95,27 @@ const totalPages = Math.ceil(totalCount / pageSize);
           p === '...' ? (
             <span key={`ellipsis-${idx}`} className="px-1 text-coffee-400">…</span>
           ) : (
-            <button
-              key={p}
-              onClick={() => onPageChange(p as number)}
-              disabled={isLoading}
-              className={clsx(
-                'w-8 h-8 rounded-lg text-sm font-medium transition-colors',
-                p === page
-                  ? 'bg-coffee-800 text-white'
-                  : 'text-coffee-600 hover:bg-coffee-50 border border-coffee-200'
-              )}
-            >
-              {p}
-            </button>
+            (() => {
+              const isUnreachable = maxPage !== undefined && (p as number) > maxPage;
+              return (
+                <button
+                  key={p}
+                  onClick={() => !isUnreachable && onPageChange(p as number)}
+                  disabled={isLoading || isUnreachable}
+                  title={isUnreachable ? 'Navega secuencialmente para llegar a esta página' : undefined}
+                  className={clsx(
+                    'w-8 h-8 rounded-lg text-sm font-medium transition-colors',
+                    p === page
+                      ? 'bg-coffee-800 text-white'
+                      : isUnreachable
+                        ? 'text-coffee-200 border border-coffee-100 cursor-not-allowed'
+                        : 'text-coffee-600 hover:bg-coffee-50 border border-coffee-200'
+                  )}
+                >
+                  {p}
+                </button>
+              );
+            })()
           )
         )}
 

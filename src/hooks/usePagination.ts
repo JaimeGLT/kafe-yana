@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
 export interface UsePaginationOptions {
   pageSize?: number;
@@ -11,6 +11,7 @@ export interface UsePaginationReturn {
   search: string;
   debouncedSearch: string;
   cursors: Record<number, string>;
+  maxReachablePage: number;
   setPage: (page: number) => void;
   setPageSize: (pageSize: number) => void;
   setSearch: (search: string) => void;
@@ -47,12 +48,19 @@ export function usePagination({
   const cursorsRef = useRef<Record<number, string>>({});
   cursorsRef.current = cursors;
 
+  const maxReachablePage = useMemo(() => {
+    let max = 1;
+    while (cursors[max]) max++;
+    return max;
+  }, [cursors]);
+
   return {
     page,
     pageSize,
     search,
     debouncedSearch,
     cursors,
+    maxReachablePage,
     setPage,
     setPageSize,
     setSearch,

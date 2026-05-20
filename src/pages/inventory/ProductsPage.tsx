@@ -67,7 +67,7 @@ interface CompradoDetailResponse {
 // ── Componente ─────────────────────────────────────────────────────────────────
 
 const ProductsPage: React.FC = () => {
-  const { page, pageSize, search, debouncedSearch, cursors, setPage, setSearch, setCursors } = usePagination({ pageSize: 15 });
+  const { page, pageSize, search, debouncedSearch, cursors, maxReachablePage, setPage, setSearch, setCursors } = usePagination({ pageSize: 15 });
   const [category, setCategory] = useState('');
 
   const { products, categories, totalCount, isLoading, endCursor, refresh } = useProductsPage({
@@ -432,6 +432,7 @@ const ProductsPage: React.FC = () => {
               page={page}
               pageSize={pageSize}
               onPageChange={setPage}
+              maxPage={maxReachablePage}
               isLoading={isLoading}
             />
           </div>

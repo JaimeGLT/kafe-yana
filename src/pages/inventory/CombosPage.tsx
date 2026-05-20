@@ -19,7 +19,7 @@ import { formatCurrency } from '../../utils';
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const CombosPage: React.FC = () => {
-  const { page, pageSize, search, debouncedSearch, cursors, setPage, setSearch, setCursors } = usePagination({ pageSize: 15 });
+  const { page, pageSize, search, debouncedSearch, cursors, maxReachablePage, setPage, setSearch, setCursors } = usePagination({ pageSize: 15 });
 
   const [filterStatus, setFilterStatus] = useState('');
   const { combos, products: allProducts, totalCount, isLoading, refresh, endCursor } = useCombosPage({
@@ -242,6 +242,7 @@ const CombosPage: React.FC = () => {
               page={page}
               pageSize={pageSize}
               onPageChange={setPage}
+              maxPage={maxReachablePage}
               isLoading={isLoading}
             />
           </>

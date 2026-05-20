@@ -27,7 +27,7 @@ import type { Product, Receta } from '../../types';
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const ElaboradosPage: React.FC = () => {
-  const { page, pageSize, search, debouncedSearch, cursors, setPage, setSearch, setCursors } = usePagination({ pageSize: 15 });
+  const { page, pageSize, search, debouncedSearch, cursors, maxReachablePage, setPage, setSearch, setCursors } = usePagination({ pageSize: 15 });
 
   const [filterStatus, setFilterStatus] = useState('');
   const { elaborados, recetas, insumos, categorias, totalCount, isLoading, refresh, endCursor } = useElaboradosPage({
@@ -303,6 +303,7 @@ const ElaboradosPage: React.FC = () => {
               page={page}
               pageSize={pageSize}
               onPageChange={setPage}
+              maxPage={maxReachablePage}
               isLoading={isLoading}
             />
           </>

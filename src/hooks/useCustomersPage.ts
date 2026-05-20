@@ -49,6 +49,7 @@ export function useCustomersPage({
   const [endCursor, setEndCursor] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
+    if (page > 1 && !afterCursor) return;
     setIsLoading(true);
     setError(null);
     try {

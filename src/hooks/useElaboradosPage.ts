@@ -99,6 +99,7 @@ export function useElaboradosPage(options: UseElaboradosPageOptions): UseElabora
   const [endCursor, setEndCursor] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
+    if (page > 1 && !afterCursor) return;
     setIsLoading(true);
     try {
       const variables: Record<string, unknown> = { first: pageSize };
