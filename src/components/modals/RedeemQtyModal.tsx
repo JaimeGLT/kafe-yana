@@ -26,7 +26,7 @@ export const RedeemQtyModal: React.FC<RedeemQtyModalProps> = ({
   const remaining = availablePoints - totalPts;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Canjear recompensa" size="sm">
+    <Modal isOpen={isOpen} onClose={onClose} title="Canjear recompensa" size="sm" closeOnOverlay={false}>
       <div className="space-y-4">
         <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
           <ProductImage src={product.image} tipo={product.tipo} size="sm" />

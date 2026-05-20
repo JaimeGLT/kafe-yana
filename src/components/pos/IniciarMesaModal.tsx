@@ -50,7 +50,6 @@ export const IniciarMesaModal: React.FC<IniciarMesaModalProps> = ({
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm"
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
         <div className="bg-coffee-800 px-6 py-5 flex items-center justify-between">

@@ -99,6 +99,7 @@ export const VariacionPickerModal: React.FC<Props> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
+      closeOnOverlay={false}
       title={isRedeem ? `Canjear: ${product.name}` : `Personalizar: ${product.name}`}
       size="md"
     >

@@ -208,7 +208,7 @@ ajusteCantidad: opcion.ajusteCantidad,
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={product.name} size="md">
+    <Modal isOpen={isOpen} onClose={onClose} title={product.name} size="md" closeOnOverlay={false}>
       <div className="space-y-5">
 
         {/* Info header: stock + precio + cantidad */}

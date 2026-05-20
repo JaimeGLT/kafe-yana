@@ -68,7 +68,7 @@ export const PrintComandaModal: React.FC<PrintComandaModalProps> = ({ data, onCl
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40" />
       <div className="relative bg-white w-full sm:max-w-xs rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 space-y-5">
 
         {/* Header */}

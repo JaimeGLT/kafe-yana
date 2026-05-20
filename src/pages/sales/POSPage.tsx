@@ -1089,7 +1089,7 @@ export const POSPage: React.FC = () => {
         )}
 
         {modalView === 'detalle' && activeMesa && (
-          <Overlay onClose={closeAll}>
+          <Overlay>
             <div className="bg-white w-full sm:max-w-xl md:max-w-2xl rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[90vh]">
 
               <div className="bg-coffee-800 px-4 py-3 sm:px-5 sm:py-4 flex items-center justify-between flex-shrink-0">
@@ -1633,7 +1633,7 @@ export const POSPage: React.FC = () => {
         )}
 
         {modalView === 'review' && activeMesa && (
-          <Overlay onClose={() => setModalView('detalle')}>
+          <Overlay>
             <Suspense fallback={<div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl p-8 flex items-center justify-center"><div className="w-8 h-8 border-2 border-coffee-300 border-t-coffee-800 rounded-full animate-spin" /></div>}>
               <ReviewPanel
                 mesaName={activeMesa.name}
@@ -1669,7 +1669,7 @@ export const POSPage: React.FC = () => {
         )}
 
         {modalView === 'pago' && activeMesa && (
-          <Overlay onClose={() => setModalView('review')}>
+          <Overlay>
             <Suspense fallback={<div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl p-8 flex items-center justify-center"><div className="w-8 h-8 border-2 border-coffee-300 border-t-coffee-800 rounded-full animate-spin" /></div>}>
               <PagoPanel
                 mesaName={activeMesa.name}
@@ -1721,7 +1721,7 @@ export const POSPage: React.FC = () => {
         )}
 
         {comboDetailProduct && (
-          <Overlay onClose={() => setComboDetailProduct(null)}>
+          <Overlay>
             <ComboDetailPanel
               product={comboDetailProduct as any}
               details={comboDetails[comboDetailProduct.id] ?? []}
