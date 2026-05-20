@@ -1090,7 +1090,7 @@ export const POSPage: React.FC = () => {
 
         {modalView === 'detalle' && activeMesa && (
           <Overlay>
-            <div className="bg-white w-full sm:max-w-xl md:max-w-2xl rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[90vh]">
+            <div className="bg-white w-full sm:max-w-xl md:max-w-4xl lg:max-w-5xl rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[90vh]">
 
               <div className="bg-coffee-800 px-4 py-3 sm:px-5 sm:py-4 flex items-center justify-between flex-shrink-0">
                 {detalleView !== 'none' ? (
