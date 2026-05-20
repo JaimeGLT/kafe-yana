@@ -1,6 +1,6 @@
 export const GET_CLIENTES = `
-  query GetClientes($first: Int, $after: String) {
-    clientes(first: $first, after: $after) {
+  query GetClientes($first: Int, $after: String, $where: ClienteFilterInput) {
+    clientes(first: $first, after: $after, where: $where, order: [{ nombre: ASC }]) {
       nodes {
         dni
         nombre

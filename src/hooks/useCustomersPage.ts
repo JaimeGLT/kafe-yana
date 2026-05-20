@@ -27,6 +27,7 @@ export interface UseCustomersPageOptions {
   page: number;
   pageSize: number;
   afterCursor?: string;
+  search?: string;
 }
 
 export interface UseCustomersPageReturn {
@@ -42,6 +43,7 @@ export function useCustomersPage({
   page,
   pageSize,
   afterCursor,
+  search,
 }: UseCustomersPageOptions): UseCustomersPageReturn {
   const [clientes, setClientes] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,10 +56,17 @@ export function useCustomersPage({
     setIsLoading(true);
     setError(null);
     try {
-      const data = await gql<ClientesResponse>(GET_CLIENTES, {
-        first: pageSize,
-        after: afterCursor,
-      });
+      const variables: Record<string, unknown> = { first: pageSize, after: afterCursor };
+      if (search) {
+        variables.where = {
+          or: [
+            { nombre: { contains: search } },
+            { celular: { contains: search } },
+            { correo: { contains: search } },
+          ],
+        };
+      }
+      const data = await gql<ClientesResponse>(GET_CLIENTES, variables);
       setClientes(
         data.clientes.nodes.map((n) => ({
           id: String(n.id),
@@ -79,7 +88,7 @@ export function useCustomersPage({
     } finally {
       setIsLoading(false);
     }
-  }, [pageSize, afterCursor]);
+  }, [page, pageSize, afterCursor, search]);
 
   useEffect(() => {
     loadData();

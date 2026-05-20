@@ -37,6 +37,7 @@ interface UseCombosPageOptions {
   page: number;
   pageSize: number;
   afterCursor?: string;
+  search?: string;
 }
 
 export interface UseCombosPageReturn {
@@ -49,7 +50,7 @@ export interface UseCombosPageReturn {
 }
 
 export function useCombosPage(options: UseCombosPageOptions): UseCombosPageReturn {
-  const { page, pageSize, afterCursor } = options;
+  const { page, pageSize, afterCursor, search } = options;
   const [combos, setCombos] = useState<Combo[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -63,6 +64,9 @@ export function useCombosPage(options: UseCombosPageOptions): UseCombosPageRetur
       const variables: Record<string, unknown> = { first: pageSize };
       if (page > 1 && afterCursor) {
         variables.after = afterCursor;
+      }
+      if (search) {
+        variables.where = { producto: { nombre: { contains: search } } };
       }
 
       const data = await gql<CombosPageResponse>(GET_COMBOS_WITH_PRODUCTS, variables);
@@ -150,7 +154,7 @@ export function useCombosPage(options: UseCombosPageOptions): UseCombosPageRetur
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, afterCursor]);
+  }, [page, pageSize, afterCursor, search]);
 
   useEffect(() => {
     loadData();

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Search, Edit2, Trash2, User, Phone, Mail, Calendar, Star } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
@@ -32,6 +32,7 @@ export const CustomersPage: React.FC = () => {
   }, [cursors]);
 
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -39,10 +40,21 @@ export const CustomersPage: React.FC = () => {
   const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
   const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    setCursors({});
+    setPage(1);
+  }, [debouncedSearch]);
+
   const { clientes, isLoading, refresh, totalCount, endCursor } = useCustomersPage({
     page: filters.page,
     pageSize: filters.pageSize,
     afterCursor: filters.page > 1 ? cursors[filters.page - 1] : undefined,
+    search: debouncedSearch,
   });
 
   const prevEndCursor = useRef<string | null>(null);
@@ -53,16 +65,7 @@ export const CustomersPage: React.FC = () => {
     }
   }, [endCursor, filters.page]);
 
-  const filteredCustomers = useMemo(() => {
-    const q = search.toLowerCase();
-    return clientes.filter(
-      (c) =>
-        c.nombre.toLowerCase().includes(q) ||
-        (c.correo || '').toLowerCase().includes(q) ||
-        c.celular.includes(q) ||
-        (c.dni || '').toLowerCase().includes(q)
-    );
-  }, [clientes, search]);
+  const filteredCustomers = clientes;
 
   const openCreate = () => {
     setEditingCustomer(undefined);

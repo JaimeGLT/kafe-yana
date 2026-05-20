@@ -26,6 +26,7 @@ const CombosPage: React.FC = () => {
     page,
     pageSize,
     afterCursor: page > 1 ? cursors[page - 1] : undefined,
+    search: debouncedSearch,
   });
 
   useEffect(() => {
@@ -45,16 +46,10 @@ const CombosPage: React.FC = () => {
 
   const filtered = useMemo(() => {
     let list = activeCombos;
-    if (debouncedSearch) {
-      const q = debouncedSearch.toLowerCase();
-      list = list.filter((c) =>
-        c.name.toLowerCase().includes(q) || c.description?.toLowerCase().includes(q),
-      );
-    }
     if (filterStatus === 'sin_stock') list = list.filter((c) => c.availability === 0);
     if (filterStatus === 'disponible') list = list.filter((c) => c.availability > 0);
     return list;
-  }, [activeCombos, debouncedSearch, filterStatus]);
+  }, [activeCombos, filterStatus]);
 
   // ── KPIs ──
   const sinStock = activeCombos.filter((c) => c.availability === 0).length;

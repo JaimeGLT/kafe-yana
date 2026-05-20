@@ -1,6 +1,6 @@
 export const GET_ORDENES_COMPRA = `
-  query GetOrdenCompra($first: Int, $after: String) {
-    ordenes(first: $first, after: $after, order: [{ fecha: DESC }]) {
+  query GetOrdenCompra($first: Int, $after: String, $where: OrdenCompraFilterInput) {
+    ordenes(first: $first, after: $after, where: $where, order: [{ fecha: DESC }]) {
       nodes {
         id
         codigo

@@ -50,6 +50,7 @@ const InsumosPage: React.FC = () => {
   };
 
   const fetchData = useCallback(async () => {
+    if (page > 1 && !cursorsRef.current[page - 1]) return;
     try {
       setLoading(true);
       const [insumosData, recetasData] = await Promise.all([
@@ -83,18 +84,7 @@ const InsumosPage: React.FC = () => {
     return [{ value: '', label: 'Todas las categorías' }, ...cats.map((c: string) => ({ value: c, label: c }))];
   }, [insumos]);
 
-  const filtered = useMemo(() => {
-    const q = debouncedSearch.toLowerCase();
-    return insumos.filter((ins: Insumo) => {
-      const matchSearch =
-        !q ||
-        ins.name.toLowerCase().includes(q) ||
-        ins.categoriaInsumo.toLowerCase().includes(q) ||
-        ins.code.toLowerCase().includes(q);
-      const matchCat = !filterCategoria || ins.categoriaInsumo === filterCategoria;
-      return matchSearch && matchCat;
-    });
-  }, [insumos, debouncedSearch, filterCategoria]);
+  const filtered = insumos;
 
   // Count how many recipes use each insumo
   const usageCount = useMemo(() => {

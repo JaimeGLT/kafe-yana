@@ -1,8 +1,9 @@
 export const GET_COMBOS_WITH_PRODUCTS = `
-  query GetCombosWithProducts($first: Int, $after: String) {
+  query GetCombosWithProducts($first: Int, $after: String, $where: PromocionFilterInput) {
     combos(
       first: $first
       after: $after
+      where: $where
       order: [{ producto: { nombre: ASC } }]
     ) {
       totalCount

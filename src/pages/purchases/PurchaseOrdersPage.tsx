@@ -158,13 +158,25 @@ export const PurchaseOrdersPage: React.FC = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
 
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const currentWhereRef = React.useRef<Record<string, unknown>>({});
+
   // ── Load ordenes from backend ───────────────────────────────────────────────
 
-  const loadOrdenes = useCallback((cursor: string | null, append: boolean) => {
+  const loadOrdenes = useCallback((cursor: string | null, append: boolean, where?: Record<string, unknown>) => {
     if (cursor === null) setIsLoading(true);
     else setIsLoadingMore(true);
 
-    gql<BackendOrdenesResponse>(GET_ORDENES_COMPRA, cursor ? { first: 50, after: cursor } : { first: 50 })
+    const variables: Record<string, unknown> = { first: 50 };
+    if (cursor) variables.after = cursor;
+    if (where && Object.keys(where).length) variables.where = where;
+
+    gql<BackendOrdenesResponse>(GET_ORDENES_COMPRA, variables)
       .then(data => {
         const mapped = data.ordenes.nodes.map(mapBackendOrdenToPurchaseOrder);
         if (append) setPurchaseOrders(prev => [...prev, ...mapped]);
@@ -180,8 +192,16 @@ export const PurchaseOrdersPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    loadOrdenes(null, false);
-  }, [loadOrdenes]);
+    const where: Record<string, unknown> = {};
+    if (debouncedSearch) {
+      where.or = [
+        { codigo: { contains: debouncedSearch } },
+        { nombre_Proveedor: { contains: debouncedSearch } },
+      ];
+    }
+    currentWhereRef.current = where;
+    loadOrdenes(null, false, where);
+  }, [debouncedSearch, loadOrdenes]);
 
   // ── Load suppliers for modal ─────────────────────────────────────────────────
 
@@ -252,7 +272,7 @@ export const PurchaseOrdersPage: React.FC = () => {
   }, []);
 
   const handleLoadMore = () => {
-    if (afterCursor && !isLoadingMore) loadOrdenes(afterCursor, true);
+    if (afterCursor && !isLoadingMore) loadOrdenes(afterCursor, true, currentWhereRef.current);
   };
 
   const stats = useMemo(() => {
@@ -265,19 +285,9 @@ export const PurchaseOrdersPage: React.FC = () => {
   }, [purchaseOrders]);
 
   const filteredOrders = useMemo(() => {
-    return purchaseOrders.filter((order) => {
-      if (statusFilter && order.status !== statusFilter) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        if (
-          !order.code.toLowerCase().includes(q) &&
-          !(order.supplierName || '').toLowerCase().includes(q)
-        )
-          return false;
-      }
-      return true;
-    });
-  }, [purchaseOrders, search, statusFilter]);
+    if (!statusFilter) return purchaseOrders;
+    return purchaseOrders.filter((order) => order.status === statusFilter);
+  }, [purchaseOrders, statusFilter]);
 
   const handleSaveOrder = async (input: PurchaseOrderInput) => {
     const insumos = input.items

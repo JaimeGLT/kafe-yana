@@ -91,6 +91,7 @@ const AdjustmentsPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const loadData = useCallback(async () => {
+    if (page > 1 && !cursorsRef.current[page - 1]) return null;
     setIsLoading(true);
     let endCursor: string | null = null;
     try {
