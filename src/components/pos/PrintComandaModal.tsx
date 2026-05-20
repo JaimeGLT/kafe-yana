@@ -30,12 +30,14 @@ const DESTINO_CONFIG: { id: Destino; label: string; icon: React.ReactNode }[] = 
   { id: 'barra',     label: 'Barra',     icon: <GlassWater className="h-4 w-4" /> },
 ];
 
+// DESPUÉS — selecciona según ubicación, principal solo si no hay otra
 function detectDefaultDestinos(items: ComandaItem[]): Destino[] {
   const ubicaciones = new Set(items.map((i) => i.ubicacion.toLowerCase()));
   const detected: Destino[] = [];
-  if (ubicaciones.has('cocina'))    detected.push('cocina');
-  if (ubicaciones.has('barra'))     detected.push('barra');
-  if (detected.length === 0)        detected.push('principal');
+  if (ubicaciones.has('cocina')) detected.push('cocina');
+  if (ubicaciones.has('barra'))  detected.push('barra');
+  // Principal solo si ningún item tiene ubicación específica
+  if (detected.length === 0)     detected.push('principal');
   return detected;
 }
 
@@ -60,7 +62,7 @@ export const PrintComandaModal: React.FC<PrintComandaModalProps> = ({ data, onCl
   };
 
   const handlePrint = () => {
-    enviarPedido(data.mesaName, data.rondaDesc, data.items, tamaño, destinos);
+    enviarPedido(data.mesaName, data.rondaDesc, data.items, destinos);
     onClose();
   };
 
