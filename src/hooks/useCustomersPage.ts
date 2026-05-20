@@ -39,6 +39,7 @@ export interface UseCustomersPageReturn {
 }
 
 export function useCustomersPage({
+  page,
   pageSize,
   afterCursor,
 }: UseCustomersPageOptions): UseCustomersPageReturn {
