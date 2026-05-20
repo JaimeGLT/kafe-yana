@@ -107,11 +107,10 @@ const AdjustmentsPage: React.FC = () => {
       setInsumos(data.insumos?.nodes ?? []);
       setElaborados(
         (data.elaborados?.nodes ?? [])
-          .filter((e) => e.receta !== null)
           .map((e) => ({
             ...e,
             tipoPreparacion: e.producible ? ('en_lote' as const) : ('al_momento' as const),
-          })),
+          }))
       );
     } catch (error) {
       console.error('Error loading adjustment data:', error);

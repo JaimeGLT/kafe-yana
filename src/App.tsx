@@ -62,13 +62,13 @@ function App() {
                 <Route path="/" element={<ProtectedRoute allowedRoles={[ADMIN]}><DashboardPage /></ProtectedRoute>} />
 
                 {/* Inventory — solo admin */}
-                <Route path="/inventory/products"    element={<ProtectedRoute allowedRoles={[ADMIN]}><ProductsPage /></ProtectedRoute>} />
-                <Route path="/inventory/categories"  element={<ProtectedRoute allowedRoles={[ADMIN]}><CategoriesPage /></ProtectedRoute>} />
+                <Route path="/inventory/products"    element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><ProductsPage /></ProtectedRoute>} />
+                <Route path="/inventory/categories"  element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><CategoriesPage /></ProtectedRoute>} />
                 <Route path="/inventory/adjustments" element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><AdjustmentsPage /></ProtectedRoute>} />
-                <Route path="/inventory/kardex"      element={<ProtectedRoute allowedRoles={[ADMIN]}><KardexPage /></ProtectedRoute>} />
-                <Route path="/inventory/elaborados"  element={<ProtectedRoute allowedRoles={[ADMIN]}><ElaboradosPage /></ProtectedRoute>} />
-                <Route path="/inventory/combos"      element={<ProtectedRoute allowedRoles={[ADMIN]}><CombosPage /></ProtectedRoute>} />
-                <Route path="/inventory/variations"  element={<ProtectedRoute allowedRoles={[ADMIN]}><VariacionesPage /></ProtectedRoute>} />
+                <Route path="/inventory/kardex"      element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><KardexPage /></ProtectedRoute>} />
+                <Route path="/inventory/elaborados"  element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><ElaboradosPage /></ProtectedRoute>} />
+                <Route path="/inventory/combos"      element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><CombosPage /></ProtectedRoute>} />
+                <Route path="/inventory/variations"  element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><VariacionesPage /></ProtectedRoute>} />
 
                 {/* Sales */}
                 <Route path="/sales/pos"       element={<ProtectedRoute allowedRoles={ALL}><POSPage /></ProtectedRoute>} />
@@ -99,8 +99,8 @@ function App() {
                 <Route path="/reports/cash"       element={<ProtectedRoute allowedRoles={[ADMIN]}><CashReportPage /></ProtectedRoute>} />
 
                 {/* Recipes — solo admin */}
-                <Route path="/recipes/insumos"  element={<ProtectedRoute allowedRoles={[ADMIN]}><InsumosPage /></ProtectedRoute>} />
-                <Route path="/recipes/recetas"  element={<ProtectedRoute allowedRoles={[ADMIN]}><RecetasPage /></ProtectedRoute>} />
+                <Route path="/recipes/insumos"  element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><InsumosPage /></ProtectedRoute>} />
+                <Route path="/recipes/recetas"  element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><RecetasPage /></ProtectedRoute>} />
 
                 {/* Settings — todos los roles */}
                 <Route path="/settings" element={<SettingsIndexPage />} />

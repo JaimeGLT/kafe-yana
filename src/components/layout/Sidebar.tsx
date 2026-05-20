@@ -47,13 +47,13 @@ const navItems: NavItem[] = [
     path: '/inventory',
     allowedRoles: [ADMIN, CAJERO],
     children: [
-      { id: 'products', label: 'Comprados', icon: null, path: '/inventory/products', groupLabel: 'Productos', allowedRoles: [ADMIN] },
-      { id: 'elaborados', label: 'Elaborados', icon: null, path: '/inventory/elaborados', allowedRoles: [ADMIN] },
-      { id: 'combos', label: 'Combos', icon: null, path: '/inventory/combos', allowedRoles: [ADMIN] },
-      { id: 'categories', label: 'Categorías', icon: null, path: '/inventory/categories', groupLabel: 'Gestión', allowedRoles: [ADMIN] },
-      { id: 'variations', label: 'Variaciones', icon: null, path: '/inventory/variations', allowedRoles: [ADMIN] },
+      { id: 'products', label: 'Comprados', icon: null, path: '/inventory/products', groupLabel: 'Productos', allowedRoles: [ADMIN, CAJERO] },
+      { id: 'elaborados', label: 'Elaborados', icon: null, path: '/inventory/elaborados', allowedRoles: [ADMIN, CAJERO] },
+      { id: 'combos', label: 'Combos', icon: null, path: '/inventory/combos', allowedRoles: [ADMIN, CAJERO] },
+      { id: 'categories', label: 'Categorías', icon: null, path: '/inventory/categories', groupLabel: 'Gestión', allowedRoles: [ADMIN, CAJERO] },
+      { id: 'variations', label: 'Variaciones', icon: null, path: '/inventory/variations', allowedRoles: [ADMIN, CAJERO] },
       { id: 'adjustments', label: 'Ajustes', icon: null, path: '/inventory/adjustments', allowedRoles: [ADMIN, CAJERO] },
-      { id: 'kardex', label: 'Kardex', icon: null, path: '/inventory/kardex', allowedRoles: [ADMIN] },
+      { id: 'kardex', label: 'Kardex', icon: null, path: '/inventory/kardex', allowedRoles: [ADMIN, CAJERO] },
     ],
   },
   {
@@ -125,7 +125,7 @@ const navItems: NavItem[] = [
     label: 'Recetas y Costos',
     icon: <FlaskConical className="h-5 w-5" />,
     path: '/recipes',
-    allowedRoles: [ADMIN],
+    allowedRoles: [ADMIN, CAJERO],
     children: [
       { id: 'insumos', label: 'Insumos', icon: null, path: '/recipes/insumos' },
       { id: 'recetas', label: 'Recetas', icon: null, path: '/recipes/recetas' },
