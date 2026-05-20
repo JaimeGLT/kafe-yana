@@ -298,7 +298,7 @@ export const PurchaseOrdersPage: React.FC = () => {
 
     const body = {
       id_Proveedor: Number(input.supplierId),
-      fechaEntrega: new Date(input.expectedDate!).toISOString(),
+      fechaEntrega: input.expectedDate!.toISOString().split('T')[0],
       nota: input.notes ?? '',
       insumos,
       productos,
@@ -308,8 +308,8 @@ export const PurchaseOrdersPage: React.FC = () => {
       const result = await api.post<{ Id: number; Codigo: string } | undefined>('/OrdenCompra', body);
       toast.success('Orden creada', result?.Codigo ? `Orden ${result.Codigo} creada exitosamente.` : 'Orden de compra creada exitosamente.');
       loadOrdenes(null, false);
-    } catch {
-      toast.error('Error', 'No se pudo crear la orden de compra.');
+    } catch (e) {
+      toast.error('Error', e instanceof Error ? e.message : 'No se pudo crear la orden de compra.');
     }
   };
 
@@ -327,8 +327,8 @@ export const PurchaseOrdersPage: React.FC = () => {
       );
       toast.success('Orden recibida', `La orden ${receivingOrder.code} fue marcada como recibida.`);
       setReceivingOrder(null);
-    } catch {
-      toast.error('Error', 'No se pudo marcar la orden como recibida.');
+    } catch (e) {
+      toast.error('Error', e instanceof Error ? e.message : 'No se pudo marcar la orden como recibida.');
     } finally {
       setIsProcessing(false);
     }
@@ -344,8 +344,8 @@ export const PurchaseOrdersPage: React.FC = () => {
       );
       toast.success('Orden cancelada', `La orden ${cancellingOrder.code} fue cancelada.`);
       setCancellingOrder(null);
-    } catch {
-      toast.error('Error', 'No se pudo cancelar la orden.');
+    } catch (e) {
+      toast.error('Error', e instanceof Error ? e.message : 'No se pudo cancelar la orden.');
     } finally {
       setIsProcessing(false);
     }

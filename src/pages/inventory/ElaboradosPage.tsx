@@ -34,6 +34,7 @@ const ElaboradosPage: React.FC = () => {
     page,
     pageSize,
     afterCursor: page > 1 ? cursors[page - 1] : undefined,
+    search: debouncedSearch,
   });
 
   useEffect(() => {
@@ -85,15 +86,11 @@ const ElaboradosPage: React.FC = () => {
 
   const filtered = useMemo(() => {
     let list = elaborados;
-    if (debouncedSearch) {
-      const q = debouncedSearch.toLowerCase();
-      list = list.filter((p) => p.name.toLowerCase().includes(q) || p.categoryName?.toLowerCase().includes(q));
-    }
     if (filterStatus === 'con_receta') list = list.filter((p) => !!getRecetaByProductId(p.id));
     if (filterStatus === 'sin_receta') list = list.filter((p) => !getRecetaByProductId(p.id));
     if (filterStatus === 'sin_stock') list = list.filter((p) => getElaboradoAvailability(p.id) === 0);
     return list;
-  }, [elaborados, debouncedSearch, filterStatus, getRecetaByProductId, getElaboradoAvailability]);
+  }, [elaborados, filterStatus, getRecetaByProductId, getElaboradoAvailability]);
 
   // KPIs
   const sinReceta = useMemo(

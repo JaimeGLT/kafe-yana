@@ -268,10 +268,11 @@ export const GET_ELABORADO_BY_ID = `
 `
 
 export const GET_ELABORADOS_PAGE = `
-  query GetElaboradosPage($first: Int, $after: String) {
+  query GetElaboradosPage($first: Int, $after: String, $where: ElaboradoFilterInput) {
     elaborados(
       first: $first
       after: $after
+      where: $where
       order: [{ producto: { nombre: ASC } }]
     ) {
       totalCount

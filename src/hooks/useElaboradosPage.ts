@@ -74,6 +74,7 @@ interface UseElaboradosPageOptions {
   page: number;
   pageSize: number;
   afterCursor?: string;
+  search?: string;
 }
 
 export interface UseElaboradosPageReturn {
@@ -88,7 +89,7 @@ export interface UseElaboradosPageReturn {
 }
 
 export function useElaboradosPage(options: UseElaboradosPageOptions): UseElaboradosPageReturn {
-  const { page, pageSize, afterCursor } = options;
+  const { page, pageSize, afterCursor, search } = options;
   const [elaborados, setElaborados] = useState<Product[]>([]);
   const [recetas, setRecetas] = useState<Receta[]>([]);
   const [insumos, setInsumos] = useState<Insumo[]>([]);
@@ -103,6 +104,14 @@ export function useElaboradosPage(options: UseElaboradosPageOptions): UseElabora
       const variables: Record<string, unknown> = { first: pageSize };
       if (page > 1 && afterCursor) {
         variables.after = afterCursor;
+      }
+      if (search) {
+        variables.where = {
+          or: [
+            { producto: { nombre: { contains: search } } },
+            { producto: { categoria: { nombre: { contains: search } } } },
+          ],
+        };
       }
 
       const data = await gql<ElaboradosPageResponse>(GET_ELABORADOS_PAGE, variables);
@@ -208,7 +217,7 @@ unitCost: d.insumo.factor_conversion > 0 ? d.insumo.costo / d.insumo.factor_conv
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, afterCursor]);
+  }, [page, pageSize, afterCursor, search]);
 
   useEffect(() => {
     loadData();

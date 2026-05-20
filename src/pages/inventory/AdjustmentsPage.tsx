@@ -74,7 +74,7 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, icon, accent = 'defau
 };
 
 const AdjustmentsPage: React.FC = () => {
-  const { page, pageSize, cursors, setPage, setCursors } = usePagination({ pageSize: 15 });
+  const { page, pageSize, cursors, setPage, setCursors } = usePagination({ pageSize: 200 });
   const [cursorsRef] = useState(() => ({ current: {} as Record<number, string> }));
 
   const [totalCount, setTotalCount] = useState(0);

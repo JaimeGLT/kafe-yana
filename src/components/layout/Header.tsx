@@ -10,6 +10,7 @@ export const Header: React.FC = () => {
   const { toggleMobileSidebar } = useUI();
   const { currentBranch } = useSettings();
   const { user, logout } = useAuth();
+  const userRole = (user?.rol ?? '').toLowerCase();
   const navigate = useNavigate();
 
   const displayUser = user;

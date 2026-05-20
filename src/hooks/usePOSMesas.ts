@@ -20,21 +20,24 @@ function formatearCambios(opciones: RondaCreatedOpcion[] | undefined): string {
   }).join(' | ');
 }
 
+// REEMPLAZA la función buildComandaFromResponse completa por esta:
 function buildComandaFromResponse(data: RondaCreatedResponse): Array<{ cantidad: number; nombre: string; nota: string; ubicacion: string }> {
-  return data.ronda.detalles.flatMap(detalle => {
-    if (detalle.items_combo?.length) {
-      return detalle.items_combo.map(sub => ({
-        cantidad: sub.cantidad * detalle.cantidad,
-        nombre: sub.nombre,
-        nota: `(combo: ${detalle.nombre.split('(')[0].trim()})`,
-        ubicacion: sub.ubicacion.toLowerCase(),
+  const detalles = data.ronda.detalles ?? [];
+  return detalles.flatMap((detalle: any) => {
+    const itemsCombo: any[] = detalle.ItemsCombo ?? detalle.items_combo ?? [];
+    if (itemsCombo.length > 0) {
+      return itemsCombo.map((sub: any) => ({
+        cantidad: (sub.Cantidad ?? sub.cantidad ?? 1) * (detalle.Cantidad ?? detalle.cantidad ?? 1),
+        nombre: sub.Nombre ?? sub.nombre ?? '',
+        nota: `(combo: ${(detalle.Nombre ?? detalle.nombre ?? '').split('(')[0].trim()})`,
+        ubicacion: (sub.Ubicacion ?? sub.ubicacion ?? '').toLowerCase(),
       }));
     }
     return [{
-      cantidad: detalle.cantidad,
-      nombre: detalle.nombre.split('(')[0].trim(),
-      nota: formatearCambios(detalle.opciones),
-      ubicacion: detalle.ubicacion.toLowerCase(),
+      cantidad: detalle.Cantidad ?? detalle.cantidad ?? 1,
+      nombre: (detalle.Nombre ?? detalle.nombre ?? '').split('(')[0].trim(),
+      nota: formatearCambios(detalle.Opciones ?? detalle.opciones),
+      ubicacion: (detalle.Ubicacion ?? detalle.ubicacion ?? '').toLowerCase(),
     }];
   });
 }
@@ -574,6 +577,8 @@ export function usePOSMesas(): UsePOSMesasReturn {
         rondaResponse = await apiCrearRonda(mesaId, detalles);
       }
 
+      console.log('rondaResponse:', JSON.stringify(rondaResponse, null, 2));
+
       success = rondaResponse !== null;
 
       if (success && rondaResponse) {
@@ -594,6 +599,7 @@ export function usePOSMesas(): UsePOSMesasReturn {
         setMesas(updateFn);
         setParaLlevarOrders(updateFn);
 
+        // DESPUÉS — construye Y envía al servidor Python
         let comandaItems: Array<{ cantidad: number; nombre: string; nota: string; ubicacion: string }> = [];
         try { comandaItems = buildComandaFromResponse(rondaResponse); } catch { /* ignorar */ }
 
