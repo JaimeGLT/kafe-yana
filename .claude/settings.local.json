@@ -51,7 +51,8 @@
       "Bash(dir \"C:\\\\Users\\\\jaime\\\\Desktop\\\\kafeyana-complete\\\\frontend\\\\src\\\\pages\")",
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(grep -r \"api\\\\\\\\.post\\\\|api\\\\\\\\.put\\\\|api\\\\\\\\.patch\\\\|api\\\\\\\\.delete\" \"C:\\\\Users\\\\jaime\\\\Desktop\\\\kafeyana-complete\\\\frontend\\\\src\" --include=\"*.ts\" --include=\"*.tsx\")",
-      "Bash(Select-Object Name)"
+      "Bash(Select-Object Name)",
+      "Bash(grep -E \"\\\\.tsx$\")"
     ]
   }
 }

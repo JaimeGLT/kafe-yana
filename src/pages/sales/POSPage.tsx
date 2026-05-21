@@ -21,6 +21,8 @@ import { formatOpcionLabel } from '../../utils/opcionUtils';
 import { enviarCatalogo } from '../../utils/comandas';
 import { PrintComandaModal } from '../../components/pos/PrintComandaModal';
 import type { PrintComandaData } from '../../components/pos/PrintComandaModal';
+import { PrintReciboModal } from '../../components/pos/PrintReciboModal';
+import type { PrintReciboData } from '../../components/pos/PrintReciboModal';
 import { SkeletonMesaGrid, SkeletonCategoryTabs, SkeletonProductScroll, Overlay, ConfirmModal } from '../../components/ui';
 import { MesaCard } from '../../components/pos/MesaCard';
 import { NuevaMesaModal } from '../../components/pos/NuevaMesaModal';
@@ -98,6 +100,7 @@ export const POSPage: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
   const [printComandaData, setPrintComandaData] = useState<PrintComandaData | null>(null);
+  const [printReciboData, setPrintReciboData] = useState<PrintReciboData | null>(null);
   const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
   const [comboDetails, setComboDetails] = useState<Record<string, { name: string; quantity: number; emoji: string }[]>>({});
   const [rewards, setRewards] = useState<Reward[]>([]);
@@ -797,6 +800,22 @@ export const POSPage: React.FC = () => {
     setDetalleView('historial');
     refreshStock();
     toast.success('🖨️ Comanda enviada', `Ronda ${mesa.currentRound - 1} · ${itemCount} producto(s)`);
+  };
+
+  const handlePrintResumen = () => {
+    if (!activeMesa || activeMesa.order.length === 0) return;
+    const items = activeMesa.order.map(i => ({
+      cantidad: i.quantity,
+      nombre: i.product.name + (i.opciones?.length ? ` (${i.opciones.map((o: any) => formatOpcionLabel(o)).join(', ')})` : ''),
+      nota: i.notes ?? '',
+      ubicacion: 'principal',
+    }));
+    setPrintComandaData({
+      mesaName: activeMesa.name,
+      roundNumber: activeMesa.roundsSent.length,
+      rondaDesc: 'Resumen del pedido',
+      items,
+    });
   };
 
   const handleRequestPayment = () => {
@@ -1661,18 +1680,29 @@ export const POSPage: React.FC = () => {
                     </button>
                   )}
                   {tempCart.length === 0 && (
-                    <button
-                      onClick={handleRequestPayment}
-                      disabled={activeMesa.order.length === 0}
-                      className={clsx(
-                        'flex items-center gap-1.5 px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold transition-all',
-                        activeMesa.order.length > 0
-                          ? 'bg-emerald-600 text-white hover:bg-emerald-500 active:scale-95 shadow-md'
-                          : 'bg-coffee-100 text-coffee-400 cursor-not-allowed',
+                    <>
+                      {activeMesa.order.length > 0 && (
+                        <button
+                          onClick={handlePrintResumen}
+                          className="flex items-center gap-1.5 px-3 py-2.5 sm:px-4 sm:py-3 rounded-xl border border-coffee-300 text-coffee-700 text-xs sm:text-sm font-medium hover:bg-coffee-50 transition-colors"
+                        >
+                          <Printer className="h-4 w-4" />
+                          Pre-cuenta
+                        </button>
                       )}
-                    >
-                      Cobrar <ChevronRight className="h-5 w-5" />
-                    </button>
+                      <button
+                        onClick={handleRequestPayment}
+                        disabled={activeMesa.order.length === 0}
+                        className={clsx(
+                          'flex items-center gap-1.5 px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold transition-all',
+                          activeMesa.order.length > 0
+                            ? 'bg-emerald-600 text-white hover:bg-emerald-500 active:scale-95 shadow-md'
+                            : 'bg-coffee-100 text-coffee-400 cursor-not-allowed',
+                        )}
+                      >
+                        Cobrar <ChevronRight className="h-5 w-5" />
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -1760,7 +1790,12 @@ export const POSPage: React.FC = () => {
                 saleCode={lastSaleResult.code}
                 mesaName={activeMesa?.name ?? ''}
                 newBalance={lastSaleResult.newBalance}
-                onPrint={() => toast.info('Imprimiendo', 'Enviando a la impresora...')}
+                onPrint={() => setPrintReciboData({
+                  mesaName: activeMesa?.name ?? '',
+                  saleCode: lastSaleResult.code,
+                  total: mesaTotal,
+                  metodoPago: paymentMethod,
+                })}
                 onClose={handleCloseSuccess}
                 nextMilestone={nextMilestone}
                 pointsResult={lastSaleResult.points}
@@ -1870,6 +1905,10 @@ export const POSPage: React.FC = () => {
       <PrintComandaModal
         data={printComandaData}
         onClose={() => setPrintComandaData(null)}
+      />
+      <PrintReciboModal
+        data={printReciboData}
+        onClose={() => setPrintReciboData(null)}
       />
     </MainLayout>
   );

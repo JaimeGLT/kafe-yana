@@ -1,4 +1,4 @@
-const PRINT_SERVER = 'http://192.168.1.25:5001';
+const PRINT_SERVER = 'http://localhost:5001';
 
 export async function enviarCatalogo(
   comprados: Array<{ producto: { nombre: string }; ubicacion: string }>,
@@ -18,6 +18,29 @@ export async function enviarCatalogo(
     });
     const r = await res.json();
     console.log('Catálogo enviado:', r);
+  } catch (err) {
+    console.warn('Servidor de impresión no disponible:', err);
+  }
+}
+
+export async function enviarRecibo(
+  mesa: string,
+  codigo: string,
+  total: number,
+  metodoPago: string,
+  destinos: string[] = ['principal'],
+): Promise<void> {
+  try {
+    const res = await fetch(`${PRINT_SERVER}/api/recibo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mesa, codigo, total, metodoPago, destinos }),
+    });
+    const resultado: Array<{ ok: boolean; destino: string }> = await res.json();
+    const fallas = resultado.filter(r => !r.ok);
+    if (fallas.length > 0) {
+      alert(`⚠️ Error de impresión en: ${fallas.map(f => f.destino).join(', ')}`);
+    }
   } catch (err) {
     console.warn('Servidor de impresión no disponible:', err);
   }
