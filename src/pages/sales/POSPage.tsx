@@ -470,14 +470,33 @@ export const POSPage: React.FC = () => {
 
   const activeCategories = useMemo(() => categories.filter(c => c.isActive), [categories]);
 
+  const categoriesWithProducts = useMemo(() => {
+    const ids = new Set<string>();
+    products.forEach(p => { if (p.isActive) ids.add(p.categoryId); });
+    return activeCategories.filter(c => ids.has(c.id));
+  }, [activeCategories, products]);
+
+  const visibleCategories = useMemo(() => {
+    if (!productSearch) return categoriesWithProducts;
+    const q = productSearch.toLowerCase();
+    const ids = new Set<string>();
+    products.forEach(p => {
+      if (p.isActive && p.name.toLowerCase().includes(q)) ids.add(p.categoryId);
+    });
+    return categoriesWithProducts.filter(c => ids.has(c.id));
+  }, [categoriesWithProducts, products, productSearch]);
+
+  const activeCatId = useMemo(() => {
+    return visibleCategories.find(c => c.id === selectedCatId)?.id ?? visibleCategories[0]?.id ?? '';
+  }, [visibleCategories, selectedCatId]);
+
   const pickerProducts = useMemo(() => {
     if (productSearch) {
       const q = productSearch.toLowerCase();
-      return products.filter(p => p.isActive && p.name.toLowerCase().includes(q));
+      return products.filter(p => p.isActive && p.categoryId === activeCatId && p.name.toLowerCase().includes(q));
     }
-    const catId = selectedCatId || (activeCategories[0]?.id ?? '');
-    return products.filter(p => p.isActive && p.categoryId === catId);
-  }, [products, selectedCatId, activeCategories, productSearch]);
+    return products.filter(p => p.isActive && p.categoryId === activeCatId);
+  }, [products, activeCatId, productSearch]);
 
   const consumedFromCart = useMemo(() => {
     const consumed: Record<string, number> = {};
@@ -1178,40 +1197,63 @@ export const POSPage: React.FC = () => {
                     </>
                   ) : (
                     <>
-                      <div
-                        ref={dragScrollDetalleCat.ref}
-                        onMouseDown={dragScrollDetalleCat.onMouseDown}
-                        onMouseMove={dragScrollDetalleCat.onMouseMove}
-                        onMouseUp={dragScrollDetalleCat.onMouseUp}
-                        onMouseLeave={dragScrollDetalleCat.onMouseLeave}
-                        className="px-4 pt-2 pb-1.5 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-shrink-0 cursor-grab active:cursor-grabbing select-none"
-                        style={{ WebkitOverflowScrolling: 'touch' }}
-                      >
-                        {activeCategories.map(cat => (
-                          <button
-                            key={cat.id}
-                            onClick={() => setSelectedCatId(cat.id)}
-                            className={clsx(
-                              'flex-shrink-0 px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold transition-all',
-                              (selectedCatId || activeCategories[0]?.id) === cat.id
-                                ? 'bg-coffee-800 text-cream shadow-md'
-                                : 'bg-coffee-100 text-coffee-600 hover:bg-coffee-200',
-                            )}
-                          >
-                            {cat.name}
-                          </button>
-                        ))}
+                      <div className="relative flex-shrink-0">
+                        <button
+                          className="hidden sm:flex absolute left-0 top-0 bottom-0 z-10 items-center pl-1 pr-3 bg-gradient-to-r from-white via-white/70 to-transparent pointer-events-auto"
+                          onClick={() => dragScrollDetalleCat.ref.current?.scrollBy({ left: -200, behavior: 'smooth' })}
+                        >
+                          <ChevronLeft className="h-4 w-4 text-coffee-500" />
+                        </button>
+                        <div
+                          ref={dragScrollDetalleCat.ref}
+                          onMouseDown={dragScrollDetalleCat.onMouseDown}
+                          onMouseMove={dragScrollDetalleCat.onMouseMove}
+                          onMouseUp={dragScrollDetalleCat.onMouseUp}
+                          onMouseLeave={dragScrollDetalleCat.onMouseLeave}
+                          onDragStart={e => e.preventDefault()}
+                          className="px-4 sm:px-8 pt-2 pb-1.5 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden cursor-grab active:cursor-grabbing select-none"
+                          style={{ WebkitOverflowScrolling: 'touch' }}
+                        >
+                          {visibleCategories.map(cat => (
+                            <button
+                              key={cat.id}
+                              onClick={() => setSelectedCatId(cat.id)}
+                              className={clsx(
+                                'flex-shrink-0 px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold transition-all',
+                                activeCatId === cat.id
+                                  ? 'bg-coffee-800 text-cream shadow-md'
+                                  : 'bg-coffee-100 text-coffee-600 hover:bg-coffee-200',
+                              )}
+                            >
+                              {cat.name}
+                            </button>
+                          ))}
+                        </div>
+                        <button
+                          className="hidden sm:flex absolute right-0 top-0 bottom-0 z-10 items-center pr-1 pl-3 bg-gradient-to-l from-white via-white/70 to-transparent pointer-events-auto"
+                          onClick={() => dragScrollDetalleCat.ref.current?.scrollBy({ left: 200, behavior: 'smooth' })}
+                        >
+                          <ChevronRight className="h-4 w-4 text-coffee-500" />
+                        </button>
                       </div>
 
-                      <div
-                        ref={dragScrollDetalleProd.ref}
-                        onMouseDown={dragScrollDetalleProd.onMouseDown}
-                        onMouseMove={dragScrollDetalleProd.onMouseMove}
-                        onMouseUp={dragScrollDetalleProd.onMouseUp}
-                        onMouseLeave={dragScrollDetalleProd.onMouseLeave}
-                        className="flex gap-2 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-shrink-0 cursor-grab active:cursor-grabbing select-none border-b border-coffee-100"
-                        style={{ WebkitOverflowScrolling: 'touch' }}
-                      >
+                      <div className="relative flex-shrink-0">
+                        <button
+                          className="hidden sm:flex absolute left-0 top-0 bottom-0 z-10 items-center pl-1 pr-3 bg-gradient-to-r from-white via-white/70 to-transparent pointer-events-auto"
+                          onClick={() => dragScrollDetalleProd.ref.current?.scrollBy({ left: -200, behavior: 'smooth' })}
+                        >
+                          <ChevronLeft className="h-4 w-4 text-coffee-500" />
+                        </button>
+                        <div
+                          ref={dragScrollDetalleProd.ref}
+                          onMouseDown={dragScrollDetalleProd.onMouseDown}
+                          onMouseMove={dragScrollDetalleProd.onMouseMove}
+                          onMouseUp={dragScrollDetalleProd.onMouseUp}
+                          onMouseLeave={dragScrollDetalleProd.onMouseLeave}
+                          onDragStart={e => e.preventDefault()}
+                          className="flex gap-2 overflow-x-auto px-4 sm:px-8 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden cursor-grab active:cursor-grabbing select-none border-b border-coffee-100"
+                          style={{ WebkitOverflowScrolling: 'touch' }}
+                        >
                         {pickerProducts.length === 0 ? (
                           <div className="flex items-center gap-2 text-coffee-300 h-24 w-full justify-center">
                             <Coffee className="h-5 w-5 opacity-40" />
@@ -1257,6 +1299,13 @@ export const POSPage: React.FC = () => {
                             />
                           );
                         })}
+                        </div>
+                        <button
+                          className="hidden sm:flex absolute right-0 top-0 bottom-0 z-10 items-center pr-1 pl-3 bg-gradient-to-l from-white via-white/70 to-transparent pointer-events-auto"
+                          onClick={() => dragScrollDetalleProd.ref.current?.scrollBy({ left: 200, behavior: 'smooth' })}
+                        >
+                          <ChevronRight className="h-4 w-4 text-coffee-500" />
+                        </button>
                       </div>
                     </>
                   )}

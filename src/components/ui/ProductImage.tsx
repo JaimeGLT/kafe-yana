@@ -46,7 +46,7 @@ export const ProductImage: React.FC<ProductImageProps> = ({
   if (isImageUrl(src)) {
     return (
       <div className={clsx(box, rounded, 'overflow-hidden flex-shrink-0', className)}>
-        <img src={src} alt="" className="w-full h-full object-cover" />
+        <img src={src} alt="" draggable={false} className="w-full h-full object-cover" />
       </div>
     );
   }
@@ -72,7 +72,7 @@ export const ProductImageFill: React.FC<ProductImageFillProps> = ({
   iconSize = 'h-10 w-10',
 }) => {
   if (isImageUrl(src)) {
-    return <img src={src} alt="" className={clsx('w-full h-full object-cover', className)} />;
+    return <img src={src} alt="" draggable={false} className={clsx('w-full h-full object-cover', className)} />;
   }
   return (
     <div className={clsx('w-full h-full flex items-center justify-center', TYPE_COLOR[tipo], className)}>
