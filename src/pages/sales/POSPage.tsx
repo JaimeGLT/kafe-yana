@@ -818,6 +818,24 @@ export const POSPage: React.FC = () => {
     });
   };
 
+  const handlePrintTempCart = () => {
+    if (!activeMesa || tempCart.length === 0) return;
+    const items = tempCart.map(i => ({
+      cantidad: i.quantity,
+      nombre: i.product.name + (i.opciones?.length
+        ? ` (${i.opciones.map((o: any) => formatOpcionLabel(o)).join(', ')})`
+        : ''),
+      nota: i.notes ?? '',
+      ubicacion: 'principal',
+    }));
+    setPrintComandaData({
+      mesaName: activeMesa.name,
+      roundNumber: activeMesa.currentRound,
+      rondaDesc: 'Vista previa del pedido',
+      items,
+    });
+  };
+
   const handleRequestPayment = () => {
     if (!activeMesa || activeMesa.order.length === 0) {
       toast.warning('Sin pedidos', 'Envía productos a cocina antes de cobrar.');
@@ -1430,6 +1448,14 @@ export const POSPage: React.FC = () => {
                           {formatCurrency(tempCart.reduce((s, i) => s + i.precioFinal * i.quantity, 0))}
                         </span>
                       </div>
+                      <button
+                        onClick={handlePrintTempCart}
+                        className="mx-5 my-3 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-coffee-300 text-coffee-700 text-sm font-semibold hover:bg-coffee-50 transition-colors"
+                        style={{ width: 'calc(100% - 2.5rem)' }}
+                      >
+                        <Printer className="h-4 w-4" />
+                        Imprimir pedido
+                      </button>
                     </>
                   )}
                 </div>
@@ -1533,6 +1559,14 @@ export const POSPage: React.FC = () => {
                           <span className="text-xs font-medium text-coffee-500">Total acumulado</span>
                           <span className="text-lg font-display font-black text-coffee-900">{formatCurrency(mesaSubtotal)}</span>
                         </div>
+                        <button
+                          onClick={handlePrintResumen}
+                          className="mx-5 my-3 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-coffee-300 text-coffee-700 text-sm font-semibold hover:bg-coffee-50 transition-colors"
+                          style={{ width: 'calc(100% - 2.5rem)' }}
+                        >
+                          <Printer className="h-4 w-4" />
+                          Pre-cuenta
+                        </button>
                       </>
                     );
                   })()}
@@ -1681,15 +1715,6 @@ export const POSPage: React.FC = () => {
                   )}
                   {tempCart.length === 0 && (
                     <>
-                      {activeMesa.order.length > 0 && (
-                        <button
-                          onClick={handlePrintResumen}
-                          className="flex items-center gap-1.5 px-3 py-2.5 sm:px-4 sm:py-3 rounded-xl border border-coffee-300 text-coffee-700 text-xs sm:text-sm font-medium hover:bg-coffee-50 transition-colors"
-                        >
-                          <Printer className="h-4 w-4" />
-                          Pre-cuenta
-                        </button>
-                      )}
                       <button
                         onClick={handleRequestPayment}
                         disabled={activeMesa.order.length === 0}

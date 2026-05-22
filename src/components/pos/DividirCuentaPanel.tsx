@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { clsx } from 'clsx';
-import { ChevronLeft, ChevronRight, ChevronDown, Check, Users, List, SlidersHorizontal, Minus, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Check, Users, List, SlidersHorizontal, Minus, Plus, Printer } from 'lucide-react';
+import { PrintComandaModal, type PrintComandaData } from './PrintComandaModal';
 import { CustomerCombobox } from '../forms/CustomerCombobox';
 import { toast } from '../ui/Toast';
 import type { Customer, CustomerInput } from '../../types';
@@ -94,6 +95,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
   const [cashInput, setCashInput] = useState('');
   const [cashError, setCashError] = useState('');
   const [showOrderList, setShowOrderList] = useState(false);
+  const [printCuentaData, setPrintCuentaData] = useState<PrintComandaData | null>(null);
 
   const activeIdx = cuentas.findIndex(c => c.status === 'activo');
   const activaCuenta = activeIdx >= 0 ? cuentas[activeIdx] : null;
@@ -203,6 +205,23 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
       else if (c.tipoPago === 'transfer') pagos.qr += c.monto;
     });
     onAllPaid(pagos);
+  };
+
+  const handlePrintCuenta = (cuenta: CuentaDividida) => {
+    const items = cuenta.displayItems && cuenta.displayItems.length > 0
+      ? cuenta.displayItems.map(item => ({
+          cantidad: item.quantity,
+          nombre: item.name,
+          nota: '',
+          ubicacion: 'principal' as const,
+        }))
+      : [{ cantidad: 1, nombre: `Cuenta ${cuenta.id}`, nota: formatCurrency(cuenta.monto), ubicacion: 'principal' as const }];
+    setPrintCuentaData({
+      mesaName,
+      roundNumber: cuenta.id,
+      rondaDesc: `Cuenta ${cuenta.id} · ${formatCurrency(cuenta.monto)}`,
+      items,
+    });
   };
 
   const headerBack =
@@ -502,20 +521,29 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
                   <p className="text-sm font-bold text-coffee-900">Cuenta {cuenta.id}</p>
                   <p className="text-xs text-coffee-500">{formatCurrency(cuenta.monto)}</p>
                 </div>
-                {cuenta.status === 'pagado' && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-coffee-400">{PAY_LABEL[cuenta.tipoPago!]}</span>
-                    <span className="flex items-center gap-1 text-xs font-bold bg-emerald-100 text-emerald-700 rounded-full px-2.5 py-1">
-                      <Check className="h-3 w-3" /> Pagado
-                    </span>
-                  </div>
-                )}
-                {cuenta.status === 'activo' && (
-                  <span className="text-xs font-bold bg-blue-100 text-blue-700 rounded-full px-2.5 py-1">Activo</span>
-                )}
-                {cuenta.status === 'pendiente' && (
-                  <span className="text-xs font-semibold bg-coffee-100 text-coffee-400 rounded-full px-2.5 py-1">Pendiente</span>
-                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handlePrintCuenta(cuenta)}
+                    className="h-7 w-7 rounded-lg bg-coffee-100 flex items-center justify-center text-coffee-500 hover:bg-coffee-200 transition-colors"
+                    title="Imprimir esta cuenta"
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                  </button>
+                  {cuenta.status === 'pagado' && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-coffee-400">{PAY_LABEL[cuenta.tipoPago!]}</span>
+                      <span className="flex items-center gap-1 text-xs font-bold bg-emerald-100 text-emerald-700 rounded-full px-2.5 py-1">
+                        <Check className="h-3 w-3" /> Pagado
+                      </span>
+                    </div>
+                  )}
+                  {cuenta.status === 'activo' && (
+                    <span className="text-xs font-bold bg-blue-100 text-blue-700 rounded-full px-2.5 py-1">Activo</span>
+                  )}
+                  {cuenta.status === 'pendiente' && (
+                    <span className="text-xs font-semibold bg-coffee-100 text-coffee-400 rounded-full px-2.5 py-1">Pendiente</span>
+                  )}
+                </div>
               </div>
 
               {/* Lista de ítems por cuenta (partes_iguales y por_items) */}
@@ -608,6 +636,10 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
         )}
         </>
       )}
+      <PrintComandaModal
+        data={printCuentaData}
+        onClose={() => setPrintCuentaData(null)}
+      />
     </div>
   );
 };
