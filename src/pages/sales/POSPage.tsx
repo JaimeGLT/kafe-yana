@@ -700,6 +700,10 @@ export const POSPage: React.FC = () => {
     if (product.tipo === 'combo') {
       setComboDetailProduct(product);
     } else if (product.tipo === 'elaborado') {
+      if (!product.hasVariations) {
+        addTempDirect(product);
+        return;
+      }
       setElaboradoDetailProduct(product);
       if (!elaboradoIngredientes[product.id]) {
         gql<any>(GET_ELABORADO_INGREDIENTES, { id: parseInt(product.id, 10) })

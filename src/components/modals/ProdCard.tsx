@@ -24,10 +24,14 @@ export const ProdCard: React.FC<ProdCardProps> = ({
   product, qty, unavailable, attrCount,
   onAdd, onInc, onDec, onInfo, rewardInfo, onRedeem, pointsShortfall, stockLabel,
 }) => (
-  <div className={clsx(
-    'flex-shrink-0 w-32 sm:w-40 bg-white rounded-2xl overflow-hidden shadow-sm flex flex-col select-none',
-    unavailable && 'opacity-50',
-  )}>
+  <div
+    className={clsx(
+      'flex-shrink-0 w-32 sm:w-40 bg-white rounded-2xl overflow-hidden shadow-sm flex flex-col select-none',
+      unavailable && 'opacity-50',
+      !unavailable && product.tipo !== 'combo' && 'cursor-pointer active:scale-95 transition-transform',
+    )}
+    onClick={!unavailable && product.tipo !== 'combo' ? onAdd : undefined}
+  >
     <div className="relative h-20 sm:h-32 overflow-hidden">
       <ProductImageFill src={product.image} tipo={product.tipo} iconSize="h-10 w-10 sm:h-12 sm:w-12" />
       {product.tipo === 'elaborado' && (
@@ -70,7 +74,7 @@ export const ProdCard: React.FC<ProdCardProps> = ({
       {attrCount > 0 ? (
         <button
           disabled={unavailable}
-          onClick={onAdd}
+          onClick={e => { e.stopPropagation(); onAdd(); }}
           className={clsx(
             'w-full flex items-center justify-center gap-1 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold transition-all',
             unavailable ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-coffee-800 text-cream hover:bg-coffee-700 active:scale-95',
@@ -81,7 +85,7 @@ export const ProdCard: React.FC<ProdCardProps> = ({
       ) : qty === 0 ? (
         <button
           disabled={unavailable}
-          onClick={onAdd}
+          onClick={e => { e.stopPropagation(); onAdd(); }}
           className={clsx(
             'w-full flex items-center justify-center gap-1 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold transition-all',
             unavailable ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-coffee-800 text-cream hover:bg-coffee-700 active:scale-95',
@@ -91,11 +95,11 @@ export const ProdCard: React.FC<ProdCardProps> = ({
         </button>
       ) : (
         <div className="flex items-center justify-between bg-coffee-100 rounded-xl overflow-hidden h-9 sm:h-11">
-          <button onClick={onDec} className="w-9 sm:w-11 h-full flex items-center justify-center hover:bg-coffee-200 text-coffee-700 transition-colors">
+          <button onClick={e => { e.stopPropagation(); onDec(); }} className="w-9 sm:w-11 h-full flex items-center justify-center hover:bg-coffee-200 text-coffee-700 transition-colors">
             <Minus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </button>
           <span className="text-sm sm:text-base font-black text-coffee-900">{qty}</span>
-          <button disabled={unavailable} onClick={onInc} className={clsx('w-9 sm:w-11 h-full flex items-center justify-center transition-colors', unavailable ? 'opacity-40 cursor-not-allowed' : 'hover:bg-coffee-200 text-coffee-700')}>
+          <button disabled={unavailable} onClick={e => { e.stopPropagation(); onInc(); }} className={clsx('w-9 sm:w-11 h-full flex items-center justify-center transition-colors', unavailable ? 'opacity-40 cursor-not-allowed' : 'hover:bg-coffee-200 text-coffee-700')}>
             <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </button>
         </div>
