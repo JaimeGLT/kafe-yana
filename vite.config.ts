@@ -14,6 +14,23 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    build: {
+      chunkSizeWarningLimit: 600,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules/recharts'))        return 'vendor-charts';
+            if (id.includes('node_modules/jspdf'))           return 'vendor-pdf';
+            if (id.includes('node_modules/@tabler') ||
+                id.includes('node_modules/lucide-react'))    return 'vendor-icons';
+            if (id.includes('node_modules/@microsoft/signalr')) return 'vendor-signalr';
+            if (id.includes('node_modules/react') ||
+                id.includes('node_modules/react-dom') ||
+                id.includes('node_modules/react-router'))    return 'vendor-react';
+          },
+        },
+      },
+    },
     server: {
       proxy: {
         '/api': {
