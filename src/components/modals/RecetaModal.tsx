@@ -159,11 +159,12 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
     if (!nombre.trim()) msgs.push('El nombre de la receta es obligatorio');
     const porcionesNum = Number(rawPorciones);
     if (!Number.isInteger(porcionesNum) || porcionesNum < 1) msgs.push('Las porciones deben ser un número entero ≥ 1');
-    if (ingredientes.length === 0) msgs.push('Agrega al menos un ingrediente');
     ingredientes.forEach((ing, i) => {
-      if (!ing.insumoId) msgs.push(`Fila ${i + 1}: selecciona un insumo`);
-      const qty = parseFloat(ing.quantity);
-      if (!qty || qty <= 0) msgs.push(`Fila ${i + 1}: cantidad debe ser mayor a 0`);
+      if (ing.insumoId || ing.quantity) {
+        if (!ing.insumoId) msgs.push(`Fila ${i + 1}: selecciona un insumo`);
+        const qty = parseFloat(ing.quantity);
+        if (!qty || qty <= 0) msgs.push(`Fila ${i + 1}: cantidad debe ser mayor a 0`);
+      }
     });
     if (msgs.length > 0) {
       toast.error('Campos requeridos', msgs.join(' · '));
@@ -183,15 +184,15 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
         nota: notas.trim(),
         id_Elaborado: Number(productId),
         porciones,
-        detalles: ingredientes.map((ing) => {
-          const insumo = localInsumos.find(i => String(i.id) === String(ing.insumoId));
-          const qty = parseFloat(ing.quantity) || 0;
-          const merma = parseFloat(ing.merma) || 0;
-          const subTotal = insumo && qty > 0
-            ? insumo.costoUnitario * qty * (1 + merma / 100)
-            : 0;
-          return { cantidad: qty, merma, subTotal, id_insumo: Number(ing.insumoId) };
-        }),
+        detalles: ingredientes
+          .filter((ing) => ing.insumoId && parseFloat(ing.quantity) > 0)
+          .map((ing) => {
+            const insumo = localInsumos.find(i => String(i.id) === String(ing.insumoId));
+            const qty = parseFloat(ing.quantity);
+            const merma = parseFloat(ing.merma) || 0;
+            const subTotal = insumo ? insumo.costoUnitario * qty * (1 + merma / 100) : 0;
+            return { cantidad: qty, merma, subTotal, id_insumo: Number(ing.insumoId) };
+          }),
       };
       if (receta) {
         await api.put(`/Receta/${receta.id}`, body);
@@ -352,7 +353,7 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
                       type="button"
                       onClick={() => removeLine(idx)}
                       className="col-span-2 sm:col-span-1 flex sm:block justify-end text-red-400 hover:text-red-600 transition-colors self-center"
-                      disabled={ingredientes.length === 1}
+                      disabled={false}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

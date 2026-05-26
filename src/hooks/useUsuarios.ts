@@ -40,7 +40,7 @@ export function useUsuarios() {
     }
   }, []);
 
-  const createUsuario = useCallback(async (payload: CreateUserPayload): Promise<boolean> => {
+  const createUsuario = useCallback(async (payload: CreateUserPayload): Promise<string | null> => {
     try {
       await api.post('/Aunth/Registro', {
         nombre: payload.nombre.trim(),
@@ -50,15 +50,15 @@ export function useUsuarios() {
         numeroPhone: payload.numeroPhone.trim(),
         rol: payload.rol,
       });
-      return true;
+      return null;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'No se pudo crear el usuario.';
       setError(msg);
-      return false;
+      return msg;
     }
   }, []);
 
-  const updateUsuario = useCallback(async (email: string, payload: UpdateUserPayload): Promise<boolean> => {
+  const updateUsuario = useCallback(async (email: string, payload: UpdateUserPayload): Promise<string | null> => {
     try {
       const body: Record<string, string | number | undefined> = {
         nombre: payload.nombre.trim(),
@@ -70,44 +70,44 @@ export function useUsuarios() {
         body.password = payload.password;
       }
       await api.put(`/Aunth/${encodeURIComponent(email)}`, body);
-      return true;
+      return null;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'No se pudo actualizar el usuario.';
       setError(msg);
-      return false;
+      return msg;
     }
   }, []);
 
-  const deleteUsuario = useCallback(async (email: string): Promise<boolean> => {
+  const deleteUsuario = useCallback(async (email: string): Promise<string | null> => {
     try {
       await api.delete(`/Aunth/${encodeURIComponent(email)}`);
-      return true;
+      return null;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'No se pudo eliminar el usuario.';
       setError(msg);
-      return false;
+      return msg;
     }
   }, []);
 
-  const blockUsuario = useCallback(async (email: string): Promise<boolean> => {
+  const blockUsuario = useCallback(async (email: string): Promise<string | null> => {
     try {
       await api.put(`/Aunth/bloquear/${encodeURIComponent(email)}`);
-      return true;
+      return null;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'No se pudo bloquear el usuario.';
       setError(msg);
-      return false;
+      return msg;
     }
   }, []);
 
-  const unblockUsuario = useCallback(async (email: string): Promise<boolean> => {
+  const unblockUsuario = useCallback(async (email: string): Promise<string | null> => {
     try {
       await api.put(`/Aunth/desbloquear/${encodeURIComponent(email)}`);
-      return true;
+      return null;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'No se pudo desbloquear el usuario.';
       setError(msg);
-      return false;
+      return msg;
     }
   }, []);
 

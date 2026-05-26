@@ -35,14 +35,14 @@ export const SettingsUsersPage: React.FC = () => {
 
   const handleCreate = async (data: CreateUserPayload) => {
     setSubmitLoading(true);
-    const ok = await createUsuario(data);
+    const err = await createUsuario(data);
     setSubmitLoading(false);
-    if (ok) {
+    if (!err) {
       toast.success('Usuario creado correctamente');
       setCreateOpen(false);
       await fetchUsuarios();
     } else {
-      toast.error('Error al crear', 'No se pudo crear el usuario.');
+      toast.error('Error al crear', err);
     }
   };
 
@@ -50,28 +50,28 @@ export const SettingsUsersPage: React.FC = () => {
     if (!blockTarget) return;
     const { user, action } = blockTarget;
     setBlockLoading(true);
-    const ok = action === 'bloquear' ? await blockUsuario(user.email) : await unblockUsuario(user.email);
+    const err = action === 'bloquear' ? await blockUsuario(user.email) : await unblockUsuario(user.email);
     setBlockLoading(false);
-    if (ok) {
+    if (!err) {
       toast.success(action === 'bloquear' ? 'Usuario bloqueado' : 'Usuario desbloqueado');
       setBlockTarget(null);
       await fetchUsuarios();
     } else {
-      toast.error('Error', `No se pudo ${action} el usuario.`);
+      toast.error('Error', err);
     }
   };
 
   const handleDelete = async () => {
     if (!deleteUser) return;
     setDeleteLoading(true);
-    const ok = await deleteUsuario(deleteUser.email);
+    const err = await deleteUsuario(deleteUser.email);
     setDeleteLoading(false);
-    if (ok) {
+    if (!err) {
       toast.success('Usuario eliminado');
       setDeleteUser(null);
       await fetchUsuarios();
     } else {
-      toast.error('Error al eliminar', 'No se pudo eliminar el usuario.');
+      toast.error('Error al eliminar', err);
     }
   };
 
