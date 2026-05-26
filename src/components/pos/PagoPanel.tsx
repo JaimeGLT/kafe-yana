@@ -1,7 +1,17 @@
 import React from 'react';
 import { clsx } from 'clsx';
-import { AlertTriangle, X, Star, Gift, Plus, User, Search } from 'lucide-react';
+import { AlertTriangle, X, Star, Gift, Plus, User, Search, Tag, RotateCcw } from 'lucide-react';
 import type { PaymentMethodType, Customer } from '../../types';
+
+interface DescuentoPreview {
+  HayDescuentoDisponible: boolean;
+  DescuentoRecomendado: {
+    Nombre: string;
+    PorcentajeDescuento: number;
+    MontoDescuento: number;
+    TotalConDescuento: number;
+  } | null;
+}
 
 const PAYMENT_METHODS: { type: PaymentMethodType; label: string; icon: React.ReactNode }[] = [
   { type: 'cash',     label: 'Efectivo',  icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
@@ -39,6 +49,10 @@ interface PagoPanelProps {
   onReviewNewCustomerNameChange: (v: string) => void;
   onReviewNewCustomerPhoneChange: (v: string) => void;
   qrImageUrl?: string | null;
+  discountPreview?: DescuentoPreview | null;
+  aplicarDescuento?: boolean;
+  onAplicarDescuentoChange?: (v: boolean) => void;
+  isLoadingDescuento?: boolean;
 }
 
 export const PagoPanel: React.FC<PagoPanelProps> = ({
@@ -48,7 +62,6 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
   cashReceived,
   isProcessing,
   cashNum,
-  change,
   loyaltyProfile,
   pointsPreview,
   formatCurrency,
@@ -69,8 +82,15 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
   onReviewNewCustomerNameChange,
   onReviewNewCustomerPhoneChange,
   qrImageUrl,
+  discountPreview,
+  aplicarDescuento = false,
+  onAplicarDescuentoChange,
+  isLoadingDescuento = false,
 }) => {
   const selectedCliente = reviewClienteId ? customers.find(c => String(c.id) === reviewClienteId) : null;
+  const efectivoTotal = aplicarDescuento && discountPreview?.DescuentoRecomendado
+    ? discountPreview.DescuentoRecomendado.TotalConDescuento
+    : mesaTotal;
 
   const handleCreateCustomer = () => {
     if (!reviewNewCustomerName.trim() || !reviewNewCustomerPhone.trim()) return;
@@ -102,7 +122,14 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
       <div className="p-5 space-y-5 overflow-y-auto flex-1">
         <div className="text-center py-2">
           <p className="text-xs text-coffee-400 uppercase tracking-widest font-semibold mb-1">Total a pagar</p>
-          <p className="text-5xl font-display font-black text-coffee-900">{formatCurrency(mesaTotal)}</p>
+          {aplicarDescuento && discountPreview?.DescuentoRecomendado ? (
+            <div className="flex flex-col items-center gap-0.5">
+              <p className="text-2xl font-display font-bold text-coffee-400 line-through">{formatCurrency(mesaTotal)}</p>
+              <p className="text-5xl font-display font-black text-emerald-600">{formatCurrency(efectivoTotal)}</p>
+            </div>
+          ) : (
+            <p className="text-5xl font-display font-black text-coffee-900">{formatCurrency(mesaTotal)}</p>
+          )}
         </div>
 
         {loyaltyProfile && activeMesaOrder.some(i => i.redeemRewardId) && (
@@ -188,6 +215,40 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
           )}
         </div>
 
+        {/* Descuento por promoción permanente */}
+        {isLoadingDescuento ? (
+          <div className="flex items-center gap-2 bg-coffee-50 rounded-xl px-3.5 py-2.5 border border-coffee-100">
+            <RotateCcw className="h-4 w-4 text-coffee-400 animate-spin flex-shrink-0" />
+            <p className="text-xs text-coffee-400">Verificando descuentos...</p>
+          </div>
+        ) : discountPreview?.HayDescuentoDisponible && discountPreview.DescuentoRecomendado ? (
+          <div className="bg-emerald-50 rounded-xl border border-emerald-200 overflow-hidden">
+            <div className="flex items-center justify-between px-3.5 py-2.5">
+              <div className="flex items-center gap-2">
+                <Tag className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                <div>
+                  <p className="text-xs font-bold text-emerald-800">{discountPreview.DescuentoRecomendado.Nombre}</p>
+                  <p className="text-[11px] text-emerald-600">
+                    {discountPreview.DescuentoRecomendado.PorcentajeDescuento}% · ahorro {formatCurrency(discountPreview.DescuentoRecomendado.MontoDescuento)}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => onAplicarDescuentoChange?.(!aplicarDescuento)}
+                className={clsx(
+                  'relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0',
+                  aplicarDescuento ? 'bg-emerald-500' : 'bg-coffee-200',
+                )}
+              >
+                <span className={clsx(
+                  'absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200',
+                  aplicarDescuento ? 'translate-x-5' : 'translate-x-0',
+                )} />
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         <div>
           <p className="text-xs font-bold text-coffee-400 uppercase tracking-wider mb-2.5">Método de pago</p>
           <div className="grid grid-cols-3 gap-2">
@@ -238,10 +299,10 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
                 autoFocus
               />
             </div>
-            {cashNum >= mesaTotal && cashNum > 0 && (
+            {cashNum >= efectivoTotal && cashNum > 0 && (
               <div className="mt-2 flex justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
                 <span className="text-sm font-bold text-emerald-700">Vuelto</span>
-                <span className="text-sm font-black text-emerald-700">{formatCurrency(change)}</span>
+                <span className="text-sm font-black text-emerald-700">{formatCurrency(cashNum - efectivoTotal)}</span>
               </div>
             )}
           </div>
@@ -265,7 +326,7 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
           </button>
           <button
             onClick={onConfirm}
-            disabled={isProcessing || (paymentMethod === 'cash' && cashNum > 0 && cashNum < mesaTotal)}
+            disabled={isProcessing || (paymentMethod === 'cash' && cashNum > 0 && cashNum < efectivoTotal)}
             className={clsx(
               'flex-1 py-3.5 rounded-2xl font-bold text-sm transition-all',
               isProcessing || (paymentMethod === 'cash' && cashNum > 0 && cashNum < mesaTotal)

@@ -1,43 +1,43 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import http from 'node:http'
 import https from 'node:https'
 
-const API_TARGET = 'https://kafeyanaapi20260321224446-bqdjh9acame8gydt.centralus-01.azurewebsites.net/'
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const API_TARGET = env.VITE_BACKEND_PROXY
 
-// Agente HTTPS con keep-alive: reutiliza la conexión TCP+TLS entre peticiones
-// Esto elimina los ~400-660ms de TLS handshake por cada request en desarrollo
-const keepAliveAgent = new https.Agent({
-  keepAlive: true,
-  keepAliveMsecs: 30_000,
-  maxSockets: 10,
-})
+  const isHttps = API_TARGET.startsWith('https')
+  const keepAliveAgent = isHttps
+    ? new https.Agent({ keepAlive: true, keepAliveMsecs: 30_000, maxSockets: 10 })
+    : new http.Agent({ keepAlive: true, keepAliveMsecs: 30_000, maxSockets: 10 })
 
-// https://vite.dev/config/
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    proxy: {
-      '/api': {
-        target: API_TARGET,
-        changeOrigin: true,
-        secure: false,
-        cookieDomainRewrite: 'localhost',
-        agent: keepAliveAgent,
-      },
-      '/graphql': {
-        target: API_TARGET,
-        changeOrigin: true,
-        secure: false,
-        cookieDomainRewrite: 'localhost',
-        agent: keepAliveAgent,
-      },
-      '/hubs': {
-        target: API_TARGET,
-        changeOrigin: true,
-        secure: false,
-        cookieDomainRewrite: 'localhost',
-        ws: true,
+  return {
+    plugins: [react()],
+    server: {
+      proxy: {
+        '/api': {
+          target: API_TARGET,
+          changeOrigin: true,
+          secure: false,
+          cookieDomainRewrite: 'localhost',
+          agent: keepAliveAgent,
+        },
+        '/graphql': {
+          target: API_TARGET,
+          changeOrigin: true,
+          secure: false,
+          cookieDomainRewrite: 'localhost',
+          agent: keepAliveAgent,
+        },
+        '/hubs': {
+          target: API_TARGET,
+          changeOrigin: true,
+          secure: false,
+          cookieDomainRewrite: 'localhost',
+          ws: true,
+        },
       },
     },
-  },
+  }
 })

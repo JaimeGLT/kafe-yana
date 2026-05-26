@@ -4,8 +4,7 @@
  */
 
 const BASE_URL = ((import.meta.env.VITE_API_URL as string | undefined) ?? '').replace(/\/$/, '');
-const GRAPH_URL = ((import.meta.env.VITE_GRAPH_URL as string | undefined) ?? '').replace(/\/$/, '');
-
+const GRAPH_URL = ((import.meta.env.VITE_GQL_URL as string | undefined) ?? '').replace(/\/$/, '');
 import { ApiError } from './api';
 
 async function tryRefreshToken(): Promise<boolean> {

@@ -14,10 +14,10 @@ import { CustomerModal } from '../../components/modals/CustomerModal';
 import { formatDateTime } from '../../utils/formatters';
 import { api } from '../../lib/api';
 import { useFidelizacion } from '../../hooks/useFidelizacion';
-import type { ProductoCanjeable, HistorialPuntosItem } from '../../hooks/useFidelizacion';
+import type { ProductoCanjeable, HistorialPuntosItem, DtoPromocionGratisItem } from '../../hooks/useFidelizacion';
 import type { LoyaltyProfile, LoyaltyLevel } from '../../types/loyalty';
 import type { Customer, CustomerInput } from '../../types';
-import { useHitosCompra } from '../../hooks/useHitosCompra';
+import { useHitosCompra, type HitoCompra } from '../../hooks/useHitosCompra';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TabId = 'recompensas' | 'promos' | 'promos_permanentes' | 'historial' | 'compras' | 'info';
@@ -201,11 +201,14 @@ export const FidelizacionPage: React.FC = () => {
     historialPuntos,
     promocionesPermanentes,
     promocionesTemporada,
+    promosGratisCliente,
     isLoadingVentas,
     isLoadingHistorial,
+    isLoadingPromosGratis,
     refreshClientes,
     fetchVentasCliente,
     fetchHistorialPuntos,
+    fetchPromosGratisCliente,
     createCliente,
   } = useFidelizacion();
 
@@ -218,6 +221,12 @@ export const FidelizacionPage: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [confirmReward, setConfirmReward] = useState<ProductoCanjeable | null>(null);
   const [isRedeeming, setIsRedeeming] = useState(false);
+  const [confirmHito, setConfirmHito] = useState<HitoCompra | null>(null);
+  const [isRedeemingHito, setIsRedeemingHito] = useState(false);
+  const [reclamadosHitos, setReclamadosHitos] = useState<Set<number>>(new Set());
+  const [confirmPromoGratis, setConfirmPromoGratis] = useState<DtoPromocionGratisItem | null>(null);
+  const [isRedeemingPromoGratis, setIsRedeemingPromoGratis] = useState(false);
+  const [reclamadosPromos, setReclamadosPromos] = useState<Set<number>>(new Set());
 
 
 
@@ -307,9 +316,12 @@ export const FidelizacionPage: React.FC = () => {
   const handleSelectCustomer = (id: string) => {
     setSelectedCustomerId(id);
     setSearch('');
+    setReclamadosHitos(new Set());
+    setReclamadosPromos(new Set());
     const customer = activeCustomers.find(c => c.id === id);
     if (customer) fetchVentasCliente(customer.nombre);
     fetchHistorialPuntos(Number(id));
+    fetchPromosGratisCliente(Number(id));
   };
 
   const handleCreateCliente = async (input: CustomerInput, _isEdit: boolean, _id?: string) => {
@@ -326,17 +338,50 @@ export const FidelizacionPage: React.FC = () => {
     setConfirmReward(prod);
   };
 
-  const handleRedeemHito = (hito: ReturnType<typeof useHitosCompra>['hitos'][number]) => {
-    if (!selectedCustomerId || !selectedProfile) return;
-    setConfirmReward({
-      id: String(hito.productoCanjeable.id),
-      id_Producto: String(hito.idProductoCanjeable),
-      nombreProducto: hito.productoCanjeable.nombreProducto,
-      categoria: hito.productoCanjeable.categoria,
-      puntos: 0,
-      disponible: hito.productoCanjeable.disponible,
-      activo: hito.productoCanjeable.activo,
-    });
+  const handleRedeemHito = (hito: HitoCompra) => {
+    if (!selectedCustomerId) return;
+    setConfirmHito(hito);
+  };
+
+  const handleConfirmHito = async () => {
+    if (!confirmHito || !selectedCustomer) return;
+    setIsRedeemingHito(true);
+    try {
+      const res = await api.post<{ Mensaje: string; NombreProducto: string }>(
+        '/ProductoCanjeable/reclamar-hito',
+        { IdCliente: Number(selectedCustomer.id), IdHitoCompra: confirmHito.id },
+      );
+      toast.success('¡Hito reclamado!', res.Mensaje ?? `${confirmHito.productoCanjeable.nombreProducto} entregado.`);
+      setReclamadosHitos(prev => new Set(prev).add(confirmHito.id));
+      setConfirmHito(null);
+      await refreshClientes();
+    } catch (e) {
+      toast.error('Error', e instanceof Error ? e.message : 'No se pudo reclamar el hito.');
+    } finally {
+      setIsRedeemingHito(false);
+    }
+  };
+
+  const handleConfirmPromoGratis = async () => {
+    if (!confirmPromoGratis || !selectedCustomer) return;
+    setIsRedeemingPromoGratis(true);
+    try {
+      const res = await api.post<{ Mensaje: string; NombreProducto: string }>(
+        '/ProductoCanjeable/reclamar-promocion-gratis',
+        { IdCliente: Number(selectedCustomer.id), IdPromocionPermanente: confirmPromoGratis.IdPromocionPermanente },
+      );
+      toast.success('¡Promoción reclamada!', res.Mensaje ?? `${confirmPromoGratis.NombreProducto} entregado.`);
+      setReclamadosPromos(prev => new Set(prev).add(confirmPromoGratis.IdPromocionPermanente));
+      setConfirmPromoGratis(null);
+      await Promise.all([
+        refreshClientes(),
+        fetchPromosGratisCliente(Number(selectedCustomer.id)),
+      ]);
+    } catch (e) {
+      toast.error('Error', e instanceof Error ? e.message : 'No se pudo reclamar la promoción.');
+    } finally {
+      setIsRedeemingPromoGratis(false);
+    }
   };
 
   const handleConfirmRedeem = async () => {
@@ -516,8 +561,9 @@ export const FidelizacionPage: React.FC = () => {
                     Hitos de Compra
                   </h3>
                   {hitos.filter(h => h.activo).map(hito => {
-                    const purchaseCount = selectedProfile.purchaseCount;
+                    const purchaseCount = selectedCustomer.numeroCompras ?? 0;
                     const reached = purchaseCount >= hito.numeroCompras;
+                    const yaReclamado = reclamadosHitos.has(hito.id);
                     const progress = Math.min(100, (purchaseCount / hito.numeroCompras) * 100);
                     return (
                       <div
@@ -554,10 +600,16 @@ export const FidelizacionPage: React.FC = () => {
                         {reached && (
                           <button
                             onClick={() => handleRedeemHito(hito)}
-                            className="w-full py-1.5 rounded-xl bg-yellow-400 text-coffee-900 text-xs font-body font-bold hover:bg-yellow-300 transition-colors flex items-center justify-center gap-1.5"
+                            disabled={yaReclamado || isRedeemingHito}
+                            className={clsx(
+                              'w-full py-1.5 rounded-xl text-xs font-body font-bold transition-colors flex items-center justify-center gap-1.5',
+                              yaReclamado
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-yellow-400 text-coffee-900 hover:bg-yellow-300',
+                            )}
                           >
                             <Gift className="w-3.5 h-3.5" />
-                            Reclamar recompensa
+                            {yaReclamado ? 'Ya reclamado' : 'Reclamar recompensa'}
                           </button>
                         )}
                       </div>
@@ -791,65 +843,185 @@ export const FidelizacionPage: React.FC = () => {
 
           {/* ── TAB: Promos Permanentes ───────────────────────────────────────── */}
           {activeTab === 'promos_permanentes' && (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div>
                 <h3 className="font-display font-bold text-coffee-900 text-base">Promociones Permanentes</h3>
-                <p className="text-xs font-body text-coffee-400 mt-0.5">Aceleradores de comportamiento configurados en el sistema.</p>
+                <p className="text-xs font-body text-coffee-400 mt-0.5">Productos gratis por condición de compra.</p>
               </div>
 
-              {promocionesPermanentes.length === 0 ? (
-                <div className="text-center py-10 bg-coffee-50 rounded-2xl border border-dashed border-coffee-200">
+              {/* Sección por cliente: Disponibles + En progreso */}
+              {!selectedCustomer ? (
+                <div className="text-center py-8 bg-coffee-50 rounded-2xl border border-dashed border-coffee-200">
                   <Zap className="w-8 h-8 text-coffee-200 mx-auto mb-2" />
-                  <p className="text-sm font-body text-coffee-400">Sin promociones permanentes configuradas</p>
+                  <p className="text-sm font-body text-coffee-400">Selecciona un cliente para ver sus promociones disponibles</p>
+                </div>
+              ) : isLoadingPromosGratis ? (
+                <div className="text-center py-8 bg-white rounded-2xl border border-coffee-100">
+                  <RotateCcw className="w-8 h-8 text-coffee-200 mx-auto mb-2 animate-spin" />
+                  <p className="text-sm font-body text-coffee-400">Cargando promociones...</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {promocionesPermanentes.map(promo => (
-                    <div
-                      key={promo.id}
-                      className={clsx(
-                        'bg-white rounded-2xl border p-4 transition-all duration-200',
-                        promo.activo ? 'border-coffee-200 shadow-coffee' : 'border-coffee-100 opacity-70',
-                      )}
-                    >
-                      <div className="flex items-start gap-4">
-                        <div className={clsx(
-                          'w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0',
-                          promo.activo ? 'bg-coffee-100' : 'bg-gray-100',
-                        )}>
-                          {promo.tipoCondicion === 'NCompras' ? '☕' :
-                           promo.tipoCondicion === 'MontoMinimo' ? '💰' : '🎯'}
-                        </div>
+                <div className="space-y-4">
+                  {/* Disponibles para reclamar */}
+                  {promosGratisCliente && promosGratisCliente.Disponibles.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                        <h4 className="font-display font-semibold text-coffee-900 text-sm">Puede reclamar ahora</h4>
+                      </div>
+                      <div className="space-y-3">
+                        {promosGratisCliente.Disponibles.map(promo => {
+                          const yaReclamado = reclamadosPromos.has(promo.IdPromocionPermanente);
+                          return (
+                            <div
+                              key={promo.IdPromocionPermanente}
+                              className="bg-white rounded-2xl border border-green-200 p-4 flex items-center gap-4 shadow-sm"
+                            >
+                              <div className="w-12 h-12 rounded-2xl bg-green-100 flex items-center justify-center text-2xl flex-shrink-0">
+                                {promo.TipoCondicion === 'NCompras' ? '☕' : '💰'}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-display font-bold text-coffee-900 text-sm">{promo.NombrePromocion}</p>
+                                <p className="text-xs font-body text-coffee-500 mt-0.5">
+                                  {promo.NombreProducto} · {promo.Categoria}
+                                </p>
+                                {promo.TipoCondicion === 'NCompras' && promo.ProgresoActual !== null && (
+                                  <span className="text-xs font-body text-green-600 font-semibold">
+                                    {promo.ProgresoActual}/{promo.ValorCondicion} compras ✓
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => setConfirmPromoGratis(promo)}
+                                disabled={yaReclamado || isRedeemingPromoGratis}
+                                className={clsx(
+                                  'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-body font-bold transition-colors flex-shrink-0',
+                                  yaReclamado
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : 'bg-green-500 text-white hover:bg-green-600',
+                                )}
+                              >
+                                <Gift className="w-3.5 h-3.5" />
+                                {yaReclamado ? 'Reclamado' : 'Reclamar'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <span className="font-display font-bold text-coffee-900">{promo.nombre}</span>
-                            <span className={clsx(
-                              'text-xs font-body font-bold px-2 py-0.5 rounded-full',
-                              promo.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500',
-                            )}>
-                              {promo.activo ? 'Activa' : 'Inactiva'}
-                            </span>
+                  {/* En progreso */}
+                  {promosGratisCliente && promosGratisCliente.EnProgreso.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <TrendingUp className="w-4 h-4 text-coffee-400" />
+                        <h4 className="font-display font-semibold text-coffee-900 text-sm">En progreso</h4>
+                      </div>
+                      <div className="space-y-3">
+                        {promosGratisCliente.EnProgreso.map(promo => {
+                          const progreso = promo.ProgresoActual ?? 0;
+                          const pct = Math.min(100, (progreso / promo.ValorCondicion) * 100);
+                          return (
+                            <div
+                              key={promo.IdPromocionPermanente}
+                              className="bg-white rounded-2xl border border-coffee-100 p-4"
+                            >
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 rounded-xl bg-coffee-100 flex items-center justify-center text-xl flex-shrink-0">
+                                  {promo.TipoCondicion === 'NCompras' ? '☕' : '💰'}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-display font-bold text-coffee-900 text-sm">{promo.NombrePromocion}</p>
+                                  <p className="text-xs font-body text-coffee-500">{promo.NombreProducto} · {promo.Categoria}</p>
+                                </div>
+                                {promo.TipoCondicion === 'NCompras' && (
+                                  <span className="text-xs font-body font-bold text-coffee-500 flex-shrink-0">
+                                    {progreso}/{promo.ValorCondicion}
+                                  </span>
+                                )}
+                              </div>
+                              {promo.TipoCondicion === 'NCompras' && (
+                                <div className="w-full bg-coffee-100 rounded-full h-2">
+                                  <div
+                                    className="h-2 rounded-full bg-coffee-500 transition-all duration-500"
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {promosGratisCliente &&
+                    promosGratisCliente.Disponibles.length === 0 &&
+                    promosGratisCliente.EnProgreso.length === 0 && (
+                    <div className="text-center py-6 bg-coffee-50 rounded-xl text-sm font-body text-coffee-400">
+                      Sin promociones activas para este cliente
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Todas las permanentes (no ProductoGratis) — multiplicadores y otros */}
+              {(() => {
+                const otras = promocionesPermanentes.filter(p => p.tipoRecompensa !== 'ProductoGratis');
+                if (otras.length === 0) return null;
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-coffee-400" />
+                      <h4 className="font-display font-semibold text-coffee-900 text-sm">Multiplicadores de puntos</h4>
+                    </div>
+                    {otras.map(promo => (
+                      <div
+                        key={promo.id}
+                        className={clsx(
+                          'bg-white rounded-2xl border p-4 transition-all duration-200',
+                          promo.activo ? 'border-coffee-200 shadow-coffee' : 'border-coffee-100 opacity-70',
+                        )}
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className={clsx(
+                            'w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0',
+                            promo.activo ? 'bg-coffee-100' : 'bg-gray-100',
+                          )}>
+                            {promo.tipoCondicion === 'NCompras' ? '☕' :
+                             promo.tipoCondicion === 'MontoMinimo' ? '💰' : '🎯'}
                           </div>
-                          <p className="text-xs font-body text-coffee-500 mb-2">{promo.descripcion}</p>
-                          <div className="flex flex-wrap gap-3 text-xs font-body">
-                            <span className="flex items-center gap-1">
-                              <Target className="w-3.5 h-3.5 text-coffee-400" />
-                              <span className="text-coffee-600 font-medium">Condición:</span>
-                              <span className="text-coffee-500">{promo.tipoCondicion} · {promo.valorCondicion}</span>
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Gift className="w-3.5 h-3.5 text-coffee-400" />
-                              <span className="text-coffee-600 font-medium">Recompensa:</span>
-                              <span className="text-coffee-500">{promo.tipoRecompensa} · {promo.valorRecompensa}</span>
-                            </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className="font-display font-bold text-coffee-900">{promo.nombre}</span>
+                              <span className={clsx(
+                                'text-xs font-body font-bold px-2 py-0.5 rounded-full',
+                                promo.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500',
+                              )}>
+                                {promo.activo ? 'Activa' : 'Inactiva'}
+                              </span>
+                            </div>
+                            <p className="text-xs font-body text-coffee-500 mb-2">{promo.descripcion}</p>
+                            <div className="flex flex-wrap gap-3 text-xs font-body">
+                              <span className="flex items-center gap-1">
+                                <Target className="w-3.5 h-3.5 text-coffee-400" />
+                                <span className="text-coffee-600 font-medium">Condición:</span>
+                                <span className="text-coffee-500">{promo.tipoCondicion} · {promo.valorCondicion}</span>
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Gift className="w-3.5 h-3.5 text-coffee-400" />
+                                <span className="text-coffee-600 font-medium">Recompensa:</span>
+                                <span className="text-coffee-500">{promo.tipoRecompensa} · {promo.valorRecompensa}</span>
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -1046,7 +1218,7 @@ export const FidelizacionPage: React.FC = () => {
                         <h3 className="font-display font-semibold text-coffee-900">Hitos de Compra</h3>
                       </div>
                       <span className="text-xs font-body text-coffee-400">
-                        {selectedProfile?.purchaseCount ?? ventasCliente.length} visitas
+                        {selectedCustomer?.numeroCompras ?? 0} visitas
                       </span>
                     </div>
                     <div className="p-4 overflow-x-auto">
@@ -1055,7 +1227,7 @@ export const FidelizacionPage: React.FC = () => {
                       ) : (
                         <div className="flex items-start gap-2 min-w-max">
                           {hitos.filter(h => h.activo).map((hito, idx, arr) => {
-                            const purchaseCount = selectedProfile?.purchaseCount ?? ventasCliente.length;
+                            const purchaseCount = selectedCustomer?.numeroCompras ?? 0;
                             const reached = purchaseCount >= hito.numeroCompras;
                             const isNext = !reached && (idx === 0 || purchaseCount >= arr[idx - 1].numeroCompras);
                             return (
@@ -1217,6 +1389,118 @@ export const FidelizacionPage: React.FC = () => {
                 className="flex-1 py-2.5 rounded-xl bg-green-500 text-white text-sm font-body font-semibold hover:bg-green-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isRedeeming ? 'Canjeando...' : 'Confirmar entrega'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirm Hito Modal ───────────────────────────────────────────── */}
+      {confirmHito && selectedCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmHito(null)} />
+          <div className="relative bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="font-display font-bold text-xl text-coffee-900 mb-1">Confirmar hito</h3>
+            <p className="text-sm font-body text-coffee-500 mb-5">
+              Verificá que el producto está listo para entregar al cliente.
+            </p>
+
+            <div className="p-4 rounded-2xl bg-yellow-50 border border-yellow-200 mb-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-yellow-100 flex items-center justify-center text-xl flex-shrink-0">
+                  {confirmHito.icono}
+                </div>
+                <div>
+                  <p className="font-display font-bold text-coffee-900">{confirmHito.productoCanjeable.nombreProducto}</p>
+                  <p className="text-xs font-body text-coffee-500">{confirmHito.productoCanjeable.categoria}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-sm font-body border-t border-yellow-200 pt-3">
+                <span className="text-coffee-600">Cliente</span>
+                <span className="font-semibold text-coffee-900">{selectedCustomer.nombre}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm font-body">
+                <span className="text-coffee-600">Compras del cliente</span>
+                <span className="font-display font-bold text-coffee-900">{selectedCustomer.numeroCompras ?? 0}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm font-body">
+                <span className="text-coffee-600">Hito requerido</span>
+                <span className="font-display font-bold text-yellow-600">{confirmHito.numeroCompras} compras</span>
+              </div>
+              <div className="flex items-center justify-between text-sm font-body">
+                <span className="text-coffee-600">Costo en puntos</span>
+                <span className="font-display font-bold text-green-600">Gratis — sin descuento de puntos</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmHito(null)}
+                disabled={isRedeemingHito}
+                className="flex-1 py-2.5 rounded-xl border border-coffee-200 text-coffee-600 text-sm font-body font-medium hover:bg-coffee-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmHito}
+                disabled={isRedeemingHito}
+                className="flex-1 py-2.5 rounded-xl bg-yellow-400 text-coffee-900 text-sm font-body font-semibold hover:bg-yellow-300 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isRedeemingHito ? 'Reclamando...' : 'Confirmar entrega'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirm Promo Gratis Modal ────────────────────────────────────── */}
+      {confirmPromoGratis && selectedCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmPromoGratis(null)} />
+          <div className="relative bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="font-display font-bold text-xl text-coffee-900 mb-1">Confirmar promoción</h3>
+            <p className="text-sm font-body text-coffee-500 mb-5">
+              Verificá que el producto está listo para entregar al cliente.
+            </p>
+
+            <div className="p-4 rounded-2xl bg-green-50 border border-green-200 mb-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-xl flex-shrink-0">
+                  {confirmPromoGratis.TipoCondicion === 'NCompras' ? '☕' : '💰'}
+                </div>
+                <div>
+                  <p className="font-display font-bold text-coffee-900">{confirmPromoGratis.NombreProducto}</p>
+                  <p className="text-xs font-body text-coffee-500">{confirmPromoGratis.Categoria}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-sm font-body border-t border-green-200 pt-3">
+                <span className="text-coffee-600">Promoción</span>
+                <span className="font-semibold text-coffee-900 text-right text-xs">{confirmPromoGratis.NombrePromocion}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm font-body">
+                <span className="text-coffee-600">Cliente</span>
+                <span className="font-semibold text-coffee-900">{selectedCustomer.nombre}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm font-body">
+                <span className="text-coffee-600">Costo en puntos</span>
+                <span className="font-display font-bold text-green-600">Gratis — sin descuento</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmPromoGratis(null)}
+                disabled={isRedeemingPromoGratis}
+                className="flex-1 py-2.5 rounded-xl border border-coffee-200 text-coffee-600 text-sm font-body font-medium hover:bg-coffee-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmPromoGratis}
+                disabled={isRedeemingPromoGratis}
+                className="flex-1 py-2.5 rounded-xl bg-green-500 text-white text-sm font-body font-semibold hover:bg-green-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isRedeemingPromoGratis ? 'Reclamando...' : 'Confirmar entrega'}
               </button>
             </div>
           </div>

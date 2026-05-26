@@ -12,6 +12,7 @@ export interface Customer {
   fecha_nacimiento?: string;
   direccion?: string;
   puntos: number;
+  numeroCompras?: number;
   estado: boolean;
 }
 

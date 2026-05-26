@@ -59,6 +59,23 @@ export interface PromocionPermanenteApi {
   id_ProductoCanjeable: number | null;
 }
 
+export interface DtoPromocionGratisItem {
+  IdPromocionPermanente: number;
+  NombrePromocion: string;
+  TipoCondicion: 'NCompras' | 'MontoMinimo';
+  ValorCondicion: number;
+  ProgresoActual: number | null;
+  IdProductoCanjeable: number;
+  NombreProducto: string;
+  Categoria: string;
+}
+
+export interface DtoPromocionesGratisCliente {
+  Id_Cliente: number;
+  Disponibles: DtoPromocionGratisItem[];
+  EnProgreso: DtoPromocionGratisItem[];
+}
+
 export interface PromocionTemporadaApi {
   id: number;
   nombre: string;
@@ -87,6 +104,7 @@ interface ClienteNode {
   fecha_nacimiento: string;
   direccion: string;
   puntos: number;
+  numeroCompras: number;
   estado: boolean | string;
 }
 
@@ -100,6 +118,7 @@ function mapClienteNode(n: ClienteNode): Customer {
     fecha_nacimiento: n.fecha_nacimiento,
     direccion: n.direccion,
     puntos: n.puntos,
+    numeroCompras: n.numeroCompras,
     estado: n.estado === true || n.estado === '1' || n.estado === 'true',
   };
 }
@@ -111,9 +130,11 @@ export function useFidelizacion() {
   const [historialPuntos, setHistorialPuntos] = useState<HistorialPuntosItem[]>([]);
   const [promocionesPermanentes, setPromocionesPermanentes] = useState<PromocionPermanenteApi[]>([]);
   const [promocionesTemporada, setPromocionesTemporada] = useState<PromocionTemporadaApi[]>([]);
+  const [promosGratisCliente, setPromosGratisCliente] = useState<DtoPromocionesGratisCliente | null>(null);
   const [isLoadingClientes, setIsLoadingClientes] = useState(true);
   const [isLoadingVentas, setIsLoadingVentas] = useState(false);
   const [isLoadingHistorial, setIsLoadingHistorial] = useState(false);
+  const [isLoadingPromosGratis, setIsLoadingPromosGratis] = useState(false);
   const [searchResults, setSearchResults] = useState<Customer[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
@@ -184,6 +205,21 @@ export function useFidelizacion() {
     }
   }, []);
 
+  const fetchPromosGratisCliente = useCallback(async (idCliente: number) => {
+    setIsLoadingPromosGratis(true);
+    setPromosGratisCliente(null);
+    try {
+      const data = await api.get<DtoPromocionesGratisCliente>(
+        `/ProductoCanjeable/promociones-gratis-disponibles?Id_Cliente=${idCliente}`,
+      );
+      setPromosGratisCliente(data);
+    } catch (e) {
+      console.error('Error loading promos gratis:', e);
+    } finally {
+      setIsLoadingPromosGratis(false);
+    }
+  }, []);
+
   const searchClientes = useCallback(async (q: string) => {
     if (!q.trim()) {
       setSearchResults([]);
@@ -219,14 +255,17 @@ export function useFidelizacion() {
     historialPuntos,
     promocionesPermanentes,
     promocionesTemporada,
+    promosGratisCliente,
     isLoadingClientes,
     isLoadingVentas,
     isLoadingHistorial,
+    isLoadingPromosGratis,
     searchResults,
     isSearching,
     refreshClientes: loadClientes,
     fetchVentasCliente,
     fetchHistorialPuntos,
+    fetchPromosGratisCliente,
     searchClientes,
     createCliente,
   };

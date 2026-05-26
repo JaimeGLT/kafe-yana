@@ -9,6 +9,7 @@ export const GET_CLIENTES = `
         fecha_nacimiento
         direccion
         puntos
+        numeroCompras
         estado
         id
       }
@@ -39,6 +40,7 @@ export const GET_CLIENTES_SEARCH = `
         fecha_nacimiento
         direccion
         puntos
+        numeroCompras
         estado
       }
     }
@@ -56,6 +58,7 @@ export const GET_CLIENTE_BY_ID = `
         fecha_nacimiento
         direccion
         puntos
+        numeroCompras
         estado
         id
       }

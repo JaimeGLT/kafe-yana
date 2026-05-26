@@ -14,6 +14,7 @@ import { GET_POS_DATA } from '../../lib/queries/products.queries';
 import { GET_ELABORADO_INGREDIENTES } from '../../lib/queries/elaborados.queries';
 import { usePOSMesas } from '../../hooks/usePOSMesas';
 import { useVenta } from '../../hooks/useVenta';
+import type { RespuestaCobro } from '../../hooks/useVenta';
 import { usePOSCart } from '../../hooks/usePOSCart';
 import { usePOSLoyalty } from '../../hooks/usePOSLoyalty';
 import { formatCurrency } from '../../utils';
@@ -87,6 +88,37 @@ function useDragScroll<T extends HTMLElement>() {
 }
 
 type MesaStatus = 'libre' | 'ocupada' | 'esperando_pago';
+
+interface DtoDescuentoDisponible {
+  IdPromocion: number;
+  Nombre: string;
+  TipoCondicion: string;
+  ValorCondicion: number;
+  PorcentajeDescuento: number;
+  MontoDescuento: number;
+  TotalConDescuento: number;
+}
+
+interface DtoDescuentosPedidoRespuesta {
+  Id_Pedido: number;
+  Id_Cliente: number;
+  SubtotalPedido: number;
+  HayDescuentoDisponible: boolean;
+  DescuentosDisponibles: DtoDescuentoDisponible[];
+  DescuentoRecomendado: DtoDescuentoDisponible | null;
+}
+
+interface SaleResult {
+  code: string;
+  points: PointsCalculation | null;
+  newBalance: number;
+  puntosPorVenta: number;
+  puntosPromocion: number;
+  nombrePromocion: string | null;
+  aplicoDescuento: boolean;
+  montoDescuento: number;
+  nombrePromoDescuento: string | null;
+}
 
 const STATUS_CFG: Record<MesaStatus, { label: string; dot: string; card: string; badge: string; icon: string; iconBg: string }> = {
   libre:          { label: 'Libre',          dot: 'bg-emerald-400',              card: 'bg-coffee-700/35 border-coffee-500/30 hover:bg-coffee-700/50 hover:border-coffee-400/50', badge: 'bg-emerald-500/20 text-emerald-300',  icon: 'text-coffee-300', iconBg: 'bg-coffee-800/70' },
@@ -466,7 +498,10 @@ export const POSPage: React.FC = () => {
   const [cashReceived, setCashReceived] = useState('');
   const [isOpeningParaLlevar, setIsOpeningParaLlevar] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [lastSaleResult, setLastSaleResult] = useState<{ code: string; points: PointsCalculation | null; newBalance: number } | null>(null);
+  const [lastSaleResult, setLastSaleResult] = useState<SaleResult | null>(null);
+  const [descuentoPreview, setDescuentoPreview] = useState<DtoDescuentosPedidoRespuesta | null>(null);
+  const [aplicarDescuento, setAplicarDescuento] = useState(false);
+  const [isLoadingDescuento, setIsLoadingDescuento] = useState(false);
 
   const dragScrollDetalleCat = useDragScroll<HTMLDivElement>();
   const dragScrollDetalleProd = useDragScroll<HTMLDivElement>();
@@ -840,6 +875,31 @@ export const POSPage: React.FC = () => {
     });
   };
 
+  useEffect(() => {
+    if (!reviewClienteId || modalView !== 'pago') {
+      setDescuentoPreview(null);
+      setAplicarDescuento(false);
+      return;
+    }
+    const pedidoId = activeMesa ? (activeMesa as any).pedidoId : null;
+    if (!pedidoId) return;
+    let cancelled = false;
+    setIsLoadingDescuento(true);
+    api.get<DtoDescuentosPedidoRespuesta>(
+      `/PromocionPermanente/descuentos-pedido?Id_Pedido=${pedidoId}&Id_Cliente=${reviewClienteId}`,
+    ).then(data => {
+      if (!cancelled) {
+        setDescuentoPreview(data);
+        setAplicarDescuento(false);
+      }
+    }).catch(() => {
+      if (!cancelled) setDescuentoPreview(null);
+    }).finally(() => {
+      if (!cancelled) setIsLoadingDescuento(false);
+    });
+    return () => { cancelled = true; };
+  }, [reviewClienteId, modalView, activeMesa]);
+
   const handleRequestPayment = () => {
     if (!activeMesa || activeMesa.order.length === 0) {
       toast.warning('Sin pedidos', 'Envía productos a cocina antes de cobrar.');
@@ -867,25 +927,39 @@ export const POSPage: React.FC = () => {
       const pedidoId = (activeMesa as any).pedidoId;
 
       if ((isMesa || isParaLlevar) && pedidoId) {
-        const pagos: PagosObject = { efectivo: 0, tarjeta: 0, qr: 0, total: mesaTotal };
-        if (paymentMethod === 'cash') pagos.efectivo = mesaTotal;
-        else if (paymentMethod === 'card') pagos.tarjeta = mesaTotal;
-        else if (paymentMethod === 'transfer') pagos.qr = mesaTotal;
+        const efectivoTotal = aplicarDescuento && descuentoPreview?.DescuentoRecomendado
+          ? descuentoPreview.DescuentoRecomendado.TotalConDescuento
+          : mesaTotal;
+        const pagos: PagosObject = { efectivo: 0, tarjeta: 0, qr: 0, total: efectivoTotal };
+        if (paymentMethod === 'cash') pagos.efectivo = efectivoTotal;
+        else if (paymentMethod === 'card') pagos.tarjeta = efectivoTotal;
+        else if (paymentMethod === 'transfer') pagos.qr = efectivoTotal;
         const idCliente = reviewClienteId ? parseInt(reviewClienteId, 10) : null;
 
-        let success = false;
+        let res: RespuestaCobro | null = null;
         if (isParaLlevar) {
-          success = await cobrarParaLlevar(pedidoId, idCliente, pagos);
+          res = await cobrarParaLlevar(pedidoId, idCliente, pagos, aplicarDescuento);
         } else {
-          success = await api.post<any>(`/Mesa/cobrar/${activeMesa.id}`, {
+          res = await api.post<RespuestaCobro>(`/Mesa/cobrar/${activeMesa.id}`, {
             id_Pedido: pedidoId,
             id_Cliente: idCliente,
+            AplicarDescuentos: aplicarDescuento,
             pagos,
           });
         }
 
-        if (success) {
-          setLastSaleResult({ code: isParaLlevar ? `PL-${pedidoId}` : `MESA-${activeMesa.id}`, points: null, newBalance: 0 });
+        if (res !== null) {
+          setLastSaleResult({
+            code: isParaLlevar ? `PL-${pedidoId}` : `MESA-${activeMesa.id}`,
+            points: null,
+            newBalance: 0,
+            puntosPorVenta: res.PuntosPorVenta ?? 0,
+            puntosPromocion: res.PuntosPromocionPermanente ?? 0,
+            nombrePromocion: res.PromocionPermanente?.NombrePromocion ?? null,
+            aplicoDescuento: res.AplicoDescuento ?? false,
+            montoDescuento: res.MontoDescuento ?? 0,
+            nombrePromoDescuento: res.PromocionDescuento?.NombrePromocion ?? null,
+          });
           setModalView('success');
         }
       } else {
@@ -908,7 +982,7 @@ export const POSPage: React.FC = () => {
           const profile = getOrCreateProfile(activeMesa.customerId);
           newBalance = profile?.points ?? 0;
         }
-        setLastSaleResult({ code: newSale.code, points: earnedPoints, newBalance });
+        setLastSaleResult({ code: newSale.code, points: earnedPoints, newBalance, puntosPorVenta: 0, puntosPromocion: 0, nombrePromocion: null, aplicoDescuento: false, montoDescuento: 0, nombrePromoDescuento: null });
         setModalView('success');
       }
     } catch {
@@ -933,19 +1007,29 @@ export const POSPage: React.FC = () => {
       const idCliente = reviewClienteId ? parseInt(reviewClienteId, 10) : null;
       const isParaLlevar = activeMesa.tipo === 'para_llevar';
 
-      let success = false;
+      let res: RespuestaCobro | null = null;
       if (isParaLlevar && pedidoId) {
-        success = await cobrarParaLlevar(pedidoId, idCliente, pagos);
+        res = await cobrarParaLlevar(pedidoId, idCliente, pagos);
       } else if (pedidoId) {
-        success = await api.post<any>(`/Mesa/cobrar/${activeMesa.id}`, {
+        res = await api.post<RespuestaCobro>(`/Mesa/cobrar/${activeMesa.id}`, {
           id_Pedido: pedidoId,
           id_Cliente: idCliente,
+          AplicarDescuentos: false,
           pagos,
         });
       }
 
-      if (success) {
-        setLastSaleResult({ code: isParaLlevar ? `PL-${pedidoId}` : `MESA-${activeMesa.id}`, points: null, newBalance: 0 });
+      if (res !== null) {
+        setLastSaleResult({
+          code: isParaLlevar ? `PL-${pedidoId}` : `MESA-${activeMesa.id}`,
+          points: null, newBalance: 0,
+          puntosPorVenta: res.PuntosPorVenta ?? 0,
+          puntosPromocion: res.PuntosPromocionPermanente ?? 0,
+          nombrePromocion: res.PromocionPermanente?.NombrePromocion ?? null,
+          aplicoDescuento: res.AplicoDescuento ?? false,
+          montoDescuento: res.MontoDescuento ?? 0,
+          nombrePromoDescuento: res.PromocionDescuento?.NombrePromocion ?? null,
+        });
         setModalView('success');
       }
     } catch {
@@ -1807,6 +1891,10 @@ export const POSPage: React.FC = () => {
                 onReviewNewCustomerNameChange={setReviewNewCustomerName}
                 onReviewNewCustomerPhoneChange={setReviewNewCustomerPhone}
                 qrImageUrl={qrImageUrl}
+                discountPreview={descuentoPreview}
+                aplicarDescuento={aplicarDescuento}
+                onAplicarDescuentoChange={setAplicarDescuento}
+                isLoadingDescuento={isLoadingDescuento}
               />
             </Suspense>
           </Overlay>
@@ -1828,6 +1916,12 @@ export const POSPage: React.FC = () => {
                 onClose={handleCloseSuccess}
                 nextMilestone={nextMilestone}
                 pointsResult={lastSaleResult.points}
+                puntosPorVenta={lastSaleResult.puntosPorVenta}
+                puntosPromocion={lastSaleResult.puntosPromocion}
+                nombrePromocion={lastSaleResult.nombrePromocion}
+                aplicoDescuento={lastSaleResult.aplicoDescuento}
+                montoDescuento={lastSaleResult.montoDescuento}
+                nombrePromoDescuento={lastSaleResult.nombrePromoDescuento}
               />
             </Suspense>
           </Overlay>

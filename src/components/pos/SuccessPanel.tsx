@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, Star, Printer } from 'lucide-react';
+import { CheckCircle, Star, Printer, Tag } from 'lucide-react';
 
 interface SuccessPanelProps {
   saleCode: string;
@@ -9,6 +9,12 @@ interface SuccessPanelProps {
   onClose: () => void;
   nextMilestone: { icon: string; reward: string } | null;
   pointsResult: { totalPoints: number; bonusReasons: string[] } | null;
+  puntosPorVenta?: number;
+  puntosPromocion?: number;
+  nombrePromocion?: string | null;
+  aplicoDescuento?: boolean;
+  montoDescuento?: number;
+  nombrePromoDescuento?: string | null;
 }
 
 export const SuccessPanel: React.FC<SuccessPanelProps> = ({
@@ -19,7 +25,15 @@ export const SuccessPanel: React.FC<SuccessPanelProps> = ({
   onClose,
   nextMilestone,
   pointsResult,
-}) => (
+  puntosPorVenta = 0,
+  puntosPromocion = 0,
+  nombrePromocion,
+  aplicoDescuento = false,
+  montoDescuento = 0,
+  nombrePromoDescuento,
+}) => {
+  const totalPuntosReales = puntosPorVenta + puntosPromocion;
+  return (
   <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
     <div className="bg-emerald-500 px-6 pt-8 pb-6 flex flex-col items-center text-white text-center">
       <div className="h-16 w-16 bg-white/20 rounded-full flex items-center justify-center mb-3">
@@ -39,7 +53,47 @@ export const SuccessPanel: React.FC<SuccessPanelProps> = ({
         </div>
       )}
 
-      {pointsResult && pointsResult.totalPoints > 0 && (
+      {aplicoDescuento && montoDescuento > 0 && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 flex items-center gap-3">
+          <Tag className="h-5 w-5 text-emerald-600 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-emerald-800">Descuento aplicado: −Bs. {montoDescuento.toFixed(2)}</p>
+            {nombrePromoDescuento && (
+              <p className="text-xs text-emerald-600">{nombrePromoDescuento}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {totalPuntosReales > 0 ? (
+        <div className="bg-coffee-50 rounded-2xl px-4 py-3 space-y-2">
+          {puntosPorVenta > 0 && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                <p className="text-sm text-coffee-700">Puntos por compra</p>
+              </div>
+              <p className="text-sm font-bold text-coffee-900">+{puntosPorVenta}</p>
+            </div>
+          )}
+          {puntosPromocion > 0 && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
+                <div>
+                  <p className="text-sm text-coffee-700">Puntos extra (promo)</p>
+                  {nombrePromocion && <p className="text-[11px] text-coffee-400">{nombrePromocion}</p>}
+                </div>
+              </div>
+              <p className="text-sm font-bold text-coffee-900">+{puntosPromocion}</p>
+            </div>
+          )}
+          <div className="flex items-center justify-between border-t border-coffee-200 pt-2">
+            <p className="text-sm font-bold text-coffee-900">Total puntos agregados</p>
+            <p className="text-base font-black text-amber-600">+{totalPuntosReales}</p>
+          </div>
+        </div>
+      ) : pointsResult && pointsResult.totalPoints > 0 ? (
         <div className="bg-coffee-50 rounded-2xl px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
@@ -55,7 +109,7 @@ export const SuccessPanel: React.FC<SuccessPanelProps> = ({
             <p className="text-sm font-bold text-coffee-800">{newBalance} pts</p>
           </div>
         </div>
-      )}
+      ) : null}
 
       <div className="flex gap-3 pt-1">
         <button
@@ -73,4 +127,5 @@ export const SuccessPanel: React.FC<SuccessPanelProps> = ({
       </div>
     </div>
   </div>
-);
+  );
+};

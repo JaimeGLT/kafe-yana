@@ -40,11 +40,31 @@ export interface ParaLlevarPedido {
   } | null;
 }
 
+export interface RespuestaCobro {
+  message: string;
+  PuntosPorVenta: number;
+  PuntosPromocionPermanente: number;
+  PromocionPermanente: { NombrePromocion: string; PuntosExtra: number; Mensaje: string } | null;
+  AplicoDescuento: boolean;
+  MontoDescuento: number;
+  PorcentajeDescuento: number | null;
+  SubtotalPedido: number;
+  TotalCobrado: number;
+  PromocionDescuento: {
+    IdPromocion: number;
+    NombrePromocion: string;
+    PorcentajeDescuento: number;
+    MontoDescuento: number;
+    TotalConDescuento: number;
+    Mensaje: string;
+  } | null;
+}
+
 interface UseVentaReturn {
   syncParaLlevar: () => Promise<ParaLlevarPedido[]>;
   createPedidoParaLlevar: (clienteId?: number | null) => Promise<number | null>;
   crearRondaParaLlevar: (pedidoId: number, detalles: { id_Producto: number; ids_Opcion: number[]; cantidad: number }[]) => Promise<RondaCreatedResponse | null>;
-  cobrarParaLlevar: (pedidoId: number, clienteId: number | null, pagos: { efectivo: number; tarjeta: number; qr: number; total: number }) => Promise<boolean>;
+  cobrarParaLlevar: (pedidoId: number, clienteId: number | null, pagos: { efectivo: number; tarjeta: number; qr: number; total: number }, aplicarDescuentos?: boolean) => Promise<RespuestaCobro | null>;
   liberarPedido: () => Promise<boolean>;
 }
 
@@ -93,19 +113,21 @@ export function useVenta(): UseVentaReturn {
   const cobrarParaLlevar = useCallback(async (
     pedidoId: number,
     clienteId: number | null,
-    pagos: { efectivo: number; tarjeta: number; qr: number; total: number }
-  ): Promise<boolean> => {
+    pagos: { efectivo: number; tarjeta: number; qr: number; total: number },
+    aplicarDescuentos?: boolean,
+  ): Promise<RespuestaCobro | null> => {
     try {
-      await api.post('/Venta/cobrar', {
+      const res = await api.post<RespuestaCobro>('/Venta/cobrar', {
         id_Pedido: pedidoId,
         id_Cliente: clienteId,
+        AplicarDescuentos: aplicarDescuentos ?? false,
         pagos,
       });
-      return true;
+      return res;
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'No se pudo cobrar el pedido.';
       toast.error('Error', msg);
-      return false;
+      return null;
     }
   }, []);
 
