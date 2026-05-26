@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, laz
 import { clsx } from 'clsx';
 import {
   Plus, Minus, Trash2, Coffee, Printer,
-  X, Star, Gift, Search,
+  X, Star, Search,
   UtensilsCrossed, ChevronLeft, ChevronRight, PenLine, History, ShoppingBag,
 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
@@ -30,13 +30,10 @@ import { NuevaMesaModal } from '../../components/pos/NuevaMesaModal';
 import { IniciarMesaModal } from '../../components/pos/IniciarMesaModal';
 import { ComboDetailPanel } from '../../components/pos/ComboDetailPanel';
 import type { Product, Category, Customer, CustomerInput, SaleInput, PaymentMethodType, VariacionAtributo } from '../../types';
-import type { Reward, MilestoneReward, PointsCalculation } from '../../types/loyalty';
+import type { MilestoneReward, PointsCalculation } from '../../types/loyalty';
 import { VariacionPickerModal } from '../../components/modals/VariacionPickerModal';
 import { ElaboradoDetailModal } from '../../components/modals/ElaboradoDetailModal';
 import { ProdCard } from '../../components/modals/ProdCard';
-import { RedeemQtyModal } from '../../components/modals/RedeemQtyModal';
-import { SearchableSelect } from '../../components/ui/Select';
-import { Tooltip } from '../../components/ui/Tooltip';
 
 const ReviewPanel = lazy(() => import('../../components/pos/ReviewPanel').then(m => ({ default: m.ReviewPanel })));
 const PagoPanel = lazy(() => import('../../components/pos/PagoPanel').then(m => ({ default: m.PagoPanel })));
@@ -135,7 +132,6 @@ export const POSPage: React.FC = () => {
   const [printReciboData, setPrintReciboData] = useState<PrintReciboData | null>(null);
   const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
   const [comboDetails, setComboDetails] = useState<Record<string, { name: string; quantity: number; emoji: string }[]>>({});
-  const [rewards, setRewards] = useState<Reward[]>([]);
   const [milestones, _setMilestones] = useState<MilestoneReward[]>([]);
   const [, setLoading] = useState(true);
   const [productsLoaded, setProductsLoaded] = useState(false);
@@ -163,14 +159,11 @@ export const POSPage: React.FC = () => {
     tempCart,
     varPickerProduct, setVarPickerProduct,
     varPickerDirect, setVarPickerDirect,
-    varPickerRewardId, setVarPickerRewardId,
-    redeemQtyState, setRedeemQtyState,
     comboDetailProduct, setComboDetailProduct,
     elaboradoDetailProduct, setElaboradoDetailProduct,
     elaboradoIngredientes, setElaboradoIngredientes,
     buildCartKey,
     addTempDirect,
-    addRedeemToTempCart,
     incTempQty, decTempQty, removeTempItem,
     getTempQty, updateTempItemNote, clearTempCart,
   } = usePOSCart();
@@ -181,7 +174,6 @@ export const POSPage: React.FC = () => {
     getOrCreateProfile,
     calculatePointsForAmount,
     awardPointsForSale,
-    redeemReward,
   } = usePOSLoyalty();
 
   const {
@@ -376,21 +368,6 @@ export const POSPage: React.FC = () => {
       setComboDetails(newComboDetails);
       setComboRecipes(newComboRecipes);
       setCustomers(data.clientes.nodes as Customer[]);
-      setRewards(
-        data.productosCanjeables.nodes
-          .filter(n => n.activo)
-          .map(n => ({
-            id: String(n.id),
-            name: '',
-            description: '',
-            pointsCost: n.puntos,
-            category: 'diario' as const,
-            icon: '⭐',
-            isActive: true,
-            productId: String(n.id_Producto),
-            disponible: n.disponible,
-          }))
-      );
       setProductsLoaded(true);
       enviarCatalogo(data.comprados.nodes, data.elaborados.nodes, data.combos.nodes);
     } catch {
@@ -415,23 +392,6 @@ export const POSPage: React.FC = () => {
       return p;
     }));
     setElaboradoExtras({});
-    if (data.productosCanjeables?.nodes) {
-      setRewards(
-        data.productosCanjeables.nodes
-          .filter((n: any) => n.activo)
-          .map((n: any) => ({
-            id: String(n.id),
-            name: '',
-            description: '',
-            pointsCost: n.puntos,
-            category: 'diario' as const,
-            icon: '⭐',
-            isActive: true,
-            productId: String(n.id_Producto),
-            disponible: n.disponible,
-          }))
-      );
-    }
   } catch {
     // silencioso
   }
@@ -483,7 +443,6 @@ export const POSPage: React.FC = () => {
 
   const [iniciarClienteId, setIniciarClienteId] = useState('');
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
-  const [showDetalleNewCustomerForm, setShowDetalleNewCustomerForm] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
@@ -593,17 +552,6 @@ export const POSPage: React.FC = () => {
   const mesaSubtotal = activeMesa ? mesaOrderTotal(activeMesa.order) : 0;
   const loyaltyProfile = activeMesa?.customerId ? getOrCreateProfile(activeMesa.customerId) : null;
 
-  const pointsSpentInOrder = useMemo(() => {
-    if (!activeMesa) return 0;
-    const countItems = (items: any[]) =>
-      items.filter(i => i.redeemRewardId).reduce((sum, i) => {
-        const r = rewards.find(r => r.id === i.redeemRewardId);
-        return sum + (r?.pointsCost ?? 0);
-      }, 0);
-    return countItems(activeMesa.order) + countItems(tempCart);
-  }, [activeMesa, rewards, tempCart]);
-
-  const availablePoints = loyaltyProfile ? loyaltyProfile.points - pointsSpentInOrder : 0;
   const mesaTotal = mesaSubtotal;
   const cashNum = parseFloat(cashReceived) || 0;
   const change = Math.max(0, cashNum - mesaTotal);
@@ -654,7 +602,6 @@ export const POSPage: React.FC = () => {
     setDetalleView('none');
     setIniciarClienteId('');
     setShowNewCustomerForm(false);
-    setShowDetalleNewCustomerForm(false);
     setNewCustomerName('');
     setNewCustomerPhone('');
   };
@@ -975,9 +922,6 @@ export const POSPage: React.FC = () => {
         let earnedPoints: PointsCalculation | null = null;
         let newBalance = 0;
         if (activeMesa.customerId && newSale) {
-          for (const item of activeMesa.order) {
-            if (item.redeemRewardId) redeemReward(activeMesa.customerId, item.redeemRewardId, rewards);
-          }
           earnedPoints = awardPointsForSale(activeMesa.customerId, newSale.id, mesaTotal, hasCombo);
           const profile = getOrCreateProfile(activeMesa.customerId);
           newBalance = profile?.points ?? 0;
@@ -1387,17 +1331,6 @@ export const POSPage: React.FC = () => {
                         ) : pickerProducts.map(product => {
                           const stock = getEffectiveStock(product);
                           const qty = getTempQty(product.id);
-                          const mesaTipo = activeMesa?.tipo ?? 'mesa';
-                          const reward = rewards.find(r =>
-                            r.isActive &&
-                            r.productId === String(product.id) &&
-                            (r.disponible === 'MesasYParaLlevar' ||
-                              (mesaTipo === 'para_llevar' ? r.disponible === 'ParaLlevar' : r.disponible === 'Mesas'))
-                          ) ?? null;
-                          const canAfford = reward != null && !!loyaltyProfile && availablePoints >= reward.pointsCost;
-                          const pointsShortfall = reward != null && !!loyaltyProfile && !canAfford
-                            ? reward.pointsCost - availablePoints
-                            : null;
                           const attrCount = getAtributosByProductId(product.id).length;
                           return (
                             <ProdCard
@@ -1409,17 +1342,6 @@ export const POSPage: React.FC = () => {
                               onAdd={() => addTempProduct(product)}
                               onInc={() => incTempQty(buildCartKey(product.id))}
                               onDec={() => decTempQty(buildCartKey(product.id))}
-                              rewardInfo={reward ? { icon: reward.icon, pointsCost: reward.pointsCost } : null}
-                              onRedeem={canAfford ? () => {
-                                const attrs = getAtributosByProductId(product.id);
-                                if (attrs.length > 0) {
-                                  setVarPickerProduct(product);
-                                  setVarPickerRewardId(reward!.id);
-                                } else {
-                                  setRedeemQtyState({ product, reward: reward! });
-                                }
-                              } : undefined}
-                              pointsShortfall={pointsShortfall}
                               stockLabel={stock.label}
                             />
                           );
@@ -1454,11 +1376,6 @@ export const POSPage: React.FC = () => {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <p className="text-sm font-semibold text-coffee-900 line-clamp-2 leading-snug">{item.product.name}</p>
-                                {item.redeemRewardId && (
-                                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 flex-shrink-0">
-                                    <Gift className="h-2.5 w-2.5" />Canje
-                                  </span>
-                                )}
                               </div>
                               {item.opciones && item.opciones.length > 0 ? (
                                 <div className="mt-0.5 space-y-0.5">
@@ -1494,27 +1411,20 @@ export const POSPage: React.FC = () => {
                             </div>
                             <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                               <div className="flex items-center gap-1.5">
-                                {item.redeemRewardId
-                                  ? <p className="text-sm font-bold text-amber-500">Gratis</p>
-                                  : <p className="text-sm font-bold text-coffee-900">{formatCurrency(item.precioFinal * item.quantity)}</p>
-                                }
+                                <p className="text-sm font-bold text-coffee-900">{formatCurrency(item.precioFinal * item.quantity)}</p>
                                 <button onClick={() => removeTempItem(item.cartKey)} className="text-coffee-200 hover:text-red-400 transition-colors">
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
                               </div>
-                              {item.redeemRewardId ? (
-                                <span className="text-[11px] text-coffee-400">1 unidad</span>
-                              ) : (
-                                <div className="flex items-center gap-1">
-                                  <button onClick={() => decTempQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-100 hover:bg-coffee-200 flex items-center justify-center text-coffee-600">
-                                    <Minus className="h-3 w-3" />
-                                  </button>
-                                  <span className="w-5 text-center text-sm font-bold text-coffee-900">{item.quantity}</span>
-                                  <button onClick={() => incTempQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-800 hover:bg-coffee-700 flex items-center justify-center text-cream">
-                                    <Plus className="h-3 w-3" />
-                                  </button>
-                                </div>
-                              )}
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => decTempQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-100 hover:bg-coffee-200 flex items-center justify-center text-coffee-600">
+                                  <Minus className="h-3 w-3" />
+                                </button>
+                                <span className="w-5 text-center text-sm font-bold text-coffee-900">{item.quantity}</span>
+                                <button onClick={() => incTempQty(item.cartKey)} className="h-6 w-6 rounded-md bg-coffee-800 hover:bg-coffee-700 flex items-center justify-center text-cream">
+                                  <Plus className="h-3 w-3" />
+                                </button>
+                              </div>
                             </div>
                             </div>
                             <div className="flex items-center gap-2 pl-7">
@@ -1585,11 +1495,6 @@ export const POSPage: React.FC = () => {
                                       <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-1.5 flex-wrap">
                                           <p className="text-sm font-semibold text-coffee-900 line-clamp-2 leading-snug">{item.product.name}</p>
-                                          {item.redeemRewardId && (
-                                            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 flex-shrink-0">
-                                              <Gift className="h-2.5 w-2.5" />Canje
-                                            </span>
-                                          )}
                                         </div>
                                         {item.opciones && item.opciones.length > 0 && (
                                           <div className="mt-0.5 space-y-0.5">
@@ -1623,10 +1528,7 @@ export const POSPage: React.FC = () => {
                                       </div>
                                       <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                                         <div className="flex items-center gap-1.5">
-                                          {item.redeemRewardId
-                                            ? <p className="text-sm font-bold text-amber-500">Gratis</p>
-                                            : <p className="text-sm font-bold text-coffee-900">{formatCurrency(item.precioFinal * item.quantity)}</p>
-                                          }
+                                          <p className="text-sm font-bold text-coffee-900">{formatCurrency(item.precioFinal * item.quantity)}</p>
                                         </div>
                                         <span className="text-xs text-coffee-400 font-semibold">×{item.quantity}</span>
                                       </div>
@@ -1663,89 +1565,11 @@ export const POSPage: React.FC = () => {
 
               {detalleView === 'none' && (
                 <div className="px-4 py-2 border-t border-coffee-100 flex-shrink-0">
-                  {activeMesa.customerId ? (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-xs text-coffee-600">
-                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                        <span className="font-semibold">
-                          {activeMesa.cliente?.nombre ?? 'Cliente'}
-                        </span>
-                        <span className="text-coffee-400">
-                          · {activeMesa.cliente?.puntos ?? 0} pts
-                        </span>
-                      </div>
-                      {activeMesa.order.some(i => i.redeemRewardId) ? (
-                        <Tooltip text="No se puede quitar, hay productos canjeados en la orden" position="top">
-                          <span className="text-[11px] text-coffee-200 cursor-not-allowed">Quitar</span>
-                        </Tooltip>
-                      ) : (
-                        <button
-                          onClick={() => updateMesa(activeMesa.id, { customerId: undefined, cliente: undefined })}
-                          className="text-[11px] text-coffee-400 hover:text-red-400 transition-colors"
-                        >
-                          Quitar
-                        </button>
-                      )}
-                    </div>
-                  ) : showDetalleNewCustomerForm ? (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-amber-700">Nuevo cliente</span>
-                        <button
-                          onClick={() => { setShowDetalleNewCustomerForm(false); setNewCustomerName(''); setNewCustomerPhone(''); }}
-                          className="text-[11px] text-coffee-400 hover:text-coffee-600 transition-colors"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          autoFocus
-                          type="text"
-                          placeholder="Nombre"
-                          value={newCustomerName}
-                          onChange={e => setNewCustomerName(e.target.value)}
-                          className="flex-1 min-w-0 text-xs px-2.5 py-1.5 rounded-lg border border-coffee-200 focus:border-amber-400 focus:outline-none text-coffee-900 bg-white placeholder:text-coffee-300"
-                        />
-                        <input
-                          type="tel"
-                          placeholder="Teléfono"
-                          value={newCustomerPhone}
-                          onChange={e => setNewCustomerPhone(e.target.value)}
-                          onKeyDown={e => e.key === 'Enter' && handleCreateCustomer(id => { updateMesa(activeMesa.id, { customerId: id }); setShowDetalleNewCustomerForm(false); })}
-                          className="w-28 text-xs px-2.5 py-1.5 rounded-lg border border-coffee-200 focus:border-amber-400 focus:outline-none text-coffee-900 bg-white placeholder:text-coffee-300"
-                        />
-                        <button
-                          onClick={() => handleCreateCustomer(id => { updateMesa(activeMesa.id, { customerId: id }); setShowDetalleNewCustomerForm(false); })}
-                          disabled={!newCustomerName.trim() || !newCustomerPhone.trim()}
-                          className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white text-xs font-bold transition-colors flex-shrink-0"
-                        >
-                          Guardar
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-coffee-400 flex-shrink-0">Cliente:</span>
-                      <SearchableSelect
-                        value=""
-                        onChange={v => { if (v) updateMesa(activeMesa.id, { customerId: v }); }}
-                        options={[
-                          { value: '', label: '— Vincular cliente —' },
-                          ...customers.map(c => {
-                            const prof = getOrCreateProfile(c.id);
-                            return { value: c.id, label: `${c.nombre}${prof ? ` · ${prof.points} pts` : ''}` };
-                          }),
-                        ]}
-                        placeholder="— Vincular cliente —"
-                        className="flex-1 text-xs"
-                      />
-                      <button
-                        onClick={() => { setShowDetalleNewCustomerForm(true); setNewCustomerName(''); setNewCustomerPhone(''); }}
-                        className="text-xs font-semibold text-amber-600 hover:text-amber-500 transition-colors flex-shrink-0"
-                      >
-                        + Nuevo
-                      </button>
+                  {activeMesa.customerId && (
+                    <div className="flex items-center gap-1.5 text-xs text-coffee-600">
+                      <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                      <span className="font-semibold">{activeMesa.cliente?.nombre ?? 'Cliente'}</span>
+                      <span className="text-coffee-400">· {activeMesa.cliente?.puntos ?? 0} pts</span>
                     </div>
                   )}
                 </div>
@@ -1871,14 +1695,12 @@ export const POSPage: React.FC = () => {
                 isProcessing={isProcessing}
                 cashNum={cashNum}
                 change={change}
-                loyaltyProfile={loyaltyProfile as any}
                 pointsPreview={pointsPreview}
                 formatCurrency={formatCurrency}
                 onPaymentMethodChange={setPaymentMethod}
                 onCashReceivedChange={setCashReceived}
                 onBack={() => setModalView('review')}
                 onConfirm={handleConfirmSale}
-                activeMesaOrder={activeMesa.order as any}
                 reviewClienteId={reviewClienteId}
                 onReviewClienteChange={setReviewClienteId}
                 customers={customers}
@@ -1978,36 +1800,17 @@ export const POSPage: React.FC = () => {
         {varPickerProduct && (
           <VariacionPickerModal
             isOpen
-            onClose={() => { setVarPickerProduct(null); setVarPickerDirect(false); setVarPickerRewardId(null); }}
+            onClose={() => { setVarPickerProduct(null); setVarPickerDirect(false); }}
             product={varPickerProduct}
             atributos={getAtributosByProductId(varPickerProduct.id)}
-            isRedeem={varPickerRewardId != null}
             onConfirm={(opciones, precioFinal) => {
-              if (varPickerRewardId) {
-                addRedeemToTempCart(varPickerProduct, varPickerRewardId, opciones);
-                toast.success('¡Canje agregado!', `${varPickerProduct.name} añadido al pedido.`);
-                setVarPickerRewardId(null);
-              } else if (varPickerDirect) {
+              if (varPickerDirect) {
                 toast.success('Producto agregado', `${varPickerProduct.name} añadido al pedido.`);
                 setVarPickerDirect(false);
               } else {
                 addTempDirect(varPickerProduct, opciones, precioFinal);
               }
               setVarPickerProduct(null);
-            }}
-          />
-        )}
-
-        {redeemQtyState && (
-          <RedeemQtyModal
-            isOpen
-            onClose={() => setRedeemQtyState(null)}
-            product={redeemQtyState.product}
-            reward={redeemQtyState.reward}
-            availablePoints={availablePoints}
-            onConfirm={(qty) => {
-              addRedeemToTempCart(redeemQtyState.product, redeemQtyState.reward.id, undefined, qty);
-              toast.success('¡Canje agregado!', `${qty > 1 ? `${qty}× ` : ''}${redeemQtyState.reward.name} añadido al pedido.`);
             }}
           />
         )}

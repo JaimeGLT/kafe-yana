@@ -1,6 +1,6 @@
 import React from 'react';
 import { clsx } from 'clsx';
-import { Plus, Minus, Gift, FlaskConical, Layers } from 'lucide-react';
+import { Plus, Minus, FlaskConical, Layers } from 'lucide-react';
 import { formatCurrency } from '../../utils';
 import { ProductImageFill } from '../ui/ProductImage';
 import type { Product } from '../../types';
@@ -14,15 +14,12 @@ interface ProdCardProps {
   onInc: () => void;
   onDec: () => void;
   onInfo?: () => void;
-  rewardInfo?: { icon: string; pointsCost: number } | null;
-  onRedeem?: () => void;
-  pointsShortfall?: number | null;
   stockLabel?: string;
 }
 
 export const ProdCard: React.FC<ProdCardProps> = ({
   product, qty, unavailable, attrCount,
-  onAdd, onInc, onDec, onInfo, rewardInfo, onRedeem, pointsShortfall, stockLabel,
+  onAdd, onInc, onDec, onInfo, stockLabel,
 }) => (
   <div
     className={clsx(
@@ -55,11 +52,6 @@ export const ProdCard: React.FC<ProdCardProps> = ({
       {qty > 0 && (
         <div className="absolute bottom-1.5 right-1.5 h-5 w-5 bg-coffee-800 text-cream text-[10px] font-black rounded-full flex items-center justify-center shadow">
           {qty}
-        </div>
-      )}
-      {rewardInfo && (
-        <div className="absolute bottom-1.5 left-1.5 text-[9px] bg-amber-400 text-white rounded-full px-1.5 py-0.5 font-bold flex items-center gap-0.5 shadow">
-          <Gift className="h-2 w-2" />{rewardInfo.pointsCost} pts
         </div>
       )}
     </div>
@@ -103,21 +95,6 @@ export const ProdCard: React.FC<ProdCardProps> = ({
             <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </button>
         </div>
-      )}
-      {rewardInfo && (
-        <button
-          disabled={pointsShortfall != null}
-          onClick={e => { if (pointsShortfall == null) { e.stopPropagation(); onRedeem?.(); } }}
-          className={clsx(
-            'mt-1.5 w-full flex items-center justify-center gap-1 py-1.5 rounded-xl text-[11px] font-bold transition-all border',
-            pointsShortfall != null
-              ? 'bg-amber-50 border-amber-200 text-amber-300 cursor-not-allowed'
-              : 'bg-amber-400 border-amber-400 text-white hover:bg-amber-300 active:scale-95',
-          )}
-        >
-          <Gift className="h-3 w-3" />
-          {pointsShortfall != null ? `Te faltan ${pointsShortfall} pts` : `Canjear · ${rewardInfo.pointsCost} pts`}
-        </button>
       )}
     </div>
   </div>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { clsx } from 'clsx';
-import { ShoppingCart, AlertCircle, Gift } from 'lucide-react';
+import { ShoppingCart, AlertCircle } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { formatCurrency } from '../../utils';
@@ -12,7 +12,6 @@ interface Props {
   product: Product;
   atributos: VariacionAtributo[];
   onConfirm: (opciones: OpcionSeleccionada[], precioFinal: number) => void;
-  isRedeem?: boolean;
 }
 
 export const VariacionPickerModal: React.FC<Props> = ({
@@ -21,13 +20,10 @@ export const VariacionPickerModal: React.FC<Props> = ({
   product,
   atributos,
   onConfirm,
-  isRedeem = false,
 }) => {
-  // Map atributoId -> selected opcionId (only one option per atributo)
   const [selecciones, setSelecciones] = React.useState<Record<string, string>>({});
   const [errors, setErrors] = React.useState<Record<string, string>>({});
 
-  // Reset on open
   React.useEffect(() => {
     if (isOpen) {
       setSelecciones({});
@@ -37,7 +33,6 @@ export const VariacionPickerModal: React.FC<Props> = ({
 
   const activeAtributos = atributos.filter((a) => a.isActive);
 
-  // Live price calculation
   const precioFinal = React.useMemo(() => {
     let total = product.salePrice;
     for (const atributo of activeAtributos) {
@@ -61,7 +56,6 @@ export const VariacionPickerModal: React.FC<Props> = ({
   };
 
   const handleConfirm = () => {
-    // Validate required atributos
     const newErrors: Record<string, string> = {};
     for (const atributo of activeAtributos) {
       if (atributo.esRequerido && !selecciones[atributo.id]) {
@@ -73,7 +67,6 @@ export const VariacionPickerModal: React.FC<Props> = ({
       return;
     }
 
-    // Build OpcionSeleccionada array
     const opciones: OpcionSeleccionada[] = [];
     for (const atributo of activeAtributos) {
       const selectedOpcionId = selecciones[atributo.id];
@@ -92,7 +85,7 @@ export const VariacionPickerModal: React.FC<Props> = ({
       });
     }
 
-    onConfirm(opciones, isRedeem ? 0 : precioFinal);
+    onConfirm(opciones, precioFinal);
   };
 
   return (
@@ -100,28 +93,14 @@ export const VariacionPickerModal: React.FC<Props> = ({
       isOpen={isOpen}
       onClose={onClose}
       closeOnOverlay={false}
-      title={isRedeem ? `Canjear: ${product.name}` : `Personalizar: ${product.name}`}
+      title={`Personalizar: ${product.name}`}
       size="md"
     >
       <div className="space-y-5">
-        {/* Canje banner */}
-        {isRedeem && (
-          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5">
-            <Gift className="h-4 w-4 text-amber-500 flex-shrink-0" />
-            <p className="text-sm font-semibold text-amber-800">
-              Canje con puntos · <span className="font-normal text-amber-700">este producto es gratis</span>
-            </p>
-          </div>
-        )}
-
         {/* Base price */}
         <div className="flex items-center justify-between bg-coffee-50 rounded-xl px-4 py-3">
           <span className="text-sm text-coffee-600">Precio base</span>
-          {isRedeem ? (
-            <span className="font-semibold text-sm text-coffee-400 line-through">{formatCurrency(product.salePrice)}</span>
-          ) : (
-            <span className="font-semibold text-coffee-900">{formatCurrency(product.salePrice)}</span>
-          )}
+          <span className="font-semibold text-coffee-900">{formatCurrency(product.salePrice)}</span>
         </div>
 
         {/* Atributos */}
@@ -198,11 +177,7 @@ export const VariacionPickerModal: React.FC<Props> = ({
           )}
           <div className="flex justify-between items-baseline">
             <span className="text-base font-bold text-coffee-900">Precio final</span>
-            {isRedeem ? (
-              <span className="text-2xl font-display font-bold text-amber-500">Gratis</span>
-            ) : (
-              <span className="text-2xl font-display font-bold text-coffee-900">{formatCurrency(precioFinal)}</span>
-            )}
+            <span className="text-2xl font-display font-bold text-coffee-900">{formatCurrency(precioFinal)}</span>
           </div>
         </div>
 
@@ -211,25 +186,14 @@ export const VariacionPickerModal: React.FC<Props> = ({
           <Button variant="ghost" size="sm" className="flex-1" onClick={onClose}>
             Cancelar
           </Button>
-          {isRedeem ? (
-            <Button
-              size="sm"
-              className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
-              leftIcon={<Gift className="h-3.5 w-3.5" />}
-              onClick={handleConfirm}
-            >
-              Canjear · Gratis
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
-              leftIcon={<ShoppingCart className="h-3.5 w-3.5" />}
-              onClick={handleConfirm}
-            >
-              Agregar — {formatCurrency(precioFinal)}
-            </Button>
-          )}
+          <Button
+            size="sm"
+            className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
+            leftIcon={<ShoppingCart className="h-3.5 w-3.5" />}
+            onClick={handleConfirm}
+          >
+            Agregar — {formatCurrency(precioFinal)}
+          </Button>
         </div>
       </div>
     </Modal>

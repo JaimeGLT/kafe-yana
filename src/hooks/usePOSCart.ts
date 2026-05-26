@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
 import type { Product, OpcionSeleccionada } from '../types';
-import type { Reward } from '../types/loyalty';
 import type { ElaboradoIngrediente } from '../components/modals/ElaboradoDetailModal';
 import { toast } from '../components/ui';
 
@@ -17,7 +16,6 @@ export interface CartItem {
   opciones?: OpcionSeleccionada[];
   precioFinal: number;
   cartKey: string;
-  redeemRewardId?: string;
   notes?: string;
   roundNumber?: number;
   consumoInsumos: ConsumoInsumo[];
@@ -127,8 +125,6 @@ export function usePOSCart() {
   const [tempCart, setTempCart] = useState<CartItem[]>([]);
   const [varPickerProduct, setVarPickerProduct] = useState<Product | null>(null);
   const [varPickerDirect, setVarPickerDirect] = useState(false);
-  const [varPickerRewardId, setVarPickerRewardId] = useState<string | null>(null);
-  const [redeemQtyState, setRedeemQtyState] = useState<{ product: Product; reward: Reward } | null>(null);
   const [comboDetailProduct, setComboDetailProduct] = useState<Product | null>(null);
   const [elaboradoDetailProduct, setElaboradoDetailProduct] = useState<Product | null>(null);
   const [elaboradoIngredientes, setElaboradoIngredientes] = useState<Record<string, ElaboradoIngrediente[]>>({});
@@ -156,24 +152,6 @@ export function usePOSCart() {
       if (ex) return prev.map(i => i.cartKey === key ? { ...i, quantity: i.quantity + qty } : i);
       return [...prev, { product, quantity: qty, opciones, precioFinal: price, cartKey: key, consumoInsumos }];
     });
-  }, []);
-
-  const addRedeemToTempCart = useCallback((
-    product: Product,
-    rewardId: string,
-    opciones: OpcionSeleccionada[] | undefined,
-    qty = 1,
-  ) => {
-    const newItems = Array.from({ length: qty }, (_, i) => ({
-      product,
-      quantity: 1,
-      precioFinal: 0,
-      cartKey: `${product.id}__canje__${Date.now()}_${i}`,
-      redeemRewardId: rewardId,
-      consumoInsumos: [] as ConsumoInsumo[],
-      ...(opciones ? { opciones } : {}),
-    }));
-    setTempCart(prev => [...prev, ...newItems]);
   }, []);
 
   const addDirectToMesa = useCallback((
@@ -247,10 +225,6 @@ export function usePOSCart() {
     setVarPickerProduct,
     varPickerDirect,
     setVarPickerDirect,
-    varPickerRewardId,
-    setVarPickerRewardId,
-    redeemQtyState,
-    setRedeemQtyState,
     comboDetailProduct,
     setComboDetailProduct,
     elaboradoDetailProduct,
@@ -259,7 +233,6 @@ export function usePOSCart() {
     setElaboradoIngredientes,
     buildCartKey,
     addTempDirect,
-    addRedeemToTempCart,
     addDirectToMesa,
     incTempQty,
     decTempQty,

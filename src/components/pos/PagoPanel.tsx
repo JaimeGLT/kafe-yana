@@ -1,6 +1,6 @@
 import React from 'react';
 import { clsx } from 'clsx';
-import { AlertTriangle, X, Star, Gift, Plus, User, Search, Tag, RotateCcw } from 'lucide-react';
+import { AlertTriangle, X, Star, Plus, User, Search, Tag, RotateCcw } from 'lucide-react';
 import type { PaymentMethodType, Customer } from '../../types';
 
 interface DescuentoPreview {
@@ -29,14 +29,12 @@ interface PagoPanelProps {
   isProcessing: boolean;
   cashNum: number;
   change: number;
-  loyaltyProfile: { points: number } | null;
   pointsPreview: PointsPreview | null;
   formatCurrency: (n: number) => string;
   onPaymentMethodChange: (m: PaymentMethodType) => void;
   onCashReceivedChange: (v: string) => void;
   onBack: () => void;
   onConfirm: () => void;
-  activeMesaOrder: Array<{ redeemRewardId?: string }>;
   reviewClienteId: string | null;
   onReviewClienteChange: (id: string | null) => void;
   customers: Customer[];
@@ -62,14 +60,12 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
   cashReceived,
   isProcessing,
   cashNum,
-  loyaltyProfile,
   pointsPreview,
   formatCurrency,
   onPaymentMethodChange,
   onCashReceivedChange,
   onBack,
   onConfirm,
-  activeMesaOrder,
   reviewClienteId,
   onReviewClienteChange,
   customers,
@@ -131,15 +127,6 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
             <p className="text-5xl font-display font-black text-coffee-900">{formatCurrency(mesaTotal)}</p>
           )}
         </div>
-
-        {loyaltyProfile && activeMesaOrder.some(i => i.redeemRewardId) && (
-          <div className="flex items-center gap-2 bg-amber-50 rounded-xl px-3.5 py-2.5 border border-amber-100">
-            <Gift className="h-4 w-4 text-amber-500 flex-shrink-0" />
-            <p className="text-xs font-semibold text-amber-800">
-              {activeMesaOrder.filter(i => i.redeemRewardId).length} recompensa(s) canjeada(s) en este pedido
-            </p>
-          </div>
-        )}
 
         <div>
           <p className="text-xs font-bold text-coffee-400 uppercase tracking-wider mb-2">Cliente</p>
