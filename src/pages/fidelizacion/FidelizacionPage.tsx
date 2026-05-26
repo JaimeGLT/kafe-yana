@@ -430,7 +430,7 @@ export const FidelizacionPage: React.FC = () => {
               <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
                 <Crown className="w-5 h-5 text-yellow-300" />
               </div>
-              <span className="font-accent text-cream-light text-lg">Café Yana</span>
+              <span className="font-accent text-cream-light text-lg">Kafe Yana</span>
             </div>
             <h1 className="text-4xl font-display font-black text-white leading-tight mb-2">
               Programa de<br />
