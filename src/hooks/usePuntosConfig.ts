@@ -39,6 +39,7 @@ export interface Accelerator {
 
 export interface PointsConfig {
   bsPerPoint: number;
+  reglaBaseActiva: boolean;
   accelerators: Accelerator[];
 }
 
@@ -93,7 +94,8 @@ export function usePuntosConfig() {
   const [savedConfig, setSavedConfig] = useState<PointsConfig | null>(null);
   const [config, setConfig] = useState<PointsConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingReglaBase, setIsSavingReglaBase] = useState(false);
+  const [isSavingAceleradores, setIsSavingAceleradores] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,6 +112,7 @@ export function usePuntosConfig() {
 
         const initial: PointsConfig = {
           bsPerPoint: regla.Cantidad,
+          reglaBaseActiva: regla.Activo,
           accelerators: aceleradores.map(mapAcelerador),
         };
 
@@ -126,41 +129,80 @@ export function usePuntosConfig() {
     return () => { cancelled = true; };
   }, []);
 
-  const save = useCallback(async () => {
+  const saveReglaBase = useCallback(async () => {
     if (!config || !savedConfig) return;
+    if (config.bsPerPoint === savedConfig.bsPerPoint && config.reglaBaseActiva === savedConfig.reglaBaseActiva) return;
 
-    setIsSaving(true);
+    setIsSavingReglaBase(true);
     try {
-      const calls: Promise<unknown>[] = [];
-
-      if (config.bsPerPoint !== savedConfig.bsPerPoint) {
-        calls.push(
-          api.put('/Puntos/config/reglabase', { cantidad: config.bsPerPoint, activo: true })
-        );
-      }
-
-      for (const acc of config.accelerators) {
-        calls.push(
-          api.put(`/Puntos/config/aceleradores/${acc.apiId}`, {
-            cantidad: acc.value,
-            activo: acc.isActive,
-            horaInicio: acc.startTime ?? null,
-            horaFin: acc.endTime ?? null,
-          })
-        );
-      }
-
-      await Promise.all(calls);
-      setSavedConfig(config);
-      toast.success('Configuración guardada');
+      await api.put('/Puntos/config/reglabase', { cantidad: config.bsPerPoint, activo: config.reglaBaseActiva });
+      setSavedConfig((prev) => prev ? { ...prev, bsPerPoint: config.bsPerPoint, reglaBaseActiva: config.reglaBaseActiva } : prev);
+      toast.success('Regla base guardada');
     } catch {
-      toast.error('Error al guardar la configuración');
+      toast.error('Error al guardar la regla base');
     } finally {
-      setIsSaving(false);
+      setIsSavingReglaBase(false);
     }
   }, [config, savedConfig]);
 
-  const isDirty = config !== null && JSON.stringify(config) !== JSON.stringify(savedConfig);
+  const saveAceleradores = useCallback(async () => {
+    if (!config || !savedConfig) return;
 
-  return { config, setConfig, savedConfig, isLoading, isSaving, isDirty, save };
+    setIsSavingAceleradores(true);
+    try {
+      const calls: Promise<unknown>[] = [];
+
+      for (const acc of config.accelerators) {
+        const saved = savedConfig.accelerators.find((a) => a.apiId === acc.apiId);
+        const changed =
+          !saved ||
+          saved.value !== acc.value ||
+          saved.isActive !== acc.isActive ||
+          saved.startTime !== acc.startTime ||
+          saved.endTime !== acc.endTime;
+
+        if (!changed) continue;
+
+        const body: Record<string, unknown> = {
+          cantidad: acc.value,
+          activo: acc.isActive,
+        };
+
+        if (acc.startTime !== undefined || acc.endTime !== undefined) {
+          body.horaInicio = acc.startTime ?? null;
+          body.horaFin = acc.endTime ?? null;
+        }
+
+        calls.push(api.put(`/Puntos/config/aceleradores/${acc.apiId}`, body));
+      }
+
+      await Promise.all(calls);
+      setSavedConfig((prev) => prev ? { ...prev, accelerators: config.accelerators } : prev);
+      toast.success('Aceleradores guardados');
+    } catch {
+      toast.error('Error al guardar los aceleradores');
+    } finally {
+      setIsSavingAceleradores(false);
+    }
+  }, [config, savedConfig]);
+
+  const isDirtyReglaBase =
+    config !== null &&
+    (config.bsPerPoint !== savedConfig?.bsPerPoint || config.reglaBaseActiva !== savedConfig?.reglaBaseActiva);
+  const isDirtyAceleradores =
+    config !== null &&
+    JSON.stringify(config.accelerators) !== JSON.stringify(savedConfig?.accelerators);
+
+  return {
+    config,
+    setConfig,
+    savedConfig,
+    isLoading,
+    isSavingReglaBase,
+    isSavingAceleradores,
+    isDirtyReglaBase,
+    isDirtyAceleradores,
+    saveReglaBase,
+    saveAceleradores,
+  };
 }

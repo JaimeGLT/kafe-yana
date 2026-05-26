@@ -6,7 +6,7 @@ import LoginPage from './pages/auth/LoginPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
 // Contexts
-import { AuthProvider, UIProvider, SettingsProvider } from './contexts';
+import { AuthProvider, UIProvider, SettingsProvider, NotificationsProvider } from './contexts';
 import { ToastProvider } from './components/ui';
 import { PageLoader } from './components/ui/PageLoader';
 
@@ -55,6 +55,7 @@ function App() {
       <SettingsProvider>
         <UIProvider>
           <ToastProvider>
+            <NotificationsProvider>
             <BrowserRouter>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
@@ -116,6 +117,7 @@ function App() {
                 </Routes>
               </Suspense>
             </BrowserRouter>
+            </NotificationsProvider>
           </ToastProvider>
         </UIProvider>
       </SettingsProvider>

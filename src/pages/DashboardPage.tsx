@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -14,15 +14,63 @@ import { SaleDetailModal } from '../components/modals/SaleDetailModal';
 import { SkeletonKpiCard, SkeletonChart, SkeletonActivityList } from '../components/ui';
 import { formatCurrency } from '../utils';
 import { useDashboard } from '../hooks/useDashboard';
-import { useVentaDetalle } from '../hooks/useVentaDetalle';
+import type { Sale } from '../types';
 
 const today = new Date(2026, 3, 17);
 
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
-  const { stats, revenueData, salesData, topProductsData, recentActivities, lowStockProducts, isLoading, error } = useDashboard();
+  const { stats, revenueData, salesData, topProductsData, recentActivities, lowStockProducts, rawVentas, isLoading, error } = useDashboard();
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
-  const { sale: selectedSale, isLoading: isLoadingSale, error: errorSale } = useVentaDetalle(selectedSaleId);
+
+  const selectedSale = useMemo<Sale | null>(() => {
+    if (!selectedSaleId) return null;
+    const v = rawVentas.find((s) => String(s.id) === selectedSaleId);
+    if (!v) return null;
+    const paymentMethods: Sale['paymentMethods'] = [];
+    if (v.pagoEfectivo > 0) paymentMethods.push({ id: `${v.codigo}-cash`, type: 'cash', name: 'Efectivo', amount: Number(v.pagoEfectivo) });
+    if (v.pagoTarjeta > 0) paymentMethods.push({ id: `${v.codigo}-card`, type: 'card', name: 'Tarjeta', amount: Number(v.pagoTarjeta) });
+    if (v.pagoQr > 0) paymentMethods.push({ id: `${v.codigo}-qr`, type: 'qr', name: 'QR', amount: Number(v.pagoQr) });
+    const parseDecimal = (val: string | number | null | undefined) => (val == null ? 0 : typeof val === 'number' ? val : parseFloat(val) || 0);
+    const parseDate = (val: string | null | undefined) => (val ? new Date(val) : new Date());
+    return {
+      id: String(v.id),
+      code: v.codigo,
+      date: parseDate(v.fecha),
+      customerId: undefined,
+      customerName: v.cliente || undefined,
+      cashierId: '',
+      cashierName: v.cajero || undefined,
+      branchId: '',
+      branchName: '',
+      status: 'completed',
+      subtotal: parseDecimal(v.subtotal),
+      discount: 0,
+      tax: 0,
+      taxPercentage: 18,
+      total: parseDecimal(v.total),
+      paymentMethods,
+      items: (v.detalles ?? []).map((d, i) => ({
+        id: `${v.codigo}-${i}`,
+        productId: '',
+        productName: d.nombre,
+        productCode: '',
+        quantity: d.cantidad,
+        unit: 'unidad',
+        unitPrice: parseDecimal(d.precio),
+        discount: 0,
+        subtotal: parseDecimal(d.total),
+        tax: 0,
+        total: parseDecimal(d.total),
+      })),
+      pointsEarned: undefined,
+      pointsRedeemed: undefined,
+      notes: undefined,
+      refunds: [],
+      createdAt: parseDate(v.fecha),
+      updatedAt: parseDate(v.fecha),
+    };
+  }, [selectedSaleId, rawVentas]);
 
   const handleViewSaleDetail = (saleId: string) => {
     setSelectedSaleId(saleId);
@@ -134,8 +182,8 @@ const DashboardPage: React.FC = () => {
         <SaleDetailModal
           sale={selectedSale}
           onClose={handleCloseSaleDetail}
-          isLoading={isLoadingSale}
-          error={errorSale}
+          isLoading={false}
+          error={selectedSaleId && !selectedSale ? 'No se encontró el detalle de la venta.' : null}
         />
       </PageContainer>
     </MainLayout>

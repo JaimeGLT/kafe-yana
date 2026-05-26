@@ -1,11 +1,11 @@
 import React, { useRef, useEffect } from 'react';
 import { Bell, Loader2, Package, FlaskConical } from 'lucide-react';
-import { useHeaderNotifications } from '../../hooks/useHeaderNotifications';
+import { useNotifications } from '../../contexts';
 
 export const NotificationBell: React.FC = () => {
   const [isOpen, setIsOpen] = React.useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { products, insumos, isLoading, hasLoaded } = useHeaderNotifications();
+  const { products, insumos, isLoading, hasLoaded } = useNotifications();
 
   const alertProducts = products.filter((p) => !p.isActive);
   const alertInsumos = insumos.filter((i) => i.stock_actual <= i.stock_min);

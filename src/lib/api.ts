@@ -12,6 +12,8 @@
  * - Si el refresh también falla (REFRESH_TOKEN expirado), se lanza el error al caller.
  */
 
+import { tryRefreshToken } from './auth-refresh';
+
 const BASE_URL = ((import.meta.env.VITE_API_URL as string | undefined) ?? '').replace(/\/$/, '');
 
 /** Lee el token CSRF desde una cookie (Double Submit Cookie pattern). */
@@ -32,29 +34,6 @@ export class ApiError extends Error {
   }
 }
 
-/** Intenta renovar el ACCESS_TOKEN usando el REFRESH_TOKEN en cookie. */
-async function tryRefreshToken(): Promise<boolean> {
-  try {
-    const res = await fetch(`${BASE_URL}/Aunth/RefreshToken`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-    });
-    if (res.ok) {
-      try {
-        const userData = await res.clone().json() as { nombre?: string; email?: string; rol?: string };
-        if (userData.nombre && userData.rol) {
-          window.dispatchEvent(new CustomEvent('auth:user-refreshed', { detail: userData }));
-        }
-      } catch {
-        // body no parseable — ignorar
-      }
-    }
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
 
 async function requestBlob(path: string, isRetry = false): Promise<Blob> {
   const csrfToken = getCsrfToken();

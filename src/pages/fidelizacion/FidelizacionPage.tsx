@@ -821,15 +821,58 @@ export const FidelizacionPage: React.FC = () => {
                             </span>
                           </div>
                           {promo.productosCanjeables.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mt-2">
-                              {promo.productosCanjeables.map(pc => (
-                                <span
-                                  key={pc.id_ProductoCanjeable}
-                                  className="text-xs font-body px-2 py-0.5 rounded-full bg-coffee-100 text-coffee-700"
-                                >
-                                  {pc.productoCanjeable.nombreProducto} · {pc.productoCanjeable.puntos} pts
-                                </span>
-                              ))}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                              {promo.productosCanjeables.map(pc => {
+                                const prod = pc.productoCanjeable;
+                                const canCanje = promo.activo && prod.activo && !!selectedCustomer;
+                                const hasPoints = selectedCustomer ? selectedCustomer.puntos >= prod.puntos : false;
+                                return (
+                                  <div
+                                    key={pc.id_ProductoCanjeable}
+                                    className={clsx(
+                                      'flex items-center justify-between gap-2 rounded-xl border px-3 py-2',
+                                      canCanje && hasPoints
+                                        ? 'bg-white border-coffee-200'
+                                        : 'bg-coffee-50 border-coffee-100',
+                                    )}
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-body font-semibold text-coffee-900 truncate">{prod.nombreProducto}</p>
+                                      <div className="flex items-center gap-1 mt-0.5">
+                                        <Star className="w-3 h-3 text-yellow-500 fill-yellow-400 flex-shrink-0" />
+                                        <span className="text-xs font-display font-bold text-coffee-700">{prod.puntos} pts</span>
+                                      </div>
+                                    </div>
+                                    {canCanje ? (
+                                      <button
+                                        onClick={() => handleRedeem({
+                                          id: String(pc.id_ProductoCanjeable),
+                                          id_Producto: String(pc.id_ProductoCanjeable),
+                                          nombreProducto: prod.nombreProducto,
+                                          categoria: prod.categoria,
+                                          puntos: prod.puntos,
+                                          disponible: prod.disponible,
+                                          activo: prod.activo,
+                                        })}
+                                        disabled={!hasPoints}
+                                        className={clsx(
+                                          'flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-body font-semibold flex-shrink-0 transition-colors',
+                                          hasPoints
+                                            ? 'bg-green-500 text-white hover:bg-green-600'
+                                            : 'bg-gray-100 text-gray-400 cursor-not-allowed',
+                                        )}
+                                      >
+                                        <Gift className="w-3 h-3" />
+                                        {hasPoints ? 'Canjear' : 'Sin pts'}
+                                      </button>
+                                    ) : (
+                                      <span className="text-xs font-body text-coffee-300 flex-shrink-0">
+                                        {!prod.activo ? 'Inactivo' : '—'}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                         </div>

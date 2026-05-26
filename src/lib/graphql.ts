@@ -3,32 +3,9 @@
  * Refresh automático: si devuelve 401, renueva el ACCESS_TOKEN y reintenta una vez.
  */
 
-const BASE_URL = ((import.meta.env.VITE_API_URL as string | undefined) ?? '').replace(/\/$/, '');
 const GRAPH_URL = ((import.meta.env.VITE_GQL_URL as string | undefined) ?? '').replace(/\/$/, '');
 import { ApiError } from './api';
-
-async function tryRefreshToken(): Promise<boolean> {
-  try {
-    const res = await fetch(`${BASE_URL}/Aunth/RefreshToken`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-    });
-    if (res.ok) {
-      try {
-        const userData = await res.clone().json() as { nombre?: string; email?: string; rol?: string };
-        if (userData.nombre && userData.rol) {
-          window.dispatchEvent(new CustomEvent('auth:user-refreshed', { detail: userData }));
-        }
-      } catch {
-        // body no parseable — ignorar, solo importa que res.ok
-      }
-    }
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
+import { tryRefreshToken } from './auth-refresh';
 
 export async function gql<T>(query: string, variables?: Record<string, unknown>, isRetry = false): Promise<T> {
   let response: Response;

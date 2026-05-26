@@ -28,6 +28,8 @@ function calculatePoints(
   isHorasValle: boolean,
   config: PointsConfig
 ): SimulatorResult {
+  if (!config.reglaBaseActiva) return { basePoints: 0, breakdown: [], total: 0 };
+
   const { bsPerPoint, accelerators } = config;
   const basePoints = bsPerPoint > 0 ? Math.floor(amount / bsPerPoint) : 0;
 
@@ -219,9 +221,19 @@ const ConfigSkeleton: React.FC = () => (
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export const ConfiguracionPuntosPage: React.FC = () => {
-  const { config, setConfig, isLoading, isSaving, isDirty, save } = usePuntosConfig();
+  const {
+    config,
+    setConfig,
+    isLoading,
+    isSavingReglaBase,
+    isSavingAceleradores,
+    isDirtyReglaBase,
+    isDirtyAceleradores,
+    saveReglaBase,
+    saveAceleradores,
+  } = usePuntosConfig();
 
-  const [showConfirmModal, setShowConfirmModal] = React.useState(false);
+  const [confirmSection, setConfirmSection] = React.useState<'base' | 'aceleradores' | null>(null);
   const [simAmount, setSimAmount] = React.useState(50);
   const [simIsCombo, setSimIsCombo] = React.useState(false);
   const [simIsBirthday, setSimIsBirthday] = React.useState(false);
@@ -251,8 +263,9 @@ export const ConfiguracionPuntosPage: React.FC = () => {
     }) : prev);
 
   const handleConfirmSave = async () => {
-    await save();
-    setShowConfirmModal(false);
+    if (confirmSection === 'base') await saveReglaBase();
+    else if (confirmSection === 'aceleradores') await saveAceleradores();
+    setConfirmSection(null);
   };
 
   return (
@@ -262,38 +275,20 @@ export const ConfiguracionPuntosPage: React.FC = () => {
         <div className="absolute top-0 right-0 w-72 h-72 bg-coffee-400/20 rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none" />
         <div className="absolute bottom-0 left-1/2 w-48 h-48 bg-cream-light/10 rounded-full translate-y-1/2 pointer-events-none" />
 
-        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
-          <div>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
-                <Settings className="w-5 h-5 text-yellow-300" />
-              </div>
-              <span className="font-accent text-cream-light text-lg">Fidelización</span>
+        <div className="relative">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
+              <Settings className="w-5 h-5 text-yellow-300" />
             </div>
-            <h1 className="text-3xl font-display font-black text-white leading-tight mb-1">
-              Configuración de{' '}
-              <span className="text-yellow-300">puntos</span>
-            </h1>
-            <p className="text-coffee-200 font-body text-sm">
-              Define cómo se acumulan los puntos en cada compra
-            </p>
+            <span className="font-accent text-cream-light text-lg">Fidelización</span>
           </div>
-
-          <div className="flex-shrink-0">
-            <button
-              onClick={() => setShowConfirmModal(true)}
-              disabled={!isDirty || isLoading}
-              className={clsx(
-                'flex items-center gap-2 px-5 py-2.5 rounded-2xl font-body font-semibold text-sm transition-all duration-200',
-                isDirty && !isLoading
-                  ? 'bg-yellow-400 text-coffee-900 hover:bg-yellow-300 shadow-lg hover:shadow-xl'
-                  : 'bg-white/10 text-white/40 cursor-not-allowed border border-white/20'
-              )}
-            >
-              <Save className="w-4 h-4" />
-              Guardar cambios
-            </button>
-          </div>
+          <h1 className="text-3xl font-display font-black text-white leading-tight mb-1">
+            Configuración de{' '}
+            <span className="text-yellow-300">puntos</span>
+          </h1>
+          <p className="text-coffee-200 font-body text-sm">
+            Define cómo se acumulan los puntos en cada compra
+          </p>
         </div>
       </div>
 
@@ -310,10 +305,34 @@ export const ConfiguracionPuntosPage: React.FC = () => {
                   Regla base de acumulación
                 </h2>
               </div>
-              <span className="flex items-center gap-1 text-xs font-body bg-green-100 text-green-700 font-bold px-2.5 py-0.5 rounded-full">
-                <CheckCircle className="w-3 h-3" />
-                Activa
-              </span>
+              <div className="flex items-center gap-2">
+                <Toggle
+                  checked={config.reglaBaseActiva}
+                  onChange={(v) => setConfig((prev) => prev ? { ...prev, reglaBaseActiva: v } : prev)}
+                />
+                <span className={clsx(
+                  'flex items-center gap-1 text-xs font-body font-bold px-2.5 py-0.5 rounded-full',
+                  config.reglaBaseActiva
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-gray-100 text-gray-500'
+                )}>
+                  {config.reglaBaseActiva ? <CheckCircle className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                  {config.reglaBaseActiva ? 'Activa' : 'Inactiva'}
+                </span>
+                <button
+                  onClick={() => setConfirmSection('base')}
+                  disabled={!isDirtyReglaBase || isSavingReglaBase}
+                  className={clsx(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-body font-semibold text-xs transition-all duration-200',
+                    isDirtyReglaBase && !isSavingReglaBase
+                      ? 'bg-coffee-700 text-white hover:bg-coffee-800 shadow-sm'
+                      : 'bg-coffee-100 text-coffee-300 cursor-not-allowed'
+                  )}
+                >
+                  <Save className="w-3 h-3" />
+                  {isSavingReglaBase ? 'Guardando…' : 'Guardar'}
+                </button>
+              </div>
             </div>
 
             <div className="p-5">
@@ -366,15 +385,30 @@ export const ConfiguracionPuntosPage: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <div className="hidden sm:flex items-center gap-3 text-xs font-body">
-                <div className="flex items-center gap-1">
-                  <span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-bold border border-violet-200">×N</span>
-                  <span className="text-coffee-400">Multiplica</span>
+              <div className="flex items-center gap-3">
+                <div className="hidden sm:flex items-center gap-3 text-xs font-body">
+                  <div className="flex items-center gap-1">
+                    <span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-bold border border-violet-200">×N</span>
+                    <span className="text-coffee-400">Multiplica</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold border border-emerald-200">+N</span>
+                    <span className="text-coffee-400">Suma extra</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold border border-emerald-200">+N</span>
-                  <span className="text-coffee-400">Suma extra</span>
-                </div>
+                <button
+                  onClick={() => setConfirmSection('aceleradores')}
+                  disabled={!isDirtyAceleradores || isSavingAceleradores}
+                  className={clsx(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-body font-semibold text-xs transition-all duration-200',
+                    isDirtyAceleradores && !isSavingAceleradores
+                      ? 'bg-coffee-700 text-white hover:bg-coffee-800 shadow-sm'
+                      : 'bg-coffee-100 text-coffee-300 cursor-not-allowed'
+                  )}
+                >
+                  <Save className="w-3 h-3" />
+                  {isSavingAceleradores ? 'Guardando…' : 'Guardar'}
+                </button>
               </div>
             </div>
 
@@ -406,7 +440,7 @@ export const ConfiguracionPuntosPage: React.FC = () => {
             </div>
 
             <div className="p-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                 <div>
                   <label className="block text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide mb-1.5">
                     Monto de la compra
@@ -464,6 +498,76 @@ export const ConfiguracionPuntosPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Indicadores automáticos por monto */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                {(() => {
+                  const over100Acc = config.accelerators.find((a) => a.id === 'over100');
+                  const over70Acc = config.accelerators.find((a) => a.id === 'over70');
+                  const over100Triggered = (over100Acc?.isActive ?? false) && simAmount > 100;
+                  const over70Triggered = (over70Acc?.isActive ?? false) && !over100Triggered && simAmount > 70;
+
+                  return (
+                    <>
+                      <div>
+                        <label className="block text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide mb-1.5">
+                          Compra mayor a Bs. 100
+                          <span className="ml-1.5 text-coffee-300 font-normal normal-case">(automático)</span>
+                        </label>
+                        <div className={clsx(
+                          'flex items-center gap-2 rounded-xl border px-3 py-2.5 transition-colors',
+                          over100Triggered ? 'border-violet-200 bg-violet-50' : 'border-coffee-200 bg-white'
+                        )}>
+                          <span className={clsx(
+                            'w-2 h-2 rounded-full flex-shrink-0',
+                            over100Triggered ? 'bg-violet-500' : 'bg-gray-300'
+                          )} />
+                          <span className={clsx(
+                            'text-sm font-body font-semibold',
+                            over100Triggered ? 'text-violet-700' : 'text-coffee-400'
+                          )}>
+                            {over100Triggered ? 'Aplicando' : simAmount > 100 && !over100Acc?.isActive ? 'Inactivo en config' : 'No aplica'}
+                          </span>
+                          {simAmount > 100 && (
+                            <span className="ml-auto text-xs font-body text-coffee-400">Bs. {simAmount} &gt; 100</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-body font-semibold text-coffee-500 uppercase tracking-wide mb-1.5">
+                          Compra mayor a Bs. 70
+                          <span className="ml-1.5 text-coffee-300 font-normal normal-case">(automático)</span>
+                        </label>
+                        <div className={clsx(
+                          'flex items-center gap-2 rounded-xl border px-3 py-2.5 transition-colors',
+                          over70Triggered ? 'border-emerald-200 bg-emerald-50' : 'border-coffee-200 bg-white'
+                        )}>
+                          <span className={clsx(
+                            'w-2 h-2 rounded-full flex-shrink-0',
+                            over70Triggered ? 'bg-emerald-500' : 'bg-gray-300'
+                          )} />
+                          <span className={clsx(
+                            'text-sm font-body font-semibold',
+                            over70Triggered ? 'text-emerald-700' : 'text-coffee-400'
+                          )}>
+                            {over70Triggered
+                              ? 'Aplicando'
+                              : over100Triggered
+                              ? 'Superado por >100'
+                              : simAmount > 70 && !over70Acc?.isActive
+                              ? 'Inactivo en config'
+                              : 'No aplica'}
+                          </span>
+                          {simAmount > 70 && simAmount <= 100 && (
+                            <span className="ml-auto text-xs font-body text-coffee-400">Bs. {simAmount} &gt; 70</span>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+
               <div className="rounded-2xl bg-gradient-to-br from-coffee-800 to-coffee-600 p-5 text-white">
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between text-sm font-body">
@@ -507,7 +611,12 @@ export const ConfiguracionPuntosPage: React.FC = () => {
                   </div>
                 </div>
 
-                {simResult.total === 0 && simAmount > 0 && (
+                {!config.reglaBaseActiva && (
+                  <p className="mt-3 text-xs font-body text-red-300 text-center">
+                    Regla base inactiva — no se generan puntos en ninguna compra
+                  </p>
+                )}
+                {config.reglaBaseActiva && simResult.total === 0 && simAmount > 0 && (
                   <p className="mt-3 text-xs font-body text-coffee-300 text-center">
                     Con Bs. {simAmount} no se genera ningún punto (mínimo Bs. {config.bsPerPoint})
                   </p>
@@ -520,19 +629,19 @@ export const ConfiguracionPuntosPage: React.FC = () => {
 
       {/* ═══════════════════════ CONFIRM MODAL ═══════════════════════ */}
       <Modal
-        isOpen={showConfirmModal}
-        onClose={() => setShowConfirmModal(false)}
+        isOpen={confirmSection !== null}
+        onClose={() => setConfirmSection(null)}
         title="Guardar cambios"
         size="sm"
         footer={
           <div className="flex items-center justify-end gap-3">
-            <Button variant="ghost" onClick={() => setShowConfirmModal(false)} disabled={isSaving}>
+            <Button variant="ghost" onClick={() => setConfirmSection(null)} disabled={isSavingReglaBase || isSavingAceleradores}>
               Cancelar
             </Button>
             <Button
               variant="primary"
               onClick={handleConfirmSave}
-              isLoading={isSaving}
+              isLoading={isSavingReglaBase || isSavingAceleradores}
               leftIcon={<Save className="w-4 h-4" />}
             >
               Confirmar y guardar
@@ -549,7 +658,9 @@ export const ConfiguracionPuntosPage: React.FC = () => {
             </p>
           </div>
           <p className="text-sm font-body text-coffee-600">
-            ¿Confirmas que deseas aplicar la nueva configuración de puntos?
+            {confirmSection === 'base'
+              ? '¿Confirmas que deseas guardar la nueva regla base de acumulación?'
+              : '¿Confirmas que deseas guardar los cambios en los aceleradores?'}
           </p>
         </div>
       </Modal>

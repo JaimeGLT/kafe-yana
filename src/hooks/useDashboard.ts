@@ -16,7 +16,7 @@ interface VentaNode {
   pagoEfectivo: number;
   pagoTarjeta: number;
   pagoQr: number;
-  detalles?: { nombre: string; cantidad: number }[];
+  detalles?: { id: number; id_venta: number; nombre: string; cantidad: number; precio: string; total: string }[];
 }
 
 interface CajaEstadoNode {
@@ -123,6 +123,7 @@ export interface UseDashboardReturn {
   topProductsData: TopProduct[];
   recentActivities: RecentActivity[];
   lowStockProducts: LowStockProduct[];
+  rawVentas: VentaNode[];
   isLoading: boolean;
   error: string | null;
 }
@@ -140,6 +141,7 @@ export function useDashboard(): UseDashboardReturn {
   const [topProductsData, setTopProductsData] = useState<TopProduct[]>([]);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [lowStockProducts, setLowStockProducts] = useState<LowStockProduct[]>([]);
+  const [rawVentas, setRawVentas] = useState<VentaNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -163,6 +165,7 @@ export function useDashboard(): UseDashboardReturn {
       });
 
       const allSales = data.ventas.nodes;
+      setRawVentas(allSales);
       const completedSales = allSales.filter((s) => s.estado === 'Finalizada');
 
       const totalSalesToday = completedSales
@@ -285,6 +288,7 @@ export function useDashboard(): UseDashboardReturn {
     topProductsData,
     recentActivities,
     lowStockProducts,
+    rawVentas,
     isLoading,
     error,
   };

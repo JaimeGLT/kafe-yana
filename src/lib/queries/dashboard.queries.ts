@@ -39,8 +39,12 @@ export const GET_DASHBOARD_DATA = `
         pagoTarjeta
         pagoQr
         detalles {
+          id
+          id_venta
           nombre
           cantidad
+          precio
+          total
         }
       }
       totalCount
