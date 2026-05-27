@@ -202,6 +202,8 @@ export const FidelizacionPage: React.FC = () => {
     promocionesPermanentes,
     promocionesTemporada,
     promosGratisCliente,
+    hitosReclamados,
+    isLoadingHitosReclamados,
     isLoadingVentas,
     isLoadingHistorial,
     isLoadingPromosGratis,
@@ -209,6 +211,7 @@ export const FidelizacionPage: React.FC = () => {
     fetchVentasCliente,
     fetchHistorialPuntos,
     fetchPromosGratisCliente,
+    fetchHitosReclamados,
     createCliente,
   } = useFidelizacion();
 
@@ -223,7 +226,6 @@ export const FidelizacionPage: React.FC = () => {
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [confirmHito, setConfirmHito] = useState<HitoCompra | null>(null);
   const [isRedeemingHito, setIsRedeemingHito] = useState(false);
-  const [reclamadosHitos, setReclamadosHitos] = useState<Set<number>>(new Set());
   const [confirmPromoGratis, setConfirmPromoGratis] = useState<DtoPromocionGratisItem | null>(null);
   const [isRedeemingPromoGratis, setIsRedeemingPromoGratis] = useState(false);
   const [reclamadosPromos, setReclamadosPromos] = useState<Set<number>>(new Set());
@@ -308,6 +310,15 @@ export const FidelizacionPage: React.FC = () => {
     [selectedProfile, getLevelInfo],
   );
 
+  const reclamadosHitosSet = useMemo(() => {
+    const set = new Set(hitosReclamados.map(r => r.IdHitoCompra));
+    if (hitosReclamados.length > 0) {
+      console.log('[reclamadosHitosSet] IDs reclamados:', [...set]);
+      console.log('[hitos catalogo] IDs:', hitos.map(h => h.id));
+    }
+    return set;
+  }, [hitosReclamados, hitos]);
+
   // ── Global stats ────────────────────────────────────────────────────────────
   const statsCustomersWithPoints = clientes.filter(c => c.puntos > 0).length;
   const statsCirculatingPoints = clientes.reduce((s, c) => s + c.puntos, 0);
@@ -316,12 +327,12 @@ export const FidelizacionPage: React.FC = () => {
   const handleSelectCustomer = (id: string) => {
     setSelectedCustomerId(id);
     setSearch('');
-    setReclamadosHitos(new Set());
     setReclamadosPromos(new Set());
     const customer = activeCustomers.find(c => c.id === id);
     if (customer) fetchVentasCliente(customer.nombre);
     fetchHistorialPuntos(Number(id));
     fetchPromosGratisCliente(Number(id));
+    fetchHitosReclamados(Number(id));
   };
 
   const handleCreateCliente = async (input: CustomerInput, _isEdit: boolean, _id?: string) => {
@@ -352,9 +363,11 @@ export const FidelizacionPage: React.FC = () => {
         { IdCliente: Number(selectedCustomer.id), IdHitoCompra: confirmHito.id },
       );
       toast.success('¡Hito reclamado!', res.Mensaje ?? `${confirmHito.productoCanjeable.nombreProducto} entregado.`);
-      setReclamadosHitos(prev => new Set(prev).add(confirmHito.id));
       setConfirmHito(null);
-      await refreshClientes();
+      await Promise.all([
+        refreshClientes(),
+        fetchHitosReclamados(Number(selectedCustomer.id)),
+      ]);
     } catch (e) {
       toast.error('Error', e instanceof Error ? e.message : 'No se pudo reclamar el hito.');
     } finally {
@@ -563,7 +576,7 @@ export const FidelizacionPage: React.FC = () => {
                   {hitos.filter(h => h.activo).map(hito => {
                     const purchaseCount = selectedCustomer.numeroCompras ?? 0;
                     const reached = purchaseCount >= hito.numeroCompras;
-                    const yaReclamado = reclamadosHitos.has(hito.id);
+                    const yaReclamado = reclamadosHitosSet.has(hito.id);
                     const progress = Math.min(100, (purchaseCount / hito.numeroCompras) * 100);
                     return (
                       <div
@@ -598,19 +611,26 @@ export const FidelizacionPage: React.FC = () => {
                           </div>
                         </div>
                         {reached && (
-                          <button
-                            onClick={() => handleRedeemHito(hito)}
-                            disabled={yaReclamado || isRedeemingHito}
-                            className={clsx(
-                              'w-full py-1.5 rounded-xl text-xs font-body font-bold transition-colors flex items-center justify-center gap-1.5',
-                              yaReclamado
-                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                : 'bg-yellow-400 text-coffee-900 hover:bg-yellow-300',
-                            )}
-                          >
-                            <Gift className="w-3.5 h-3.5" />
-                            {yaReclamado ? 'Ya reclamado' : 'Reclamar recompensa'}
-                          </button>
+                          yaReclamado ? (
+                            <div className="w-full py-1.5 rounded-xl text-xs font-body font-bold flex items-center justify-center gap-1.5 bg-green-100 text-green-700">
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              Ya canjeado
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleRedeemHito(hito)}
+                              disabled={isLoadingHitosReclamados || isRedeemingHito}
+                              className={clsx(
+                                'w-full py-1.5 rounded-xl text-xs font-body font-bold transition-colors flex items-center justify-center gap-1.5',
+                                isLoadingHitosReclamados
+                                  ? 'bg-gray-100 text-gray-400 cursor-wait'
+                                  : 'bg-yellow-400 text-coffee-900 hover:bg-yellow-300',
+                              )}
+                            >
+                              <Gift className="w-3.5 h-3.5" />
+                              {isLoadingHitosReclamados ? 'Verificando...' : 'Reclamar recompensa'}
+                            </button>
+                          )
                         )}
                       </div>
                     );
@@ -1273,6 +1293,7 @@ export const FidelizacionPage: React.FC = () => {
                             const purchaseCount = selectedCustomer?.numeroCompras ?? 0;
                             const reached = purchaseCount >= hito.numeroCompras;
                             const isNext = !reached && (idx === 0 || purchaseCount >= arr[idx - 1].numeroCompras);
+                            const canjeado = reclamadosHitosSet.has(hito.id);
                             return (
                               <React.Fragment key={hito.id}>
                                 {idx > 0 && (
@@ -1281,19 +1302,24 @@ export const FidelizacionPage: React.FC = () => {
                                 <div className="flex flex-col items-center gap-1 w-20 text-center flex-shrink-0">
                                   <div className={clsx(
                                     'w-10 h-10 rounded-xl flex items-center justify-center text-lg border-2 transition-all',
-                                    reached ? 'bg-coffee-500 border-coffee-400' : isNext ? 'bg-coffee-50 border-coffee-300 ring-2 ring-coffee-300 ring-offset-1 animate-pulse' : 'bg-white border-coffee-100',
+                                    canjeado ? 'bg-green-500 border-green-400' : reached ? 'bg-coffee-500 border-coffee-400' : isNext ? 'bg-coffee-50 border-coffee-300 ring-2 ring-coffee-300 ring-offset-1 animate-pulse' : 'bg-white border-coffee-100',
                                   )}>
-                                    {reached ? <CheckCircle className="w-5 h-5 text-white" /> : <span className={isNext ? '' : 'opacity-40'}>{hito.icono}</span>}
+                                    {canjeado ? <CheckCircle className="w-5 h-5 text-white" /> : reached ? <CheckCircle className="w-5 h-5 text-white" /> : <span className={isNext ? '' : 'opacity-40'}>{hito.icono}</span>}
                                   </div>
                                   <span className={clsx(
                                     'text-xs font-body font-bold px-1.5 py-0.5 rounded-full',
-                                    reached ? 'bg-coffee-100 text-coffee-700' : isNext ? 'bg-coffee-500 text-white' : 'bg-gray-100 text-gray-400',
+                                    canjeado ? 'bg-green-100 text-green-700' : reached ? 'bg-coffee-100 text-coffee-700' : isNext ? 'bg-coffee-500 text-white' : 'bg-gray-100 text-gray-400',
                                   )}>
                                     #{hito.numeroCompras}
                                   </span>
-                                  <p className={clsx('text-xs font-body leading-tight', reached ? 'text-coffee-600 font-medium' : isNext ? 'text-coffee-500' : 'text-coffee-200')}>
+                                  <p className={clsx('text-xs font-body leading-tight', canjeado ? 'text-green-600 font-medium' : reached ? 'text-coffee-600 font-medium' : isNext ? 'text-coffee-500' : 'text-coffee-200')}>
                                     {hito.productoCanjeable.nombreProducto}
                                   </p>
+                                  {canjeado && (
+                                    <span className="text-xs font-body font-bold text-green-600 bg-green-50 px-1 py-0.5 rounded-full leading-tight">
+                                      Canjeado
+                                    </span>
+                                  )}
                                 </div>
                               </React.Fragment>
                             );

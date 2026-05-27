@@ -76,6 +76,24 @@ export interface DtoPromocionesGratisCliente {
   EnProgreso: DtoPromocionGratisItem[];
 }
 
+export interface HitoReclamado {
+  IdHitoCompra: number;
+  NumeroComprasRequerido: number;
+  NumeroComprasAlReclamar: number;
+  CodigoReclamo: string;
+  Fecha: string;
+  Descripcion: string;
+  Icono: string;
+  IdProductoCanjeable: number;
+  NombreProducto: string;
+  Categoria: string;
+}
+
+export interface HitosReclamadosResponse {
+  Id_Cliente: number;
+  Reclamados: HitoReclamado[];
+}
+
 export interface PromocionTemporadaApi {
   id: number;
   nombre: string;
@@ -131,6 +149,8 @@ export function useFidelizacion() {
   const [promocionesPermanentes, setPromocionesPermanentes] = useState<PromocionPermanenteApi[]>([]);
   const [promocionesTemporada, setPromocionesTemporada] = useState<PromocionTemporadaApi[]>([]);
   const [promosGratisCliente, setPromosGratisCliente] = useState<DtoPromocionesGratisCliente | null>(null);
+  const [hitosReclamados, setHitosReclamados] = useState<HitoReclamado[]>([]);
+  const [isLoadingHitosReclamados, setIsLoadingHitosReclamados] = useState(false);
   const [isLoadingClientes, setIsLoadingClientes] = useState(true);
   const [isLoadingVentas, setIsLoadingVentas] = useState(false);
   const [isLoadingHistorial, setIsLoadingHistorial] = useState(false);
@@ -220,6 +240,22 @@ export function useFidelizacion() {
     }
   }, []);
 
+  const fetchHitosReclamados = useCallback(async (idCliente: number) => {
+    setIsLoadingHitosReclamados(true);
+    setHitosReclamados([]);
+    try {
+      const data = await api.get<HitosReclamadosResponse>(
+        `/ProductoCanjeable/hitos-reclamados?Id_Cliente=${idCliente}`,
+      );
+      console.log('[hitos-reclamados] respuesta:', data);
+      setHitosReclamados(data.Reclamados ?? []);
+    } catch (e) {
+      console.error('[hitos-reclamados] ERROR:', e);
+    } finally {
+      setIsLoadingHitosReclamados(false);
+    }
+  }, []);
+
   const searchClientes = useCallback(async (q: string) => {
     if (!q.trim()) {
       setSearchResults([]);
@@ -266,6 +302,9 @@ export function useFidelizacion() {
     fetchVentasCliente,
     fetchHistorialPuntos,
     fetchPromosGratisCliente,
+    hitosReclamados,
+    isLoadingHitosReclamados,
+    fetchHitosReclamados,
     searchClientes,
     createCliente,
   };
