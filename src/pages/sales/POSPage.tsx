@@ -24,6 +24,8 @@ import { PrintComandaModal } from '../../components/pos/PrintComandaModal';
 import type { PrintComandaData } from '../../components/pos/PrintComandaModal';
 import { PrintReciboModal } from '../../components/pos/PrintReciboModal';
 import type { PrintReciboData } from '../../components/pos/PrintReciboModal';
+import { PreCuentaModal } from '../../components/pos/PreCuentaModal';
+import type { PreCuentaData } from '../../components/pos/PreCuentaModal';
 import { SkeletonMesaGrid, SkeletonCategoryTabs, SkeletonProductScroll, Overlay, ConfirmModal } from '../../components/ui';
 import { MesaCard } from '../../components/pos/MesaCard';
 import { NuevaMesaModal } from '../../components/pos/NuevaMesaModal';
@@ -130,6 +132,7 @@ export const POSPage: React.FC = () => {
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
   const [printComandaData, setPrintComandaData] = useState<PrintComandaData | null>(null);
   const [printReciboData, setPrintReciboData] = useState<PrintReciboData | null>(null);
+  const [printPreCuentaData, setPrintPreCuentaData] = useState<PreCuentaData | null>(null);
   const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
   const [comboDetails, setComboDetails] = useState<Record<string, { name: string; quantity: number; emoji: string }[]>>({});
   const [milestones, _setMilestones] = useState<MilestoneReward[]>([]);
@@ -790,17 +793,13 @@ export const POSPage: React.FC = () => {
 
   const handlePrintResumen = () => {
     if (!activeMesa || activeMesa.order.length === 0) return;
-    const items = activeMesa.order.map(i => ({
-      cantidad: i.quantity,
-      nombre: i.product.name + (i.opciones?.length ? ` (${i.opciones.map((o: any) => formatOpcionLabel(o)).join(', ')})` : ''),
-      nota: i.notes ?? '',
-      ubicacion: 'principal',
-    }));
-    setPrintComandaData({
+    setPrintPreCuentaData({
       mesaName: activeMesa.name,
-      roundNumber: activeMesa.roundsSent.length,
-      rondaDesc: 'Resumen del pedido',
-      items,
+      items: activeMesa.order.map(i => ({
+        nombre: i.product.name + (i.opciones?.length ? ` (${i.opciones.map((o: any) => formatOpcionLabel(o)).join(', ')})` : ''),
+        cantidad: i.quantity,
+        precioFinal: i.precioFinal,
+      })),
     });
   };
 
@@ -1835,6 +1834,10 @@ export const POSPage: React.FC = () => {
       <PrintReciboModal
         data={printReciboData}
         onClose={() => setPrintReciboData(null)}
+      />
+      <PreCuentaModal
+        data={printPreCuentaData}
+        onClose={() => setPrintPreCuentaData(null)}
       />
     </MainLayout>
   );

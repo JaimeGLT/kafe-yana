@@ -154,6 +154,59 @@ def enviar_tcp(ip: str, port: int, data: bytes, reintentos: int = 3) -> tuple[bo
     log.error(f"Todos los reintentos fallaron -> {ip}:{port} — {ultimo_error}")
     return False, ultimo_error
 
+METODO_LABEL = {
+    "cash": "EFECTIVO",
+    "card": "TARJETA",
+    "transfer": "TRANSFERENCIA / QR",
+}
+
+def build_cuenta(mesa: str, codigo: str, items: list, total: float, metodo_pago: str) -> bytes:
+    INIT         = bytes([0x1B, 0x40])
+    BOLD_ON      = bytes([0x1B, 0x45, 0x01])
+    BOLD_OFF     = bytes([0x1B, 0x45, 0x00])
+    ALIGN_CENTER = bytes([0x1B, 0x61, 0x01])
+    ALIGN_LEFT   = bytes([0x1B, 0x61, 0x00])
+    BIG          = bytes([0x1D, 0x21, 0x11])
+    NORMAL       = bytes([0x1D, 0x21, 0x00])
+    CUT          = bytes([0x1D, 0x56, 0x41, 0x10])
+
+    enc = lambda s: s.encode("iso-8859-1", errors="replace")
+
+    t  = INIT
+    t += ALIGN_CENTER + BIG + BOLD_ON
+    t += enc("Kafe Yana") + b"\n"
+    t += NORMAL + BOLD_OFF
+    if mesa and mesa != codigo:
+        t += enc(mesa) + b"\n"
+    t += enc(f"Cod: {codigo}") + b"\n"
+    t += enc(f"Hora: {datetime.now().strftime('%H:%M  %d/%m/%Y')}") + b"\n"
+    t += ALIGN_LEFT
+    t += enc("=" * 32) + b"\n"
+
+    for item in items:
+        cant     = item.get("cantidad", 1)
+        nombre   = item.get("nombre", "?")
+        precio   = float(item.get("precio", 0))
+        subtotal = float(item.get("total", precio * cant))
+        izq = f"  {cant}x {nombre}"
+        der = f"S/{subtotal:.2f}"
+        pad = max(1, 32 - len(izq) - len(der))
+        t += enc(izq + " " * pad + der) + b"\n"
+        if cant > 1:
+            t += enc(f"     S/{precio:.2f} c/u") + b"\n"
+
+    t += enc("=" * 32) + b"\n"
+    t += BOLD_ON + ALIGN_CENTER + BIG
+    t += enc(f"TOTAL  S/ {total:.2f}") + b"\n"
+    t += NORMAL + BOLD_OFF + ALIGN_LEFT
+    label = METODO_LABEL.get(metodo_pago, metodo_pago.upper() if metodo_pago else "")
+    if label:
+        t += enc(f"Pago: {label}") + b"\n"
+    t += enc("=" * 32) + b"\n"
+    t += ALIGN_CENTER + enc("Gracias por su visita!") + b"\n\n\n"
+    t += CUT
+    return t
+
 # ── ENDPOINT: recibir pedido ──────────────────────────────────────────────────
 
 @app.route("/api/pedido", methods=["POST"])
@@ -186,6 +239,37 @@ def recibir_pedido():
 
         estado = "OK" if ok else "ERROR"
         print(f"[{estado}] Mesa {mesa} -> {destino.upper()}" + (f" | {error}" if error else ""))
+        resultados.append({"destino": destino, "ok": ok, "error": error})
+
+    status = 200 if all(r["ok"] for r in resultados) else 207
+    return jsonify(resultados), status
+
+# ── ENDPOINT: imprimir cuenta con precios ────────────────────────────────────
+
+@app.route("/api/cuenta", methods=["POST"])
+def recibir_cuenta():
+    data     = request.json or {}
+    mesa     = data.get("mesa", "?")
+    codigo   = data.get("codigo", "?")
+    items    = data.get("items", [])
+    total    = float(data.get("total", 0))
+    metodo   = data.get("metodoPago", "")
+    destinos = data.get("destinos", ["principal"])
+
+    if not items:
+        return jsonify({"error": "Sin items"}), 400
+
+    ticket = build_cuenta(mesa, codigo, items, total, metodo)
+
+    resultados = []
+    for destino in destinos:
+        config = IMPRESORAS.get(destino)
+        if not config:
+            resultados.append({"destino": destino, "ok": False, "error": "Destino no configurado"})
+            continue
+        ok, error = enviar_tcp(config["ip"], config["port"], ticket)
+        estado = "OK" if ok else "ERROR"
+        print(f"[{estado}] Cuenta {codigo} -> {destino.upper()}" + (f" | {error}" if error else ""))
         resultados.append({"destino": destino, "ok": ok, "error": error})
 
     status = 200 if all(r["ok"] for r in resultados) else 207
