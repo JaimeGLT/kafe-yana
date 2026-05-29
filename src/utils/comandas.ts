@@ -46,6 +46,30 @@ export async function enviarRecibo(
   }
 }
 
+export async function enviarCuenta(
+  mesa: string,
+  codigo: string,
+  items: Array<{ cantidad: number; nombre: string; precio: number; total: number }>,
+  total: number,
+  metodoPago: string,
+  destinos: string[] = ['principal'],
+): Promise<void> {
+  try {
+    const res = await fetch(`${PRINT_SERVER}/api/cuenta`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mesa, codigo, items, total, metodoPago, destinos }),
+    });
+    const resultado: Array<{ ok: boolean; destino: string }> = await res.json();
+    const fallas = resultado.filter(r => !r.ok);
+    if (fallas.length > 0) {
+      alert(`⚠️ Error de impresión en: ${fallas.map(f => f.destino).join(', ')}`);
+    }
+  } catch (err) {
+    console.warn('Servidor de impresión no disponible:', err);
+  }
+}
+
 export async function enviarPedido(
   mesa: string,
   ronda: string,
