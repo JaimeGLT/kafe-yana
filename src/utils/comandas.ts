@@ -1,4 +1,4 @@
-const PRINT_SERVER = 'http://localhost:5001';
+const PRINT_SERVER = import.meta.env.VITE_PRINTER_URL ||'http://192.168.1.25:5555';
 
 export async function enviarCatalogo(
   comprados: Array<{ producto: { nombre: string }; ubicacion: string }>,

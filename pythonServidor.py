@@ -197,7 +197,7 @@ def build_cuenta(mesa: str, codigo: str, items: list, total: float, metodo_pago:
 
     t += enc("=" * 32) + b"\n"
     t += BOLD_ON + ALIGN_CENTER + BIG
-    t += enc(f"TOTAL  S/ {total:.2f}") + b"\n"
+    t += enc(f"TOTAL  Bs/ {total:.2f}") + b"\n"
     t += NORMAL + BOLD_OFF + ALIGN_LEFT
     label = METODO_LABEL.get(metodo_pago, metodo_pago.upper() if metodo_pago else "")
     if label:
@@ -297,4 +297,4 @@ def health():
 if __name__ == "__main__":
     mode = "DEV (simuladores)" if DEV_MODE else "PRODUCCION (impresoras fisicas)"
     print(f"\n Servidor listo en http://localhost:5001  [{mode}]\n")
-    app.run(port=5001, debug=False)
+    app.run(port=5555, debug=False)
