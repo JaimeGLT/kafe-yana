@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useMesas, type MesaBackend, type RondaCreatedResponse, type RondaCreatedOpcion } from './useMesas';
+import { useMesas, type MesaBackend, type RondaCreatedResponse, type RondaCreatedOpcion, type DtoRondaEditar } from './useMesas';
 import { getConnection, startConnection } from '../lib/signalr';
+import { toast } from '../components/ui/Toast';
 import { useVenta, type ParaLlevarPedido } from './useVenta';
 import type { CartItem, RondaRecord } from './usePOSCart';
 import type { ProductTipo } from '../types';
@@ -105,9 +106,13 @@ interface UsePOSMesasReturn {
     tempCart: CartItem[],
     printComanda: (mesaName: string, roundNumber: number, items: CartItem[], rondaDesc: string, comandaItems: Array<{ cantidad: number; nombre: string; nota: string; ubicacion: string }>) => void
   ) => Promise<boolean>;
+  editarRondaOrden: (mesaId: string, rondaId: number, pedidoId: number, detalles: DtoRondaEditar['detalles']) => Promise<boolean>;
+  eliminarRondaOrden: (mesaId: string, rondaId: number, pedidoId: number) => Promise<boolean>;
   updateMesa: (id: string, patch: Partial<LocalMesa>) => void;
   updateMesaOrder: (mesaId: string, order: CartItem[]) => void;
   isSendingToKitchen: boolean;
+  isEditandoRonda: boolean;
+  isEliminandoRonda: boolean;
   isClosingMesa: string | null;
   isSavingMesa: boolean;
   isStartingMesa: boolean;
@@ -206,6 +211,7 @@ const mapParaLlevarToLocalMesa = (pl: ParaLlevarPedido): LocalMesa => {
         number: idx + 1,
         sentAt: Date.now(),
         subTotal: ronda.subTotal,
+        rondaId: ronda.id,
       }));
 
       pl.pedido.rondas.forEach((ronda, idx) => {
@@ -246,6 +252,8 @@ export function usePOSMesas(): UsePOSMesasReturn {
     ocuparMesa: apiOcuparMesa,
     liberarMesa: apiLiberarMesa,
     crearRonda: apiCrearRonda,
+    editarRonda: apiEditarRonda,
+    eliminarRonda: apiEliminarRonda,
     refreshMesas,
   } = useMesas();
 
@@ -253,6 +261,8 @@ export function usePOSMesas(): UsePOSMesasReturn {
     syncParaLlevar,
     createPedidoParaLlevar,
     crearRondaParaLlevar,
+    editarRondaParaLlevar: apiEditarRondaPL,
+    eliminarRondaParaLlevar: apiEliminarRondaPL,
     liberarPedido,
   } = useVenta();
 
@@ -266,6 +276,8 @@ export function usePOSMesas(): UsePOSMesasReturn {
   const [isClosingMesa, setIsClosingMesa] = useState<string | null>(null);
   const [isDeletingMesa, setIsDeletingMesa] = useState<string | null>(null);
   const [isSendingToKitchen, setIsSendingToKitchen] = useState(false);
+  const [isEditandoRonda, setIsEditandoRonda] = useState(false);
+  const [isEliminandoRonda, setIsEliminandoRonda] = useState(false);
   const [loadingParaLlevar, setLoadingParaLlevar] = useState(false);
 
   const mapBackendMesaToLocal = useCallback((bm: MesaBackend): LocalMesa => {
@@ -295,6 +307,7 @@ export function usePOSMesas(): UsePOSMesasReturn {
           number: idx + 1,
           sentAt: Date.now(),
           subTotal: ronda.subTotal,
+          rondaId: ronda.id,
         }));
 
         bm.pedido.rondas.forEach((ronda, idx) => {
@@ -546,6 +559,44 @@ export function usePOSMesas(): UsePOSMesasReturn {
     setActiveMesaId(null);
   }, [apiLiberarMesa, liberarPedido, syncParaLlevar, updateMesa]);
 
+  const editarRondaOrden = useCallback(async (
+    mesaId: string,
+    rondaId: number,
+    pedidoId: number,
+    detalles: DtoRondaEditar['detalles'],
+  ): Promise<boolean> => {
+    setIsEditandoRonda(true);
+    const data: DtoRondaEditar = { id_Pedido: pedidoId, detalles };
+    let ok = false;
+    if (mesaId.startsWith('pl_')) {
+      ok = await apiEditarRondaPL(rondaId, data);
+      if (ok) await syncParaLlevarOrders();
+    } else {
+      ok = await apiEditarRonda(mesaId, rondaId, data);
+    }
+    if (ok) toast.success('Ronda actualizada', 'Los cambios fueron guardados.');
+    setIsEditandoRonda(false);
+    return ok;
+  }, [apiEditarRonda, apiEditarRondaPL, syncParaLlevarOrders]);
+
+  const eliminarRondaOrden = useCallback(async (
+    mesaId: string,
+    rondaId: number,
+    pedidoId: number,
+  ): Promise<boolean> => {
+    setIsEliminandoRonda(true);
+    let ok = false;
+    if (mesaId.startsWith('pl_')) {
+      ok = await apiEliminarRondaPL(rondaId, pedidoId);
+      if (ok) await syncParaLlevarOrders();
+    } else {
+      ok = await apiEliminarRonda(mesaId, rondaId, pedidoId);
+    }
+    if (ok) toast.success('Ronda eliminada', 'La ronda fue removida del pedido.');
+    setIsEliminandoRonda(false);
+    return ok;
+  }, [apiEliminarRonda, apiEliminarRondaPL, syncParaLlevarOrders]);
+
   const sendToKitchen = useCallback(async (
     mesaId: string,
     tempCart: CartItem[],
@@ -634,9 +685,13 @@ export function usePOSMesas(): UsePOSMesasReturn {
     handleIniciarMesa,
     handleCerrarMesa,
     sendToKitchen,
+    editarRondaOrden,
+    eliminarRondaOrden,
     updateMesa,
     updateMesaOrder,
     isSendingToKitchen,
+    isEditandoRonda,
+    isEliminandoRonda,
     isClosingMesa,
     isSavingMesa,
     isStartingMesa,

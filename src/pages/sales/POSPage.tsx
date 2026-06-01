@@ -31,6 +31,9 @@ import { MesaCard } from '../../components/pos/MesaCard';
 import { NuevaMesaModal } from '../../components/pos/NuevaMesaModal';
 import { IniciarMesaModal } from '../../components/pos/IniciarMesaModal';
 import { ComboDetailPanel } from '../../components/pos/ComboDetailPanel';
+import { EditarRondaModal } from '../../components/pos/EditarRondaModal';
+import type { CartItem } from '../../hooks/usePOSCart';
+import type { DtoRondaDetalleEditar } from '../../hooks/useMesas';
 import type { Product, Category, Customer, CustomerInput, SaleInput, PaymentMethodType, VariacionAtributo } from '../../types';
 import type { MilestoneReward, PointsCalculation } from '../../types/loyalty';
 import { VariacionPickerModal } from '../../components/modals/VariacionPickerModal';
@@ -193,8 +196,12 @@ export const POSPage: React.FC = () => {
     handleIniciarMesa,
     handleCerrarMesa,
     sendToKitchen,
+    editarRondaOrden,
+    eliminarRondaOrden,
     updateMesa,
     isSendingToKitchen,
+    isEditandoRonda,
+    isEliminandoRonda,
     isClosingMesa,
     isSavingMesa,
     isStartingMesa,
@@ -464,6 +471,8 @@ export const POSPage: React.FC = () => {
   const [descuentoPreview, setDescuentoPreview] = useState<DtoDescuentosPedidoRespuesta | null>(null);
   const [aplicarDescuento, setAplicarDescuento] = useState(false);
   const [isLoadingDescuento, setIsLoadingDescuento] = useState(false);
+  const [editingRonda, setEditingRonda] = useState<{ rondaId: number; rondaNumber: number; items: CartItem[] } | null>(null);
+  const [confirmDeleteRondaId, setConfirmDeleteRondaId] = useState<{ rondaId: number; rondaNumber: number } | null>(null);
 
   const dragScrollDetalleCat = useDragScroll<HTMLDivElement>();
   const dragScrollDetalleProd = useDragScroll<HTMLDivElement>();
@@ -1482,10 +1491,30 @@ export const POSPage: React.FC = () => {
                                 <span className="text-[11px] font-bold text-coffee-600 uppercase tracking-wider">
                                   Ronda {ronda.number}
                                 </span>
-                                <span className="text-[11px] text-coffee-400 ml-auto">{rondaTime}</span>
+                                <span className="text-[11px] text-coffee-400">{rondaTime}</span>
                                 <span className="text-[11px] font-semibold text-coffee-700">
                                   {formatCurrency(ronda.subTotal)}
                                 </span>
+                                <div className="ml-auto flex items-center gap-1">
+                                  {ronda.rondaId && (
+                                    <>
+                                      <button
+                                        title="Editar ronda"
+                                        onClick={() => setEditingRonda({ rondaId: ronda.rondaId!, rondaNumber: ronda.number, items: rondaItems })}
+                                        className="h-6 w-6 rounded-md flex items-center justify-center text-coffee-400 hover:text-coffee-700 hover:bg-coffee-200 transition-colors"
+                                      >
+                                        <PenLine className="h-3 w-3" />
+                                      </button>
+                                      <button
+                                        title="Eliminar ronda"
+                                        onClick={() => setConfirmDeleteRondaId({ rondaId: ronda.rondaId!, rondaNumber: ronda.number })}
+                                        className="h-6 w-6 rounded-md flex items-center justify-center text-coffee-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
                               </div>
                               <div className="divide-y divide-coffee-50">
                                 {rondaItems.map(item => (
@@ -1823,6 +1852,40 @@ export const POSPage: React.FC = () => {
             message={`¿Eliminar la mesa "${mesaToDeleteName}"? Esta acción no se puede deshacer.`}
             confirmText="Eliminar"
             variant="danger"
+          />
+        )}
+
+        {confirmDeleteRondaId && activeMesa && (
+          <ConfirmModal
+            isOpen
+            onClose={() => setConfirmDeleteRondaId(null)}
+            onConfirm={async () => {
+              const pedidoId = (activeMesa as any).pedidoId;
+              if (!pedidoId) return;
+              const ok = await eliminarRondaOrden(activeMesa.id, confirmDeleteRondaId.rondaId, pedidoId);
+              if (ok) setConfirmDeleteRondaId(null);
+            }}
+            title={`Eliminar Ronda ${confirmDeleteRondaId.rondaNumber}`}
+            message="¿Eliminar esta ronda? Se devolverá el stock y no se puede deshacer."
+            confirmText={isEliminandoRonda ? 'Eliminando...' : 'Eliminar'}
+            variant="danger"
+          />
+        )}
+
+        {editingRonda && activeMesa && (
+          <EditarRondaModal
+            isOpen
+            rondaNumber={editingRonda.rondaNumber}
+            items={editingRonda.items}
+            isSaving={isEditandoRonda}
+            formatCurrency={formatCurrency}
+            onClose={() => setEditingRonda(null)}
+            onConfirm={async (detalles: DtoRondaDetalleEditar[]) => {
+              const pedidoId = (activeMesa as any).pedidoId;
+              if (!pedidoId) return;
+              const ok = await editarRondaOrden(activeMesa.id, editingRonda.rondaId, pedidoId, detalles);
+              if (ok) setEditingRonda(null);
+            }}
           />
         )}
       </div>

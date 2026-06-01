@@ -79,6 +79,19 @@ export interface RondaBackend {
   detalle: RondaDetalle[];
 }
 
+export interface DtoRondaDetalleEditar {
+  id_Detalle: number | null;
+  id_Producto: number;
+  cantidad: number;
+  ids_Opcion: number[];
+  nota: string;
+}
+
+export interface DtoRondaEditar {
+  id_Pedido: number;
+  detalles: DtoRondaDetalleEditar[];
+}
+
 export interface RondaCreatedCambio {
   tipo: 'Reemplazo' | 'Modificacion';
   sale?: string;
@@ -118,6 +131,10 @@ interface UseMesasReturn {
   ocuparMesa: (id: string, clienteId: number | null) => Promise<number | null>;
   liberarMesa: (id: string) => Promise<boolean>;
   crearRonda: (mesaId: string, detalles: { id_Producto: number; ids_Opcion: number[]; cantidad: number }[]) => Promise<RondaCreatedResponse | null>;
+  editarRonda: (mesaId: string, rondaId: number, data: DtoRondaEditar) => Promise<boolean>;
+  eliminarRonda: (mesaId: string, rondaId: number, pedidoId: number) => Promise<boolean>;
+  editarDetalle: (detalleId: number, pedidoId: number, data: Omit<DtoRondaDetalleEditar, 'id_Detalle'>) => Promise<boolean>;
+  eliminarDetalle: (detalleId: number, pedidoId: number) => Promise<boolean>;
   cobrarMesa: (mesaId: string, data: { id_Pedido: number; id_Cliente: number | null; pagos: { efectivo: number; tarjeta: number; qr: number; total: number } }) => Promise<boolean>;
   getActivePedidoId: (mesaId: string) => number | null;
   refreshMesas: (silent?: boolean) => Promise<void>;
@@ -251,6 +268,69 @@ export function useMesas(): UseMesasReturn {
     }
   }, [pedidoPorMesa, refreshMesas]);
 
+  const editarRonda = useCallback(async (
+    mesaId: string,
+    rondaId: number,
+    data: DtoRondaEditar,
+  ): Promise<boolean> => {
+    try {
+      await api.put(`/Mesa/${mesaId}/ronda/${rondaId}`, data);
+      await refreshMesas(true);
+      return true;
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'No se pudo editar la ronda.';
+      toast.error('Error', msg);
+      return false;
+    }
+  }, [refreshMesas]);
+
+  const eliminarRonda = useCallback(async (
+    mesaId: string,
+    rondaId: number,
+    pedidoId: number,
+  ): Promise<boolean> => {
+    try {
+      await api.delete(`/Mesa/${mesaId}/ronda/${rondaId}?idPedido=${pedidoId}`);
+      await refreshMesas(true);
+      return true;
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'No se pudo eliminar la ronda.';
+      toast.error('Error', msg);
+      return false;
+    }
+  }, [refreshMesas]);
+
+  const editarDetalle = useCallback(async (
+    detalleId: number,
+    pedidoId: number,
+    data: Omit<DtoRondaDetalleEditar, 'id_Detalle'>,
+  ): Promise<boolean> => {
+    try {
+      await api.put(`/Mesa/detalle/${detalleId}?idPedido=${pedidoId}`, data);
+      await refreshMesas(true);
+      return true;
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'No se pudo editar el detalle.';
+      toast.error('Error', msg);
+      return false;
+    }
+  }, [refreshMesas]);
+
+  const eliminarDetalle = useCallback(async (
+    detalleId: number,
+    pedidoId: number,
+  ): Promise<boolean> => {
+    try {
+      await api.delete(`/Mesa/detalle/${detalleId}?idPedido=${pedidoId}`);
+      await refreshMesas(true);
+      return true;
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'No se pudo eliminar el detalle.';
+      toast.error('Error', msg);
+      return false;
+    }
+  }, [refreshMesas]);
+
   const cobrarMesa = useCallback(async (
     mesaId: string,
     data: { id_Pedido: number; id_Cliente: number | null; pagos: { efectivo: number; tarjeta: number; qr: number; total: number } }
@@ -276,6 +356,10 @@ export function useMesas(): UseMesasReturn {
     ocuparMesa,
     liberarMesa,
     crearRonda,
+    editarRonda,
+    eliminarRonda,
+    editarDetalle,
+    eliminarDetalle,
     cobrarMesa,
     getActivePedidoId: (mesaId: string) => pedidoPorMesa[mesaId] ?? null,
     refreshMesas,

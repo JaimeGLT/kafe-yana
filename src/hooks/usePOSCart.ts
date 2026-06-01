@@ -25,6 +25,7 @@ export interface RondaRecord {
   number: number;
   sentAt: number;
   subTotal: number;
+  rondaId?: number;
 }
 
 interface AjusteInfo {

@@ -3,7 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { gql } from '../lib/graphql';
 import { GET_PARA_LLEVAR } from '../lib/queries/ventas.queries';
 import { toast } from '../components/ui/Toast';
-import type { RondaCreatedResponse } from './useMesas';
+import type { RondaCreatedResponse, DtoRondaEditar, DtoRondaDetalleEditar } from './useMesas';
 
 export interface ParaLlevarPedido {
   disponible: boolean;
@@ -64,6 +64,10 @@ interface UseVentaReturn {
   syncParaLlevar: () => Promise<ParaLlevarPedido[]>;
   createPedidoParaLlevar: (clienteId?: number | null) => Promise<number | null>;
   crearRondaParaLlevar: (pedidoId: number, detalles: { id_Producto: number; ids_Opcion: number[]; cantidad: number }[]) => Promise<RondaCreatedResponse | null>;
+  editarRondaParaLlevar: (rondaId: number, data: DtoRondaEditar) => Promise<boolean>;
+  eliminarRondaParaLlevar: (rondaId: number, pedidoId: number) => Promise<boolean>;
+  editarDetalleParaLlevar: (detalleId: number, pedidoId: number, data: Omit<DtoRondaDetalleEditar, 'id_Detalle'>) => Promise<boolean>;
+  eliminarDetalleParaLlevar: (detalleId: number, pedidoId: number) => Promise<boolean>;
   cobrarParaLlevar: (pedidoId: number, clienteId: number | null, pagos: { efectivo: number; tarjeta: number; qr: number; total: number }, aplicarDescuentos?: boolean) => Promise<RespuestaCobro | null>;
   liberarPedido: () => Promise<boolean>;
 }
@@ -110,6 +114,63 @@ export function useVenta(): UseVentaReturn {
     }
   }, []);
 
+  const editarRondaParaLlevar = useCallback(async (
+    rondaId: number,
+    data: DtoRondaEditar,
+  ): Promise<boolean> => {
+    try {
+      await api.put(`/Venta/ronda/${rondaId}`, data);
+      return true;
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'No se pudo editar la ronda.';
+      toast.error('Error', msg);
+      return false;
+    }
+  }, []);
+
+  const eliminarRondaParaLlevar = useCallback(async (
+    rondaId: number,
+    pedidoId: number,
+  ): Promise<boolean> => {
+    try {
+      await api.delete(`/Venta/ronda/${rondaId}?idPedido=${pedidoId}`);
+      return true;
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'No se pudo eliminar la ronda.';
+      toast.error('Error', msg);
+      return false;
+    }
+  }, []);
+
+  const editarDetalleParaLlevar = useCallback(async (
+    detalleId: number,
+    pedidoId: number,
+    data: Omit<DtoRondaDetalleEditar, 'id_Detalle'>,
+  ): Promise<boolean> => {
+    try {
+      await api.put(`/Venta/detalle/${detalleId}?idPedido=${pedidoId}`, data);
+      return true;
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'No se pudo editar el detalle.';
+      toast.error('Error', msg);
+      return false;
+    }
+  }, []);
+
+  const eliminarDetalleParaLlevar = useCallback(async (
+    detalleId: number,
+    pedidoId: number,
+  ): Promise<boolean> => {
+    try {
+      await api.delete(`/Venta/detalle/${detalleId}?idPedido=${pedidoId}`);
+      return true;
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'No se pudo eliminar el detalle.';
+      toast.error('Error', msg);
+      return false;
+    }
+  }, []);
+
   const cobrarParaLlevar = useCallback(async (
     pedidoId: number,
     clienteId: number | null,
@@ -146,6 +207,10 @@ export function useVenta(): UseVentaReturn {
     syncParaLlevar,
     createPedidoParaLlevar,
     crearRondaParaLlevar,
+    editarRondaParaLlevar,
+    eliminarRondaParaLlevar,
+    editarDetalleParaLlevar,
+    eliminarDetalleParaLlevar,
     cobrarParaLlevar,
     liberarPedido,
   };
