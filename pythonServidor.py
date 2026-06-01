@@ -189,11 +189,11 @@ def build_cuenta(mesa: str, codigo: str, items: list, total: float, metodo_pago:
         precio   = float(item.get("precio", 0))
         subtotal = float(item.get("total", precio * cant))
         izq = f"  {cant}x {nombre}"
-        der = f"S/{subtotal:.2f}"
+        der = f"Bs/{subtotal:.2f}"
         pad = max(1, 32 - len(izq) - len(der))
         t += enc(izq + " " * pad + der) + b"\n"
         if cant > 1:
-            t += enc(f"     S/{precio:.2f} c/u") + b"\n"
+            t += enc(f"    Bs/{precio:.2f} c/u") + b"\n"
 
     t += enc("=" * 32) + b"\n"
     t += BOLD_ON + ALIGN_CENTER + BIG
@@ -207,34 +207,99 @@ def build_cuenta(mesa: str, codigo: str, items: list, total: float, metodo_pago:
     t += CUT
     return t
 
+# ── Ticket con precios (para impresora principal) ────────────────────────────
+
+def build_ticket_principal(mesa, ronda: str, items: list) -> bytes:
+    INIT         = bytes([0x1B, 0x40])
+    BOLD_ON      = bytes([0x1B, 0x45, 0x01])
+    BOLD_OFF     = bytes([0x1B, 0x45, 0x00])
+    ALIGN_CENTER = bytes([0x1B, 0x61, 0x01])
+    ALIGN_LEFT   = bytes([0x1B, 0x61, 0x00])
+    BIG          = bytes([0x1D, 0x21, 0x11])
+    NORMAL       = bytes([0x1D, 0x21, 0x00])
+    CUT          = bytes([0x1D, 0x56, 0x41, 0x10])
+
+    enc = lambda s: s.encode("iso-8859-1", errors="replace")
+
+    t  = INIT
+    t += ALIGN_CENTER + BIG + BOLD_ON
+    t += enc("PRINCIPAL") + b"\n"
+    t += NORMAL + BOLD_OFF
+    t += BOLD_ON + enc(f"MESA: {mesa}") + b"\n" + BOLD_OFF
+    if ronda:
+        t += enc(str(ronda)) + b"\n"
+    t += ALIGN_LEFT
+    t += enc(f"Hora: {datetime.now().strftime('%H:%M  %d/%m/%Y')}") + b"\n"
+    t += enc("=" * 32) + b"\n"
+
+    total = 0.0
+    for item in items:
+        cant   = item.get("cantidad", 1)
+        nombre = item.get("nombre", "?")
+        precio = float(item.get("precio", 0) or 0)
+        t += BOLD_ON
+        if precio > 0:
+            subtotal = precio * cant
+            total   += subtotal
+            izq = f"  {cant}x {nombre}"
+            der = f"Bs/{subtotal:.2f}"
+            pad = max(1, 32 - len(izq) - len(der))
+            t += enc(izq + " " * pad + der) + b"\n"
+            if cant > 1:
+                t += BOLD_OFF + enc(f"     Bs/{precio:.2f} c/u") + b"\n" + BOLD_ON
+        else:
+            t += enc(f"  {cant}x {nombre}") + b"\n"
+        t += BOLD_OFF
+        if item.get("nota"):
+            t += enc(f"     >> {item['nota']}") + b"\n"
+
+    t += enc("=" * 32) + b"\n"
+    if total > 0:
+        t += BOLD_ON + ALIGN_CENTER + BIG
+        t += enc(f"TOTAL  Bs/ {total:.2f}") + b"\n"
+        t += NORMAL + BOLD_OFF + ALIGN_LEFT
+    t += b"\n\n"
+    t += CUT
+    return t
+
 # ── ENDPOINT: recibir pedido ──────────────────────────────────────────────────
 
 @app.route("/api/pedido", methods=["POST"])
 def recibir_pedido():
-    data  = request.json or {}
-    mesa  = data.get("mesa", "?")
-    ronda = data.get("ronda", "")
-    items = data.get("items", [])
+    data     = request.json or {}
+    mesa     = data.get("mesa", "?")
+    ronda    = data.get("ronda", "")
+    items    = data.get("items", [])
+    destinos = [d.lower() for d in data.get("destinos", [])]
 
     if not items:
         return jsonify({"error": "Sin items"}), 400
 
-    # Agrupar por destino — items sin ubicación válida se descartan
     por_destino: dict[str, list] = {}
+
+    # Principal recibe todos los items si está seleccionado
+    if "principal" in destinos:
+        por_destino["principal"] = list(items)
+
+    # Cocina y barra reciben solo sus items según ubicacion
     for item in items:
-        destino = item.get("ubicacion", "").lower()
-        if not destino or destino not in IMPRESORAS:
-            log.info(f"Item '{item.get('nombre')}' sin ubicacion valida ('{destino}') -> descartado")
-            continue
-        por_destino.setdefault(destino, []).append(item)
+        ubicacion = item.get("ubicacion", "").lower()
+        if ubicacion in ("cocina", "barra") and ubicacion in destinos:
+            por_destino.setdefault(ubicacion, []).append(item)
 
     if not por_destino:
-        return jsonify({"ok": True, "msg": "Ningun item tiene destino valido, nada que imprimir"}), 200
+        return jsonify({"ok": True, "msg": "Ningun destino valido seleccionado, nada que imprimir"}), 200
 
     resultados = []
     for destino, items_destino in por_destino.items():
-        config = IMPRESORAS[destino]
-        ticket = build_ticket(destino, mesa, ronda, items_destino)
+        config = IMPRESORAS.get(destino)
+        if not config:
+            resultados.append({"destino": destino, "ok": False, "error": "Destino no configurado"})
+            continue
+        if destino == "principal":
+            ticket = build_ticket_principal(mesa, ronda, items_destino)
+        else:
+            ticket = build_ticket(destino, mesa, ronda, items_destino)
         ok, error = enviar_tcp(config["ip"], config["port"], ticket)
 
         estado = "OK" if ok else "ERROR"
@@ -296,5 +361,5 @@ def health():
 
 if __name__ == "__main__":
     mode = "DEV (simuladores)" if DEV_MODE else "PRODUCCION (impresoras fisicas)"
-    print(f"\n Servidor listo en http://localhost:5001  [{mode}]\n")
-    app.run(port=5555, debug=False)
+    print(f"\n Servidor listo en http://localhost:5555  [{mode}]\n")
+    app.run(host="localhost", port=5555, debug=False)

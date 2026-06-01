@@ -10,6 +10,7 @@ interface ComandaItem {
   nombre: string;
   nota: string;
   ubicacion: string;
+  precio?: number;
 }
 
 export interface PrintComandaData {
@@ -30,14 +31,14 @@ const DESTINO_CONFIG: { id: Destino; label: string; icon: React.ReactNode }[] = 
   { id: 'barra',     label: 'Barra',     icon: <GlassWater className="h-4 w-4" /> },
 ];
 
-// DESPUÉS — selecciona según ubicación, principal solo si no hay otra
 function detectDefaultDestinos(items: ComandaItem[]): Destino[] {
   const ubicaciones = new Set(items.map((i) => i.ubicacion.toLowerCase()));
   const detected: Destino[] = [];
   if (ubicaciones.has('cocina')) detected.push('cocina');
   if (ubicaciones.has('barra'))  detected.push('barra');
-  // Principal solo si ningún item tiene ubicación específica
-  if (detected.length === 0)     detected.push('principal');
+  // Principal si hay items sin ubicacion especifica, o si no hay ningun otro destino
+  const tieneItemsSinDestino = items.some((i) => !['cocina', 'barra'].includes(i.ubicacion.toLowerCase()));
+  if (tieneItemsSinDestino || detected.length === 0) detected.push('principal');
   return detected;
 }
 

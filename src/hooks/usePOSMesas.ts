@@ -21,17 +21,18 @@ function formatearCambios(opciones: RondaCreatedOpcion[] | undefined): string {
   }).join(' | ');
 }
 
-// REEMPLAZA la función buildComandaFromResponse completa por esta:
-function buildComandaFromResponse(data: RondaCreatedResponse): Array<{ cantidad: number; nombre: string; nota: string; ubicacion: string }> {
+function buildComandaFromResponse(data: RondaCreatedResponse): Array<{ cantidad: number; nombre: string; nota: string; ubicacion: string; precio: number }> {
   const detalles = data.ronda.detalles ?? [];
   return detalles.flatMap((detalle: any) => {
     const itemsCombo: any[] = detalle.ItemsCombo ?? detalle.items_combo ?? [];
+    const precioCombo = Number(detalle.Precio ?? detalle.precio ?? 0);
     if (itemsCombo.length > 0) {
-      return itemsCombo.map((sub: any) => ({
+      return itemsCombo.map((sub: any, idx: number) => ({
         cantidad: (sub.Cantidad ?? sub.cantidad ?? 1) * (detalle.Cantidad ?? detalle.cantidad ?? 1),
         nombre: sub.Nombre ?? sub.nombre ?? '',
         nota: `(combo: ${(detalle.Nombre ?? detalle.nombre ?? '').split('(')[0].trim()})`,
         ubicacion: (sub.Ubicacion ?? sub.ubicacion ?? '').toLowerCase(),
+        precio: idx === 0 ? precioCombo : 0,
       }));
     }
     return [{
@@ -39,6 +40,7 @@ function buildComandaFromResponse(data: RondaCreatedResponse): Array<{ cantidad:
       nombre: (detalle.Nombre ?? detalle.nombre ?? '').split('(')[0].trim(),
       nota: formatearCambios(detalle.Opciones ?? detalle.opciones),
       ubicacion: (detalle.Ubicacion ?? detalle.ubicacion ?? '').toLowerCase(),
+      precio: Number(detalle.Precio ?? detalle.precio ?? 0),
     }];
   });
 }

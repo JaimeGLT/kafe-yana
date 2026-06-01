@@ -73,7 +73,7 @@ export async function enviarCuenta(
 export async function enviarPedido(
   mesa: string,
   ronda: string,
-  items: Array<{ cantidad: number; nombre: string; nota: string; ubicacion: string }>,
+  items: Array<{ cantidad: number; nombre: string; nota: string; ubicacion: string; precio?: number }>,
   destinos: string[] = ['principal'],
 ): Promise<void> {
   try {
