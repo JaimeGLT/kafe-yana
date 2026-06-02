@@ -282,7 +282,8 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
                 placeholder="0.00"
                 value={cashReceived}
                 onChange={e => onCashReceivedChange(e.target.value)}
-                className="w-full pl-10 pr-4 py-3.5 rounded-xl border-2 border-coffee-200 focus:border-coffee-500 focus:outline-none text-coffee-900 font-bold text-lg"
+                onWheel={e => e.currentTarget.blur()}
+                className="w-full pl-10 pr-4 py-3.5 rounded-xl border-2 border-coffee-200 focus:border-coffee-500 focus:outline-none text-coffee-900 font-bold text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 autoFocus
               />
             </div>

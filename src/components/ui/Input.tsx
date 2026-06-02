@@ -52,8 +52,10 @@ export const Input: React.FC<InputProps> = ({
             rightIcon ? 'pr-10' : 'pr-4',
             'py-2.5 text-sm text-coffee-900 placeholder-coffee-400',
             'bg-white',
+            props.type === 'number' && '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
             className
           )}
+          onWheel={props.type === 'number' ? (e) => e.currentTarget.blur() : undefined}
           {...props}
         />
         {rightIcon && (

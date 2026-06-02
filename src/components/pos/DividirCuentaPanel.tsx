@@ -431,7 +431,8 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
                         placeholder="0.00"
                         value={montosLibres[i] ?? ''}
                         onChange={e => handleMontosLibresChange(i, e.target.value)}
-                        className="flex-1 px-3 py-2.5 rounded-xl border border-coffee-200 focus:border-coffee-500 focus:outline-none text-coffee-900 text-sm bg-white"
+                        onWheel={e => e.currentTarget.blur()}
+                        className="flex-1 px-3 py-2.5 rounded-xl border border-coffee-200 focus:border-coffee-500 focus:outline-none text-coffee-900 text-sm bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
                   ))}
@@ -583,7 +584,8 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
                         placeholder="Efectivo recibido"
                         value={cashInput}
                         onChange={e => { setCashInput(e.target.value); setCashError(''); }}
-                        className="w-full px-3 py-2.5 rounded-xl border border-coffee-200 focus:border-blue-400 focus:outline-none text-coffee-900 text-sm"
+                        onWheel={e => e.currentTarget.blur()}
+                        className="w-full px-3 py-2.5 rounded-xl border border-coffee-200 focus:border-blue-400 focus:outline-none text-coffee-900 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       {cashNum >= cuenta.monto && cashInput !== '' && (
                         <p className="text-xs text-coffee-500 mt-1 text-right">
