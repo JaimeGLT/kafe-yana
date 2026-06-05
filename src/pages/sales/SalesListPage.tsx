@@ -35,6 +35,7 @@ interface BackendVentaDetalle {
   cantidad: number;
   precio: number;
   total: number;
+  ubicacion?: string;
 }
 
 interface BackendVenta {
@@ -96,6 +97,7 @@ const mapBackendVentaToSale = (v: BackendVenta): Sale => {
       subtotal: Number(d.total),
       tax: 0,
       total: Number(d.total),
+      ubicacion: d.ubicacion?.toLowerCase(),
     })),
     pointsEarned: undefined,
     pointsRedeemed: undefined,

@@ -1,4 +1,5 @@
-const PRINT_SERVER = import.meta.env.VITE_PRINTER_URL ||'http://192.168.1.25:5555';
+const API = import.meta.env.VITE_API_URL || '/api';
+const IMPRESORA = `${API}/Impresora`;
 
 export async function enviarCatalogo(
   comprados: Array<{ producto: { nombre: string }; ubicacion: string }>,
@@ -11,10 +12,10 @@ export async function enviarCatalogo(
     ...combos.map(i => ({ nombre: i.producto.nombre, ubicacion: 'Cocina' })),
   ];
   try {
-    const res = await fetch(`${PRINT_SERVER}/api/catalogo`, {
+    const res = await fetch(`${IMPRESORA}/catalogo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ productos }),
+      body: JSON.stringify({ Productos: productos }),
     });
     const r = await res.json();
     console.log('Catálogo enviado:', r);
@@ -31,15 +32,15 @@ export async function enviarRecibo(
   destinos: string[] = ['principal'],
 ): Promise<void> {
   try {
-    const res = await fetch(`${PRINT_SERVER}/api/recibo`, {
+    const res = await fetch(`${IMPRESORA}/recibo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mesa, codigo, total, metodoPago, destinos }),
+      body: JSON.stringify({ Mesa: mesa, Codigo: codigo, Total: total, MetodoPago: metodoPago, Destinos: destinos }),
     });
-    const resultado: Array<{ ok: boolean; destino: string }> = await res.json();
-    const fallas = resultado.filter(r => !r.ok);
+    const resultado: Array<{ Ok: boolean; Destino: string }> = await res.json();
+    const fallas = resultado.filter(r => !r.Ok);
     if (fallas.length > 0) {
-      alert(`⚠️ Error de impresión en: ${fallas.map(f => f.destino).join(', ')}`);
+      alert(`⚠️ Error de impresión en: ${fallas.map(f => f.Destino).join(', ')}`);
     }
   } catch (err) {
     console.warn('Servidor de impresión no disponible:', err);
@@ -49,21 +50,28 @@ export async function enviarRecibo(
 export async function enviarCuenta(
   mesa: string,
   codigo: string,
-  items: Array<{ cantidad: number; nombre: string; precio: number; total: number }>,
+  items: Array<{ cantidad: number; nombre: string; precio: number; total: number; ubicacion?: string }>,
   total: number,
   metodoPago: string,
   destinos: string[] = ['principal'],
 ): Promise<void> {
   try {
-    const res = await fetch(`${PRINT_SERVER}/api/cuenta`, {
+    const res = await fetch(`${IMPRESORA}/cuenta`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mesa, codigo, items, total, metodoPago, destinos }),
+      body: JSON.stringify({
+        Mesa: mesa,
+        Codigo: codigo,
+        Items: items.map(i => ({ Cantidad: i.cantidad, Nombre: i.nombre, Precio: i.precio, Total: i.total, Ubicacion: i.ubicacion })),
+        Total: total,
+        MetodoPago: metodoPago,
+        Destinos: destinos,
+      }),
     });
-    const resultado: Array<{ ok: boolean; destino: string }> = await res.json();
-    const fallas = resultado.filter(r => !r.ok);
+    const resultado: Array<{ Ok: boolean; Destino: string }> = await res.json();
+    const fallas = resultado.filter(r => !r.Ok);
     if (fallas.length > 0) {
-      alert(`⚠️ Error de impresión en: ${fallas.map(f => f.destino).join(', ')}`);
+      alert(`⚠️ Error de impresión en: ${fallas.map(f => f.Destino).join(', ')}`);
     }
   } catch (err) {
     console.warn('Servidor de impresión no disponible:', err);
@@ -77,15 +85,26 @@ export async function enviarPedido(
   destinos: string[] = ['principal'],
 ): Promise<void> {
   try {
-    const res = await fetch(`${PRINT_SERVER}/api/pedido`, {
+    const res = await fetch(`${IMPRESORA}/pedido`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mesa, ronda, items, destinos }),
+      body: JSON.stringify({
+        Mesa: mesa,
+        Ronda: ronda,
+        Items: items.map(i => ({
+          Cantidad: i.cantidad,
+          Nombre: i.nombre,
+          Nota: i.nota,
+          Ubicacion: i.ubicacion,
+          Precio: i.precio,
+        })),
+        Destinos: destinos,
+      }),
     });
-    const resultado: Array<{ ok: boolean; destino: string }> = await res.json();
-    const fallas = resultado.filter(r => !r.ok);
+    const resultado: Array<{ Ok: boolean; Destino: string }> = await res.json();
+    const fallas = resultado.filter(r => !r.Ok);
     if (fallas.length > 0) {
-      alert(`⚠️ Error de impresión en: ${fallas.map(f => f.destino).join(', ')}`);
+      alert(`⚠️ Error de impresión en: ${fallas.map(f => f.Destino).join(', ')}`);
     }
   } catch (err) {
     console.warn('Servidor de impresión no disponible:', err);

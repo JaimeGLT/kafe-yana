@@ -94,6 +94,7 @@ export const GET_VENTAS = `
           cantidad
           precio
           total
+          ubicacion
         }
       }
       pageInfo {

@@ -42,6 +42,7 @@ export interface ParaLlevarPedido {
 
 export interface RespuestaCobro {
   message: string;
+  CodigoVenta: string;
   PuntosPorVenta: number;
   PuntosPromocionPermanente: number;
   PromocionPermanente: { NombrePromocion: string; PuntosExtra: number; Mensaje: string } | null;

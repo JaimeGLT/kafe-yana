@@ -28,6 +28,7 @@ export const GET_MESAS = `
               cantidad
               nota
               precio
+              ubicacion
               itemsCombo {
                 id
                 id_Producto
@@ -112,6 +113,7 @@ export const GET_MESA_BY_ID = `
               cantidad
               nota
               precio
+              ubicacion
               itemsCombo {
                 id
                 id_Producto

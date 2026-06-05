@@ -57,6 +57,7 @@ interface DetalleRonda {
   precio: number;
   cantidad: number;
   itemsCombo?: Array<{ nombre: string; cantidad: number; ubicacion?: string }>;
+  ubicacion?: string;
   producto?: { tipo?: string; detalles?: Array<{ producto: { nombre: string; tipo: string }; cantidad: number }> };
   opciones?: Array<{
     id_Opcion: number;
@@ -159,6 +160,7 @@ const processDetalle = (detalle: DetalleRonda, roundNum: number, rondaId: number
     };
   }) ?? [];
 
+  const ub = (detalle.ubicacion ?? '').toLowerCase();
   return {
     product: {
       id: String(detalle.id_Producto),
@@ -170,6 +172,7 @@ const processDetalle = (detalle: DetalleRonda, roundNum: number, rondaId: number
         if (t === 'elaborado') return 'elaborado';
         return 'comprado';
       })() as ProductTipo,
+      destino: ub === 'cocina' ? 'cocina' : ub === 'barra' ? 'barra' : 'sin_destino',
       comboComponentes,
       code: String(detalle.id_Producto),
       categoryId: '', unit: 'unidad', costPrice: 0,

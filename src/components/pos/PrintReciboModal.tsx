@@ -1,6 +1,6 @@
 import React from 'react';
 import { Printer, X, MonitorCheck } from 'lucide-react';
-import { enviarRecibo } from '../../utils/comandas';
+import { enviarCuenta } from '../../utils/comandas';
 import { formatCurrency } from '../../utils';
 
 type Tamaño = 'pequeño' | 'mediano';
@@ -10,6 +10,7 @@ export interface PrintReciboData {
   saleCode: string;
   total: number;
   metodoPago: string;
+  items: Array<{ cantidad: number; nombre: string; precio: number; total: number }>;
 }
 
 interface PrintReciboModalProps {
@@ -25,11 +26,21 @@ const METODO_LABEL: Record<string, string> = {
 
 export const PrintReciboModal: React.FC<PrintReciboModalProps> = ({ data, onClose }) => {
   const [tamaño, setTamaño] = React.useState<Tamaño>('mediano');
+  const [isPrinting, setIsPrinting] = React.useState(false);
 
   if (!data) return null;
 
-  const handlePrint = () => {
-    enviarRecibo(data.mesaName, data.saleCode, data.total, data.metodoPago, ['principal']);
+  const handlePrint = async () => {
+    setIsPrinting(true);
+    await enviarCuenta(
+      data.mesaName,
+      data.saleCode,
+      data.items,
+      data.total,
+      data.metodoPago,
+      ['principal'],
+    );
+    setIsPrinting(false);
     onClose();
   };
 
@@ -56,13 +67,21 @@ export const PrintReciboModal: React.FC<PrintReciboModalProps> = ({ data, onClos
           </button>
         </div>
 
-        <div className="bg-coffee-50 rounded-2xl px-4 py-3 flex justify-between text-sm">
-          <span className="text-coffee-500">Total</span>
-          <span className="font-bold text-coffee-900">{formatCurrency(data.total)}</span>
-        </div>
-        <div className="bg-coffee-50 rounded-2xl px-4 py-3 flex justify-between text-sm -mt-2">
-          <span className="text-coffee-500">Método de pago</span>
-          <span className="font-bold text-coffee-900">{METODO_LABEL[data.metodoPago] ?? data.metodoPago}</span>
+        {/* Lista de productos */}
+        <div className="bg-coffee-50 rounded-2xl p-4 space-y-2 max-h-48 overflow-y-auto">
+          {data.items.map((item, i) => (
+            <div key={i} className="flex justify-between text-sm">
+              <span className="text-coffee-700">{item.cantidad}x {item.nombre}</span>
+              <span className="font-semibold text-coffee-900">{formatCurrency(item.total)}</span>
+            </div>
+          ))}
+          <div className="border-t border-coffee-200 pt-2 flex justify-between font-bold text-coffee-900 text-sm">
+            <span>TOTAL</span>
+            <span>{formatCurrency(data.total)}</span>
+          </div>
+          <div className="text-xs text-coffee-400">
+            Pago: {METODO_LABEL[data.metodoPago] ?? data.metodoPago}
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -98,10 +117,11 @@ export const PrintReciboModal: React.FC<PrintReciboModalProps> = ({ data, onClos
 
         <button
           onClick={handlePrint}
-          className="w-full py-3 rounded-2xl bg-coffee-800 text-cream text-sm font-bold hover:bg-coffee-700 transition-colors flex items-center justify-center gap-2"
+          disabled={isPrinting}
+          className="w-full py-3 rounded-2xl bg-coffee-800 text-cream text-sm font-bold hover:bg-coffee-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
         >
           <Printer className="h-4 w-4" />
-          Imprimir
+          {isPrinting ? 'Enviando...' : 'Imprimir'}
         </button>
         <button
           onClick={onClose}

@@ -80,6 +80,7 @@ export interface SaleItem {
   total: number;
   notes?: string;
   isRedeemed?: boolean; // producto pagado con puntos de fidelidad
+  ubicacion?: string;
 }
 
 export interface SaleItemInput {

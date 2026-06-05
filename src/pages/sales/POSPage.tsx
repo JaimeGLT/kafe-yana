@@ -112,6 +112,8 @@ interface DtoDescuentosPedidoRespuesta {
 
 interface SaleResult {
   code: string;
+  total: number;
+  items: Array<{ cantidad: number; nombre: string; precio: number; total: number }>;
   points: PointsCalculation | null;
   newBalance: number;
   puntosPorVenta: number;
@@ -282,6 +284,7 @@ export const POSPage: React.FC = () => {
           producible: n.producible,
           cantidadProducible: n.receta?.cantidadProducible,
           tieneReceta: n.receta != null,
+          destino: n.ubicacion === 'Cocina' ? 'cocina' : n.ubicacion === 'Barra' ? 'barra' : 'sin_destino',
           createdAt: new Date(), updatedAt: new Date(),
         });
         for (const v of n.variaciones) {
@@ -324,7 +327,9 @@ export const POSPage: React.FC = () => {
             unit: 'unidad', costPrice: n.costo_compra,
             salePrice: n.producto.precio, stock: n.stock_actual,
             minStock: 0, maxStock: 0, variations: [], isActive: true,
-            hasVariations: false, createdAt: new Date(), updatedAt: new Date(),
+            hasVariations: false,
+            destino: n.ubicacion === 'Cocina' ? 'cocina' : n.ubicacion === 'Barra' ? 'barra' : 'sin_destino',
+            createdAt: new Date(), updatedAt: new Date(),
           };
         });
 
@@ -808,25 +813,10 @@ export const POSPage: React.FC = () => {
         nombre: i.product.name + (i.opciones?.length ? ` (${i.opciones.map((o: any) => formatOpcionLabel(o)).join(', ')})` : ''),
         cantidad: i.quantity,
         precioFinal: i.precioFinal,
+        ubicacion: i.product.destino === 'cocina' ? 'cocina'
+                 : i.product.destino === 'barra'  ? 'barra'
+                 : 'principal',
       })),
-    });
-  };
-
-  const handlePrintTempCart = () => {
-    if (!activeMesa || tempCart.length === 0) return;
-    const items = tempCart.map(i => ({
-      cantidad: i.quantity,
-      nombre: i.product.name + (i.opciones?.length
-        ? ` (${i.opciones.map((o: any) => formatOpcionLabel(o)).join(', ')})`
-        : ''),
-      nota: i.notes ?? '',
-      ubicacion: 'principal',
-    }));
-    setPrintComandaData({
-      mesaName: activeMesa.name,
-      roundNumber: activeMesa.currentRound,
-      rondaDesc: 'Vista previa del pedido',
-      items,
     });
   };
 
@@ -904,8 +894,16 @@ export const POSPage: React.FC = () => {
         }
 
         if (res !== null) {
+          const snapshotItems = activeMesa.order.map((i: any) => ({
+            cantidad: i.quantity,
+            nombre: i.product.name,
+            precio: i.precioFinal ?? i.product.price ?? 0,
+            total: (i.precioFinal ?? i.product.price ?? 0) * i.quantity,
+          }));
           setLastSaleResult({
-            code: isParaLlevar ? `PL-${pedidoId}` : `MESA-${activeMesa.id}`,
+            code: res.CodigoVenta ?? (isParaLlevar ? `PL-${pedidoId}` : `MESA-${activeMesa.id}`),
+            total: res.TotalCobrado,
+            items: snapshotItems,
             points: null,
             newBalance: 0,
             puntosPorVenta: res.PuntosPorVenta ?? 0,
@@ -934,7 +932,13 @@ export const POSPage: React.FC = () => {
           const profile = getOrCreateProfile(activeMesa.customerId);
           newBalance = profile?.points ?? 0;
         }
-        setLastSaleResult({ code: newSale.code, points: earnedPoints, newBalance, puntosPorVenta: 0, puntosPromocion: 0, nombrePromocion: null, aplicoDescuento: false, montoDescuento: 0, nombrePromoDescuento: null });
+        const snapshotItemsLocal = activeMesa.order.map((i: any) => ({
+          cantidad: i.quantity,
+          nombre: i.product.name,
+          precio: i.precioFinal ?? i.product.price ?? 0,
+          total: (i.precioFinal ?? i.product.price ?? 0) * i.quantity,
+        }));
+        setLastSaleResult({ code: newSale.code, total: mesaTotal, items: snapshotItemsLocal, points: earnedPoints, newBalance, puntosPorVenta: 0, puntosPromocion: 0, nombrePromocion: null, aplicoDescuento: false, montoDescuento: 0, nombrePromoDescuento: null });
         setModalView('success');
       }
     } catch {
@@ -972,8 +976,16 @@ export const POSPage: React.FC = () => {
       }
 
       if (res !== null) {
+        const snapshotItemsDividida = activeMesa.order.map((i: any) => ({
+          cantidad: i.quantity,
+          nombre: i.product.name,
+          precio: i.precioFinal ?? i.product.price ?? 0,
+          total: (i.precioFinal ?? i.product.price ?? 0) * i.quantity,
+        }));
         setLastSaleResult({
-          code: isParaLlevar ? `PL-${pedidoId}` : `MESA-${activeMesa.id}`,
+          code: res.CodigoVenta ?? (isParaLlevar ? `PL-${pedidoId}` : `MESA-${activeMesa.id}`),
+          total: res.TotalCobrado,
+          items: snapshotItemsDividida,
           points: null, newBalance: 0,
           puntosPorVenta: res.PuntosPorVenta ?? 0,
           puntosPromocion: res.PuntosPromocionPermanente ?? 0,
@@ -1454,14 +1466,6 @@ export const POSPage: React.FC = () => {
                           {formatCurrency(tempCart.reduce((s, i) => s + i.precioFinal * i.quantity, 0))}
                         </span>
                       </div>
-                      <button
-                        onClick={handlePrintTempCart}
-                        className="mx-5 my-3 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-coffee-300 text-coffee-700 text-sm font-semibold hover:bg-coffee-50 transition-colors"
-                        style={{ width: 'calc(100% - 2.5rem)' }}
-                      >
-                        <Printer className="h-4 w-4" />
-                        Imprimir pedido
-                      </button>
                     </>
                   )}
                 </div>
@@ -1760,8 +1764,9 @@ export const POSPage: React.FC = () => {
                 onPrint={() => setPrintReciboData({
                   mesaName: activeMesa?.name ?? '',
                   saleCode: lastSaleResult.code,
-                  total: mesaTotal,
+                  total: lastSaleResult.total,
                   metodoPago: paymentMethod,
+                  items: lastSaleResult.items,
                 })}
                 onClose={handleCloseSuccess}
                 nextMilestone={nextMilestone}
