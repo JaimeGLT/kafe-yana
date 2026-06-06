@@ -165,6 +165,17 @@ export const Sidebar: React.FC = () => {
     return () => window.removeEventListener('resize', handler);
   }, []);
 
+  useEffect(() => {
+    const activeParent = visibleNavItems.find(item =>
+      item.children?.some(child => location.pathname === child.path)
+    );
+    if (activeParent) {
+      setExpandedItems(prev =>
+        prev.includes(activeParent.id) ? prev : [...prev, activeParent.id]
+      );
+    }
+  }, [location.pathname]);
+
   const collapsed = isMobile ? false : sidebarCollapsed;
 
   const userRole = (user?.rol ?? ADMIN).toLowerCase();

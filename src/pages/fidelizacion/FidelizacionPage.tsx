@@ -11,6 +11,7 @@ import { MainLayout } from '../../components/layout';
 import { toast } from '../../components/ui/Toast';
 import { SearchableSelect } from '../../components/ui/Select';
 import { CustomerModal } from '../../components/modals/CustomerModal';
+import { PrintReciboModal, type PrintReciboData } from '../../components/pos/PrintReciboModal';
 import { formatDateTime } from '../../utils/formatters';
 import { api } from '../../lib/api';
 import { useFidelizacion } from '../../hooks/useFidelizacion';
@@ -229,6 +230,7 @@ export const FidelizacionPage: React.FC = () => {
   const [confirmPromoGratis, setConfirmPromoGratis] = useState<DtoPromocionGratisItem | null>(null);
   const [isRedeemingPromoGratis, setIsRedeemingPromoGratis] = useState(false);
   const [reclamadosPromos, setReclamadosPromos] = useState<Set<number>>(new Set());
+  const [printReciboData, setPrintReciboData] = useState<PrintReciboData | null>(null);
 
 
 
@@ -363,6 +365,13 @@ export const FidelizacionPage: React.FC = () => {
         { IdCliente: Number(selectedCustomer.id), IdHitoCompra: confirmHito.id },
       );
       toast.success('¡Hito reclamado!', res.Mensaje ?? `${confirmHito.productoCanjeable.nombreProducto} entregado.`);
+      setPrintReciboData({
+        mesaName: selectedCustomer.nombre,
+        saleCode: 'HITO',
+        total: 0,
+        metodoPago: 'Hito de compra',
+        items: [{ cantidad: 1, nombre: confirmHito.productoCanjeable.nombreProducto, precio: 0, total: 0 }],
+      });
       setConfirmHito(null);
       await Promise.all([
         refreshClientes(),
@@ -384,6 +393,13 @@ export const FidelizacionPage: React.FC = () => {
         { IdCliente: Number(selectedCustomer.id), IdPromocionPermanente: confirmPromoGratis.IdPromocionPermanente },
       );
       toast.success('¡Promoción reclamada!', res.Mensaje ?? `${confirmPromoGratis.NombreProducto} entregado.`);
+      setPrintReciboData({
+        mesaName: selectedCustomer.nombre,
+        saleCode: 'PROMO',
+        total: 0,
+        metodoPago: 'Promoción gratuita',
+        items: [{ cantidad: 1, nombre: confirmPromoGratis.NombreProducto, precio: 0, total: 0 }],
+      });
       setReclamadosPromos(prev => new Set(prev).add(confirmPromoGratis.IdPromocionPermanente));
       setConfirmPromoGratis(null);
       await Promise.all([
@@ -406,9 +422,16 @@ export const FidelizacionPage: React.FC = () => {
         idCliente: Number(selectedCustomer.id),
       });
       toast.success('¡Canje exitoso!', `${confirmReward.nombreProducto} canjeado correctamente.`);
+      setPrintReciboData({
+        mesaName: selectedCustomer.nombre,
+        saleCode: 'CANJE',
+        total: 0,
+        metodoPago: 'Canje de puntos',
+        items: [{ cantidad: 1, nombre: confirmReward.nombreProducto, precio: 0, total: 0 }],
+      });
       await refreshClientes();
-    } catch {
-      toast.error('Error al canjear', 'No se pudo registrar el canje. Intenta de nuevo.');
+    } catch (e) {
+      toast.error('Error al canjear', e instanceof Error ? e.message : 'No se pudo registrar el canje. Intenta de nuevo.');
     } finally {
       setIsRedeeming(false);
       setConfirmReward(null);
@@ -1575,6 +1598,12 @@ export const FidelizacionPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ── Print Recibo Modal (reclamo) ──────────────────────────────────── */}
+      <PrintReciboModal
+        data={printReciboData}
+        onClose={() => setPrintReciboData(null)}
+      />
 
       {/* ── Create Customer Modal ─────────────────────────────────────────── */}
       <CustomerModal
