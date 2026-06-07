@@ -13,6 +13,7 @@ export const GET_ALL_ELABORADOS = `
           descripcion
           precio
           tipo
+          codigoSin
           categoria { id nombre descripcion estado color }
           detalles { cantidad opcional }
         }
@@ -217,6 +218,7 @@ export const GET_ELABORADO_BY_ID = `
           descripcion
           precio
           tipo
+          codigoSin
           categoria { id nombre descripcion estado color }
           detalles { cantidad opcional }
         }

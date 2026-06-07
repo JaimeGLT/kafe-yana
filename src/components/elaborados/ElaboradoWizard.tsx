@@ -6,6 +6,7 @@ import { gql } from '../../lib/graphql';
 import { toast } from '../ui/Toast';
 import { RecetaStepTwo } from './RecetaStepTwo';
 import { CategoryModal } from '../modals/CategoryModal';
+import { CodigoSinModal } from '../modals/CodigoSinModal';
 import { Button, Input, Select, ImageUploadField } from '../ui';
 import { HelpTooltip } from '../ui/Tooltip';
 import type { Receta, Insumo, ProductDestino } from '../../types';
@@ -41,6 +42,8 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
   const [preparationType, setPreparationType] = useState<'al_momento' | 'en_lote'>('al_momento');
   const [destino, setDestino] = useState<ProductDestino>('sin_destino');
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [codigoSin, setCodigoSin] = useState('');
+  const [isCodigoSinModalOpen, setIsCodigoSinModalOpen] = useState(false);
   const [localCategories, setLocalCategories] = useState(categories);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -61,6 +64,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
     setUnit('unidad');
     setPreparationType('al_momento');
     setDestino('sin_destino');
+    setCodigoSin('');
     setImageFile(null);
   };
 
@@ -89,6 +93,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
     if (!categoryId) msgs.push('Selecciona una categoría');
     const price = parseFloat(rawSalePrice);
     if (!rawSalePrice || isNaN(price) || price <= 0) msgs.push('Ingresa un precio de venta válido');
+    if (!codigoSin.trim()) msgs.push('El Código SIN es obligatorio');
     if (msgs.length > 0) {
       toast.error('Campos requeridos', msgs.join(' · '));
       return false;
@@ -108,6 +113,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
       fd.append('Categoria_Id', String(Number(categoryId) || 0));
       fd.append('Unidad_medida', unit);
       fd.append('Producible', String(preparationType === 'en_lote'));
+      fd.append('CodigoSin', codigoSin.trim());
       const ubicacion = destino === 'barra' ? 'Barra' : destino === 'cocina' ? 'Cocina' : '';
       if (ubicacion) fd.append('Ubicacion', ubicacion);
       if (imageFile) fd.append('Imagen', imageFile);
@@ -185,6 +191,36 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
                   placeholder="Ej: Cappuccino doble, Torta de chocolate…"
                   autoFocus
                 />
+              </div>
+
+              {/* Código SIN */}
+              <div>
+                <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
+                  Código SIN
+                  <span className="text-red-500 ml-1">*</span>
+                </label>
+                {codigoSin ? (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-coffee-100 text-coffee-900 text-sm font-mono font-medium">
+                      {codigoSin}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsCodigoSinModalOpen(true)}
+                      className="text-sm text-coffee-500 hover:text-coffee-800 transition-colors"
+                    >
+                      Cambiar
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsCodigoSinModalOpen(true)}
+                    className="w-full rounded-lg border border-dashed border-coffee-300 px-4 py-2.5 text-sm text-coffee-400 hover:border-coffee-400 hover:text-coffee-600 transition-colors text-left"
+                  >
+                    Asignar Código SIN…
+                  </button>
+                )}
               </div>
 
               {/* Foto */}
@@ -376,6 +412,11 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
       isOpen={isCategoryModalOpen}
       onClose={() => setIsCategoryModalOpen(false)}
       onSuccess={handleCategoryCreated}
+    />
+    <CodigoSinModal
+      isOpen={isCodigoSinModalOpen}
+      onClose={() => setIsCodigoSinModalOpen(false)}
+      onSelect={setCodigoSin}
     />
     </>
   );

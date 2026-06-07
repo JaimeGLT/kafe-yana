@@ -48,6 +48,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       fd.append('Stock_actual', String(data.stock ?? 0));
       fd.append('Stock_minimo', String(data.minStock ?? 0));
       fd.append('Disponible', String(data.isActive ?? true));
+      fd.append('CodigoSin', data.codigoSin ?? '');
       if (imageFile) fd.append('Imagen', imageFile);
 
       if (product) {

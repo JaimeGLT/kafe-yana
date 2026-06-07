@@ -21,6 +21,7 @@ export function mapElaborado(n: ElaboradoNode): Product {
     variations: [],
     hasVariations: n.variaciones.length > 0,
     isActive: true,
+    codigoSin: n.producto.codigoSin ?? '',
     createdAt: new Date(),
     updatedAt: new Date(),
   };

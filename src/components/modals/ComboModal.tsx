@@ -8,6 +8,7 @@ import { ImageUploadField } from '../ui/ImageUpload';
 import { HelpTooltip } from '../ui/Tooltip';
 import { toast } from '../ui/Toast';
 import { api } from '../../lib/api';
+import { CodigoSinModal } from './CodigoSinModal';
 import type { Combo, Product } from '../../types';
 import { formatCurrency } from '../../utils';
 
@@ -32,10 +33,12 @@ const getMarginInfo = (pct: number) => {
 
 export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, onSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
+  const [isCodigoSinModalOpen, setIsCodigoSinModalOpen] = useState(false);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [rawPrice, setRawPrice] = useState('');
+  const [codigoSin, setCodigoSin] = useState('');
   const [existingImageUrl, setExistingImageUrl] = useState<string | undefined>(undefined);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [items, setItems] = useState<ComboLine[]>([{ productId: '', quantity: 1 }]);
@@ -59,6 +62,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
       setName(combo.name);
       setDescription(combo.description ?? '');
       setRawPrice(String(combo.price));
+      setCodigoSin(combo.codigoSin ?? '');
       const img = combo.image;
       setExistingImageUrl(img?.startsWith('http') || img?.startsWith('data:') || img?.startsWith('blob:') ? img : undefined);
       setItems(
@@ -71,6 +75,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
       setName('');
       setDescription('');
       setRawPrice('');
+      setCodigoSin('');
       setExistingImageUrl(undefined);
       setItems([{ productId: '', quantity: 1 }]);
     }
@@ -111,6 +116,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
     const errs: string[] = [];
     if (!name.trim()) errs.push('El nombre del combo es obligatorio.');
     if (comboPrice <= 0) errs.push('El precio del combo debe ser mayor a 0.');
+    if (!codigoSin.trim()) errs.push('El Código SIN es obligatorio.');
     if (items.length === 0) errs.push('Agrega al menos un producto al combo.');
     items.forEach((line, i) => {
       if (!line.productId) errs.push(`Fila ${i + 1}: selecciona un producto.`);
@@ -134,6 +140,7 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
       fd.append('Nombre', name.trim());
       if (description.trim()) fd.append('Descripcion', description.trim());
       fd.append('Precio', String(comboPrice));
+      fd.append('CodigoSin', codigoSin.trim());
       if (imageFile) fd.append('Imagen', imageFile);
       items.forEach((item, i) => {
         fd.append(`Productos[${i}].ProductoId`, item.productId);
@@ -191,6 +198,35 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
               placeholder="0.00"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
+            Código SIN
+            <span className="text-red-500 ml-1">*</span>
+          </label>
+          {codigoSin ? (
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-coffee-100 text-coffee-900 text-sm font-mono font-medium">
+                {codigoSin}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsCodigoSinModalOpen(true)}
+                className="text-sm text-coffee-500 hover:text-coffee-800 transition-colors"
+              >
+                Cambiar
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsCodigoSinModalOpen(true)}
+              className="w-full rounded-lg border border-dashed border-coffee-300 px-4 py-2.5 text-sm text-coffee-400 hover:border-coffee-400 hover:text-coffee-600 transition-colors text-left"
+            >
+              Asignar Código SIN…
+            </button>
+          )}
         </div>
 
         <div>
@@ -341,6 +377,11 @@ export const ComboModal: React.FC<Props> = ({ isOpen, onClose, combo, products, 
           </Button>
         </div>
       </form>
+      <CodigoSinModal
+        isOpen={isCodigoSinModalOpen}
+        onClose={() => setIsCodigoSinModalOpen(false)}
+        onSelect={setCodigoSin}
+      />
     </Modal>
   );
 };

@@ -11,6 +11,7 @@ import { CategoryModal } from './CategoryModal';
 import { toast } from '../ui/Toast';
 import { api } from '../../lib/api';
 import { gql } from '../../lib/graphql';
+import { CodigoSinModal } from './CodigoSinModal';
 import { GET_ELABORADO_BY_ID } from '../../lib/queries/elaborados.queries';
 import { mapRecetaFromElaborado } from '../../lib/mappers/elaborados.mappers';
 import type { ElaboradosResponse } from '../../types/graphql';
@@ -68,6 +69,8 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
   const [categoryId, setCategoryId] = useState(product.categoryId || '');
   const [unit, setUnit] = useState(product.unit || 'unidad');
   const [destino, setDestino] = useState<ProductDestino>(product.destino ?? 'sin_destino');
+  const [codigoSin, setCodigoSin] = useState(product.codigoSin || '');
+  const [isCodigoSinModalOpen, setIsCodigoSinModalOpen] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const existingImageUrl = product.image?.startsWith('http') || product.image?.startsWith('data:') || product.image?.startsWith('blob:') ? product.image : undefined;
 
@@ -80,6 +83,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
       setCategoryId(product.categoryId || '');
       setUnit(product.unit || 'unidad');
       setDestino(product.destino ?? 'sin_destino');
+      setCodigoSin(product.codigoSin || '');
       setImageFile(null);
       setErrors({});
       setLocalCategoryOptions(categoryOptions);
@@ -113,6 +117,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
     const errs: Record<string, string> = {};
     if (!name.trim()) errs.name = 'El nombre es obligatorio.';
     if (!salePrice || Number(salePrice) <= 0) errs.salePrice = 'El precio debe ser mayor a 0.';
+    if (!codigoSin.trim()) errs.codigoSin = 'El Código SIN es obligatorio.';
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
 
     setIsSaving(true);
@@ -123,6 +128,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
       fd.append('Precio', String(Number(salePrice)));
       fd.append('Categoria_Id', String(Number(categoryId) || 0));
       fd.append('Unidad_medida', unit);
+      fd.append('CodigoSin', codigoSin.trim());
       const ubicacion = destino === 'barra' ? 'Barra' : destino === 'cocina' ? 'Cocina' : '';
       if (ubicacion) fd.append('Ubicacion', ubicacion);
       if (imageFile) fd.append('Imagen', imageFile);
@@ -255,6 +261,36 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
                 {errors.name && <p className="text-xs text-red-600 mt-1">{errors.name}</p>}
               </div>
 
+              <div>
+                <label className="flex items-center text-sm font-medium text-coffee-700 mb-1">
+                  Código SIN
+                  <span className="text-red-500 ml-1">*</span>
+                </label>
+                {codigoSin ? (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-coffee-100 text-coffee-900 text-sm font-mono font-medium">
+                      {codigoSin}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsCodigoSinModalOpen(true)}
+                      className="flex items-center gap-1.5 text-sm text-coffee-500 hover:text-coffee-800 transition-colors"
+                    >
+                      Cambiar
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsCodigoSinModalOpen(true)}
+                    className="w-full rounded-lg border border-dashed border-coffee-300 px-4 py-2.5 text-sm text-coffee-400 hover:border-coffee-400 hover:text-coffee-600 transition-colors text-left"
+                  >
+                    Asignar Código SIN…
+                  </button>
+                )}
+                {errors.codigoSin && <p className="text-xs text-red-600 mt-1">{errors.codigoSin}</p>}
+              </div>
+
               {/* Foto */}
               <div>
                 <label className="text-sm font-medium text-coffee-700 mb-1 block">Foto del producto</label>
@@ -383,6 +419,11 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
       isOpen={isCategoryModalOpen}
       onClose={() => setIsCategoryModalOpen(false)}
       onSuccess={handleCategoryCreated}
+    />
+    <CodigoSinModal
+      isOpen={isCodigoSinModalOpen}
+      onClose={() => setIsCodigoSinModalOpen(false)}
+      onSelect={setCodigoSin}
     />
     </>
   );

@@ -3,9 +3,10 @@ import type { Product, ProductInput, ProductTipo, ProductDestino, Category, Bran
 import { Form, FormField, FormRow, FormActions } from './FormField';
 import { Input, Textarea, Select, SearchableSelect } from '../ui';
 import { Button, ImageUploadField } from '../ui';
-import { AlertTriangle, BookOpen, Layers, Plus } from 'lucide-react';
+import { AlertTriangle, BookOpen, Layers, Plus, Pencil } from 'lucide-react';
 import { formatCurrency } from '../../utils';
 import { CategoryModal } from '../modals/CategoryModal';
+import { CodigoSinModal } from '../modals/CodigoSinModal';
 import { gql } from '../../lib/graphql';
 import { toast } from '../ui/Toast';
 
@@ -83,8 +84,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     isActive: product?.isActive ?? true,
     variations: [],
     destino: product?.destino ?? 'sin_destino',
+    codigoSin: product?.codigoSin || '',
   });
 
+  const [isCodigoSinModalOpen, setIsCodigoSinModalOpen] = React.useState(false);
   const [rawValues, setRawValues] = React.useState({
     costPrice: String(product?.costPrice ?? 0),
     salePrice: String(product?.salePrice ?? 0),
@@ -145,6 +148,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     if (!formData.categoryId) msgs.push('La categoría es requerida');
     if (formData.salePrice <= 0) msgs.push('El precio de venta debe ser mayor a 0');
     if (isComprado && formData.costPrice <= 0) msgs.push('El costo de compra debe ser mayor a 0');
+    if (!formData.codigoSin) msgs.push('El Código SIN es requerido');
     if (msgs.length > 0) {
       toast.error('Campos requeridos', msgs.join(' · '));
       return false;
@@ -231,6 +235,32 @@ export const ProductForm: React.FC<ProductFormProps> = ({
             </FormField>
           )}
         </FormRow>
+
+        <FormField label="Código SIN" required>
+          {formData.codigoSin ? (
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-coffee-100 text-coffee-900 text-sm font-mono font-medium">
+                {formData.codigoSin}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsCodigoSinModalOpen(true)}
+                className="flex items-center gap-1.5 text-sm text-coffee-500 hover:text-coffee-800 transition-colors"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Cambiar
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsCodigoSinModalOpen(true)}
+              className="w-full rounded-lg border border-dashed border-coffee-300 px-4 py-2.5 text-sm text-coffee-400 hover:border-coffee-400 hover:text-coffee-600 transition-colors text-left"
+            >
+              Asignar Código SIN…
+            </button>
+          )}
+        </FormField>
 
         <FormField label="Descripción">
           <Textarea
@@ -389,6 +419,11 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         </Button>
       </FormActions>
     </Form>
+    <CodigoSinModal
+      isOpen={isCodigoSinModalOpen}
+      onClose={() => setIsCodigoSinModalOpen(false)}
+      onSelect={(v) => handleChange('codigoSin', v)}
+    />
     <CategoryModal
       isOpen={isCategoryModalOpen}
       onClose={() => setIsCategoryModalOpen(false)}

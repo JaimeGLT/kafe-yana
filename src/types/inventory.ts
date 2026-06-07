@@ -121,6 +121,7 @@ export interface Product extends BaseEntity {
   /** For elaborados: ID of the associated recipe (recipeId) */
   recetaId?: string;
   comboComponentes?: Array<{ nombre: string; cantidad: number; tipo: string; ubicacion?: string }>;
+  codigoSin?: string;
 }
 
 export interface ProductInput {
@@ -143,6 +144,7 @@ export interface ProductInput {
   isActive?: boolean;
   variations?: unknown[];
   destino?: ProductDestino;
+  codigoSin?: string;
 }
 
 // Combo
@@ -171,6 +173,7 @@ export interface Combo extends BaseEntity {
   availability: number;
   image?: string;
   isActive: boolean;
+  codigoSin?: string;
 }
 
 export interface ComboItemInput {
@@ -186,6 +189,7 @@ export interface ComboInput {
   price: number;
   image?: string;
   isActive?: boolean;
+  codigoSin?: string;
 }
 
 // Keep for backwards compat (old code may reference ComboProduct)

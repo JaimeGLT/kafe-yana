@@ -60,6 +60,7 @@ export const GET_COMPRADOS_WITH_CATEGORIES_QUERY = `
           precio
           tipo
           urlImagen
+          codigoSin
           categoria { id nombre estado color }
           detalles { cantidad opcional }
         }
@@ -90,6 +91,7 @@ export const GET_COMPRADO_DETAIL = `
           precio
           tipo
           urlImagen
+          codigoSin
           categoria { id nombre descripcion estado color }
           detalles { cantidad opcional }
         }

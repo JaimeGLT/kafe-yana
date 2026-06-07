@@ -28,6 +28,7 @@ interface CompradoListNode {
     precio: number;
     tipo: string;
     urlImagen?: string;
+    codigoSin?: string;
     categoria: CategoriaNode;
     detalles: { cantidad: number; opcional: boolean }[];
   };
@@ -67,6 +68,7 @@ function mapNode(node: CompradoListNode): Product {
     locationId: rawUbicacion || undefined,
     destino,
     image: node.producto.urlImagen ?? undefined,
+    codigoSin: node.producto.codigoSin ?? '',
     variations: [],
     hasVariations: false,
     isActive: node.disponible,

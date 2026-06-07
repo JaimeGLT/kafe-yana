@@ -5,6 +5,8 @@ interface ComboProductoNode {
   descripcion: string;
   precio: number;
   tipo: string;
+  urlImagen?: string;
+  codigoSin?: string;
 }
 
 export interface ComboDetalleNode {
@@ -94,6 +96,7 @@ export interface ElaboradoNode {
     descripcion: string;
     precio: number;
     tipo: string;
+    codigoSin?: string;
     categoria: { id: number; nombre: string; descripcion: string; estado: boolean; color: string } | null;
     detalles: { cantidad: number; opcional: boolean }[];
   };

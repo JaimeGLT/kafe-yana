@@ -79,6 +79,7 @@ export function mapCombo(node: ComboNode): Combo {
     costoTotal: items.reduce((s, i) => s + i.unitCost * i.quantity, 0),
     availability: node.cantidadProducible,
     isActive: true,
+    codigoSin: node.producto.codigoSin ?? '',
     createdAt: new Date(),
     updatedAt: new Date(),
   };
