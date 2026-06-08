@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { format } from 'date-fns';
+import { format, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ShoppingCart, TrendingUp, Package, CreditCard } from 'lucide-react';
 import { MainLayout } from '../components/layout';
@@ -136,7 +136,10 @@ const DashboardPage: React.FC = () => {
             icon={<ShoppingCart className="h-6 w-6" />}
             color="coffee"
             subtitle="Ventas completadas hoy"
-            onClick={() => navigate('/sales')}
+            onClick={() => {
+              const todayStr = format(new Date(), 'yyyy-MM-dd');
+              navigate('/sales', { state: { dateFrom: todayStr, dateTo: todayStr } });
+            }}
           />
           <KPICard
             title="Ventas del Mes"
@@ -144,7 +147,10 @@ const DashboardPage: React.FC = () => {
             icon={<TrendingUp className="h-6 w-6" />}
             color="green"
             subtitle="Acumulado mensual"
-            onClick={() => navigate('/sales')}
+            onClick={() => navigate('/sales', { state: {
+              dateFrom: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
+              dateTo: format(new Date(), 'yyyy-MM-dd'),
+            } })}
           />
           <KPICard
             title="Productos Activos"

@@ -605,6 +605,10 @@ export const POSPage: React.FC = () => {
   const openModal = (mesaId: string, view: ModalView) => {
     setActiveMesaId(mesaId);
     setModalView(view);
+    if (view === 'detalle') {
+      const mesa = mesas.find(m => m.id === mesaId);
+      setDetalleView(mesa && mesa.status !== 'libre' && mesa.order.length > 0 ? 'historial' : 'none');
+    }
     if (!productsLoaded && view !== 'none') {
       loadProducts();
     }
@@ -1068,6 +1072,7 @@ export const POSPage: React.FC = () => {
                     if (activeParaLlevar) {
                       setActiveMesaId(activeParaLlevar.id);
                       setModalView('detalle');
+                      setDetalleView(activeParaLlevar.order.length > 0 ? 'historial' : 'none');
                       if (!productsLoaded) loadProducts();
                     } else {
                       setIniciarClienteId('');
@@ -1201,15 +1206,27 @@ export const POSPage: React.FC = () => {
             <div className="bg-white w-full sm:max-w-xl md:max-w-4xl lg:max-w-5xl rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[90vh]">
 
               <div className="bg-coffee-800 px-4 py-3 sm:px-5 sm:py-4 flex items-center justify-between flex-shrink-0">
-                {detalleView !== 'none' ? (
+                {detalleView === 'historial' ? (
+                  <div className="flex items-center gap-1 bg-white/10 rounded-xl p-1">
+                    <button
+                      onClick={() => setDetalleView('none')}
+                      className="px-3 py-1 rounded-lg text-sm font-semibold text-coffee-300 hover:bg-white/10 transition-colors"
+                    >
+                      Productos
+                    </button>
+                    <button
+                      className="px-3 py-1 rounded-lg text-sm font-semibold bg-white/20 text-cream cursor-default"
+                    >
+                      Historial
+                    </button>
+                  </div>
+                ) : detalleView === 'pedido' ? (
                   <button
                     onClick={() => setDetalleView('none')}
                     className="flex items-center gap-2 text-cream hover:text-coffee-200 transition-colors"
                   >
                     <ChevronLeft className="h-5 w-5" />
-                    <span className="font-display font-bold text-lg">
-                      {detalleView === 'historial' ? 'Historial' : 'Ver pedido'}
-                    </span>
+                    <span className="font-display font-bold text-lg">Ver pedido</span>
                   </button>
                 ) : (
                   <div className="flex items-center gap-3">

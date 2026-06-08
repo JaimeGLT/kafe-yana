@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { TrendingUp, ShoppingBag, Calendar } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
@@ -109,13 +110,14 @@ const mapBackendVentaToSale = (v: BackendVenta): Sale => {
 };
 
 export const SalesListPage: React.FC = () => {
+  const location = useLocation();
   const [sales, setSales] = useState<Sale[]>([]);
   const [stats, setStats] = useState<SaleStats>({ totalSalesToday: 0, totalSalesMonth: 0, averageTicket: 0 });
   const [_isLoading, setIsLoading] = useState(true);
 
   const [search, setSearch] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom] = useState<string>(() => (location.state as any)?.dateFrom ?? '');
+  const [dateTo, setDateTo] = useState<string>(() => (location.state as any)?.dateTo ?? '');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [refundingSale, setRefundingSale] = useState<Sale | null>(null);
@@ -138,6 +140,7 @@ export const SalesListPage: React.FC = () => {
 
     gql<BackendVentasResponse>(GET_VENTAS, cursor ? { after: cursor } : {})
       .then(data => {
+        if (!data.ventas) return;
         const nodes = data.ventas.nodes.map(mapBackendVentaToSale);
         if (append) {
           setSales(prev => [...prev, ...nodes]);
@@ -212,11 +215,12 @@ export const SalesListPage: React.FC = () => {
           !(sale.customerName ?? '').toLowerCase().includes(q)
         ) return false;
       }
-      if (dateFrom && new Date(sale.date) < new Date(dateFrom)) return false;
-      if (dateTo) {
-        const to = new Date(dateTo);
-        to.setHours(23, 59, 59, 999);
-        if (new Date(sale.date) > to) return false;
+      if (dateFrom || dateTo) {
+        const saleDate = sale.date instanceof Date && !isNaN(sale.date.getTime())
+          ? sale.date.toLocaleDateString('en-CA')
+          : '';
+        if (dateFrom && saleDate < dateFrom) return false;
+        if (dateTo   && saleDate > dateTo)   return false;
       }
       if (statusFilter && sale.status !== statusFilter) return false;
       return true;
