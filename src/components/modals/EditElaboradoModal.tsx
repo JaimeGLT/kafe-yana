@@ -16,20 +16,12 @@ import { GET_ELABORADO_BY_ID } from '../../lib/queries/elaborados.queries';
 import { mapRecetaFromElaborado } from '../../lib/mappers/elaborados.mappers';
 import type { ElaboradosResponse } from '../../types/graphql';
 import type { Product, Receta, Insumo, ProductDestino } from '../../types';
+import { UNIT_OPTIONS, DEFAULT_UNIT } from '../../data/units';
 
 const DESTINO_OPTIONS = [
   { value: 'sin_destino', label: 'Sin destino' },
   { value: 'barra', label: 'Barra' },
   { value: 'cocina', label: 'Cocina' },
-];
-
-const UNIT_OPTIONS = [
-  { value: 'unidad', label: 'Unidad' },
-  { value: 'porcion', label: 'Porción' },
-  { value: 'taza', label: 'Taza' },
-  { value: 'vaso', label: 'Vaso' },
-  { value: 'plato', label: 'Plato' },
-  { value: 'botella', label: 'Botella' },
 ];
 
 export interface EditElaboradoModalProps {
@@ -67,7 +59,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
   const [description, setDescription] = useState(product.description || '');
   const [salePrice, setSalePrice] = useState<number | ''>(product.salePrice);
   const [categoryId, setCategoryId] = useState(product.categoryId || '');
-  const [unit, setUnit] = useState(product.unit || 'unidad');
+  const [unit, setUnit] = useState(product.unit || DEFAULT_UNIT);
   const [destino, setDestino] = useState<ProductDestino>(product.destino ?? 'sin_destino');
   const [codigoSin, setCodigoSin] = useState(product.codigoSin || '');
   const [isCodigoSinModalOpen, setIsCodigoSinModalOpen] = useState(false);
@@ -81,7 +73,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
       setDescription(product.description || '');
       setSalePrice(product.salePrice);
       setCategoryId(product.categoryId || '');
-      setUnit(product.unit || 'unidad');
+      setUnit(product.unit || DEFAULT_UNIT);
       setDestino(product.destino ?? 'sin_destino');
       setCodigoSin(product.codigoSin || '');
       setImageFile(null);

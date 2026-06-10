@@ -9,6 +9,7 @@ import { CategoryModal } from '../modals/CategoryModal';
 import { CodigoSinModal } from '../modals/CodigoSinModal';
 import { gql } from '../../lib/graphql';
 import { toast } from '../ui/Toast';
+import { UNIT_OPTIONS, DEFAULT_UNIT } from '../../data/units';
 
 interface ProductFormProps {
   product?: Product;
@@ -23,19 +24,6 @@ interface ProductFormProps {
   hideTipo?: boolean;
   forceTipo?: ProductTipo;
 }
-
-const UNIT_OPTIONS = [
-  { value: 'unidad', label: 'Unidad' },
-  { value: 'taza', label: 'Taza' },
-  { value: 'vaso', label: 'Vaso' },
-  { value: 'porcion', label: 'Porción' },
-  { value: 'botella', label: 'Botella' },
-  { value: 'caja', label: 'Caja' },
-  { value: 'kg', label: 'Kilogramo' },
-  { value: 'g', label: 'Gramo' },
-  { value: 'l', label: 'Litro' },
-  { value: 'ml', label: 'Mililitro' },
-];
 
 const DESTINO_OPTIONS = [
   { value: 'sin_destino', label: 'Sin destino' },
@@ -71,7 +59,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     tipo: forceTipo ?? product?.tipo ?? 'comprado',
     categoryId: product?.categoryId || '',
     brandId: product?.brandId || undefined,
-    unit: product?.unit || 'unidad',
+    unit: product?.unit || DEFAULT_UNIT,
     costPrice: product?.costPrice || 0,
     salePrice: product?.salePrice || 0,
     wholesalePrice: product?.wholesalePrice,

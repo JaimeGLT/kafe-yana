@@ -10,6 +10,7 @@ import { CodigoSinModal } from '../modals/CodigoSinModal';
 import { Button, Input, Select, ImageUploadField } from '../ui';
 import { HelpTooltip } from '../ui/Tooltip';
 import type { Receta, Insumo, ProductDestino } from '../../types';
+import { UNIT_OPTIONS, DEFAULT_UNIT } from '../../data/units';
 
 const DESTINO_OPTIONS = [
   { value: 'sin_destino', label: 'Sin destino' },
@@ -38,7 +39,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [rawSalePrice, setRawSalePrice] = useState('');
-  const [unit, setUnit] = useState('unidad');
+  const [unit, setUnit] = useState(DEFAULT_UNIT);
   const [preparationType, setPreparationType] = useState<'al_momento' | 'en_lote'>('al_momento');
   const [destino, setDestino] = useState<ProductDestino>('sin_destino');
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -61,7 +62,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
     setDescription('');
     setCategoryId('');
     setRawSalePrice('');
-    setUnit('unidad');
+    setUnit(DEFAULT_UNIT);
     setPreparationType('al_momento');
     setDestino('sin_destino');
     setCodigoSin('');
@@ -328,13 +329,7 @@ export const ElaboradoWizard: React.FC<WizardProps> = ({ isOpen, onClose, onCrea
                   <Select
                     value={unit}
                     onChange={(v) => setUnit(v)}
-                    options={[
-                      { value: 'unidad', label: 'Unidad' },
-                      { value: 'porcion', label: 'Porción' },
-                      { value: 'taza', label: 'Taza' },
-                      { value: 'vaso', label: 'Vaso' },
-                      { value: 'plato', label: 'Plato' },
-                    ]}
+                    options={UNIT_OPTIONS}
                   />
                 </div>
               </div>
