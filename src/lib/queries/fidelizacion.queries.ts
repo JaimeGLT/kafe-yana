@@ -154,20 +154,22 @@ export const GET_VENTAS_CLIENTE = `
   query GetVentasCliente($nombre: String!) {
     ventas(
       first: 100,
-      where: { cliente: { contains: $nombre } },
-      order: [{ fecha: DESC }]
+      where: { nombreRazonSocial: { contains: $nombre } },
+      order: [{ fechaEmision: DESC }]
     ) {
       nodes {
         id
-        codigo
-        fecha
-        total
-        cliente
+        numeroFactura
+        fechaEmision
+        montoTotal
+        nombreRazonSocial
         detalles {
-          nombre
+          id
+          id_venta
+          descripcion
           cantidad
-          precio
-          total
+          precioUnitario
+          subTotal
         }
       }
     }

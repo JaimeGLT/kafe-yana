@@ -21,9 +21,24 @@ interface VentasResponse {
   };
 }
 
-function parseDecimal(value: string | number): number {
+function parseDecimal(value: string | number | null | undefined): number {
+  if (value == null) return 0;
   if (typeof value === 'number') return value;
   return parseFloat(value) || 0;
+}
+
+function countProductos(detalles: VentaNode['detalles']): number {
+  return (detalles ?? []).reduce((sum, d) => sum + d.cantidad, 0);
+}
+
+function pagoMetodo(v: VentaNode): { efectivo: number; tarjeta: number; qr: number } {
+  const total = parseDecimal(v.montoTotal);
+  const esTarjeta = v.numeroTarjeta != null && v.numeroTarjeta !== '';
+  return {
+    efectivo: esTarjeta ? 0 : total,
+    tarjeta: esTarjeta ? total : 0,
+    qr: 0,
+  };
 }
 
 export function useSalesReportPage(
@@ -52,8 +67,8 @@ export function useSalesReportPage(
       const toDate = endOfDay(new Date(dateTo + 'T00:00:00')).toISOString();
 
       const filters: VentaFilters = {
-        fecha: { gte: fromDate, lte: toDate },
-        estado: { eq: 'Finalizada' },
+        fechaEmision: { gte: fromDate, lte: toDate },
+        estadoSiat: { eq: 'VALIDADA' },
       };
 
       let allNodes: VentaNode[] = [];
@@ -71,10 +86,10 @@ export function useSalesReportPage(
         cursor = data.ventas.pageInfo.endCursor;
       }
 
-      const totalRevenue = allNodes.reduce((sum, v) => sum + parseDecimal(v.total), 0);
+      const totalRevenue = allNodes.reduce((sum, v) => sum + parseDecimal(v.montoTotal), 0);
       const totalSalesCount = allNodes.length;
       const avgTicket = totalSalesCount > 0 ? totalRevenue / totalSalesCount : 0;
-      const unitsSold = allNodes.reduce((sum, v) => sum + (v.productos ?? 0), 0);
+      const unitsSold = allNodes.reduce((sum, v) => sum + countProductos(v.detalles), 0);
 
       setStats({ totalRevenue, totalSalesCount, avgTicket, unitsSold });
 
@@ -84,17 +99,17 @@ export function useSalesReportPage(
 
       const periodMap: Record<string, VentaDailyData> = {};
       allNodes.forEach((v) => {
-        const date = new Date(v.fecha);
+        const date = new Date(v.fechaEmision);
         let periodKey: string;
         if (granularity === 'day') {
-          periodKey = v.fecha.split('T')[0];
+          periodKey = v.fechaEmision.split('T')[0];
         } else if (granularity === 'week') {
           periodKey = format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd');
         } else {
           periodKey = format(startOfMonth(date), 'yyyy-MM-dd');
         }
         if (!periodMap[periodKey]) periodMap[periodKey] = { fecha: periodKey, ingresos: 0, ventas: 0 };
-        periodMap[periodKey].ingresos += parseDecimal(v.total);
+        periodMap[periodKey].ingresos += parseDecimal(v.montoTotal);
         periodMap[periodKey].ventas += 1;
       });
       setDailySalesData(
@@ -103,9 +118,10 @@ export function useSalesReportPage(
 
       const paymentMap: Record<string, number> = {};
       allNodes.forEach((v) => {
-        if (v.pagoEfectivo > 0) paymentMap['Efectivo'] = (paymentMap['Efectivo'] || 0) + parseDecimal(v.pagoEfectivo);
-        if (v.pagoTarjeta > 0) paymentMap['Tarjeta'] = (paymentMap['Tarjeta'] || 0) + parseDecimal(v.pagoTarjeta);
-        if (v.pagoQr > 0) paymentMap['QR'] = (paymentMap['QR'] || 0) + parseDecimal(v.pagoQr);
+        const p = pagoMetodo(v);
+        if (p.efectivo > 0) paymentMap['Efectivo'] = (paymentMap['Efectivo'] || 0) + p.efectivo;
+        if (p.tarjeta > 0) paymentMap['Tarjeta'] = (paymentMap['Tarjeta'] || 0) + p.tarjeta;
+        if (p.qr > 0) paymentMap['QR'] = (paymentMap['QR'] || 0) + p.qr;
       });
       setPaymentMethodData(
         Object.entries(paymentMap).map(([metodo, total]) => ({ metodo, total })),
@@ -114,9 +130,9 @@ export function useSalesReportPage(
       const productMap: Record<string, { qty: number; revenue: number }> = {};
       allNodes.forEach((v) => {
         v.detalles?.forEach((d) => {
-          if (!productMap[d.nombre]) productMap[d.nombre] = { qty: 0, revenue: 0 };
-          productMap[d.nombre].qty += d.cantidad;
-          productMap[d.nombre].revenue += parseDecimal(d.total);
+          if (!productMap[d.descripcion]) productMap[d.descripcion] = { qty: 0, revenue: 0 };
+          productMap[d.descripcion].qty += d.cantidad;
+          productMap[d.descripcion].revenue += parseDecimal(d.subTotal);
         });
       });
       setTopProducts(

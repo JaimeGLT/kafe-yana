@@ -1128,7 +1128,7 @@ export const FidelizacionPage: React.FC = () => {
                 </div>
               ) : (() => {
                 const allVentas = [...ventasCliente].sort(
-                  (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime(),
+                  (a, b) => new Date(b.fechaEmision).getTime() - new Date(a.fechaEmision).getTime(),
                 );
                 if (allVentas.length === 0) return (
                   <div className="text-center py-12 bg-white rounded-2xl border border-coffee-100">
@@ -1151,14 +1151,15 @@ export const FidelizacionPage: React.FC = () => {
 
                   <div className="divide-y divide-coffee-50 max-h-[500px] overflow-y-auto">
                     {allVentas.map((venta) => {
-                      const isGratis = venta.total === 0;
+                      const totalNum = typeof venta.montoTotal === 'number' ? venta.montoTotal : parseFloat(venta.montoTotal) || 0;
+                      const isGratis = totalNum === 0;
                       return (
                       <div key={venta.id} className={clsx('px-5 py-4 transition-colors', isGratis ? 'bg-green-50/40 hover:bg-green-50' : 'hover:bg-coffee-50/40')}>
                         <div className="flex items-start justify-between gap-3 mb-2">
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-body font-semibold text-coffee-500 bg-coffee-100 px-2 py-0.5 rounded-full">
-                                #{venta.codigo}
+                                #{venta.numeroFactura}
                               </span>
                               {isGratis && (
                                 <span className="text-xs font-body font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full flex items-center gap-1">
@@ -1168,21 +1169,24 @@ export const FidelizacionPage: React.FC = () => {
                               )}
                             </div>
                             <p className="text-xs font-body text-coffee-400 mt-1">
-                              {formatDateTime(venta.fecha)}
+                              {formatDateTime(venta.fechaEmision)}
                             </p>
                           </div>
                           <span className={clsx('text-base font-display font-black flex-shrink-0', isGratis ? 'text-green-600' : 'text-coffee-800')}>
-                            {isGratis ? 'Gratis' : `Bs. ${venta.total.toFixed(2)}`}
+                            {isGratis ? 'Gratis' : `Bs. ${totalNum.toFixed(2)}`}
                           </span>
                         </div>
                         {venta.detalles && venta.detalles.length > 0 && (
                           <div className="mt-2 space-y-0.5">
-                            {venta.detalles.map((d, i) => (
-                              <div key={i} className="flex justify-between text-xs font-body text-coffee-500">
-                                <span>{d.cantidad}× {d.nombre}</span>
-                                <span>{isGratis ? '— Gratis' : `Bs. ${d.total.toFixed(2)}`}</span>
-                              </div>
-                            ))}
+                            {venta.detalles.map((d, i) => {
+                              const subTotalNum = typeof d.subTotal === 'number' ? d.subTotal : parseFloat(d.subTotal) || 0;
+                              return (
+                                <div key={i} className="flex justify-between text-xs font-body text-coffee-500">
+                                  <span>{d.cantidad}× {d.descripcion}</span>
+                                  <span>{isGratis ? '— Gratis' : `Bs. ${subTotalNum.toFixed(2)}`}</span>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -1289,7 +1293,7 @@ export const FidelizacionPage: React.FC = () => {
                             <span className="text-sm font-body font-medium text-coffee-700">Gasto total registrado</span>
                           </div>
                           <span className="font-display font-black text-coffee-900">
-                            Bs. {ventasCliente.reduce((s, v) => s + v.total, 0).toFixed(2)}
+                            Bs. {ventasCliente.reduce((s, v) => s + (typeof v.montoTotal === 'number' ? v.montoTotal : parseFloat(v.montoTotal) || 0), 0).toFixed(2)}
                           </span>
                         </div>
                       </div>

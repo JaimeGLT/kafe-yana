@@ -4,27 +4,26 @@ import { GET_VENTA_DETALLE } from '../lib/queries/dashboard.queries';
 import type { Sale } from '../types';
 
 interface DetalleVentaNode {
-  id_venta: number;
-  nombre: string;
-  cantidad: number;
-  precio: string;
-  total: string;
   id: number;
+  id_venta: number;
+  descripcion: string;
+  cantidad: number;
+  precioUnitario: number | string;
+  subTotal: number | string;
+  codigoProducto?: string;
+  unidadMedida?: number;
 }
 
 interface BackendVenta {
   id: number;
-  codigo: string;
-  fecha: string;
-  cliente?: string;
-  cajero?: string;
-  productos: number;
-  estado: string;
-  subtotal: string | number;
-  total: string | number;
-  pagoEfectivo: number;
-  pagoTarjeta: number;
-  pagoQr: number;
+  numeroFactura: number;
+  fechaEmision: string;
+  nombreRazonSocial: string;
+  usuario: string;
+  estadoSiat: string;
+  montoTotalSujetoIva: number | string;
+  montoTotal: number | string;
+  numeroTarjeta: string | null;
   detalles?: DetalleVentaNode[];
 }
 
@@ -43,6 +42,13 @@ function parseDecimal(value: string | number | null | undefined): number {
 function parseDate(value: string | null | undefined): Date {
   if (!value) return new Date();
   return new Date(value);
+}
+
+function mapEstadoToStatus(estado: string): Sale['status'] {
+  const e = estado.toLowerCase();
+  if (e === 'validada' || e === 'finalizada' || e === 'finalizado') return 'completed';
+  if (e === 'anulada' || e === 'reembolsada' || e === 'reembolsado') return 'refunded';
+  return 'completed';
 }
 
 export function useVentaDetalle(saleId: string | null): {
@@ -67,47 +73,53 @@ export function useVentaDetalle(saleId: string | null): {
         return;
       }
 
+      const monto = parseDecimal(v.montoTotal);
+      const esTarjeta = v.numeroTarjeta != null && v.numeroTarjeta !== '';
+      const codeLabel = `V-${v.numeroFactura}`;
+
       const paymentMethods: Sale['paymentMethods'] = [];
-      if (v.pagoEfectivo > 0) paymentMethods.push({ id: `${v.codigo}-cash`, type: 'cash' as const, name: 'Efectivo', amount: Number(v.pagoEfectivo) });
-      if (v.pagoTarjeta > 0) paymentMethods.push({ id: `${v.codigo}-card`, type: 'card' as const, name: 'Tarjeta', amount: Number(v.pagoTarjeta) });
-      if (v.pagoQr > 0) paymentMethods.push({ id: `${v.codigo}-qr`, type: 'qr' as const, name: 'QR', amount: Number(v.pagoQr) });
+      if (esTarjeta) {
+        paymentMethods.push({ id: `${codeLabel}-card`, type: 'card' as const, name: 'Tarjeta', amount: monto });
+      } else {
+        paymentMethods.push({ id: `${codeLabel}-cash`, type: 'cash' as const, name: 'Efectivo', amount: monto });
+      }
 
       const saleData: Sale = {
         id: String(v.id),
-        code: v.codigo,
-        date: parseDate(v.fecha),
+        code: codeLabel,
+        date: parseDate(v.fechaEmision),
         customerId: undefined,
-        customerName: v.cliente || undefined,
+        customerName: v.nombreRazonSocial || undefined,
         cashierId: '',
-        cashierName: v.cajero || undefined,
+        cashierName: v.usuario || undefined,
         branchId: '',
         branchName: '',
-        status: 'completed',
-        subtotal: parseDecimal(v.subtotal),
+        status: mapEstadoToStatus(v.estadoSiat),
+        subtotal: parseDecimal(v.montoTotalSujetoIva),
         discount: 0,
         tax: 0,
         taxPercentage: 18,
-        total: parseDecimal(v.total),
+        total: monto,
         paymentMethods,
         items: (v.detalles ?? []).map((d, i) => ({
-          id: `${v.codigo}-${i}`,
-          productId: '',
-          productName: d.nombre,
-          productCode: '',
+          id: `${codeLabel}-${i}`,
+          productId: d.codigoProducto ?? '',
+          productCode: d.codigoProducto ?? '',
+          productName: d.descripcion,
           quantity: d.cantidad,
-          unit: 'unidad',
-          unitPrice: parseDecimal(d.precio),
+          unit: d.unidadMedida != null ? String(d.unidadMedida) : 'unidad',
+          unitPrice: parseDecimal(d.precioUnitario),
           discount: 0,
-          subtotal: parseDecimal(d.total),
+          subtotal: parseDecimal(d.subTotal),
           tax: 0,
-          total: parseDecimal(d.total),
+          total: parseDecimal(d.subTotal),
         })),
         pointsEarned: undefined,
         pointsRedeemed: undefined,
         notes: undefined,
         refunds: [],
-        createdAt: parseDate(v.fecha),
-        updatedAt: parseDate(v.fecha),
+        createdAt: parseDate(v.fechaEmision),
+        updatedAt: parseDate(v.fechaEmision),
       };
 
       setSale(saleData);

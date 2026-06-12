@@ -22,18 +22,20 @@ export interface ProductoCanjeable {
 }
 
 export interface VentaDetalle {
-  nombre: string;
+  id: number;
+  id_venta: number;
+  descripcion: string;
   cantidad: number;
-  precio: number;
-  total: number;
+  precioUnitario: number | string;
+  subTotal: number | string;
 }
 
 export interface VentaResumen {
   id: string;
-  codigo: string;
-  fecha: string;
-  total: number;
-  cliente: string;
+  numeroFactura: number;
+  fechaEmision: string;
+  montoTotal: number | string;
+  nombreRazonSocial: string;
   detalles: VentaDetalle[];
 }
 

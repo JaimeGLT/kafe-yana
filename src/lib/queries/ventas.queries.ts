@@ -42,26 +42,26 @@ export const GET_PARA_LLEVAR = `
 
 export const GET_VENTAS_REPORT = `
   query GetVentasReport($after: String, $where: VentaFilterInput) {
-    ventas(first: 50, after: $after, order: [{ fecha: DESC }], where: $where) {
+    ventas(first: 50, after: $after, order: [{ fechaEmision: DESC }], where: $where) {
       nodes {
-        codigo
-        fecha
-        cliente
-        cajero
-        productos
-        estado
-        subtotal
-        total
-        pagoEfectivo
-        pagoTarjeta
-        pagoQr
+        id
+        numeroFactura
+        fechaEmision
+        nombreRazonSocial
+        usuario
+        estadoSiat
+        montoTotalSujetoIva
+        montoTotal
+        numeroTarjeta
         detalles {
-          id_venta
-          nombre
-          cantidad
-          precio
-          total
           id
+          id_venta
+          descripcion
+          cantidad
+          precioUnitario
+          subTotal
+          codigoProducto
+          unidadMedida
         }
       }
       pageInfo {
@@ -75,26 +75,26 @@ export const GET_VENTAS_REPORT = `
 
 export const GET_VENTAS = `
   query GetVentas($after: String, $where: VentaFilterInput) {
-    ventas(first: 50, after: $after, order: [{ fecha: DESC }], where: $where) {
+    ventas(first: 50, after: $after, order: [{ fechaEmision: DESC }], where: $where) {
       nodes {
         id
-        codigo
-        fecha
-        cliente
-        cajero
-        productos
-        estado
-        subtotal
-        total
-        pagoEfectivo
-        pagoTarjeta
-        pagoQr
+        numeroFactura
+        fechaEmision
+        nombreRazonSocial
+        usuario
+        estadoSiat
+        montoTotalSujetoIva
+        montoTotal
+        numeroTarjeta
         detalles {
-          nombre
+          id
+          id_venta
+          descripcion
           cantidad
-          precio
-          total
-          ubicacion
+          precioUnitario
+          subTotal
+          codigoProducto
+          unidadMedida
         }
       }
       pageInfo {

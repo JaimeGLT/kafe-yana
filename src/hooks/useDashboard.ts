@@ -5,18 +5,15 @@ import { GET_DASHBOARD_DATA } from '../lib/queries/dashboard.queries';
 
 interface VentaNode {
   id: number;
-  codigo: string;
-  fecha: string;
-  cliente?: string;
-  cajero?: string;
-  productos: number;
-  estado: string;
-  subtotal: string | number;
-  total: string | number;
-  pagoEfectivo: number;
-  pagoTarjeta: number;
-  pagoQr: number;
-  detalles?: { id: number; id_venta: number; nombre: string; cantidad: number; precio: string; total: string }[];
+  numeroFactura: number;
+  fechaEmision: string;
+  nombreRazonSocial: string;
+  usuario: string;
+  estadoSiat: string;
+  montoTotalSujetoIva: number | string;
+  montoTotal: number | string;
+  numeroTarjeta: string | null;
+  detalles?: { id: number; id_venta: number; descripcion: string; cantidad: number; precioUnitario: number | string; subTotal: number | string }[];
 }
 
 interface CajaEstadoNode {
@@ -72,6 +69,10 @@ function parseDecimal(value: string | number | null | undefined): number {
 function parseDate(value: string | null | undefined): Date {
   if (!value) return new Date();
   return new Date(value);
+}
+
+function countProductos(detalles: VentaNode['detalles']): number {
+  return (detalles ?? []).reduce((sum, d) => sum + d.cantidad, 0);
 }
 
 export interface DashboardStats {
@@ -156,23 +157,23 @@ export function useDashboard(): UseDashboardReturn {
 
       const data = await gql<DashboardResponse>(GET_DASHBOARD_DATA, {
         where: {
-          fecha: {
+          fechaEmision: {
             gte: new Date(`${monthStart}T00:00:00`).toISOString(),
             lte: new Date(`${todayStr}T23:59:59`).toISOString(),
           },
-          estado: { eq: 'Finalizada' },
+          estadoSiat: { eq: 'VALIDADA' },
         },
       });
 
       const allSales = data.ventas.nodes;
       setRawVentas(allSales);
-      const completedSales = allSales.filter((s) => s.estado === 'Finalizada');
+      const completedSales = allSales.filter((s) => s.estadoSiat === 'VALIDADA');
 
       const totalSalesToday = completedSales
-        .filter((s) => isSameDay(parseDate(s.fecha), today))
-        .reduce((sum, s) => sum + parseDecimal(s.total), 0);
+        .filter((s) => isSameDay(parseDate(s.fechaEmision), today))
+        .reduce((sum, s) => sum + parseDecimal(s.montoTotal), 0);
 
-      const totalSalesMonth = completedSales.reduce((sum, s) => sum + parseDecimal(s.total), 0);
+      const totalSalesMonth = completedSales.reduce((sum, s) => sum + parseDecimal(s.montoTotal), 0);
 
       const openRegisters = data.caja?.fechaCierre == null ? 1 : 0;
 
@@ -205,8 +206,8 @@ export function useDashboard(): UseDashboardReturn {
         const dayLabel = format(date, 'EEE', { locale: undefined });
 
         const revenue = completedSales
-          .filter((s) => isSameDay(parseDate(s.fecha), date))
-          .reduce((sum, s) => sum + parseDecimal(s.total), 0);
+          .filter((s) => isSameDay(parseDate(s.fechaEmision), date))
+          .reduce((sum, s) => sum + parseDecimal(s.montoTotal), 0);
 
         const expenses = expensesByDay[key] ?? 0;
 
@@ -218,13 +219,13 @@ export function useDashboard(): UseDashboardReturn {
       });
       setRevenueData(revenueDataPoints);
 
-      const todaySales = completedSales.filter((s) => isSameDay(parseDate(s.fecha), today));
+      const todaySales = completedSales.filter((s) => isSameDay(parseDate(s.fechaEmision), today));
       const salesDataPoints: SalesDataPoint[] = Array.from({ length: 13 }, (_, i) => {
         const hour = 8 + i;
-        const hourSales = todaySales.filter((s) => parseDate(s.fecha).getHours() === hour);
+        const hourSales = todaySales.filter((s) => parseDate(s.fechaEmision).getHours() === hour);
         return {
           hour: `${hour}:00`,
-          sales: hourSales.reduce((sum, s) => sum + parseDecimal(s.total), 0),
+          sales: hourSales.reduce((sum, s) => sum + parseDecimal(s.montoTotal), 0),
           orders: hourSales.length,
         };
       });
@@ -233,8 +234,8 @@ export function useDashboard(): UseDashboardReturn {
       const productMap: Record<string, { name: string; value: number }> = {};
       completedSales.forEach((s) => {
         (s.detalles ?? []).forEach((d) => {
-          if (!productMap[d.nombre]) productMap[d.nombre] = { name: d.nombre, value: 0 };
-          productMap[d.nombre].value += d.cantidad;
+          if (!productMap[d.descripcion]) productMap[d.descripcion] = { name: d.descripcion, value: 0 };
+          productMap[d.descripcion].value += d.cantidad;
         });
       });
       const sortedProducts = Object.values(productMap).sort((a, b) => b.value - a.value).slice(0, 5);
@@ -248,15 +249,15 @@ export function useDashboard(): UseDashboardReturn {
       );
 
       const recent = [...completedSales]
-        .sort((a, b) => parseDate(b.fecha).getTime() - parseDate(a.fecha).getTime())
+        .sort((a, b) => parseDate(b.fechaEmision).getTime() - parseDate(a.fechaEmision).getTime())
         .slice(0, 5)
         .map((s) => ({
           id: String(s.id),
           type: 'sale' as const,
-          title: `Venta ${s.codigo}`,
-          description: `${s.productos} producto(s)`,
-          timestamp: parseDate(s.fecha),
-          amount: parseDecimal(s.total),
+          title: `Venta #${s.numeroFactura}`,
+          description: `${countProductos(s.detalles)} producto(s)`,
+          timestamp: parseDate(s.fechaEmision),
+          amount: parseDecimal(s.montoTotal),
         }));
       setRecentActivities(recent);
 

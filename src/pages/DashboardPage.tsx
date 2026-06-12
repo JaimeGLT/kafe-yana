@@ -27,48 +27,53 @@ const DashboardPage: React.FC = () => {
     if (!selectedSaleId) return null;
     const v = rawVentas.find((s) => String(s.id) === selectedSaleId);
     if (!v) return null;
+    const codeLabel = `V-${v.numeroFactura}`;
+    const monto = Number(v.montoTotal);
+    const esTarjeta = v.numeroTarjeta != null && v.numeroTarjeta !== '';
     const paymentMethods: Sale['paymentMethods'] = [];
-    if (v.pagoEfectivo > 0) paymentMethods.push({ id: `${v.codigo}-cash`, type: 'cash', name: 'Efectivo', amount: Number(v.pagoEfectivo) });
-    if (v.pagoTarjeta > 0) paymentMethods.push({ id: `${v.codigo}-card`, type: 'card', name: 'Tarjeta', amount: Number(v.pagoTarjeta) });
-    if (v.pagoQr > 0) paymentMethods.push({ id: `${v.codigo}-qr`, type: 'qr', name: 'QR', amount: Number(v.pagoQr) });
+    if (esTarjeta) {
+      paymentMethods.push({ id: `${codeLabel}-card`, type: 'card', name: 'Tarjeta', amount: monto });
+    } else {
+      paymentMethods.push({ id: `${codeLabel}-cash`, type: 'cash', name: 'Efectivo', amount: monto });
+    }
     const parseDecimal = (val: string | number | null | undefined) => (val == null ? 0 : typeof val === 'number' ? val : parseFloat(val) || 0);
     const parseDate = (val: string | null | undefined) => (val ? new Date(val) : new Date());
     return {
       id: String(v.id),
-      code: v.codigo,
-      date: parseDate(v.fecha),
+      code: codeLabel,
+      date: parseDate(v.fechaEmision),
       customerId: undefined,
-      customerName: v.cliente || undefined,
+      customerName: v.nombreRazonSocial || undefined,
       cashierId: '',
-      cashierName: v.cajero || undefined,
+      cashierName: v.usuario || undefined,
       branchId: '',
       branchName: '',
       status: 'completed',
-      subtotal: parseDecimal(v.subtotal),
+      subtotal: parseDecimal(v.montoTotalSujetoIva),
       discount: 0,
       tax: 0,
       taxPercentage: 18,
-      total: parseDecimal(v.total),
+      total: monto,
       paymentMethods,
       items: (v.detalles ?? []).map((d, i) => ({
-        id: `${v.codigo}-${i}`,
+        id: `${codeLabel}-${i}`,
         productId: '',
-        productName: d.nombre,
+        productName: d.descripcion,
         productCode: '',
         quantity: d.cantidad,
         unit: 'unidad',
-        unitPrice: parseDecimal(d.precio),
+        unitPrice: parseDecimal(d.precioUnitario),
         discount: 0,
-        subtotal: parseDecimal(d.total),
+        subtotal: parseDecimal(d.subTotal),
         tax: 0,
-        total: parseDecimal(d.total),
+        total: parseDecimal(d.subTotal),
       })),
       pointsEarned: undefined,
       pointsRedeemed: undefined,
       notes: undefined,
       refunds: [],
-      createdAt: parseDate(v.fecha),
-      updatedAt: parseDate(v.fecha),
+      createdAt: parseDate(v.fechaEmision),
+      updatedAt: parseDate(v.fechaEmision),
     };
   }, [selectedSaleId, rawVentas]);
 

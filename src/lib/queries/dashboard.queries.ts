@@ -24,27 +24,24 @@ export const GET_DASHBOARD_DATA = `
         referencia
       }
     }
-    ventas(first: 50, order: [{ fecha: DESC }], where: $where) {
+    ventas(first: 50, order: [{ fechaEmision: DESC }], where: $where) {
       nodes {
-        id 
-        codigo
-        fecha
-        cliente
-        cajero
-        productos
-        estado
-        subtotal
-        total
-        pagoEfectivo
-        pagoTarjeta
-        pagoQr
+        id
+        numeroFactura
+        fechaEmision
+        nombreRazonSocial
+        usuario
+        estadoSiat
+        montoTotalSujetoIva
+        montoTotal
+        numeroTarjeta
         detalles {
           id
           id_venta
-          nombre
+          descripcion
           cantidad
-          precio
-          total
+          precioUnitario
+          subTotal
         }
       }
       totalCount
@@ -77,24 +74,23 @@ export const GET_VENTA_DETALLE = `
     ventas(where: { id: { eq: $id } }) {
       nodes {
         id
-        codigo
-        fecha
-        cliente
-        cajero
-        productos
-        estado
-        subtotal
-        total
-        pagoEfectivo
-        pagoTarjeta
-        pagoQr
+        numeroFactura
+        fechaEmision
+        nombreRazonSocial
+        usuario
+        estadoSiat
+        montoTotalSujetoIva
+        montoTotal
+        numeroTarjeta
         detalles {
-          id_venta
-          nombre
-          cantidad
-          precio
-          total
           id
+          id_venta
+          descripcion
+          cantidad
+          precioUnitario
+          subTotal
+          codigoProducto
+          unidadMedida
         }
       }
     }

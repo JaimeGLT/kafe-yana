@@ -1,31 +1,33 @@
 export interface VentaNode {
-  codigo: string;
-  fecha: string;
-  cliente: string;
-  cajero: string;
-  productos: number;
-  estado: string;
-  subtotal: string | number;
-  total: string | number;
-  pagoEfectivo: number;
-  pagoTarjeta: number;
-  pagoQr: number;
+  id: number;
+  numeroFactura: number;
+  fechaEmision: string;
+  nombreRazonSocial: string;
+  usuario: string;
+  estadoSiat: string;
+  montoTotalSujetoIva: number | string;
+  montoTotal: number | string;
+  numeroTarjeta: string | null;
   detalles?: DetalleVentaNode[];
 }
 
 export interface DetalleVentaNode {
-  nombre: string;
+  id: number;
+  id_venta: number;
+  descripcion: string;
   cantidad: number;
-  precio: string;
-  total: string;
+  precioUnitario: number | string;
+  subTotal: number | string;
+  codigoProducto?: string;
+  unidadMedida?: number;
 }
 
 export interface VentaFilters {
-  fecha?: {
+  fechaEmision?: {
     gte?: string;
     lte?: string;
   };
-  estado?: {
+  estadoSiat?: {
     eq?: string;
   };
 }
@@ -72,4 +74,3 @@ export interface UseSalesReportPageReturn {
   error: string | null;
   refresh: () => Promise<void>;
 }
-

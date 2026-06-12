@@ -25,34 +25,34 @@ interface SaleStats {
 
 const mapEstadoToStatus = (estado: string): Sale['status'] => {
   const e = estado.toLowerCase();
-  if (e === 'finalizada' || e === 'finalizado') return 'completed';
-  if (e === 'reembolsada' || e === 'reembolsado') return 'refunded';
+  if (e === 'validada' || e === 'finalizada' || e === 'finalizado') return 'completed';
+  if (e === 'anulada' || e === 'reembolsada' || e === 'reembolsado') return 'refunded';
   if (e.startsWith('parcialmente')) return 'partially_refunded';
   return 'completed';
 };
 
 interface BackendVentaDetalle {
-  nombre: string;
+  id: number;
+  id_venta: number;
+  descripcion: string;
   cantidad: number;
-  precio: number;
-  total: number;
-  ubicacion?: string;
+  precioUnitario: number | string;
+  subTotal: number | string;
+  codigoProducto?: string;
+  unidadMedida?: number;
 }
 
 interface BackendVenta {
   id: number;
+  numeroFactura: number;
+  fechaEmision: string;
+  nombreRazonSocial: string;
+  usuario: string;
+  estadoSiat: string;
+  montoTotalSujetoIva: number | string;
+  montoTotal: number | string;
+  numeroTarjeta: string | null;
   detalles: BackendVentaDetalle[];
-  codigo: string;
-  fecha: string;
-  cliente: string;
-  cajero: string;
-  productos: number;
-  estado: string;
-  subtotal: number;
-  total: number;
-  pagoEfectivo: number;
-  pagoTarjeta: number;
-  pagoQr: number;
 }
 
 interface BackendVentasResponse {
@@ -64,48 +64,53 @@ interface BackendVentasResponse {
 }
 
 const mapBackendVentaToSale = (v: BackendVenta): Sale => {
+  const codeLabel = `V-${v.numeroFactura}`;
+  const monto = Number(v.montoTotal);
+  const esTarjeta = v.numeroTarjeta != null && v.numeroTarjeta !== '';
+
   const paymentMethods: Sale['paymentMethods'] = [];
-  if (v.pagoEfectivo > 0) paymentMethods.push({ id: `${v.codigo}-cash`, type: 'cash', name: 'Efectivo', amount: Number(v.pagoEfectivo) });
-  if (v.pagoTarjeta > 0) paymentMethods.push({ id: `${v.codigo}-card`, type: 'card', name: 'Tarjeta', amount: Number(v.pagoTarjeta) });
-  if (v.pagoQr > 0) paymentMethods.push({ id: `${v.codigo}-qr`, type: 'qr', name: 'QR', amount: Number(v.pagoQr) });
+  if (esTarjeta) {
+    paymentMethods.push({ id: `${codeLabel}-card`, type: 'card', name: 'Tarjeta', amount: monto });
+  } else {
+    paymentMethods.push({ id: `${codeLabel}-cash`, type: 'cash', name: 'Efectivo', amount: monto });
+  }
 
   return {
     id: String(v.id),
-    code: v.codigo,
-    date: new Date(v.fecha),
+    code: codeLabel,
+    date: new Date(v.fechaEmision),
     customerId: undefined,
-    customerName: v.cliente || undefined,
+    customerName: v.nombreRazonSocial || undefined,
     cashierId: '',
-    cashierName: v.cajero,
+    cashierName: v.usuario,
     branchId: '',
     branchName: '',
-    status: mapEstadoToStatus(v.estado),
-    subtotal: Number(v.subtotal),
+    status: mapEstadoToStatus(v.estadoSiat),
+    subtotal: Number(v.montoTotalSujetoIva),
     discount: 0,
     tax: 0,
     taxPercentage: 18,
-    total: Number(v.total),
+    total: monto,
     paymentMethods,
     items: v.detalles.map((d, i) => ({
-      id: `${v.codigo}-${i}`,
-      productId: '',
-      productName: d.nombre,
-      productCode: '',
+      id: `${codeLabel}-${i}`,
+      productId: d.codigoProducto ?? '',
+      productCode: d.codigoProducto ?? '',
+      productName: d.descripcion,
       quantity: d.cantidad,
-      unit: 'unidad',
-      unitPrice: Number(d.precio),
+      unit: d.unidadMedida != null ? String(d.unidadMedida) : 'unidad',
+      unitPrice: Number(d.precioUnitario),
       discount: 0,
-      subtotal: Number(d.total),
+      subtotal: Number(d.subTotal),
       tax: 0,
-      total: Number(d.total),
-      ubicacion: d.ubicacion?.toLowerCase(),
+      total: Number(d.subTotal),
     })),
     pointsEarned: undefined,
     pointsRedeemed: undefined,
     notes: undefined,
     refunds: [],
-    createdAt: new Date(v.fecha),
-    updatedAt: new Date(v.fecha),
+    createdAt: new Date(v.fechaEmision),
+    updatedAt: new Date(v.fechaEmision),
   };
 };
 
