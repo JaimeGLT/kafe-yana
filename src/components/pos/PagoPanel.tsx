@@ -1,6 +1,7 @@
 import React from 'react';
 import { clsx } from 'clsx';
-import { AlertTriangle, X, Star, Plus, User, Search, Tag, RotateCcw } from 'lucide-react';
+import { AlertTriangle, X, Star, Plus, User, Search, Tag, RotateCcw, FileText } from 'lucide-react';
+import { TIPOS_DOCUMENTO } from '../../types/sales';
 import type { PaymentMethodType, Customer } from '../../types';
 
 interface DescuentoPreview {
@@ -51,6 +52,13 @@ interface PagoPanelProps {
   aplicarDescuento?: boolean;
   onAplicarDescuentoChange?: (v: boolean) => void;
   isLoadingDescuento?: boolean;
+  // Facturación SIAT
+  codigoTipoDocumento: number;
+  numeroDocumento: string;
+  complemento: string;
+  onCodigoTipoDocumentoChange: (v: number) => void;
+  onNumeroDocumentoChange: (v: string) => void;
+  onComplementoChange: (v: string) => void;
 }
 
 export const PagoPanel: React.FC<PagoPanelProps> = ({
@@ -82,6 +90,12 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
   aplicarDescuento = false,
   onAplicarDescuentoChange,
   isLoadingDescuento = false,
+  codigoTipoDocumento,
+  numeroDocumento,
+  complemento,
+  onCodigoTipoDocumentoChange,
+  onNumeroDocumentoChange,
+  onComplementoChange,
 }) => {
   const selectedCliente = reviewClienteId ? customers.find(c => String(c.id) === reviewClienteId) : null;
   const efectivoTotal = aplicarDescuento && discountPreview?.DescuentoRecomendado
@@ -236,6 +250,46 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
           </div>
         ) : null}
 
+        {/* Datos de facturación — SIAT */}
+        <div>
+          <p className="text-xs font-bold text-coffee-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <FileText className="h-3.5 w-3.5" />
+            Datos de facturación
+          </p>
+          <div className="space-y-2.5">
+            <select
+              value={codigoTipoDocumento}
+              onChange={e => onCodigoTipoDocumentoChange(parseInt(e.target.value, 10))}
+              className="w-full px-3 py-2.5 rounded-xl border-2 border-coffee-200 text-sm text-coffee-900 focus:border-coffee-400 focus:outline-none appearance-none bg-white"
+            >
+              {TIPOS_DOCUMENTO.map(t => (
+                <option key={t.codigo} value={t.codigo}>
+                  {t.nombre}
+                </option>
+              ))}
+            </select>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="N° de documento"
+                value={numeroDocumento}
+                onChange={e => onNumeroDocumentoChange(e.target.value)}
+                maxLength={20}
+                className="flex-1 px-3 py-2.5 rounded-xl border-2 border-coffee-200 text-sm text-coffee-900 placeholder:text-coffee-400 focus:border-coffee-400 focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Complemento"
+                value={complemento}
+                onChange={e => onComplementoChange(e.target.value)}
+                maxLength={5}
+                className="w-28 px-3 py-2.5 rounded-xl border-2 border-coffee-200 text-sm text-coffee-900 placeholder:text-coffee-400 focus:border-coffee-400 focus:outline-none"
+              />
+            </div>
+          </div>
+        </div>
+
         <div>
           <p className="text-xs font-bold text-coffee-400 uppercase tracking-wider mb-2.5">Método de pago</p>
           <div className="grid grid-cols-3 gap-2">
@@ -314,13 +368,20 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
           </button>
           <button
             onClick={onConfirm}
-            disabled={isProcessing || (paymentMethod === 'cash' && cashNum > 0 && cashNum < efectivoTotal)}
+            disabled={
+              isProcessing
+              || (paymentMethod === 'cash' && cashNum > 0 && cashNum < efectivoTotal)
+              || !numeroDocumento.trim()
+            }
             className={clsx(
               'flex-1 py-3.5 rounded-2xl font-bold text-sm transition-all',
-              isProcessing || (paymentMethod === 'cash' && cashNum > 0 && cashNum < mesaTotal)
+              isProcessing
+              || (paymentMethod === 'cash' && cashNum > 0 && cashNum < mesaTotal)
+              || !numeroDocumento.trim()
                 ? 'bg-coffee-100 text-coffee-400 cursor-not-allowed'
                 : 'bg-coffee-800 text-cream hover:bg-coffee-700 active:scale-95 shadow-lg',
             )}
+            title={!numeroDocumento.trim() ? 'Ingresa el número de documento' : undefined}
           >
             {isProcessing ? 'Procesando...' : 'Cobrar'}
           </button>

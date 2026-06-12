@@ -218,3 +218,22 @@ export interface SalesStats {
   pendingQuotes: number;
   pendingReceivables: number;
 }
+
+// Facturación SIAT — tipos de documento de identidad
+// Códigos definidos por el SIN para identificar al cliente en la factura.
+// Lista fija por ahora (son los "documentos por defecto"); si el backend
+// empieza a exponerlos vía API, reemplazar por una query.
+export interface TipoDocumento {
+  codigo: number;
+  nombre: string;
+}
+
+export const TIPOS_DOCUMENTO: readonly TipoDocumento[] = [
+  { codigo: 1, nombre: 'CI - Cédula de Identidad' },
+  { codigo: 2, nombre: 'CEX - Cédula de Extranjero' },
+  { codigo: 3, nombre: 'PAS - Pasaporte' },
+  { codigo: 4, nombre: 'OD - Otro Documento' },
+  { codigo: 5, nombre: 'NIT - Nro. Identificación Tributaria' },
+] as const;
+
+export const TIPO_DOCUMENTO_DEFAULT = 1;

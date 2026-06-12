@@ -36,6 +36,7 @@ import type { CartItem } from '../../hooks/usePOSCart';
 import type { DtoRondaDetalleEditar } from '../../hooks/useMesas';
 import type { Product, Category, Customer, CustomerInput, SaleInput, PaymentMethodType, VariacionAtributo } from '../../types';
 import type { MilestoneReward, PointsCalculation } from '../../types/loyalty';
+import { TIPO_DOCUMENTO_DEFAULT } from '../../types/sales';
 import { VariacionPickerModal } from '../../components/modals/VariacionPickerModal';
 import { ElaboradoDetailModal } from '../../components/modals/ElaboradoDetailModal';
 import { ProdCard } from '../../components/modals/ProdCard';
@@ -476,6 +477,10 @@ export const POSPage: React.FC = () => {
   const [descuentoPreview, setDescuentoPreview] = useState<DtoDescuentosPedidoRespuesta | null>(null);
   const [aplicarDescuento, setAplicarDescuento] = useState(false);
   const [isLoadingDescuento, setIsLoadingDescuento] = useState(false);
+  // Facturación SIAT
+  const [codigoTipoDocumento, setCodigoTipoDocumento] = useState<number>(TIPO_DOCUMENTO_DEFAULT);
+  const [numeroDocumento, setNumeroDocumento] = useState('');
+  const [complemento, setComplemento] = useState('');
   const [editingRonda, setEditingRonda] = useState<{ rondaId: number; rondaNumber: number; items: CartItem[] } | null>(null);
   const [confirmDeleteRondaId, setConfirmDeleteRondaId] = useState<{ rondaId: number; rondaNumber: number } | null>(null);
 
@@ -625,6 +630,9 @@ export const POSPage: React.FC = () => {
     setShowNewCustomerForm(false);
     setNewCustomerName('');
     setNewCustomerPhone('');
+    setCodigoTipoDocumento(TIPO_DOCUMENTO_DEFAULT);
+    setNumeroDocumento('');
+    setComplemento('');
   };
 
   const handleCreateCustomer = async (onCreated: (id: string) => void) => {
@@ -884,16 +892,23 @@ export const POSPage: React.FC = () => {
         else if (paymentMethod === 'card') pagos.tarjeta = efectivoTotal;
         else if (paymentMethod === 'transfer') pagos.qr = efectivoTotal;
         const idCliente = reviewClienteId ? parseInt(reviewClienteId, 10) : null;
+        const complementoFactura = complemento.trim() || null;
 
         let res: RespuestaCobro | null = null;
         if (isParaLlevar) {
-          res = await cobrarParaLlevar(pedidoId, idCliente, pagos, aplicarDescuento);
+          res = await cobrarParaLlevar(
+            pedidoId, idCliente, pagos, aplicarDescuento,
+            codigoTipoDocumento, numeroDocumento, complementoFactura,
+          );
         } else {
           res = await api.post<RespuestaCobro>(`/Mesa/cobrar/${activeMesa.id}`, {
             id_Pedido: pedidoId,
             id_Cliente: idCliente,
-            AplicarDescuentos: aplicarDescuento,
             pagos,
+            aplicarDescuentos: aplicarDescuento,
+            codigoTipoDocumento,
+            numeroDocumento,
+            complemento: complementoFactura,
           });
         }
 
@@ -966,16 +981,23 @@ export const POSPage: React.FC = () => {
       const pedidoId = (activeMesa as any).pedidoId;
       const idCliente = reviewClienteId ? parseInt(reviewClienteId, 10) : null;
       const isParaLlevar = activeMesa.tipo === 'para_llevar';
+      const complementoFactura = complemento.trim() || null;
 
       let res: RespuestaCobro | null = null;
       if (isParaLlevar && pedidoId) {
-        res = await cobrarParaLlevar(pedidoId, idCliente, pagos);
+        res = await cobrarParaLlevar(
+          pedidoId, idCliente, pagos, false,
+          codigoTipoDocumento, numeroDocumento, complementoFactura,
+        );
       } else if (pedidoId) {
         res = await api.post<RespuestaCobro>(`/Mesa/cobrar/${activeMesa.id}`, {
           id_Pedido: pedidoId,
           id_Cliente: idCliente,
-          AplicarDescuentos: false,
           pagos,
+          aplicarDescuentos: false,
+          codigoTipoDocumento,
+          numeroDocumento,
+          complemento: complementoFactura,
         });
       }
 
@@ -1766,6 +1788,12 @@ export const POSPage: React.FC = () => {
                 aplicarDescuento={aplicarDescuento}
                 onAplicarDescuentoChange={setAplicarDescuento}
                 isLoadingDescuento={isLoadingDescuento}
+                codigoTipoDocumento={codigoTipoDocumento}
+                numeroDocumento={numeroDocumento}
+                complemento={complemento}
+                onCodigoTipoDocumentoChange={setCodigoTipoDocumento}
+                onNumeroDocumentoChange={setNumeroDocumento}
+                onComplementoChange={setComplemento}
               />
             </Suspense>
           </Overlay>

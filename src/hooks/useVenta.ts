@@ -69,7 +69,7 @@ interface UseVentaReturn {
   eliminarRondaParaLlevar: (rondaId: number, pedidoId: number) => Promise<boolean>;
   editarDetalleParaLlevar: (detalleId: number, pedidoId: number, data: Omit<DtoRondaDetalleEditar, 'id_Detalle'>) => Promise<boolean>;
   eliminarDetalleParaLlevar: (detalleId: number, pedidoId: number) => Promise<boolean>;
-  cobrarParaLlevar: (pedidoId: number, clienteId: number | null, pagos: { efectivo: number; tarjeta: number; qr: number; total: number }, aplicarDescuentos?: boolean) => Promise<RespuestaCobro | null>;
+  cobrarParaLlevar: (pedidoId: number, clienteId: number | null, pagos: { efectivo: number; tarjeta: number; qr: number; total: number }, aplicarDescuentos?: boolean, codigoTipoDocumento?: number, numeroDocumento?: string, complemento?: string | null) => Promise<RespuestaCobro | null>;
   liberarPedido: () => Promise<boolean>;
 }
 
@@ -177,13 +177,19 @@ export function useVenta(): UseVentaReturn {
     clienteId: number | null,
     pagos: { efectivo: number; tarjeta: number; qr: number; total: number },
     aplicarDescuentos?: boolean,
+    codigoTipoDocumento: number = 1,
+    numeroDocumento: string = '',
+    complemento: string | null = null,
   ): Promise<RespuestaCobro | null> => {
     try {
       const res = await api.post<RespuestaCobro>('/Venta/cobrar', {
         id_Pedido: pedidoId,
         id_Cliente: clienteId,
-        AplicarDescuentos: aplicarDescuentos ?? false,
         pagos,
+        aplicarDescuentos: aplicarDescuentos ?? false,
+        codigoTipoDocumento,
+        numeroDocumento,
+        complemento,
       });
       return res;
     } catch (err) {
