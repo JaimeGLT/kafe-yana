@@ -6,6 +6,7 @@ const SEARCH_CODIGOS_SIAT = `
       or: [
         { codigoProducto: { contains: $contains } }
         { descripcionProducto: { contains: $contains } }
+        { descripcionActividad: { contains: $contains } }
       ]
     }) {
       nodes {
@@ -30,7 +31,8 @@ interface CodigosSiatResponse {
 }
 
 export async function searchCodigosSiat(q: string): Promise<CodigoSiatNode[]> {
-  if (q.length < 2) return [];
+  // Sin filtro en el frontend: con `contains: ""` el backend devuelve todos los códigos.
+  // El catálogo es chico (11 códigos), así que no hace falta paginar ni exigir mínimo de caracteres.
   const data = await gql<CodigosSiatResponse>(SEARCH_CODIGOS_SIAT, { contains: q });
   return data.codigosSiat.nodes;
 }

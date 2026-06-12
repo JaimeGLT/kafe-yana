@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
+import { Skeleton } from '../ui/Skeleton';
 import { searchCodigosSiat, type CodigoSiatNode } from '../../lib/queries/siat.queries';
 
 interface Props {
@@ -23,11 +24,6 @@ export const CodigoSinModal: React.FC<Props> = ({ isOpen, onClose, onSelect }) =
   }, [isOpen]);
 
   useEffect(() => {
-    if (search.length < 2) {
-      setResults([]);
-      setIsLoading(false);
-      return;
-    }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setIsLoading(true);
@@ -61,12 +57,31 @@ export const CodigoSinModal: React.FC<Props> = ({ isOpen, onClose, onSelect }) =
         />
 
         <div className="overflow-auto max-h-96 rounded-lg border border-coffee-200">
-          {search.length < 2 ? (
-            <p className="px-4 py-6 text-sm text-coffee-400 text-center">
-              Escriba al menos 2 caracteres para buscar
-            </p>
-          ) : isLoading ? (
-            <p className="px-4 py-6 text-sm text-coffee-400 text-center">Buscando...</p>
+          {isLoading ? (
+            <table className="w-full text-sm">
+              <thead className="bg-coffee-50 sticky top-0">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-coffee-600 uppercase tracking-wide w-32">
+                    Código
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-coffee-600 uppercase tracking-wide">
+                    Descripción Producto
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-coffee-600 uppercase tracking-wide">
+                    Descripción Actividad
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-coffee-100">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i} aria-hidden>
+                    <td className="px-4 py-2.5"><Skeleton className="h-4 w-24" /></td>
+                    <td className="px-4 py-2.5"><Skeleton className="h-4 w-56" /></td>
+                    <td className="px-4 py-2.5"><Skeleton className="h-4 w-40" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ) : results.length === 0 ? (
             <p className="px-4 py-6 text-sm text-coffee-400 text-center">Sin resultados</p>
           ) : (
