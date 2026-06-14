@@ -5,7 +5,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/auth/LoginPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
-// Contexts
+// Contexts 
 import { AuthProvider, UIProvider, SettingsProvider, NotificationsProvider } from './contexts';
 import { ToastProvider } from './components/ui';
 import { PageLoader } from './components/ui/PageLoader';
