@@ -11,6 +11,7 @@ import { api } from '../../lib/api';
 import { gql } from '../../lib/graphql';
 import { getConnection } from '../../lib/signalr';
 import { GET_POS_DATA } from '../../lib/queries/products.queries';
+import { GET_CLIENTE_BY_DNI, GET_CLIENTES_SEARCH } from '../../lib/queries/clientes.queries';
 import { GET_ELABORADO_INGREDIENTES } from '../../lib/queries/elaborados.queries';
 import { usePOSMesas } from '../../hooks/usePOSMesas';
 import { useVenta } from '../../hooks/useVenta';
@@ -487,6 +488,14 @@ export const POSPage: React.FC = () => {
   const [reviewShowNewCustomerForm, setReviewShowNewCustomerForm] = useState(false);
   const [reviewNewCustomerName, setReviewNewCustomerName] = useState('');
   const [reviewNewCustomerPhone, setReviewNewCustomerPhone] = useState('');
+  // Búsqueda en backend desde Datos de facturación (PagoPanel).
+  const [facturacionNombre, setFacturacionNombre] = useState('');
+  const [docSearchResults, setDocSearchResults] = useState<Customer[]>([]);
+  const [docSearchActive, setDocSearchActive] = useState(false);
+  const [docSearchLoading, setDocSearchLoading] = useState(false);
+  const [nombreSearchResults, setNombreSearchResults] = useState<Customer[]>([]);
+  const [nombreSearchActive, setNombreSearchActive] = useState(false);
+  const [nombreSearchLoading, setNombreSearchLoading] = useState(false);
   const [confirmDeleteMesaId, setConfirmDeleteMesaId] = useState<string | null>(null);
   const [mesaToDeleteName, setMesaToDeleteName] = useState('');
 
@@ -696,6 +705,8 @@ export const POSPage: React.FC = () => {
     }
   };
 
+  // Versión con callback para PagoPanel: crea el cliente, lo añade al catálogo
+  // local y avisa al panel con el id creado.
   const handleCreateCustomerReview = async (name: string, phone: string, onCreated: (id: string) => void) => {
     if (!name || !phone) return;
     setIsCreatingCustomer(true);
@@ -721,6 +732,88 @@ export const POSPage: React.FC = () => {
       setIsCreatingCustomer(false);
     }
   };
+
+  // ── Búsqueda de cliente desde Datos de facturación ───────────────────────
+  // Si el operador tipea un N° de documento o un nombre, consultamos al
+  // backend para sugerir el cliente. Al hacer "Usar", se asigna el id al
+  // apartado "Cliente" y se completan los campos de facturación.
+
+  const clearSearchResults = useCallback(() => {
+    setDocSearchResults([]);
+    setDocSearchActive(false);
+    setNombreSearchResults([]);
+    setNombreSearchActive(false);
+  }, []);
+
+  // Búsqueda por DNI con debounce. Solo dispara si el texto es numérico
+  // y tiene al menos 3 dígitos para evitar ruido.
+  useEffect(() => {
+    const trimmed = numeroDocumento.trim();
+    setNombreSearchActive(false);
+    setNombreSearchResults([]);
+    if (!trimmed) {
+      setDocSearchResults([]);
+      setDocSearchActive(false);
+      setDocSearchLoading(false);
+      return;
+    }
+    const asInt = parseInt(trimmed, 10);
+    if (!Number.isFinite(asInt) || asInt <= 0) {
+      setDocSearchResults([]);
+      setDocSearchActive(false);
+      return;
+    }
+    setDocSearchLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const data = await gql<{ clientes: { nodes: Customer[] } }>(GET_CLIENTE_BY_DNI, { dni: asInt });
+        setDocSearchResults(data.clientes?.nodes ?? []);
+        setDocSearchActive(true);
+      } catch {
+        setDocSearchResults([]);
+      } finally {
+        setDocSearchLoading(false);
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [numeroDocumento]);
+
+  // Búsqueda por nombre con debounce (mínimo 2 caracteres).
+  useEffect(() => {
+    const trimmed = facturacionNombre.trim();
+    setDocSearchActive(false);
+    setDocSearchResults([]);
+    if (trimmed.length < 2) {
+      setNombreSearchResults([]);
+      setNombreSearchActive(false);
+      setNombreSearchLoading(false);
+      return;
+    }
+    setNombreSearchLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const data = await gql<{ clientes: { nodes: Customer[] } }>(GET_CLIENTES_SEARCH, { q: trimmed });
+        setNombreSearchResults(data.clientes?.nodes ?? []);
+        setNombreSearchActive(true);
+      } catch {
+        setNombreSearchResults([]);
+      } finally {
+        setNombreSearchLoading(false);
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [facturacionNombre]);
+
+  const handleAssignCustomerFromSearch = useCallback((c: Customer) => {
+    setReviewClienteId(String(c.id));
+    if (c.dni != null) setNumeroDocumento(String(c.dni));
+    if (c.nombre) setFacturacionNombre(c.nombre);
+    setDocSearchResults([]);
+    setDocSearchActive(false);
+    setNombreSearchResults([]);
+    setNombreSearchActive(false);
+    toast.success('Cliente asignado', `${c.nombre} quedó vinculado al cobro.`);
+  }, []);
 
   const handleCreateCustomerCombobox = async (input: CustomerInput): Promise<Customer> => {
     const res = await api.post<{ message: string; Id: number }>('/Cliente', {
@@ -1857,6 +1950,16 @@ export const POSPage: React.FC = () => {
                 reviewNewCustomerPhone={reviewNewCustomerPhone}
                 onReviewNewCustomerNameChange={setReviewNewCustomerName}
                 onReviewNewCustomerPhoneChange={setReviewNewCustomerPhone}
+                docSearchResults={docSearchResults}
+                docSearchLoading={docSearchLoading}
+                docSearchActive={docSearchActive}
+                nombreSearchResults={nombreSearchResults}
+                nombreSearchLoading={nombreSearchLoading}
+                nombreSearchActive={nombreSearchActive}
+                onAssignCustomerFromSearch={handleAssignCustomerFromSearch}
+                onClearSearchResults={clearSearchResults}
+                facturacionNombre={facturacionNombre}
+                onFacturacionNombreChange={setFacturacionNombre}
                 qrImageUrl={qrImageUrl}
                 discountPreview={descuentoPreview}
                 aplicarDescuento={aplicarDescuento}

@@ -49,6 +49,15 @@ interface PagoPanelProps {
   reviewNewCustomerPhone: string;
   onReviewNewCustomerNameChange: (v: string) => void;
   onReviewNewCustomerPhoneChange: (v: string) => void;
+  // Búsqueda en backend desde Datos de facturación
+  docSearchResults: Customer[];
+  docSearchLoading: boolean;
+  docSearchActive: boolean;
+  nombreSearchResults: Customer[];
+  nombreSearchLoading: boolean;
+  nombreSearchActive: boolean;
+  onAssignCustomerFromSearch: (c: Customer) => void;
+  onClearSearchResults: () => void;
   qrImageUrl?: string | null;
   discountPreview?: DescuentoPreview | null;
   aplicarDescuento?: boolean;
@@ -58,9 +67,11 @@ interface PagoPanelProps {
   codigoTipoDocumento: number;
   numeroDocumento: string;
   complemento: string;
+  facturacionNombre: string;
   onCodigoTipoDocumentoChange: (v: number) => void;
   onNumeroDocumentoChange: (v: string) => void;
   onComplementoChange: (v: string) => void;
+  onFacturacionNombreChange: (v: string) => void;
   /** Si el cliente seleccionado es "Consumidor Final" o no hay cliente. */
   clienteEsConsumidorFinal?: boolean;
 }
@@ -89,6 +100,14 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
   reviewNewCustomerPhone,
   onReviewNewCustomerNameChange,
   onReviewNewCustomerPhoneChange,
+  docSearchResults,
+  docSearchLoading,
+  docSearchActive,
+  nombreSearchResults,
+  nombreSearchLoading,
+  nombreSearchActive,
+  onAssignCustomerFromSearch,
+  onClearSearchResults,
   qrImageUrl,
   discountPreview,
   aplicarDescuento = false,
@@ -97,9 +116,11 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
   codigoTipoDocumento,
   numeroDocumento,
   complemento,
+  facturacionNombre,
   onCodigoTipoDocumentoChange,
   onNumeroDocumentoChange,
   onComplementoChange,
+  onFacturacionNombreChange,
   clienteEsConsumidorFinal = false,
 }) => {
   const selectedCliente = reviewClienteId ? customers.find(c => String(c.id) === reviewClienteId) : null;
@@ -297,6 +318,14 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
                 className="w-28 px-3 py-2.5 rounded-xl border-2 border-coffee-200 text-sm text-coffee-900 placeholder:text-coffee-400 focus:border-coffee-400 focus:outline-none"
               />
             </div>
+            <input
+              type="text"
+              placeholder="Nombre o apellido del cliente"
+              value={facturacionNombre}
+              onChange={e => onFacturacionNombreChange(e.target.value)}
+              maxLength={120}
+              className="w-full px-3 py-2.5 rounded-xl border-2 border-coffee-200 text-sm text-coffee-900 placeholder:text-coffee-400 focus:border-coffee-400 focus:outline-none"
+            />
             {mostrarVerificacionNit && nitState.kind === 'loading' && (
               <div className="flex items-center gap-1.5 text-xs text-coffee-500">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Verificando NIT...
@@ -315,6 +344,49 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
             {mostrarVerificacionNit && nitState.kind === 'error' && (
               <div className="flex items-center gap-1.5 text-xs text-red-600">
                 <ShieldX className="h-3.5 w-3.5" /> {nitState.message}
+              </div>
+            )}
+            {/* Búsqueda en backend: muestra coincidencias del último campo tipeado
+                (N° de documento o Nombre o apellido) y permite asignar el cliente. */}
+            {(docSearchLoading || nombreSearchLoading) && (
+              <div className="flex items-center gap-1.5 text-xs text-coffee-500">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Buscando cliente...
+              </div>
+            )}
+            {!docSearchLoading && !nombreSearchLoading && docSearchActive && docSearchResults.length === 0 && (
+              <p className="text-[11px] text-coffee-500">Ningún cliente registrado con ese N° de documento.</p>
+            )}
+            {!docSearchLoading && !nombreSearchLoading && nombreSearchActive && nombreSearchResults.length === 0 && (
+              <p className="text-[11px] text-coffee-500">Sin coincidencias por nombre.</p>
+            )}
+            {(docSearchResults.length > 0 || nombreSearchResults.length > 0) && (
+              <div className="border border-emerald-200 bg-emerald-50 rounded-xl divide-y divide-emerald-100 overflow-hidden">
+                <p className="text-[10px] uppercase tracking-wider text-emerald-700 font-bold px-2.5 pt-2 pb-1">
+                  Cliente encontrado · click para asignar
+                </p>
+                {(docSearchResults.length > 0 ? docSearchResults : nombreSearchResults).map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => onAssignCustomerFromSearch(c)}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:bg-emerald-100 transition-colors"
+                  >
+                    <User className="h-3.5 w-3.5 text-emerald-600 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-coffee-900 truncate">{c.nombre}</p>
+                      <p className="text-[10px] text-coffee-500">
+                        {c.dni != null ? `C.I. ${c.dni}` : 'Sin C.I.'}
+                        {c.puntos != null ? ` · ${c.puntos} pts` : ''}
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-700">Usar</span>
+                  </button>
+                ))}
+                <button
+                  onClick={onClearSearchResults}
+                  className="w-full text-[10px] text-coffee-500 hover:text-coffee-700 py-1"
+                >
+                  Cerrar
+                </button>
               </div>
             )}
           </div>
