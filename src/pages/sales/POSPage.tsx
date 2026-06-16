@@ -40,6 +40,9 @@ import { TIPO_DOCUMENTO_DEFAULT } from '../../types/sales';
 import { VariacionPickerModal } from '../../components/modals/VariacionPickerModal';
 import { ElaboradoDetailModal } from '../../components/modals/ElaboradoDetailModal';
 import { ProdCard } from '../../components/modals/ProdCard';
+import { TIPO_DOC_NIT, DEFAULT_CF_NUMERO_DOC, DEFAULT_CF_COMPLEMENTO } from '../../constants/facturacion';
+import { findConsumidorFinal, esConsumidorFinal } from '../../utils/consumidorFinal';
+import { useFacturacion } from '../../hooks/useFacturacion';
 
 const ReviewPanel = lazy(() => import('../../components/pos/ReviewPanel').then(m => ({ default: m.ReviewPanel })));
 const PagoPanel = lazy(() => import('../../components/pos/PagoPanel').then(m => ({ default: m.PagoPanel })));
@@ -123,6 +126,14 @@ interface SaleResult {
   aplicoDescuento: boolean;
   montoDescuento: number;
   nombrePromoDescuento: string | null;
+  // SIAT
+  ventaId: number | null;
+  /** El backend serializa el enum como número (no usa JsonStringEnumConverter). */
+  estadoSiat: string | number | null;
+  siatAceptada: boolean;
+  errorSiat: string | null;
+  codigoRecepcion: string | null;
+  numeroFactura: number | null;
 }
 
 const STATUS_CFG: Record<MesaStatus, { label: string; dot: string; card: string; badge: string; icon: string; iconBg: string }> = {
@@ -184,6 +195,9 @@ export const POSPage: React.FC = () => {
     calculatePointsForAmount,
     awardPointsForSale,
   } = usePOSLoyalty();
+
+  // SIAT — imprimir / reenviar factura.
+  const { imprimirFactura, reenviarFactura } = useFacturacion();
 
   const {
     mesas,
@@ -383,7 +397,14 @@ export const POSPage: React.FC = () => {
       setAtributos(mappedAtributos);
       setComboDetails(newComboDetails);
       setComboRecipes(newComboRecipes);
-      setCustomers(data.clientes.nodes as Customer[]);
+      const loadedCustomers = data.clientes.nodes as Customer[];
+      setCustomers(loadedCustomers);
+      // Autoselect del cliente "Consumidor Final" (si existe en la BD).
+      setReviewClienteId(prev => {
+        if (prev) return prev;
+        const cf = findConsumidorFinal(loadedCustomers);
+        return cf ? String(cf.id) : null;
+      });
       setProductsLoaded(true);
       enviarCatalogo(data.comprados.nodes, data.elaborados.nodes, data.combos.nodes);
     } catch {
@@ -477,10 +498,10 @@ export const POSPage: React.FC = () => {
   const [descuentoPreview, setDescuentoPreview] = useState<DtoDescuentosPedidoRespuesta | null>(null);
   const [aplicarDescuento, setAplicarDescuento] = useState(false);
   const [isLoadingDescuento, setIsLoadingDescuento] = useState(false);
-  // Facturación SIAT
-  const [codigoTipoDocumento, setCodigoTipoDocumento] = useState<number>(TIPO_DOCUMENTO_DEFAULT);
-  const [numeroDocumento, setNumeroDocumento] = useState('');
-  const [complemento, setComplemento] = useState('');
+  // Facturación SIAT — defaults: Consumidor Final (NIT 0).
+  const [codigoTipoDocumento, setCodigoTipoDocumento] = useState<number>(TIPO_DOC_NIT);
+  const [numeroDocumento, setNumeroDocumento] = useState<string>(DEFAULT_CF_NUMERO_DOC);
+  const [complemento, setComplemento] = useState<string>(DEFAULT_CF_COMPLEMENTO);
   const [editingRonda, setEditingRonda] = useState<{ rondaId: number; rondaNumber: number; items: CartItem[] } | null>(null);
   const [confirmDeleteRondaId, setConfirmDeleteRondaId] = useState<{ rondaId: number; rondaNumber: number } | null>(null);
 
@@ -574,6 +595,12 @@ export const POSPage: React.FC = () => {
   const mesaSubtotal = activeMesa ? mesaOrderTotal(activeMesa.order) : 0;
   const loyaltyProfile = activeMesa?.customerId ? getOrCreateProfile(activeMesa.customerId) : null;
 
+  // CF = cliente seleccionado es "Consumidor Final" o no hay cliente.
+  const clienteEfectivoParaPago = reviewClienteId
+    ? customers.find((c) => String(c.id) === reviewClienteId) ?? null
+    : null;
+  const clienteEsConsumidorFinal = esConsumidorFinal(clienteEfectivoParaPago) || clienteEfectivoParaPago === null;
+
   const mesaTotal = mesaSubtotal;
   const cashNum = parseFloat(cashReceived) || 0;
   const change = Math.max(0, cashNum - mesaTotal);
@@ -630,9 +657,13 @@ export const POSPage: React.FC = () => {
     setShowNewCustomerForm(false);
     setNewCustomerName('');
     setNewCustomerPhone('');
-    setCodigoTipoDocumento(TIPO_DOCUMENTO_DEFAULT);
-    setNumeroDocumento('');
-    setComplemento('');
+    // Restaurar defaults de Consumidor Final.
+    setCodigoTipoDocumento(TIPO_DOC_NIT);
+    setNumeroDocumento(DEFAULT_CF_NUMERO_DOC);
+    setComplemento(DEFAULT_CF_COMPLEMENTO);
+    // Restaurar el cliente CF si existe (si no, null = "Sin cliente").
+    const cf = findConsumidorFinal(customers);
+    setReviewClienteId(cf ? String(cf.id) : null);
   };
 
   const handleCreateCustomer = async (onCreated: (id: string) => void) => {
@@ -873,10 +904,6 @@ export const POSPage: React.FC = () => {
 
   const handleConfirmSale = async () => {
     if (!activeMesa) return;
-    if (!activeMesa.customerId && !reviewClienteId) {
-      toast.warning('Cliente requerido', 'Selecciona un cliente antes de cobrar.');
-      return;
-    }
     setIsProcessing(true);
     try {
       const isMesa = activeMesa.tipo === 'mesa';
@@ -891,14 +918,22 @@ export const POSPage: React.FC = () => {
         if (paymentMethod === 'cash') pagos.efectivo = efectivoTotal;
         else if (paymentMethod === 'card') pagos.tarjeta = efectivoTotal;
         else if (paymentMethod === 'transfer') pagos.qr = efectivoTotal;
-        const idCliente = reviewClienteId ? parseInt(reviewClienteId, 10) : null;
-        const complementoFactura = complemento.trim() || null;
+
+        // Datos fiscales finales — si es CF (o "Sin cliente"), se fuerzan los defaults.
+        const clienteEfectivo = reviewClienteId
+          ? customers.find((c) => String(c.id) === reviewClienteId) ?? null
+          : null;
+        const esCF = esConsumidorFinal(clienteEfectivo) || clienteEfectivo === null;
+        const idCliente = esCF ? null : (reviewClienteId ? parseInt(reviewClienteId, 10) : null);
+        const codTipoDoc = esCF ? TIPO_DOC_NIT : codigoTipoDocumento;
+        const numDoc = esCF ? DEFAULT_CF_NUMERO_DOC : numeroDocumento.trim();
+        const compDoc = esCF ? DEFAULT_CF_COMPLEMENTO : (complemento.trim() || null);
 
         let res: RespuestaCobro | null = null;
         if (isParaLlevar) {
           res = await cobrarParaLlevar(
             pedidoId, idCliente, pagos, aplicarDescuento,
-            codigoTipoDocumento, numeroDocumento, complementoFactura,
+            codTipoDoc, numDoc, compDoc,
           );
         } else {
           res = await api.post<RespuestaCobro>(`/Mesa/cobrar/${activeMesa.id}`, {
@@ -906,9 +941,9 @@ export const POSPage: React.FC = () => {
             id_Cliente: idCliente,
             pagos,
             aplicarDescuentos: aplicarDescuento,
-            codigoTipoDocumento,
-            numeroDocumento,
-            complemento: complementoFactura,
+            codigoTipoDocumento: codTipoDoc,
+            numeroDocumento: numDoc,
+            complemento: compDoc,
           });
         }
 
@@ -931,6 +966,12 @@ export const POSPage: React.FC = () => {
             aplicoDescuento: res.AplicoDescuento ?? false,
             montoDescuento: res.MontoDescuento ?? 0,
             nombrePromoDescuento: res.PromocionDescuento?.NombrePromocion ?? null,
+            ventaId: res.VentaId ?? null,
+            estadoSiat: res.EstadoSiat ?? null,
+            siatAceptada: res.SiatAceptada ?? false,
+            errorSiat: res.ErrorSiat ?? null,
+            codigoRecepcion: res.CodigoRecepcion ?? null,
+            numeroFactura: res.NumeroFactura ?? null,
           });
           setModalView('success');
         }
@@ -957,7 +998,26 @@ export const POSPage: React.FC = () => {
           precio: i.precioFinal ?? i.product.price ?? 0,
           total: (i.precioFinal ?? i.product.price ?? 0) * i.quantity,
         }));
-        setLastSaleResult({ code: newSale.code, total: mesaTotal, items: snapshotItemsLocal, points: earnedPoints, newBalance, puntosPorVenta: 0, puntosPromocion: 0, nombrePromocion: null, aplicoDescuento: false, montoDescuento: 0, nombrePromoDescuento: null });
+        setLastSaleResult({
+          code: newSale.code,
+          total: mesaTotal,
+          items: snapshotItemsLocal,
+          points: earnedPoints,
+          newBalance,
+          puntosPorVenta: 0,
+          puntosPromocion: 0,
+          nombrePromocion: null,
+          aplicoDescuento: false,
+          montoDescuento: 0,
+          nombrePromoDescuento: null,
+          // SIAT: este flujo legacy (addSale) no pasa por SIAT.
+          ventaId: null,
+          estadoSiat: null,
+          siatAceptada: false,
+          errorSiat: null,
+          codigoRecepcion: null,
+          numeroFactura: null,
+        });
         setModalView('success');
       }
     } catch {
@@ -979,15 +1039,23 @@ export const POSPage: React.FC = () => {
     setIsProcessing(true);
     try {
       const pedidoId = (activeMesa as any).pedidoId;
-      const idCliente = reviewClienteId ? parseInt(reviewClienteId, 10) : null;
       const isParaLlevar = activeMesa.tipo === 'para_llevar';
-      const complementoFactura = complemento.trim() || null;
+
+      // Datos fiscales finales — si es CF (o "Sin cliente"), se fuerzan los defaults.
+      const clienteEfectivo = reviewClienteId
+        ? customers.find((c) => String(c.id) === reviewClienteId) ?? null
+        : null;
+      const esCF = esConsumidorFinal(clienteEfectivo) || clienteEfectivo === null;
+      const idCliente = esCF ? null : (reviewClienteId ? parseInt(reviewClienteId, 10) : null);
+      const codTipoDoc = esCF ? TIPO_DOC_NIT : codigoTipoDocumento;
+      const numDoc = esCF ? DEFAULT_CF_NUMERO_DOC : numeroDocumento.trim();
+      const compDoc = esCF ? DEFAULT_CF_COMPLEMENTO : (complemento.trim() || null);
 
       let res: RespuestaCobro | null = null;
       if (isParaLlevar && pedidoId) {
         res = await cobrarParaLlevar(
           pedidoId, idCliente, pagos, false,
-          codigoTipoDocumento, numeroDocumento, complementoFactura,
+          codTipoDoc, numDoc, compDoc,
         );
       } else if (pedidoId) {
         res = await api.post<RespuestaCobro>(`/Mesa/cobrar/${activeMesa.id}`, {
@@ -995,9 +1063,9 @@ export const POSPage: React.FC = () => {
           id_Cliente: idCliente,
           pagos,
           aplicarDescuentos: false,
-          codigoTipoDocumento,
-          numeroDocumento,
-          complemento: complementoFactura,
+          codigoTipoDocumento: codTipoDoc,
+          numeroDocumento: numDoc,
+          complemento: compDoc,
         });
       }
 
@@ -1019,6 +1087,12 @@ export const POSPage: React.FC = () => {
           aplicoDescuento: res.AplicoDescuento ?? false,
           montoDescuento: res.MontoDescuento ?? 0,
           nombrePromoDescuento: res.PromocionDescuento?.NombrePromocion ?? null,
+          ventaId: res.VentaId ?? null,
+          estadoSiat: res.EstadoSiat ?? null,
+          siatAceptada: res.SiatAceptada ?? false,
+          errorSiat: res.ErrorSiat ?? null,
+          codigoRecepcion: res.CodigoRecepcion ?? null,
+          numeroFactura: res.NumeroFactura ?? null,
         });
         setModalView('success');
       }
@@ -1794,6 +1868,7 @@ export const POSPage: React.FC = () => {
                 onCodigoTipoDocumentoChange={setCodigoTipoDocumento}
                 onNumeroDocumentoChange={setNumeroDocumento}
                 onComplementoChange={setComplemento}
+                clienteEsConsumidorFinal={clienteEsConsumidorFinal}
               />
             </Suspense>
           </Overlay>
@@ -1822,6 +1897,37 @@ export const POSPage: React.FC = () => {
                 aplicoDescuento={lastSaleResult.aplicoDescuento}
                 montoDescuento={lastSaleResult.montoDescuento}
                 nombrePromoDescuento={lastSaleResult.nombrePromoDescuento}
+                ventaId={lastSaleResult.ventaId}
+                estadoSiat={lastSaleResult.estadoSiat}
+                siatAceptada={lastSaleResult.siatAceptada}
+                errorSiat={lastSaleResult.errorSiat}
+                codigoRecepcion={lastSaleResult.codigoRecepcion}
+                numeroFactura={lastSaleResult.numeroFactura}
+                onPrintSiat={async (ventaId) => {
+                  const r = await imprimirFactura(ventaId);
+                  if (r) {
+                    // Reflejar el estado en el modal de éxito si cambió.
+                    if (r.ImpresionFactura?.Ok === false) {
+                      setLastSaleResult((prev) => prev ? {
+                        ...prev,
+                        siatAceptada: false,
+                        errorSiat: r.ImpresionFactura.ErrorMensaje ?? 'Falló la impresión.',
+                      } : prev);
+                    }
+                  }
+                }}
+                onResendSiat={async (ventaId) => {
+                  const r = await reenviarFactura(ventaId);
+                  if (r?.Siat) {
+                    setLastSaleResult((prev) => prev ? {
+                      ...prev,
+                      estadoSiat: r.Siat.EstadoSiat,
+                      siatAceptada: r.Siat.Transaccion === true,
+                      errorSiat: r.Siat.ErrorMensaje,
+                      codigoRecepcion: r.Siat.CodigoRecepcion ?? prev.codigoRecepcion,
+                    } : prev);
+                  }
+                }}
               />
             </Suspense>
           </Overlay>

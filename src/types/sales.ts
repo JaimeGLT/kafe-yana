@@ -114,6 +114,14 @@ export interface Sale extends BaseEntity {
   branchName?: string;
   pointsEarned?: number;    // puntos acreditados al cliente al completar
   pointsRedeemed?: number;  // puntos usados por el cliente en esta venta
+
+  // ── SIAT (Facturación) ─────────────────────────────────────────────
+  ventaId?: number;             // id numérico de la Venta en backend (para /Facturacion/*)
+  estadoSiat?: string | null;   // 'Validada' | 'Observada' | 'Pendiente' | 'Anulada'
+  codigoRecepcion?: string | null;
+  siatAceptada?: boolean;
+  errorSiat?: string | null;
+  numeroFactura?: number | null;
 }
 
 export interface SaleInput {

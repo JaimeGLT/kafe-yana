@@ -1,8 +1,10 @@
 import React from 'react';
 import { clsx } from 'clsx';
-import { AlertTriangle, X, Star, Plus, User, Search, Tag, RotateCcw, FileText } from 'lucide-react';
+import { AlertTriangle, X, Star, Plus, User, Search, Tag, RotateCcw, FileText, ShieldCheck, ShieldX, Loader2 } from 'lucide-react';
 import { TIPOS_DOCUMENTO } from '../../types/sales';
 import type { PaymentMethodType, Customer } from '../../types';
+import { useNitVerification } from '../../hooks/useNitVerification';
+import { TIPO_DOC_NIT } from '../../constants/facturacion';
 
 interface DescuentoPreview {
   HayDescuentoDisponible: boolean;
@@ -59,6 +61,8 @@ interface PagoPanelProps {
   onCodigoTipoDocumentoChange: (v: number) => void;
   onNumeroDocumentoChange: (v: string) => void;
   onComplementoChange: (v: string) => void;
+  /** Si el cliente seleccionado es "Consumidor Final" o no hay cliente. */
+  clienteEsConsumidorFinal?: boolean;
 }
 
 export const PagoPanel: React.FC<PagoPanelProps> = ({
@@ -96,8 +100,14 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
   onCodigoTipoDocumentoChange,
   onNumeroDocumentoChange,
   onComplementoChange,
+  clienteEsConsumidorFinal = false,
 }) => {
   const selectedCliente = reviewClienteId ? customers.find(c => String(c.id) === reviewClienteId) : null;
+
+  // Verificación de NIT (solo si el usuario tipea un NIT real, no CF).
+  const mostrarVerificacionNit =
+    codigoTipoDocumento === TIPO_DOC_NIT && !clienteEsConsumidorFinal && numeroDocumento.trim() !== '0';
+  const nitState = useNitVerification(mostrarVerificacionNit ? numeroDocumento : '');
   const efectivoTotal = aplicarDescuento && discountPreview?.DescuentoRecomendado
     ? discountPreview.DescuentoRecomendado.TotalConDescuento
     : mesaTotal;
@@ -287,6 +297,26 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
                 className="w-28 px-3 py-2.5 rounded-xl border-2 border-coffee-200 text-sm text-coffee-900 placeholder:text-coffee-400 focus:border-coffee-400 focus:outline-none"
               />
             </div>
+            {mostrarVerificacionNit && nitState.kind === 'loading' && (
+              <div className="flex items-center gap-1.5 text-xs text-coffee-500">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Verificando NIT...
+              </div>
+            )}
+            {mostrarVerificacionNit && nitState.kind === 'ok' && nitState.data.valido && (
+              <div className="flex items-center gap-1.5 text-xs text-emerald-700">
+                <ShieldCheck className="h-3.5 w-3.5" /> NIT válido en el SIN
+              </div>
+            )}
+            {mostrarVerificacionNit && nitState.kind === 'ok' && !nitState.data.valido && (
+              <div className="flex items-center gap-1.5 text-xs text-red-600">
+                <ShieldX className="h-3.5 w-3.5" /> NIT no encontrado en el SIN
+              </div>
+            )}
+            {mostrarVerificacionNit && nitState.kind === 'error' && (
+              <div className="flex items-center gap-1.5 text-xs text-red-600">
+                <ShieldX className="h-3.5 w-3.5" /> {nitState.message}
+              </div>
+            )}
           </div>
         </div>
 
@@ -371,17 +401,21 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
             disabled={
               isProcessing
               || (paymentMethod === 'cash' && cashNum > 0 && cashNum < efectivoTotal)
-              || !numeroDocumento.trim()
+              || (!clienteEsConsumidorFinal && !numeroDocumento.trim())
             }
             className={clsx(
               'flex-1 py-3.5 rounded-2xl font-bold text-sm transition-all',
               isProcessing
               || (paymentMethod === 'cash' && cashNum > 0 && cashNum < mesaTotal)
-              || !numeroDocumento.trim()
+              || (!clienteEsConsumidorFinal && !numeroDocumento.trim())
                 ? 'bg-coffee-100 text-coffee-400 cursor-not-allowed'
                 : 'bg-coffee-800 text-cream hover:bg-coffee-700 active:scale-95 shadow-lg',
             )}
-            title={!numeroDocumento.trim() ? 'Ingresa el número de documento' : undefined}
+            title={
+              !clienteEsConsumidorFinal && !numeroDocumento.trim()
+                ? 'Ingresa el número de documento'
+                : undefined
+            }
           >
             {isProcessing ? 'Procesando...' : 'Cobrar'}
           </button>

@@ -1,7 +1,8 @@
 import React from 'react';
-import { RotateCcw, Star, Gift } from 'lucide-react';
+import { RotateCcw, Star, Gift, FileText, RefreshCw, Ban } from 'lucide-react';
 import { Modal, Badge } from '../ui';
 import { formatCurrency, formatDateTime, getPaymentMethodLabel } from '../../utils';
+import { esEstadoAnuladaSiat } from '../../types/siat';
 import type { Sale } from '../../types';
 
 const STATUS_LABEL: Record<Sale['status'], string> = {
@@ -21,9 +22,20 @@ interface Props {
   onClose: () => void;
   isLoading?: boolean;
   error?: string | null;
+  onImprimirSiat?: (ventaId: number) => void | Promise<void>;
+  onReenviarSiat?: (ventaId: number) => void | Promise<void>;
+  onAnularSiat?: (ventaId: number) => void;
 }
 
-export const SaleDetailModal: React.FC<Props> = ({ sale, onClose, isLoading, error }) => {
+export const SaleDetailModal: React.FC<Props> = ({
+  sale,
+  onClose,
+  isLoading,
+  error,
+  onImprimirSiat,
+  onReenviarSiat,
+  onAnularSiat,
+}) => {
   if (!sale && !isLoading && !error) return null;
 
   if (isLoading) {
@@ -218,6 +230,78 @@ export const SaleDetailModal: React.FC<Props> = ({ sale, onClose, isLoading, err
           <div>
             <h4 className="text-sm font-semibold text-coffee-700 mb-1">Notas</h4>
             <p className="text-sm text-coffee-600">{sale.notes}</p>
+          </div>
+        )}
+
+        {/* SIAT — Facturación */}
+        {sale.ventaId && (
+          <div className="border-t border-coffee-100 pt-4 space-y-3">
+            <h4 className="text-sm font-semibold text-coffee-700 flex items-center gap-2">
+              <FileText className="h-4 w-4" /> Facturación SIAT
+            </h4>
+            <div className="flex items-center gap-2 text-sm flex-wrap">
+              <span className="text-coffee-500">Estado:</span>
+              {sale.estadoSiat ? (
+                <Badge
+                  variant={
+                    sale.siatAceptada
+                      ? 'success'
+                      : esEstadoAnuladaSiat(sale.estadoSiat)
+                      ? 'danger'
+                      : 'warning'
+                  }
+                >
+                  {sale.estadoSiat}
+                </Badge>
+              ) : (
+                <span className="text-coffee-400">—</span>
+              )}
+              {sale.numeroFactura != null && (
+                <span className="text-coffee-500 text-xs">N° factura: {sale.numeroFactura}</span>
+              )}
+              {sale.codigoRecepcion && (
+                <span className="font-mono text-[10px] text-coffee-400" title="Código de recepción SIAT">
+                  {sale.codigoRecepcion}
+                </span>
+              )}
+            </div>
+            {sale.errorSiat && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg p-2">
+                {sale.errorSiat}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {sale.siatAceptada && onImprimirSiat && (
+                <button
+                  onClick={() => onImprimirSiat(sale.ventaId!)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors"
+                >
+                  <FileText className="h-3.5 w-3.5" /> Imprimir factura SIAT
+                </button>
+              )}
+              {!sale.siatAceptada &&
+                sale.estadoSiat &&
+                !esEstadoAnuladaSiat(sale.estadoSiat) &&
+                onReenviarSiat && (
+                  <button
+                    onClick={() => onReenviarSiat(sale.ventaId!)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition-colors"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" /> Reenviar al SIAT
+                  </button>
+                )}
+              {sale.siatAceptada &&
+                !esEstadoAnuladaSiat(sale.estadoSiat) &&
+                onAnularSiat && (
+                  <button
+                    onClick={() => onAnularSiat(sale.ventaId!)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition-colors"
+                    title="Anular la factura en el SIAT"
+                  >
+                    <Ban className="h-3.5 w-3.5" /> Anular en SIAT
+                  </button>
+                )}
+            </div>
           </div>
         )}
 

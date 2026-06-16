@@ -7,13 +7,16 @@ import { Input, Select, SkeletonSalesTable } from '../../components/ui';
 import { SalesTable } from '../../components/tables/SalesTable';
 import { SaleDetailModal } from '../../components/modals/SaleDetailModal';
 import { RefundModal } from '../../components/modals/RefundModal';
+import { AnularFacturaModal } from '../../components/modals/AnularFacturaModal';
 import { SaleReceiptModal } from '../../components/modals/SaleReceiptModal';
 import { api } from '../../lib/api';
 import { toast } from '../../components/ui/Toast';
 import { formatCurrency } from '../../utils';
 import type { Sale } from '../../types';
+import { esEstadoValidadaSiat } from '../../types/siat';
 import { gql } from '../../lib/graphql';
 import { GET_VENTAS } from '../../lib/queries/ventas.queries';
+import { useFacturacion } from '../../hooks/useFacturacion';
 
 interface SaleStats {
   totalSalesToday: number;
@@ -111,6 +114,13 @@ const mapBackendVentaToSale = (v: BackendVenta): Sale => {
     refunds: [],
     createdAt: new Date(v.fechaEmision),
     updatedAt: new Date(v.fechaEmision),
+
+    // SIAT
+    ventaId: v.id,
+    estadoSiat: v.estadoSiat,
+    siatAceptada: esEstadoValidadaSiat(v.estadoSiat),
+    errorSiat: null,
+    numeroFactura: v.numeroFactura,
   };
 };
 
@@ -127,6 +137,10 @@ export const SalesListPage: React.FC = () => {
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [refundingSale, setRefundingSale] = useState<Sale | null>(null);
   const [printSale, setPrintSale] = useState<Sale | null>(null);
+  const [anularSale, setAnularSale] = useState<Sale | null>(null);
+
+  // SIAT
+  const { imprimirFactura, reenviarFactura, anularFactura } = useFacturacion();
 
   // ── Pagination ────────────────────────────────────────────────────────────────
   const [afterCursor, setAfterCursor] = useState<string | null>(null);
@@ -155,6 +169,15 @@ export const SalesListPage: React.FC = () => {
         setAfterCursor(data.ventas.pageInfo.endCursor ?? null);
         setHasNextPage(data.ventas.pageInfo.hasNextPage ?? false);
         setTotalCount(data.ventas.totalCount ?? 0);
+
+        // Si el modal de detalle está abierto, sincronizarlo con la versión
+        // recién cargada (importante tras anular en SIAT para que el badge
+        // y el botón "Anular en SIAT" reflejen el estado real sin recargar).
+        setSelectedSale(prev => {
+          if (!prev || prev.ventaId == null) return prev;
+          const updated = nodes.find(n => n.ventaId === prev.ventaId);
+          return updated ?? prev;
+        });
       })
       .finally(() => {
         setIsLoading(false);
@@ -247,6 +270,50 @@ export const SalesListPage: React.FC = () => {
 
   const handlePrintComanda = (sale: Sale) => setPrintSale(sale);
 
+  // ── SIAT: imprimir y reenviar factura ────────────────────────────────────────
+
+  const handleImprimirSiat = async (sale: Sale) => {
+    if (!sale.ventaId) {
+      toast.error('Sin identificador SIAT', 'Esta venta no tiene un id válido para reimprimir.');
+      return;
+    }
+    await imprimirFactura(sale.ventaId);
+  };
+
+  const handleReenviarSiat = async (saleId: number) => {
+    await reenviarFactura(saleId);
+    // Refrescar la lista para que cambie el estado SIAT del item.
+    loadVentas(null, false);
+  };
+
+  const handleImprimirSiatById = async (ventaId: number) => {
+    await imprimirFactura(ventaId);
+  };
+
+  const handleReenviarSiatById = async (ventaId: number) => {
+    await reenviarFactura(ventaId);
+    loadVentas(null, false);
+  };
+
+  // Abre el modal de anulación con la venta que coincida con el ventaId.
+  const handleAnularSiatById = (ventaId: number) => {
+    const target = sales.find((s) => s.ventaId === ventaId) ?? selectedSale;
+    if (target) setAnularSale(target);
+  };
+
+  // Confirma la anulación: llama al backend y refresca si la transacción fue exitosa.
+  // Nos basta con Transaccion=true (el backend ya garantiza que el estado final es Anulada
+  // o que la factura ya estaba anulada). Comparar el string 'Anulada' era frágil porque
+  // el backend serializa el enum FacturaEstado como número (no usa JsonStringEnumConverter).
+  const handleConfirmAnularSiat = async (ventaId: number, codigoMotivo: number) => {
+    const res = await anularFactura(ventaId, codigoMotivo);
+    if (res?.Siat?.Transaccion) {
+      loadVentas(null, false);
+      return true;
+    }
+    return false;
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -336,6 +403,7 @@ export const SalesListPage: React.FC = () => {
                 onView={(sale) => setSelectedSale(sale)}
                 onRefund={(sale) => setRefundingSale(sale)}
                 onPrint={handlePrintComanda}
+                onInvoice={handleImprimirSiat}
               />
               {hasNextPage && (
                 <div className="mt-4 flex justify-center">
@@ -363,6 +431,9 @@ export const SalesListPage: React.FC = () => {
         <SaleDetailModal
           sale={selectedSale}
           onClose={() => setSelectedSale(null)}
+          onImprimirSiat={handleImprimirSiatById}
+          onReenviarSiat={handleReenviarSiatById}
+          onAnularSiat={handleAnularSiatById}
         />
 
         <RefundModal
@@ -370,6 +441,13 @@ export const SalesListPage: React.FC = () => {
           onClose={() => setRefundingSale(null)}
           sale={refundingSale}
           onConfirm={handleSimpleRefund}
+        />
+
+        <AnularFacturaModal
+          isOpen={!!anularSale}
+          onClose={() => setAnularSale(null)}
+          sale={anularSale}
+          onConfirm={handleConfirmAnularSiat}
         />
 
         <SaleReceiptModal

@@ -59,6 +59,18 @@ export interface RespuestaCobro {
     TotalConDescuento: number;
     Mensaje: string;
   } | null;
+
+  // ── SIAT (devueltos por VentaRespuestaHelper.ConstruirRespuestaCobro) ──
+  VentaId: number;
+  NumeroFactura: number | null;
+  EstadoSiat: string | null;
+  CodigoRecepcion: string | null;
+  SiatAceptada: boolean;
+  ErrorSiat: string | null;
+  CodigoHash: string | null;
+  Siat: import('../types/siat').SiatResultado | null;
+  XmlGenerado: boolean;
+  ImpresionFactura: import('../types/siat').SiatImpresion | null;
 }
 
 interface UseVentaReturn {
