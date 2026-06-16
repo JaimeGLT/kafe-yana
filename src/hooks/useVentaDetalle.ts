@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { gql } from '../lib/graphql';
 import { GET_VENTA_DETALLE } from '../lib/queries/dashboard.queries';
+import { esEstadoValidadaSiat } from '../types/siat';
 import type { Sale } from '../types';
 
 interface DetalleVentaNode {
@@ -120,6 +121,13 @@ export function useVentaDetalle(saleId: string | null): {
         refunds: [],
         createdAt: parseDate(v.fechaEmision),
         updatedAt: parseDate(v.fechaEmision),
+
+        // SIAT
+        ventaId: v.id,
+        estadoSiat: v.estadoSiat,
+        siatAceptada: esEstadoValidadaSiat(v.estadoSiat),
+        errorSiat: null,
+        numeroFactura: v.numeroFactura,
       };
 
       setSale(saleData);

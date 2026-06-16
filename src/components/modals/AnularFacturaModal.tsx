@@ -1,0 +1,120 @@
+import React, { useState, useEffect } from 'react';
+import { Ban, AlertTriangle } from 'lucide-react';
+import { Modal, Button, Select } from '../ui';
+import { formatCurrency } from '../../utils';
+import { MOTIVOS_ANULACION } from '../../types/siat';
+import type { Sale } from '../../types';
+
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  sale: Sale | null;
+  /** Devuelve la respuesta del backend (o `null` si falló). El padre decide si refresca la lista. */
+  onConfirm: (ventaId: number, codigoMotivo: number) => Promise<boolean>;
+}
+
+export const AnularFacturaModal: React.FC<Props> = ({ isOpen, onClose, sale, onConfirm }) => {
+  const [codigoMotivo, setCodigoMotivo] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setCodigoMotivo('');
+      setError(null);
+    }
+  }, [isOpen]);
+
+  if (!sale) return null;
+
+  const motivoOptions = [
+    { value: '', label: 'Seleccionar motivo...', disabled: true },
+    ...MOTIVOS_ANULACION.map((m) => ({ value: String(m.codigo), label: `${m.codigo} — ${m.descripcion}` })),
+  ];
+
+  const handleConfirm = async () => {
+    const parsed = parseInt(codigoMotivo, 10);
+    if (!parsed || !MOTIVOS_ANULACION.some((m) => m.codigo === parsed)) {
+      setError('Selecciona un motivo de anulación válido.');
+      return;
+    }
+    if (!sale.ventaId) {
+      setError('La venta no tiene un id válido para anular.');
+      return;
+    }
+    setError(null);
+    setIsLoading(true);
+    try {
+      const ok = await onConfirm(sale.ventaId, parsed);
+      if (ok) onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo anular la factura.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Anular factura en SIAT" size="sm" bottomSheet>
+      <div className="space-y-4">
+        {/* Aviso de acción destructiva */}
+        <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg p-3">
+          <AlertTriangle className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-red-700 leading-relaxed">
+            Esta acción anulará la factura en el SIAT y no se puede deshacer. Verificá el motivo antes de continuar.
+          </p>
+        </div>
+
+        {/* Resumen de la venta */}
+        <div className="bg-coffee-50 rounded-lg px-4 py-3 text-sm text-coffee-700 space-y-1">
+          <div className="flex justify-between">
+            <span>Venta:</span>
+            <span className="font-mono font-semibold text-coffee-900">{sale.code}</span>
+          </div>
+          {sale.numeroFactura != null && (
+            <div className="flex justify-between">
+              <span>N° factura:</span>
+              <span className="font-semibold text-coffee-900">{sale.numeroFactura}</span>
+            </div>
+          )}
+          <div className="flex justify-between">
+            <span>Total:</span>
+            <span className="font-semibold text-coffee-900">{formatCurrency(sale.total)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Estado SIAT:</span>
+            <span className="font-semibold text-coffee-900">{sale.estadoSiat ?? '—'}</span>
+          </div>
+        </div>
+
+        {/* Selector de motivo */}
+        <div>
+          <label className="block text-sm font-medium text-coffee-700 mb-1">
+            Motivo de anulación
+          </label>
+          <Select
+            value={codigoMotivo}
+            onChange={setCodigoMotivo}
+            options={motivoOptions}
+          />
+        </div>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <div className="flex justify-end gap-3 pt-2">
+          <Button variant="ghost" onClick={onClose} disabled={isLoading}>
+            Cancelar
+          </Button>
+          <Button
+            variant="danger"
+            onClick={handleConfirm}
+            isLoading={isLoading}
+            leftIcon={<Ban className="h-4 w-4" />}
+          >
+            Anular factura
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+};

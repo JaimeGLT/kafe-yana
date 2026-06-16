@@ -59,6 +59,18 @@ export interface RespuestaCobro {
     TotalConDescuento: number;
     Mensaje: string;
   } | null;
+
+  // ── SIAT (devueltos por VentaRespuestaHelper.ConstruirRespuestaCobro) ──
+  VentaId: number;
+  NumeroFactura: number | null;
+  EstadoSiat: string | null;
+  CodigoRecepcion: string | null;
+  SiatAceptada: boolean;
+  ErrorSiat: string | null;
+  CodigoHash: string | null;
+  Siat: import('../types/siat').SiatResultado | null;
+  XmlGenerado: boolean;
+  ImpresionFactura: import('../types/siat').SiatImpresion | null;
 }
 
 interface UseVentaReturn {
@@ -69,7 +81,15 @@ interface UseVentaReturn {
   eliminarRondaParaLlevar: (rondaId: number, pedidoId: number) => Promise<boolean>;
   editarDetalleParaLlevar: (detalleId: number, pedidoId: number, data: Omit<DtoRondaDetalleEditar, 'id_Detalle'>) => Promise<boolean>;
   eliminarDetalleParaLlevar: (detalleId: number, pedidoId: number) => Promise<boolean>;
-  cobrarParaLlevar: (pedidoId: number, clienteId: number | null, pagos: { efectivo: number; tarjeta: number; qr: number; total: number }, aplicarDescuentos?: boolean, codigoTipoDocumento?: number, numeroDocumento?: string, complemento?: string | null) => Promise<RespuestaCobro | null>;
+  cobrarParaLlevar: (
+    pedidoId: number,
+    clienteId: number | null,
+    pagos: { efectivo: number; tarjeta: number; qr: number; total: number },
+    aplicarDescuentos?: boolean,
+    codigoTipoDocumento?: number,
+    numeroDocumento?: string,
+    complemento?: string | null,
+  ) => Promise<RespuestaCobro | null>;
   liberarPedido: () => Promise<boolean>;
 }
 

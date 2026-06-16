@@ -47,6 +47,30 @@ export const GET_CLIENTES_SEARCH = `
   }
 `;
 
+/**
+ * Búsqueda exacta de clientes por DNI. Útil para que el operador, al tipear el
+ * número de documento en el panel de cobro, autocomplete los datos del cliente
+ * si ya está registrado.
+ */
+export const GET_CLIENTE_BY_DNI = `
+  query GetClienteByDni($dni: Int!) {
+    clientes(
+      first: 5,
+      where: { dni: { eq: $dni } }
+    ) {
+      nodes {
+        id
+        nombre
+        dni
+        celular
+        correo
+        puntos
+        estado
+      }
+    }
+  }
+`;
+
 export const GET_CLIENTE_BY_ID = `
   query GetClienteById($id: Int!) {
     clientes(where: { id: { eq: $id } }) {

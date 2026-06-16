@@ -53,7 +53,8 @@
       "Bash(grep -r \"api\\\\\\\\.post\\\\|api\\\\\\\\.put\\\\|api\\\\\\\\.patch\\\\|api\\\\\\\\.delete\" \"C:\\\\Users\\\\jaime\\\\Desktop\\\\kafeyana-complete\\\\frontend\\\\src\" --include=\"*.ts\" --include=\"*.tsx\")",
       "Bash(Select-Object Name)",
       "Bash(grep -E \"\\\\.tsx$\")",
-      "Bash(Select-Object Name, FullName)"
+      "Bash(Select-Object Name, FullName)",
+      "Bash(git stash *)"
     ]
   }
 }

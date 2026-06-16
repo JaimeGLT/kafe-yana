@@ -1,6 +1,7 @@
 import React from 'react';
 import { clsx } from 'clsx';
 import type { Sale } from '../../types';
+import { esEstadoAnuladaSiat, esEstadoValidadaSiat } from '../../types/siat';
 import { StatusBadge, Badge } from '../ui';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -25,6 +26,16 @@ const PAYMENT_NAMES: Record<string, string> = {
   transfer: 'Transferencia',
   credit: 'Crédito',
   qr: 'QR',
+};
+
+/** Color de fondo de la fila/tarjeta según estado SIAT.
+ *  - Anulada  → rojo
+ *  - Validada → verde
+ *  - Sin SIAT / Observada / Pendiente → normal (gris coffee en hover) */
+const getSiatRowClass = (sale: Sale): string => {
+  if (esEstadoAnuladaSiat(sale.estadoSiat)) return 'bg-red-50 hover:bg-red-100';
+  if (esEstadoValidadaSiat(sale.estadoSiat)) return 'bg-green-50 hover:bg-green-100';
+  return 'hover:bg-coffee-50';
 };
 
 export const SalesTable: React.FC<SalesTableProps> = ({
@@ -55,7 +66,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
           <div className="py-12 text-center text-coffee-500 text-sm">No hay ventas registradas</div>
         ) : (
           sales.map((sale) => (
-            <div key={sale.id} className="px-4 py-4 space-y-3">
+            <div key={sale.id} className={clsx('px-4 py-4 space-y-3', getSiatRowClass(sale))}>
               {/* Fila 1: código + total */}
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-xs text-coffee-400">{sale.code}</span>
@@ -140,7 +151,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
               </tr>
             ) : (
               sales.map((sale) => (
-                <tr key={sale.id} className={clsx('hover:bg-coffee-50 transition-colors')}>
+                <tr key={sale.id} className={clsx('transition-colors', getSiatRowClass(sale))}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="font-mono text-sm text-coffee-600">{sale.code}</span>
                   </td>

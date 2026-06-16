@@ -9,7 +9,7 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { AuthProvider, UIProvider, SettingsProvider, NotificationsProvider } from './contexts';
 import { ToastProvider } from './components/ui';
 import { PageLoader } from './components/ui/PageLoader';
-
+ 
 // Pages — lazy loaded
 const DashboardPage        = lazy(() => import('./pages/DashboardPage'));
 const ProductsPage         = lazy(() => import('./pages/inventory/ProductsPage'));

@@ -1,5 +1,6 @@
 import React from 'react';
-import { CheckCircle, Star, Printer, Tag } from 'lucide-react';
+import { CheckCircle, Star, Printer, Tag, FileText, RefreshCw } from 'lucide-react';
+import { esEstadoAnuladaSiat } from '../../types/siat';
 
 interface SuccessPanelProps {
   saleCode: string;
@@ -15,6 +16,16 @@ interface SuccessPanelProps {
   aplicoDescuento?: boolean;
   montoDescuento?: number;
   nombrePromoDescuento?: string | null;
+  // SIAT
+  ventaId?: number | null;
+  /** Estado SIAT: el backend lo serializa como número (no usa JsonStringEnumConverter). */
+  estadoSiat?: string | number | null;
+  siatAceptada?: boolean;
+  errorSiat?: string | null;
+  codigoRecepcion?: string | null;
+  numeroFactura?: number | null;
+  onPrintSiat?: (ventaId: number) => void | Promise<void>;
+  onResendSiat?: (ventaId: number) => void | Promise<void>;
 }
 
 export const SuccessPanel: React.FC<SuccessPanelProps> = ({
@@ -31,8 +42,20 @@ export const SuccessPanel: React.FC<SuccessPanelProps> = ({
   aplicoDescuento = false,
   montoDescuento = 0,
   nombrePromoDescuento,
+  ventaId = null,
+  estadoSiat = null,
+  siatAceptada = false,
+  errorSiat = null,
+  codigoRecepcion = null,
+  numeroFactura = null,
+  onPrintSiat,
+  onResendSiat,
 }) => {
   const totalPuntosReales = puntosPorVenta + puntosPromocion;
+  // estadoSiat puede llegar como string ('Validada') o como número (908) — el helper maneja ambos.
+  const esAnulada = esEstadoAnuladaSiat(estadoSiat);
+  const puedeReimprimir = !!ventaId && siatAceptada === true && !!onPrintSiat;
+  const puedeReenviar = !!ventaId && siatAceptada === false && !esAnulada && !!onResendSiat;
   return (
   <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
     <div className="bg-emerald-500 px-6 pt-8 pb-6 flex flex-col items-center text-white text-center">
@@ -125,6 +148,63 @@ export const SuccessPanel: React.FC<SuccessPanelProps> = ({
           Listo
         </button>
       </div>
+
+      {/* SIAT — Facturación */}
+      {ventaId && (
+        <div className="space-y-2 pt-1 border-t border-coffee-100">
+          <div className="flex items-center justify-center gap-2 text-xs text-coffee-500 flex-wrap">
+            <span>SIAT:</span>
+            {estadoSiat ? (
+              <span
+                className={
+                  'inline-flex items-center font-medium rounded-full px-2 py-0.5 ' +
+                  (siatAceptada
+                    ? 'bg-green-100 text-green-700'
+                    : esAnulada
+                    ? 'bg-red-100 text-red-700'
+                    : 'bg-yellow-100 text-yellow-700')
+                }
+              >
+                {estadoSiat}
+              </span>
+            ) : (
+              <span className="text-coffee-400">—</span>
+            )}
+            {numeroFactura != null && (
+              <span className="text-coffee-400">N° {numeroFactura}</span>
+            )}
+            {codigoRecepcion && (
+              <span
+                className="font-mono text-[10px] text-coffee-400"
+                title="Código de recepción SIAT"
+              >
+                {codigoRecepcion}
+              </span>
+            )}
+          </div>
+          {errorSiat && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-center">
+              {errorSiat}
+            </p>
+          )}
+          {puedeReimprimir && (
+            <button
+              onClick={() => onPrintSiat!(ventaId)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 active:scale-95 transition-all"
+            >
+              <FileText className="h-4 w-4" /> Imprimir factura SIAT
+            </button>
+          )}
+          {puedeReenviar && (
+            <button
+              onClick={() => onResendSiat!(ventaId)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-amber-600 text-white font-semibold text-sm hover:bg-amber-700 active:scale-95 transition-all"
+            >
+              <RefreshCw className="h-4 w-4" /> Reenviar al SIAT
+            </button>
+          )}
+        </div>
+      )}
     </div>
   </div>
   );
