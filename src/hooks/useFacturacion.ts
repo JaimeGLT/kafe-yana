@@ -16,7 +16,12 @@ import type {
 export interface UseFacturacionReturn {
   imprimirFactura: (ventaId: number) => Promise<ImprimirFacturaRespuesta | null>;
   reenviarFactura: (ventaId: number) => Promise<ReenviarFacturaRespuesta | null>;
-  anularFactura: (ventaId: number, codigoMotivo: number) => Promise<AnularFacturaRespuesta | null>;
+  /**
+   * Anula una factura en el SIAT.
+   * `nota` es una nota/justificación libre opcional. El backend actual puede
+   * ignorarla (forward-compat), pero la UI ya la envía en el body.
+   */
+  anularFactura: (ventaId: number, codigoMotivo: number, nota?: string | null) => Promise<AnularFacturaRespuesta | null>;
   verificarNit: (nit: number) => Promise<VerificarNitRespuesta | null>;
 }
 
@@ -57,10 +62,11 @@ export function useFacturacion(): UseFacturacionReturn {
     }
   }, []);
 
-  const anularFactura = useCallback(async (ventaId: number, codigoMotivo: number) => {
+  const anularFactura = useCallback(async (ventaId: number, codigoMotivo: number, nota?: string | null) => {
     try {
       const res = await api.post<AnularFacturaRespuesta>(`/Facturacion/anular/${ventaId}`, {
         CodigoMotivo: codigoMotivo,
+        Nota: nota ?? null,
       });
       if (res.Siat?.Transaccion && esEstadoAnuladaSiat(res.Siat.EstadoSiat)) {
         toast.success('Factura anulada', res.message);
