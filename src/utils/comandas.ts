@@ -24,29 +24,6 @@ export async function enviarCatalogo(
   }
 }
 
-export async function enviarRecibo(
-  mesa: string,
-  codigo: string,
-  total: number,
-  metodoPago: string,
-  destinos: string[] = ['principal'],
-): Promise<void> {
-  try {
-    const res = await fetch(`${IMPRESORA}/recibo`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ Mesa: mesa, Codigo: codigo, Total: total, MetodoPago: metodoPago, Destinos: destinos }),
-    });
-    const resultado: Array<{ Ok: boolean; Destino: string }> = await res.json();
-    const fallas = resultado.filter(r => !r.Ok);
-    if (fallas.length > 0) {
-      alert(`⚠️ Error de impresión en: ${fallas.map(f => f.Destino).join(', ')}`);
-    }
-  } catch (err) {
-    console.warn('Servidor de impresión no disponible:', err);
-  }
-}
-
 export async function enviarCuenta(
   mesa: string,
   codigo: string,

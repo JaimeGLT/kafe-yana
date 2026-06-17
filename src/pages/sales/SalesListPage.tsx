@@ -134,6 +134,7 @@ export const SalesListPage: React.FC = () => {
   const [dateFrom, setDateFrom] = useState<string>(() => (location.state as any)?.dateFrom ?? '');
   const [dateTo, setDateTo] = useState<string>(() => (location.state as any)?.dateTo ?? '');
   const [statusFilter, setStatusFilter] = useState('');
+  const [estadoSiatFilter, setEstadoSiatFilter] = useState<'todos'|'validada'|'observada'|'pendiente'|'anulada'>('todos');
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [refundingSale, setRefundingSale] = useState<Sale | null>(null);
   const [printSale, setPrintSale] = useState<Sale | null>(null);
@@ -251,9 +252,16 @@ export const SalesListPage: React.FC = () => {
         if (dateTo   && saleDate > dateTo)   return false;
       }
       if (statusFilter && sale.status !== statusFilter) return false;
+      if (estadoSiatFilter !== 'todos') {
+        const e = String(sale.estadoSiat ?? '').toLowerCase();
+        if (estadoSiatFilter === 'validada'  && !(e === 'validada'  || e === 'finalizada'  || e === 'finalizado')) return false;
+        if (estadoSiatFilter === 'anulada'   && !(e === 'anulada'   || e === 'reembolsada' || e === 'reembolsado')) return false;
+        if (estadoSiatFilter === 'pendiente' && e !== 'pendiente') return false;
+        if (estadoSiatFilter === 'observada' && e !== 'observada') return false;
+      }
       return true;
     });
-  }, [sales, search, dateFrom, dateTo, statusFilter]);
+  }, [sales, search, dateFrom, dateTo, statusFilter, estadoSiatFilter]);
 
   const todaySales = useMemo(() => {
     const today = new Date();
@@ -268,6 +276,14 @@ export const SalesListPage: React.FC = () => {
     { value: 'partially_refunded', label: 'Parcialmente reembolsada' },
   ];
 
+  const estadoSiatOptions = [
+    { value: 'todos',     label: 'Todos los estados SIAT' },
+    { value: 'validada',  label: 'SIAT: Validada' },
+    { value: 'observada', label: 'SIAT: Observada' },
+    { value: 'pendiente', label: 'SIAT: Pendiente' },
+    { value: 'anulada',   label: 'SIAT: Anulada' },
+  ];
+
   const handlePrintComanda = (sale: Sale) => setPrintSale(sale);
 
   // ── SIAT: imprimir y reenviar factura ────────────────────────────────────────
@@ -278,12 +294,6 @@ export const SalesListPage: React.FC = () => {
       return;
     }
     await imprimirFactura(sale.ventaId);
-  };
-
-  const handleReenviarSiat = async (saleId: number) => {
-    await reenviarFactura(saleId);
-    // Refrescar la lista para que cambie el estado SIAT del item.
-    loadVentas(null, false);
   };
 
   const handleImprimirSiatById = async (ventaId: number) => {
@@ -305,8 +315,8 @@ export const SalesListPage: React.FC = () => {
   // Nos basta con Transaccion=true (el backend ya garantiza que el estado final es Anulada
   // o que la factura ya estaba anulada). Comparar el string 'Anulada' era frágil porque
   // el backend serializa el enum FacturaEstado como número (no usa JsonStringEnumConverter).
-  const handleConfirmAnularSiat = async (ventaId: number, codigoMotivo: number) => {
-    const res = await anularFactura(ventaId, codigoMotivo);
+  const handleConfirmAnularSiat = async (ventaId: number, codigoMotivo: number, nota?: string) => {
+    const res = await anularFactura(ventaId, codigoMotivo, nota);
     if (res?.Siat?.Transaccion) {
       loadVentas(null, false);
       return true;
@@ -366,7 +376,7 @@ export const SalesListPage: React.FC = () => {
 
         {/* Filtros */}
         <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <Input
               placeholder="Buscar por código o cliente..."
               value={search}
@@ -388,6 +398,11 @@ export const SalesListPage: React.FC = () => {
               value={statusFilter}
               onChange={setStatusFilter}
               options={statusOptions}
+            />
+            <Select
+              value={estadoSiatFilter}
+              onChange={(v) => setEstadoSiatFilter(v as typeof estadoSiatFilter)}
+              options={estadoSiatOptions}
             />
           </div>
         </div>

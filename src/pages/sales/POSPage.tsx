@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy } from 'react';
 import { clsx } from 'clsx';
 import {
   Plus, Minus, Trash2, Coffee, Printer,
@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { toast } from '../../components/ui/Toast';
-import { api } from '../../lib/api';
+import { api, ApiError } from '../../lib/api';
 import { gql } from '../../lib/graphql';
 import { getConnection } from '../../lib/signalr';
 import { GET_POS_DATA } from '../../lib/queries/products.queries';
@@ -18,6 +18,7 @@ import { useVenta } from '../../hooks/useVenta';
 import type { RespuestaCobro } from '../../hooks/useVenta';
 import { usePOSCart } from '../../hooks/usePOSCart';
 import { usePOSLoyalty } from '../../hooks/usePOSLoyalty';
+import { useDragScroll } from '../../hooks/useDragScroll';
 import { formatCurrency } from '../../utils';
 import { formatOpcionLabel } from '../../utils/opcionUtils';
 import { enviarCatalogo } from '../../utils/comandas';
@@ -35,9 +36,8 @@ import { ComboDetailPanel } from '../../components/pos/ComboDetailPanel';
 import { EditarRondaModal } from '../../components/pos/EditarRondaModal';
 import type { CartItem } from '../../hooks/usePOSCart';
 import type { DtoRondaDetalleEditar } from '../../hooks/useMesas';
-import type { Product, Category, Customer, CustomerInput, SaleInput, PaymentMethodType, VariacionAtributo } from '../../types';
+import type { Product, Category, Customer, CustomerInput, PaymentMethodType, VariacionAtributo } from '../../types';
 import type { MilestoneReward, PointsCalculation } from '../../types/loyalty';
-import { TIPO_DOCUMENTO_DEFAULT } from '../../types/sales';
 import { VariacionPickerModal } from '../../components/modals/VariacionPickerModal';
 import { ElaboradoDetailModal } from '../../components/modals/ElaboradoDetailModal';
 import { ProdCard } from '../../components/modals/ProdCard';
@@ -58,41 +58,6 @@ type DetalleView = 'none' | 'pedido' | 'historial';
 const mesaOrderTotal = (order: any[]) =>
   order.reduce((s, i) => s + i.precioFinal * i.quantity, 0);
 
-
-function useDragScroll<T extends HTMLElement>() {
-  const ref = useRef<T>(null);
-  const dragging = useRef(false);
-  const startX = useRef(0);
-  const scrollL = useRef(0);
-  const moved = useRef(false);
-
-  const onMouseDown = (e: React.MouseEvent) => {
-    if (!ref.current) return;
-    dragging.current = true;
-    moved.current = false;
-    startX.current = e.pageX - ref.current.offsetLeft;
-    scrollL.current = ref.current.scrollLeft;
-    ref.current.style.cursor = 'grabbing';
-    ref.current.style.userSelect = 'none';
-  };
-  const onMouseMove = (e: React.MouseEvent) => {
-    if (!dragging.current || !ref.current) return;
-    e.preventDefault();
-    const x = e.pageX - ref.current.offsetLeft;
-    const walk = (x - startX.current) * 1.5;
-    if (Math.abs(walk) > 4) moved.current = true;
-    ref.current.scrollLeft = scrollL.current - walk;
-  };
-  const onMouseUp = () => {
-    if (!ref.current) return;
-    dragging.current = false;
-    ref.current.style.cursor = 'grab';
-    ref.current.style.userSelect = '';
-  };
-  const onMouseLeave = onMouseUp;
-
-  return { ref, onMouseDown, onMouseMove, onMouseUp, onMouseLeave, wasDragged: () => moved.current };
-}
 
 type MesaStatus = 'libre' | 'ocupada' | 'esperando_pago';
 
@@ -135,6 +100,128 @@ interface SaleResult {
   errorSiat: string | null;
   codigoRecepcion: string | null;
   numeroFactura: number | null;
+}
+
+interface PagosObject {
+  efectivo: number;
+  tarjeta: number;
+  qr: number;
+  total: number;
+}
+
+/**
+ * Construye el body del POST a `/Mesa/cobrar/{id}` o `/Venta/cobrar`
+ * siguiendo el DTO `DtoVentaPedido` del backend.
+ *
+ * Cascada de prioridad (la primera condición que se cumple gana):
+ *  1) `noFacturar`            → factura:false, no se emite SIAT.
+ *  2) `esSinNombre`           → hardcode CF con valor fiscal (dni=99001 legacy).
+ *  3) Datos tipeados a mano   → cliente nominal sin id, se envían los campos.
+ *  4) CF puro (sin nada)      → defaults CF (5/NULL/0/NULL).
+ *  5) Cliente del dropdown    → el backend resuelve del id_Cliente.
+ */
+function construirBodyCobro(params: {
+  reviewClienteId: string | null;
+  customers: Customer[];
+  noFacturar: boolean;
+  esSinNombre: boolean;
+  codigoTipoDocumento: number;
+  numeroDocumento: string;
+  facturacionNombre: string;
+  complemento: string;
+  pedidoId: number;
+  pagos: PagosObject;
+  aplicarDescuento: boolean;
+}): Record<string, unknown> {
+  const clienteEfectivo = params.reviewClienteId
+    ? params.customers.find(c => String(c.id) === params.reviewClienteId) ?? null
+    : null;
+  const esCF = esConsumidorFinal(clienteEfectivo) || clienteEfectivo === null;
+
+  const docTrim = params.numeroDocumento.trim();
+  const nombreTrim = params.facturacionNombre.trim();
+  const compTrim = params.complemento.trim();
+  const tieneDatosTipeados =
+    (docTrim !== '' && docTrim !== DEFAULT_CF_NUMERO_DOC)
+    || nombreTrim !== ''
+    || compTrim !== '';
+
+  // 1) "No facturar" — no se emite factura SIAT, pero el backend igualmente
+  // requiere `id_Cliente` (se envía el del cliente seleccionado del dropdown
+  // o null si no hay ninguno / es CF virtual).
+  if (params.noFacturar) {
+    return {
+      id_Pedido: params.pedidoId,
+      id_Cliente: params.reviewClienteId ? parseInt(params.reviewClienteId, 10) : null,
+      pagos: params.pagos,
+      aplicarDescuentos: params.aplicarDescuento,
+      factura: false,
+      codigoTipoDocumento: null,
+      nombre: null,
+      dni: null,
+      complemento: null,
+    };
+  }
+
+  // 2) S/N — hardcode CF con valor fiscal (legacy: dni=99001).
+  if (params.esSinNombre) {
+    return {
+      id_Pedido: params.pedidoId,
+      id_Cliente: null,
+      pagos: params.pagos,
+      aplicarDescuentos: params.aplicarDescuento,
+      factura: true,
+      codigoTipoDocumento: TIPO_DOC_NIT,
+      nombre: 'CONSUMIDOR FINAL',
+      dni: 99001,
+      complemento: '',
+    };
+  }
+
+  // 3) Datos tipeados a mano — cliente nominal sin id, se envían al backend.
+  if (tieneDatosTipeados) {
+    const dniSanitizado = docTrim.replace(/\D/g, '');
+    const dniNum = dniSanitizado ? parseInt(dniSanitizado, 10) : null;
+    return {
+      id_Pedido: params.pedidoId,
+      id_Cliente: null,
+      pagos: params.pagos,
+      aplicarDescuentos: params.aplicarDescuento,
+      factura: true,
+      codigoTipoDocumento: params.codigoTipoDocumento,
+      nombre: nombreTrim || null,
+      dni: dniNum !== null && Number.isFinite(dniNum) && dniNum > 0 ? dniNum : null,
+      complemento: compTrim || null,
+    };
+  }
+
+  // 4) CF puro sin datos tipeados — defaults CF.
+  if (esCF) {
+    return {
+      id_Pedido: params.pedidoId,
+      id_Cliente: null,
+      pagos: params.pagos,
+      aplicarDescuentos: params.aplicarDescuento,
+      factura: true,
+      codigoTipoDocumento: TIPO_DOC_NIT,
+      nombre: null,
+      dni: 0,
+      complemento: null,
+    };
+  }
+
+  // 5) Cliente real seleccionado del dropdown — el backend resuelve del id.
+  return {
+    id_Pedido: params.pedidoId,
+    id_Cliente: parseInt(params.reviewClienteId!, 10),
+    pagos: params.pagos,
+    aplicarDescuentos: params.aplicarDescuento,
+    factura: true,
+    codigoTipoDocumento: null,
+    nombre: null,
+    dni: null,
+    complemento: null,
+  };
 }
 
 const STATUS_CFG: Record<MesaStatus, { label: string; dot: string; card: string; badge: string; icon: string; iconBg: string }> = {
@@ -194,7 +281,6 @@ export const POSPage: React.FC = () => {
     setLoyaltyProfiles: _setLoyaltyProfiles,
     getOrCreateProfile,
     calculatePointsForAmount,
-    awardPointsForSale,
   } = usePOSLoyalty();
 
   // SIAT — imprimir / reenviar factura.
@@ -472,8 +558,6 @@ export const POSPage: React.FC = () => {
     return atributos.filter((a: VariacionAtributo) => a.productId === productId);
   }, [atributos]);
 
-  const addSale = useCallback((saleInput: SaleInput) => api.post<any>('/ventas', saleInput), []);
-
   const [modalView, setModalView] = useState<ModalView>('none');
   const [detalleView, setDetalleView] = useState<DetalleView>('none');
   const [selectedCatId, setSelectedCatId] = useState<string>('');
@@ -511,6 +595,14 @@ export const POSPage: React.FC = () => {
   const [codigoTipoDocumento, setCodigoTipoDocumento] = useState<number>(TIPO_DOC_NIT);
   const [numeroDocumento, setNumeroDocumento] = useState<string>(DEFAULT_CF_NUMERO_DOC);
   const [complemento, setComplemento] = useState<string>(DEFAULT_CF_COMPLEMENTO);
+  // S/N ("Sin Nombre"): toggle de UI. No es un código nuevo del SIN, sino una
+  // forma de indicarle al cajero que la factura se emite sin documento de
+  // identidad; internamente se envía NIT=5 con numeroDocumento='0' y se exige
+  // un `facturacionNombre` (por defecto "S/N").
+  const [esSinNombre, setEsSinNombre] = useState<boolean>(false);
+  // "No facturar" — toggle excluyente con S/N. Si está activo, la venta se
+  // registra internamente sin emitir factura al SIAT (factura=false en el body).
+  const [noFacturar, setNoFacturar] = useState<boolean>(false);
   const [editingRonda, setEditingRonda] = useState<{ rondaId: number; rondaNumber: number; items: CartItem[] } | null>(null);
   const [confirmDeleteRondaId, setConfirmDeleteRondaId] = useState<{ rondaId: number; rondaNumber: number } | null>(null);
 
@@ -610,6 +702,34 @@ export const POSPage: React.FC = () => {
     : null;
   const clienteEsConsumidorFinal = esConsumidorFinal(clienteEfectivoParaPago) || clienteEfectivoParaPago === null;
 
+  // ── Handlers de facturación con exclusión mutua entre toggles ────────
+  // S/N y "No facturar" son excluyentes: activar uno desactiva el otro.
+  // Tipear cualquier dato manual también desactiva "No facturar".
+  const handleEsSinNombreChange = useCallback((v: boolean) => {
+    setEsSinNombre(v);
+    if (v) setNoFacturar(false);
+  }, []);
+
+  const handleNoFacturarChange = useCallback((v: boolean) => {
+    setNoFacturar(v);
+    if (v) setEsSinNombre(false);
+  }, []);
+
+  const handleNumeroDocumentoChange = useCallback((v: string) => {
+    setNumeroDocumento(v);
+    if (noFacturar && v.trim() !== '') setNoFacturar(false);
+  }, [noFacturar]);
+
+  const handleComplementoChange = useCallback((v: string) => {
+    setComplemento(v);
+    if (noFacturar && v.trim() !== '') setNoFacturar(false);
+  }, [noFacturar]);
+
+  const handleFacturacionNombreChange = useCallback((v: string) => {
+    setFacturacionNombre(v);
+    if (noFacturar && v.trim() !== '') setNoFacturar(false);
+  }, [noFacturar]);
+
   const mesaTotal = mesaSubtotal;
   const cashNum = parseFloat(cashReceived) || 0;
   const change = Math.max(0, cashNum - mesaTotal);
@@ -670,6 +790,8 @@ export const POSPage: React.FC = () => {
     setCodigoTipoDocumento(TIPO_DOC_NIT);
     setNumeroDocumento(DEFAULT_CF_NUMERO_DOC);
     setComplemento(DEFAULT_CF_COMPLEMENTO);
+    setEsSinNombre(false);
+    setNoFacturar(false);
     // Restaurar el cliente CF si existe (si no, null = "Sin cliente").
     const cf = findConsumidorFinal(customers);
     setReviewClienteId(cf ? String(cf.id) : null);
@@ -1012,32 +1134,26 @@ export const POSPage: React.FC = () => {
         else if (paymentMethod === 'card') pagos.tarjeta = efectivoTotal;
         else if (paymentMethod === 'transfer') pagos.qr = efectivoTotal;
 
-        // Datos fiscales finales — si es CF (o "Sin cliente"), se fuerzan los defaults.
-        const clienteEfectivo = reviewClienteId
-          ? customers.find((c) => String(c.id) === reviewClienteId) ?? null
-          : null;
-        const esCF = esConsumidorFinal(clienteEfectivo) || clienteEfectivo === null;
-        const idCliente = esCF ? null : (reviewClienteId ? parseInt(reviewClienteId, 10) : null);
-        const codTipoDoc = esCF ? TIPO_DOC_NIT : codigoTipoDocumento;
-        const numDoc = esCF ? DEFAULT_CF_NUMERO_DOC : numeroDocumento.trim();
-        const compDoc = esCF ? DEFAULT_CF_COMPLEMENTO : (complemento.trim() || null);
+        // Body del cobro — ver `construirBodyCobro` para la cascada completa.
+        const bodyCobro = construirBodyCobro({
+          reviewClienteId,
+          customers,
+          noFacturar,
+          esSinNombre,
+          codigoTipoDocumento,
+          numeroDocumento,
+          facturacionNombre,
+          complemento,
+          pedidoId,
+          pagos,
+          aplicarDescuento,
+        });
 
         let res: RespuestaCobro | null = null;
         if (isParaLlevar) {
-          res = await cobrarParaLlevar(
-            pedidoId, idCliente, pagos, aplicarDescuento,
-            codTipoDoc, numDoc, compDoc,
-          );
+          res = await cobrarParaLlevar(pedidoId, bodyCobro);
         } else {
-          res = await api.post<RespuestaCobro>(`/Mesa/cobrar/${activeMesa.id}`, {
-            id_Pedido: pedidoId,
-            id_Cliente: idCliente,
-            pagos,
-            aplicarDescuentos: aplicarDescuento,
-            codigoTipoDocumento: codTipoDoc,
-            numeroDocumento: numDoc,
-            complemento: compDoc,
-          });
+          res = await api.post<RespuestaCobro>(`/Mesa/cobrar/${activeMesa.id}`, bodyCobro);
         }
 
         if (res !== null) {
@@ -1069,63 +1185,17 @@ export const POSPage: React.FC = () => {
           setModalView('success');
         }
       } else {
-        const saleInput: SaleInput = {
-          customerId: activeMesa.customerId,
-          items: activeMesa.order.map((i: any) => ({ productId: i.product.id, quantity: i.quantity, discount: 0 })),
-          discount: 0,
-          taxPercentage: 18,
-          paymentMethods: [{ type: paymentMethod, amount: mesaTotal }],
-        };
-        const newSale = await addSale(saleInput);
-
-        let earnedPoints: PointsCalculation | null = null;
-        let newBalance = 0;
-        if (activeMesa.customerId && newSale) {
-          earnedPoints = awardPointsForSale(activeMesa.customerId, newSale.id, mesaTotal, hasCombo);
-          const profile = getOrCreateProfile(activeMesa.customerId);
-          newBalance = profile?.points ?? 0;
-        }
-        const snapshotItemsLocal = activeMesa.order.map((i: any) => ({
-          cantidad: i.quantity,
-          nombre: i.product.name,
-          precio: i.precioFinal ?? i.product.price ?? 0,
-          total: (i.precioFinal ?? i.product.price ?? 0) * i.quantity,
-        }));
-        setLastSaleResult({
-          code: newSale.code,
-          total: mesaTotal,
-          items: snapshotItemsLocal,
-          points: earnedPoints,
-          newBalance,
-          puntosPorVenta: 0,
-          puntosPromocion: 0,
-          nombrePromocion: null,
-          aplicoDescuento: false,
-          montoDescuento: 0,
-          nombrePromoDescuento: null,
-          // SIAT: este flujo legacy (addSale) no pasa por SIAT.
-          ventaId: null,
-          estadoSiat: null,
-          siatAceptada: false,
-          errorSiat: null,
-          codigoRecepcion: null,
-          numeroFactura: null,
-        });
-        setModalView('success');
+        // Rama inalcanzable en producción: si la mesa/PL no tiene pedidoId,
+        // es un estado inválido. Informamos al cajero en vez de continuar.
+        toast.warning('Sin pedido', 'La mesa no tiene un pedido activo para cobrar.');
       }
-    } catch {
-      toast.error('Error', 'No se pudo registrar la venta.');
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'No se pudo registrar la venta.';
+      toast.error('Error al cobrar', msg);
     } finally {
       setIsProcessing(false);
     }
   };
-
-  interface PagosObject {
-    efectivo: number;
-    tarjeta: number;
-    qr: number;
-    total: number;
-  }
 
   const handleConfirmSaleDividida = async (pagos: PagosObject) => {
     if (!activeMesa) return;
@@ -1134,32 +1204,27 @@ export const POSPage: React.FC = () => {
       const pedidoId = (activeMesa as any).pedidoId;
       const isParaLlevar = activeMesa.tipo === 'para_llevar';
 
-      // Datos fiscales finales — si es CF (o "Sin cliente"), se fuerzan los defaults.
-      const clienteEfectivo = reviewClienteId
-        ? customers.find((c) => String(c.id) === reviewClienteId) ?? null
-        : null;
-      const esCF = esConsumidorFinal(clienteEfectivo) || clienteEfectivo === null;
-      const idCliente = esCF ? null : (reviewClienteId ? parseInt(reviewClienteId, 10) : null);
-      const codTipoDoc = esCF ? TIPO_DOC_NIT : codigoTipoDocumento;
-      const numDoc = esCF ? DEFAULT_CF_NUMERO_DOC : numeroDocumento.trim();
-      const compDoc = esCF ? DEFAULT_CF_COMPLEMENTO : (complemento.trim() || null);
+      // Body del cobro (división de cuenta) — ver `construirBodyCobro`.
+      // En división nunca se aplican descuentos, por lo que se pasa false.
+      const bodyCobro = construirBodyCobro({
+        reviewClienteId,
+        customers,
+        noFacturar,
+        esSinNombre,
+        codigoTipoDocumento,
+        numeroDocumento,
+        facturacionNombre,
+        complemento,
+        pedidoId: pedidoId ?? 0,
+        pagos,
+        aplicarDescuento: false,
+      });
 
       let res: RespuestaCobro | null = null;
       if (isParaLlevar && pedidoId) {
-        res = await cobrarParaLlevar(
-          pedidoId, idCliente, pagos, false,
-          codTipoDoc, numDoc, compDoc,
-        );
+        res = await cobrarParaLlevar(pedidoId, bodyCobro);
       } else if (pedidoId) {
-        res = await api.post<RespuestaCobro>(`/Mesa/cobrar/${activeMesa.id}`, {
-          id_Pedido: pedidoId,
-          id_Cliente: idCliente,
-          pagos,
-          aplicarDescuentos: false,
-          codigoTipoDocumento: codTipoDoc,
-          numeroDocumento: numDoc,
-          complemento: compDoc,
-        });
+        res = await api.post<RespuestaCobro>(`/Mesa/cobrar/${activeMesa.id}`, bodyCobro);
       }
 
       if (res !== null) {
@@ -1189,8 +1254,9 @@ export const POSPage: React.FC = () => {
         });
         setModalView('success');
       }
-    } catch {
-      toast.error('Error', 'No se pudo registrar la venta.');
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'No se pudo registrar la venta.';
+      toast.error('Error al cobrar', msg);
     } finally {
       setIsProcessing(false);
     }
@@ -1959,7 +2025,7 @@ export const POSPage: React.FC = () => {
                 onAssignCustomerFromSearch={handleAssignCustomerFromSearch}
                 onClearSearchResults={clearSearchResults}
                 facturacionNombre={facturacionNombre}
-                onFacturacionNombreChange={setFacturacionNombre}
+                onFacturacionNombreChange={handleFacturacionNombreChange}
                 qrImageUrl={qrImageUrl}
                 discountPreview={descuentoPreview}
                 aplicarDescuento={aplicarDescuento}
@@ -1969,9 +2035,13 @@ export const POSPage: React.FC = () => {
                 numeroDocumento={numeroDocumento}
                 complemento={complemento}
                 onCodigoTipoDocumentoChange={setCodigoTipoDocumento}
-                onNumeroDocumentoChange={setNumeroDocumento}
-                onComplementoChange={setComplemento}
+                onNumeroDocumentoChange={handleNumeroDocumentoChange}
+                onComplementoChange={handleComplementoChange}
                 clienteEsConsumidorFinal={clienteEsConsumidorFinal}
+                esSinNombre={esSinNombre}
+                onEsSinNombreChange={handleEsSinNombreChange}
+                noFacturar={noFacturar}
+                onNoFacturarChange={handleNoFacturarChange}
               />
             </Suspense>
           </Overlay>

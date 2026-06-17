@@ -83,12 +83,7 @@ interface UseVentaReturn {
   eliminarDetalleParaLlevar: (detalleId: number, pedidoId: number) => Promise<boolean>;
   cobrarParaLlevar: (
     pedidoId: number,
-    clienteId: number | null,
-    pagos: { efectivo: number; tarjeta: number; qr: number; total: number },
-    aplicarDescuentos?: boolean,
-    codigoTipoDocumento?: number,
-    numeroDocumento?: string,
-    complemento?: string | null,
+    body: Record<string, unknown>,
   ) => Promise<RespuestaCobro | null>;
   liberarPedido: () => Promise<boolean>;
 }
@@ -194,23 +189,10 @@ export function useVenta(): UseVentaReturn {
 
   const cobrarParaLlevar = useCallback(async (
     pedidoId: number,
-    clienteId: number | null,
-    pagos: { efectivo: number; tarjeta: number; qr: number; total: number },
-    aplicarDescuentos?: boolean,
-    codigoTipoDocumento: number = 1,
-    numeroDocumento: string = '',
-    complemento: string | null = null,
+    body: Record<string, unknown>,
   ): Promise<RespuestaCobro | null> => {
     try {
-      const res = await api.post<RespuestaCobro>('/Venta/cobrar', {
-        id_Pedido: pedidoId,
-        id_Cliente: clienteId,
-        pagos,
-        aplicarDescuentos: aplicarDescuentos ?? false,
-        codigoTipoDocumento,
-        numeroDocumento,
-        complemento,
-      });
+      const res = await api.post<RespuestaCobro>('/Venta/cobrar', { id_Pedido: pedidoId, ...body });
       return res;
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'No se pudo cobrar el pedido.';

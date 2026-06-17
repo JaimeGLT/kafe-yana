@@ -10,17 +10,19 @@ interface Props {
   onClose: () => void;
   sale: Sale | null;
   /** Devuelve la respuesta del backend (o `null` si falló). El padre decide si refresca la lista. */
-  onConfirm: (ventaId: number, codigoMotivo: number) => Promise<boolean>;
+  onConfirm: (ventaId: number, codigoMotivo: number, nota?: string) => Promise<boolean>;
 }
 
 export const AnularFacturaModal: React.FC<Props> = ({ isOpen, onClose, sale, onConfirm }) => {
   const [codigoMotivo, setCodigoMotivo] = useState<string>('');
+  const [nota, setNota] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setCodigoMotivo('');
+      setNota('');
       setError(null);
     }
   }, [isOpen]);
@@ -45,7 +47,7 @@ export const AnularFacturaModal: React.FC<Props> = ({ isOpen, onClose, sale, onC
     setError(null);
     setIsLoading(true);
     try {
-      const ok = await onConfirm(sale.ventaId, parsed);
+      const ok = await onConfirm(sale.ventaId, parsed, nota.trim() || undefined);
       if (ok) onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo anular la factura.');
@@ -96,6 +98,21 @@ export const AnularFacturaModal: React.FC<Props> = ({ isOpen, onClose, sale, onC
             value={codigoMotivo}
             onChange={setCodigoMotivo}
             options={motivoOptions}
+          />
+        </div>
+
+        {/* Nota o justificación libre (opcional) */}
+        <div>
+          <label className="block text-sm font-medium text-coffee-700 mb-1">
+            Nota o justificación <span className="text-coffee-400 text-xs font-normal">(opcional)</span>
+          </label>
+          <textarea
+            value={nota}
+            onChange={(e) => setNota(e.target.value)}
+            rows={3}
+            maxLength={500}
+            placeholder="Detalle o justificación adicional para la anulación..."
+            className="w-full px-3 py-2 rounded-lg border border-coffee-200 text-sm text-coffee-900 placeholder:text-coffee-400 focus:border-coffee-400 focus:outline-none resize-none"
           />
         </div>
 

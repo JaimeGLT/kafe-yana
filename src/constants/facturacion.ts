@@ -8,12 +8,20 @@
  */
 export const CONSUMIDOR_FINAL_NAME = 'Consumidor Final';
 
-/** Código SIN para NIT. */
+/** Código SIAT para NIT (también usado para "Consumidor Final" con numeroDocumento='0'). */
 export const TIPO_DOC_NIT = 5;
 
-/** Valores por defecto cuando se trata de Consumidor Final. */
+/** Valores por defecto cuando se trata de Consumidor Final (o S/N). */
 export const DEFAULT_CF_NUMERO_DOC = '0';
 export const DEFAULT_CF_COMPLEMENTO = '';
+
+/**
+ * Texto por defecto del `nombreRazonSocial` cuando se emite factura a "Sin Nombre" (S/N).
+ * Según la normativa del SIAT, S/N se modela con `codigoTipoDocumento=5` (NIT) +
+ * `numeroDocumento='0'` + un `nombreRazonSocial` (que puede ser literalmente "S/N",
+ * "Sin Nombre" o el nombre genérico que el comprador quiera dejar).
+ */
+export const DEFAULT_SIN_NOMBRE = 'S/N';
 
 /** Debounce de la verificación de NIT en ms. */
 export const NIT_VERIFY_DEBOUNCE_MS = 500;

@@ -4,7 +4,7 @@ import { AlertTriangle, X, Star, Plus, User, Search, Tag, RotateCcw, FileText, S
 import { TIPOS_DOCUMENTO } from '../../types/sales';
 import type { PaymentMethodType, Customer } from '../../types';
 import { useNitVerification } from '../../hooks/useNitVerification';
-import { TIPO_DOC_NIT } from '../../constants/facturacion';
+import { TIPO_DOC_NIT, NIT_MAX_LENGTH } from '../../constants/facturacion';
 
 interface DescuentoPreview {
   HayDescuentoDisponible: boolean;
@@ -74,6 +74,19 @@ interface PagoPanelProps {
   onFacturacionNombreChange: (v: string) => void;
   /** Si el cliente seleccionado es "Consumidor Final" o no hay cliente. */
   clienteEsConsumidorFinal?: boolean;
+  /**
+   * S/N — "Sin Nombre": factura con valor fiscal pero sin documento de identidad.
+   * Internamente el frontend sigue enviando `codigoTipoDocumento=5 (NIT)` con
+   * `numeroDocumento='0'` y `facturacionNombre` obligatorio (lo que el SIN acepta).
+   */
+  esSinNombre: boolean;
+  onEsSinNombreChange: (v: boolean) => void;
+  /**
+   * "No facturar" — toggle excluyente con S/N. Si está activo, la venta se
+   * registra internamente sin emitir factura al SIAT (factura=false en el body).
+   */
+  noFacturar: boolean;
+  onNoFacturarChange: (v: boolean) => void;
 }
 
 export const PagoPanel: React.FC<PagoPanelProps> = ({
@@ -122,10 +135,14 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
   onComplementoChange,
   onFacturacionNombreChange,
   clienteEsConsumidorFinal = false,
+  esSinNombre,
+  onEsSinNombreChange,
+  noFacturar,
+  onNoFacturarChange,
 }) => {
   const selectedCliente = reviewClienteId ? customers.find(c => String(c.id) === reviewClienteId) : null;
 
-  // Verificación de NIT (solo si el usuario tipea un NIT real, no CF).
+  // Verificación de NIT (solo si el usuario tipea un NIT real, no CF ni S/N).
   const mostrarVerificacionNit =
     codigoTipoDocumento === TIPO_DOC_NIT && !clienteEsConsumidorFinal && numeroDocumento.trim() !== '0';
   const nitState = useNitVerification(mostrarVerificacionNit ? numeroDocumento : '');
@@ -287,109 +304,199 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
             <FileText className="h-3.5 w-3.5" />
             Datos de facturación
           </p>
-          <div className="space-y-2.5">
-            <select
-              value={codigoTipoDocumento}
-              onChange={e => onCodigoTipoDocumentoChange(parseInt(e.target.value, 10))}
-              className="w-full px-3 py-2.5 rounded-xl border-2 border-coffee-200 text-sm text-coffee-900 focus:border-coffee-400 focus:outline-none appearance-none bg-white"
-            >
-              {TIPOS_DOCUMENTO.map(t => (
-                <option key={t.codigo} value={t.codigo}>
-                  {t.nombre}
-                </option>
-              ))}
-            </select>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="N° de documento"
-                value={numeroDocumento}
-                onChange={e => onNumeroDocumentoChange(e.target.value)}
-                maxLength={20}
-                className="flex-1 px-3 py-2.5 rounded-xl border-2 border-coffee-200 text-sm text-coffee-900 placeholder:text-coffee-400 focus:border-coffee-400 focus:outline-none"
-              />
-              <input
-                type="text"
-                placeholder="Complemento"
-                value={complemento}
-                onChange={e => onComplementoChange(e.target.value)}
-                maxLength={5}
-                className="w-28 px-3 py-2.5 rounded-xl border-2 border-coffee-200 text-sm text-coffee-900 placeholder:text-coffee-400 focus:border-coffee-400 focus:outline-none"
-              />
-            </div>
-            <input
-              type="text"
-              placeholder="Nombre o apellido del cliente"
-              value={facturacionNombre}
-              onChange={e => onFacturacionNombreChange(e.target.value)}
-              maxLength={120}
-              className="w-full px-3 py-2.5 rounded-xl border-2 border-coffee-200 text-sm text-coffee-900 placeholder:text-coffee-400 focus:border-coffee-400 focus:outline-none"
-            />
-            {mostrarVerificacionNit && nitState.kind === 'loading' && (
-              <div className="flex items-center gap-1.5 text-xs text-coffee-500">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Verificando NIT...
-              </div>
+
+          {/* Toggle S/N — se desactiva visualmente cuando "No facturar" está activo. */}
+          <button
+            type="button"
+            onClick={() => onEsSinNombreChange(!esSinNombre)}
+            disabled={noFacturar}
+            className={clsx(
+              'w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border-2 text-left text-xs font-semibold transition-colors mb-2',
+              esSinNombre
+                ? 'border-amber-400 bg-amber-50 text-amber-800'
+                : noFacturar
+                  ? 'border-coffee-100 bg-coffee-50 text-coffee-300 cursor-not-allowed'
+                  : 'border-coffee-200 bg-white text-coffee-700 hover:bg-coffee-50',
             )}
-            {mostrarVerificacionNit && nitState.kind === 'ok' && nitState.data.valido && (
-              <div className="flex items-center gap-1.5 text-xs text-emerald-700">
-                <ShieldCheck className="h-3.5 w-3.5" /> NIT válido en el SIN
-              </div>
+            title="Activa este toggle para emitir la factura como Consumidor Final sin documento de identidad."
+          >
+            <span className="flex items-center gap-2">
+              <span className={clsx(
+                'inline-block h-2 w-2 rounded-full',
+                esSinNombre ? 'bg-amber-500' : noFacturar ? 'bg-coffee-200' : 'bg-coffee-300',
+              )} />
+              S/N — Sin Nombre (Consumidor Final)
+            </span>
+            <span className={clsx(
+              'relative inline-block w-9 h-5 rounded-full transition-colors',
+              esSinNombre ? 'bg-amber-500' : 'bg-coffee-200',
+            )}>
+              <span className={clsx(
+                'absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform',
+                esSinNombre ? 'translate-x-4' : 'translate-x-0',
+              )} />
+            </span>
+          </button>
+
+          {/* Toggle "No facturar" — excluyente con S/N. */}
+          <button
+            type="button"
+            onClick={() => onNoFacturarChange(!noFacturar)}
+            className={clsx(
+              'w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border-2 text-left text-xs font-semibold transition-colors mb-2.5',
+              noFacturar
+                ? 'border-coffee-700 bg-coffee-800 text-cream'
+                : 'border-coffee-200 bg-white text-coffee-700 hover:bg-coffee-50',
             )}
-            {mostrarVerificacionNit && nitState.kind === 'ok' && !nitState.data.valido && (
-              <div className="flex items-center gap-1.5 text-xs text-red-600">
-                <ShieldX className="h-3.5 w-3.5" /> NIT no encontrado en el SIN
-              </div>
-            )}
-            {mostrarVerificacionNit && nitState.kind === 'error' && (
-              <div className="flex items-center gap-1.5 text-xs text-red-600">
-                <ShieldX className="h-3.5 w-3.5" /> {nitState.message}
-              </div>
-            )}
-            {/* Búsqueda en backend: muestra coincidencias del último campo tipeado
-                (N° de documento o Nombre o apellido) y permite asignar el cliente. */}
-            {(docSearchLoading || nombreSearchLoading) && (
-              <div className="flex items-center gap-1.5 text-xs text-coffee-500">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Buscando cliente...
-              </div>
-            )}
-            {!docSearchLoading && !nombreSearchLoading && docSearchActive && docSearchResults.length === 0 && (
-              <p className="text-[11px] text-coffee-500">Ningún cliente registrado con ese N° de documento.</p>
-            )}
-            {!docSearchLoading && !nombreSearchLoading && nombreSearchActive && nombreSearchResults.length === 0 && (
-              <p className="text-[11px] text-coffee-500">Sin coincidencias por nombre.</p>
-            )}
-            {(docSearchResults.length > 0 || nombreSearchResults.length > 0) && (
-              <div className="border border-emerald-200 bg-emerald-50 rounded-xl divide-y divide-emerald-100 overflow-hidden">
-                <p className="text-[10px] uppercase tracking-wider text-emerald-700 font-bold px-2.5 pt-2 pb-1">
-                  Cliente encontrado · click para asignar
+            title="Activa este toggle para registrar la venta sin emitir factura al SIAT."
+          >
+            <span className="flex items-center gap-2">
+              <span className={clsx(
+                'inline-block h-2 w-2 rounded-full',
+                noFacturar ? 'bg-cream' : 'bg-coffee-300',
+              )} />
+              No facturar — solo registro de venta
+            </span>
+            <span className={clsx(
+              'relative inline-block w-9 h-5 rounded-full transition-colors',
+              noFacturar ? 'bg-cream' : 'bg-coffee-200',
+            )}>
+              <span className={clsx(
+                'absolute top-0.5 left-0.5 w-4 h-4 rounded-full shadow transition-transform',
+                noFacturar ? 'bg-coffee-800 translate-x-4' : 'bg-white translate-x-0',
+              )} />
+            </span>
+          </button>
+
+          {esSinNombre ? (
+            // S/N activo: el cajero no tipea nada fiscal. El backend recibe
+            // el body con los 4 campos fiscales en null.
+            <div className="rounded-xl border-2 border-amber-200 bg-amber-50 px-3.5 py-3 flex items-start gap-2.5">
+              <FileText className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-amber-800 leading-relaxed">
+                <p className="font-semibold">Factura emitida como Consumidor Final</p>
+                <p className="text-amber-700 mt-0.5">
+                  NIT (5) · Documento <span className="font-mono">&quot;0&quot;</span> · Nombre
+                  <span className="font-mono"> &quot;CONSUMIDOR FINAL&quot;</span>.
                 </p>
-                {(docSearchResults.length > 0 ? docSearchResults : nombreSearchResults).map(c => (
-                  <button
-                    key={c.id}
-                    onClick={() => onAssignCustomerFromSearch(c)}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:bg-emerald-100 transition-colors"
-                  >
-                    <User className="h-3.5 w-3.5 text-emerald-600 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-coffee-900 truncate">{c.nombre}</p>
-                      <p className="text-[10px] text-coffee-500">
-                        {c.dni != null ? `C.I. ${c.dni}` : 'Sin C.I.'}
-                        {c.puntos != null ? ` · ${c.puntos} pts` : ''}
-                      </p>
-                    </div>
-                    <span className="text-[10px] font-bold text-emerald-700">Usar</span>
-                  </button>
-                ))}
-                <button
-                  onClick={onClearSearchResults}
-                  className="w-full text-[10px] text-coffee-500 hover:text-coffee-700 py-1"
-                >
-                  Cerrar
-                </button>
               </div>
-            )}
-          </div>
+            </div>
+          ) : noFacturar ? (
+            // "No facturar" activo: la venta se registra sin factura SIAT.
+            <div className="rounded-xl border-2 border-coffee-300 bg-coffee-50 px-3.5 py-3 flex items-start gap-2.5">
+              <FileText className="h-4 w-4 text-coffee-600 flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-coffee-700 leading-relaxed">
+                <p className="font-semibold">Venta sin factura</p>
+                <p className="text-coffee-600 mt-0.5">
+                  Se registrará la venta internamente sin emitir factura al SIAT.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              <select
+                value={codigoTipoDocumento}
+                onChange={e => onCodigoTipoDocumentoChange(parseInt(e.target.value, 10))}
+                className="w-full px-3 py-2.5 rounded-xl border-2 border-coffee-200 text-sm text-coffee-900 focus:border-coffee-400 focus:outline-none appearance-none bg-white"
+              >
+                {TIPOS_DOCUMENTO.map(t => (
+                  <option key={t.codigo} value={t.codigo}>
+                    {t.nombre}
+                  </option>
+                ))}
+              </select>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="N° de documento"
+                  value={numeroDocumento}
+                  onChange={e => onNumeroDocumentoChange(e.target.value)}
+                  maxLength={NIT_MAX_LENGTH}
+                  className="flex-1 px-3 py-2.5 rounded-xl border-2 border-coffee-200 text-sm text-coffee-900 placeholder:text-coffee-400 focus:border-coffee-400 focus:outline-none"
+                />
+                <input
+                  type="text"
+                  placeholder="Complemento"
+                  value={complemento}
+                  onChange={e => onComplementoChange(e.target.value)}
+                  maxLength={5}
+                  className="w-28 px-3 py-2.5 rounded-xl border-2 border-coffee-200 text-sm text-coffee-900 placeholder:text-coffee-400 focus:border-coffee-400 focus:outline-none"
+                />
+              </div>
+              <input
+                type="text"
+                placeholder="Nombre o apellido del cliente"
+                value={facturacionNombre}
+                onChange={e => onFacturacionNombreChange(e.target.value)}
+                maxLength={120}
+                className="w-full px-3 py-2.5 rounded-xl border-2 border-coffee-200 text-sm text-coffee-900 placeholder:text-coffee-400 focus:border-coffee-400 focus:outline-none"
+              />
+              {mostrarVerificacionNit && nitState.kind === 'loading' && (
+                <div className="flex items-center gap-1.5 text-xs text-coffee-500">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Verificando NIT...
+                </div>
+              )}
+              {mostrarVerificacionNit && nitState.kind === 'ok' && nitState.data.valido && (
+                <div className="flex items-center gap-1.5 text-xs text-emerald-700">
+                  <ShieldCheck className="h-3.5 w-3.5" /> NIT válido en el SIN
+                </div>
+              )}
+              {mostrarVerificacionNit && nitState.kind === 'ok' && !nitState.data.valido && (
+                <div className="flex items-center gap-1.5 text-xs text-red-600">
+                  <ShieldX className="h-3.5 w-3.5" /> NIT no encontrado en el SIN
+                </div>
+              )}
+              {mostrarVerificacionNit && nitState.kind === 'error' && (
+                <div className="flex items-center gap-1.5 text-xs text-red-600">
+                  <ShieldX className="h-3.5 w-3.5" /> {nitState.message}
+                </div>
+              )}
+              {/* Búsqueda en backend: muestra coincidencias del último campo tipeado
+                  (N° de documento o Nombre o apellido) y permite asignar el cliente. */}
+              {(docSearchLoading || nombreSearchLoading) && (
+                <div className="flex items-center gap-1.5 text-xs text-coffee-500">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Buscando cliente...
+                </div>
+              )}
+              {!docSearchLoading && !nombreSearchLoading && docSearchActive && docSearchResults.length === 0 && (
+                <p className="text-[11px] text-coffee-500">Ningún cliente registrado con ese N° de documento.</p>
+              )}
+              {!docSearchLoading && !nombreSearchLoading && nombreSearchActive && nombreSearchResults.length === 0 && (
+                <p className="text-[11px] text-coffee-500">Sin coincidencias por nombre.</p>
+              )}
+              {(docSearchResults.length > 0 || nombreSearchResults.length > 0) && (
+                <div className="border border-emerald-200 bg-emerald-50 rounded-xl divide-y divide-emerald-100 overflow-hidden">
+                  <p className="text-[10px] uppercase tracking-wider text-emerald-700 font-bold px-2.5 pt-2 pb-1">
+                    Cliente encontrado · click para asignar
+                  </p>
+                  {(docSearchResults.length > 0 ? docSearchResults : nombreSearchResults).map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => onAssignCustomerFromSearch(c)}
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:bg-emerald-100 transition-colors"
+                    >
+                      <User className="h-3.5 w-3.5 text-emerald-600 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-coffee-900 truncate">{c.nombre}</p>
+                        <p className="text-[10px] text-coffee-500">
+                          {c.dni != null ? `C.I. ${c.dni}` : 'Sin C.I.'}
+                          {c.puntos != null ? ` · ${c.puntos} pts` : ''}
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-700">Usar</span>
+                    </button>
+                  ))}
+                  <button
+                    onClick={onClearSearchResults}
+                    className="w-full text-[10px] text-coffee-500 hover:text-coffee-700 py-1"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div>
@@ -473,18 +580,18 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
             disabled={
               isProcessing
               || (paymentMethod === 'cash' && cashNum > 0 && cashNum < efectivoTotal)
-              || (!clienteEsConsumidorFinal && !numeroDocumento.trim())
+              || (!noFacturar && !esSinNombre && !clienteEsConsumidorFinal && !numeroDocumento.trim())
             }
             className={clsx(
               'flex-1 py-3.5 rounded-2xl font-bold text-sm transition-all',
               isProcessing
               || (paymentMethod === 'cash' && cashNum > 0 && cashNum < mesaTotal)
-              || (!clienteEsConsumidorFinal && !numeroDocumento.trim())
+              || (!noFacturar && !esSinNombre && !clienteEsConsumidorFinal && !numeroDocumento.trim())
                 ? 'bg-coffee-100 text-coffee-400 cursor-not-allowed'
                 : 'bg-coffee-800 text-cream hover:bg-coffee-700 active:scale-95 shadow-lg',
             )}
             title={
-              !clienteEsConsumidorFinal && !numeroDocumento.trim()
+              !noFacturar && !esSinNombre && !clienteEsConsumidorFinal && !numeroDocumento.trim()
                 ? 'Ingresa el número de documento'
                 : undefined
             }
