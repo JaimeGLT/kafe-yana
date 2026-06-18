@@ -701,6 +701,8 @@ export const POSPage: React.FC = () => {
     ? customers.find((c) => String(c.id) === reviewClienteId) ?? null
     : null;
   const clienteEsConsumidorFinal = esConsumidorFinal(clienteEfectivoParaPago) || clienteEfectivoParaPago === null;
+  // Cliente real del dropdown (no CF, no "sin cliente") → omite verificación NIT.
+  const clienteAsignadoDelDropdown = !!reviewClienteId && !clienteEsConsumidorFinal;
 
   // ── Handlers de facturación con exclusión mutua entre toggles ────────
   // S/N y "No facturar" son excluyentes: activar uno desactiva el otro.
@@ -2038,6 +2040,7 @@ export const POSPage: React.FC = () => {
                 onNumeroDocumentoChange={handleNumeroDocumentoChange}
                 onComplementoChange={handleComplementoChange}
                 clienteEsConsumidorFinal={clienteEsConsumidorFinal}
+                clienteAsignadoDelDropdown={clienteAsignadoDelDropdown}
                 esSinNombre={esSinNombre}
                 onEsSinNombreChange={handleEsSinNombreChange}
                 noFacturar={noFacturar}
