@@ -26,8 +26,8 @@ interface SaleStats {
 
 // ── Backend mapping ───────────────────────────────────────────────────────────
 
-const mapEstadoToStatus = (estado: string): Sale['status'] => {
-  const e = estado.toLowerCase();
+const mapEstadoToStatus = (estado: string | null): Sale['status'] => {
+  const e = (estado ?? '').toLowerCase();
   if (e === 'validada' || e === 'finalizada' || e === 'finalizado') return 'completed';
   if (e === 'anulada' || e === 'reembolsada' || e === 'reembolsado') return 'refunded';
   if (e.startsWith('parcialmente')) return 'partially_refunded';
@@ -47,11 +47,11 @@ interface BackendVentaDetalle {
 
 interface BackendVenta {
   id: number;
-  numeroFactura: number;
+  numeroFactura: number | null;
   fechaEmision: string;
   nombreRazonSocial: string;
   usuario: string;
-  estadoSiat: string;
+  estadoSiat: string | null;
   montoTotalSujetoIva: number | string;
   montoTotal: number | string;
   numeroTarjeta: string | null;
@@ -67,7 +67,10 @@ interface BackendVentasResponse {
 }
 
 const mapBackendVentaToSale = (v: BackendVenta): Sale => {
-  const codeLabel = `V-${v.numeroFactura}`;
+  // numeroFactura llega null en ventas que aún no pasaron por SIAT
+  // (o fueron anuladas localmente). Caemos al id interno para que el código
+  // visible siga siendo único.
+  const codeLabel = `V-${v.numeroFactura ?? v.id}`;
   const monto = Number(v.montoTotal);
   const esTarjeta = v.numeroTarjeta != null && v.numeroTarjeta !== '';
 
@@ -179,6 +182,11 @@ export const SalesListPage: React.FC = () => {
           const updated = nodes.find(n => n.ventaId === prev.ventaId);
           return updated ?? prev;
         });
+      })
+      .catch((err) => {
+        // Si el mapper explota (p.ej. un null inesperado del backend) lo
+        // registramos para que no se pierda silenciosamente y bloquee la lista.
+        console.error('[SalesListPage] Error cargando ventas:', err);
       })
       .finally(() => {
         setIsLoading(false);

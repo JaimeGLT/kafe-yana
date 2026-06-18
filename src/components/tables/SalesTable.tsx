@@ -33,8 +33,8 @@ const PAYMENT_NAMES: Record<string, string> = {
  *  - Validada → verde
  *  - Sin SIAT / Observada / Pendiente → normal (gris coffee en hover) */
 const getSiatRowClass = (sale: Sale): string => {
-  if (esEstadoAnuladaSiat(sale.estadoSiat)) return 'bg-red-50 hover:bg-red-100';
-  if (esEstadoValidadaSiat(sale.estadoSiat)) return 'bg-green-50 hover:bg-green-100';
+  if (esEstadoAnuladaSiat(sale.estadoSiat)) return 'bg-red-200 hover:bg-red-300';
+  if (esEstadoValidadaSiat(sale.estadoSiat)) return 'bg-green-200 hover:bg-green-300';
   return 'hover:bg-coffee-50';
 };
 

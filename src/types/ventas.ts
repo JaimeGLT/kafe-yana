@@ -1,10 +1,10 @@
 export interface VentaNode {
   id: number;
-  numeroFactura: number;
+  numeroFactura: number | null;
   fechaEmision: string;
   nombreRazonSocial: string;
   usuario: string;
-  estadoSiat: string;
+  estadoSiat: string | null;
   montoTotalSujetoIva: number | string;
   montoTotal: number | string;
   numeroTarjeta: string | null;
