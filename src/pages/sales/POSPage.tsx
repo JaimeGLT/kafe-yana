@@ -805,14 +805,18 @@ export const POSPage: React.FC = () => {
     if (!name || !phone) return;
     setIsCreatingCustomer(true);
     try {
+      // El body va plano: el parámetro C# `datos` es solo el nombre de variable,
+      // no parte del contrato JSON. System.Text.Json mapea contra las
+      // propiedades de DtoClienteCU al nivel raíz.
+      // Dni=null: el form del POS no pide C.L. (cliente anónimo).
       const res = await api.post<{ message: string; Id: number }>('/Cliente', {
-        nombre: name,
-        celular: phone,
-        correo: null,
-        dni: null,
-        fecha_nacimiento: null,
-        direccion: null,
-        estado: true,
+        Dni: null,
+        Nombre: name,
+        Celular: phone,
+        Correo: null,
+        Fecha_nacimiento: null,
+        Direccion: null,
+        Estado: true,
       });
       const id = String(res.Id);
       const newCustomer: Customer = { id, nombre: name, celular: phone, puntos: 0, estado: true };
@@ -835,14 +839,18 @@ export const POSPage: React.FC = () => {
     if (!name || !phone) return;
     setIsCreatingCustomer(true);
     try {
+      // El body va plano: el parámetro C# `datos` es solo el nombre de variable,
+      // no parte del contrato JSON. System.Text.Json mapea contra las
+      // propiedades de DtoClienteCU al nivel raíz.
+      // Dni=null: el form del POS no pide C.L. (cliente anónimo).
       const res = await api.post<{ message: string; Id: number }>('/Cliente', {
-        nombre: name,
-        celular: phone,
-        correo: null,
-        dni: null,
-        fecha_nacimiento: null,
-        direccion: null,
-        estado: true,
+        Dni: null,
+        Nombre: name,
+        Celular: phone,
+        Correo: null,
+        Fecha_nacimiento: null,
+        Direccion: null,
+        Estado: true,
       });
       const id = String(res.Id);
       const newCustomer: Customer = { id, nombre: name, celular: phone, puntos: 0, estado: true };
@@ -940,14 +948,16 @@ export const POSPage: React.FC = () => {
   }, []);
 
   const handleCreateCustomerCombobox = async (input: CustomerInput): Promise<Customer> => {
+    // Body plano: ver comentario en handleCreateCustomer sobre el wrapper.
+    // Dni se omite si no viene (la entidad es int?, la BD lo permite NULL).
     const res = await api.post<{ message: string; Id: number }>('/Cliente', {
-      nombre: input.nombre,
-      celular: input.celular,
-      correo: input.correo ?? null,
-      dni: input.dni ?? null,
-      fecha_nacimiento: null,
-      direccion: null,
-      estado: true,
+      Dni: input.dni ?? null,
+      Nombre: input.nombre,
+      Celular: input.celular,
+      Correo: input.correo ?? null,
+      Fecha_nacimiento: null,
+      Direccion: null,
+      Estado: true,
     });
     const id = String(res.Id);
     const newCustomer: Customer = { id, nombre: input.nombre, celular: input.celular, puntos: 0, estado: true };
