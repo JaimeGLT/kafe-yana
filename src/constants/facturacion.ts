@@ -20,8 +20,9 @@ export const DEFAULT_CF_COMPLEMENTO = '';
  * Según la normativa del SIAT, S/N se modela con `codigoTipoDocumento=5` (NIT) +
  * `numeroDocumento='0'` + un `nombreRazonSocial` (que puede ser literalmente "S/N",
  * "Sin Nombre" o el nombre genérico que el comprador quiera dejar).
+ * Por defecto usamos "SIN NOMBRE" para que sea explícito en la factura.
  */
-export const DEFAULT_SIN_NOMBRE = 'S/N';
+export const DEFAULT_SIN_NOMBRE = 'SIN NOMBRE';
 
 /** Debounce de la verificación de NIT en ms. */
 export const NIT_VERIFY_DEBOUNCE_MS = 500;

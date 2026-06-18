@@ -41,7 +41,7 @@ import type { MilestoneReward, PointsCalculation } from '../../types/loyalty';
 import { VariacionPickerModal } from '../../components/modals/VariacionPickerModal';
 import { ElaboradoDetailModal } from '../../components/modals/ElaboradoDetailModal';
 import { ProdCard } from '../../components/modals/ProdCard';
-import { TIPO_DOC_NIT, DEFAULT_CF_NUMERO_DOC, DEFAULT_CF_COMPLEMENTO } from '../../constants/facturacion';
+import { TIPO_DOC_NIT, DEFAULT_CF_NUMERO_DOC, DEFAULT_CF_COMPLEMENTO, DEFAULT_SIN_NOMBRE } from '../../constants/facturacion';
 import { findConsumidorFinal, esConsumidorFinal } from '../../utils/consumidorFinal';
 import { useFacturacion } from '../../hooks/useFacturacion';
 
@@ -172,7 +172,7 @@ function construirBodyCobro(params: {
       aplicarDescuentos: params.aplicarDescuento,
       factura: true,
       codigoTipoDocumento: TIPO_DOC_NIT,
-      nombre: 'CONSUMIDOR FINAL',
+      nombre: DEFAULT_SIN_NOMBRE,
       dni: 99001,
       complemento: '',
     };

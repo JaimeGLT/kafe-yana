@@ -318,14 +318,14 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
                   ? 'border-coffee-100 bg-coffee-50 text-coffee-300 cursor-not-allowed'
                   : 'border-coffee-200 bg-white text-coffee-700 hover:bg-coffee-50',
             )}
-            title="Activa este toggle para emitir la factura como Consumidor Final sin documento de identidad."
+            title="Activa este toggle para emitir la factura como Sin Nombre sin documento de identidad."
           >
             <span className="flex items-center gap-2">
               <span className={clsx(
                 'inline-block h-2 w-2 rounded-full',
                 esSinNombre ? 'bg-amber-500' : noFacturar ? 'bg-coffee-200' : 'bg-coffee-300',
               )} />
-              S/N — Sin Nombre (Consumidor Final)
+              S/N — Sin Nombre
             </span>
             <span className={clsx(
               'relative inline-block w-9 h-5 rounded-full transition-colors',
@@ -374,10 +374,10 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
             <div className="rounded-xl border-2 border-amber-200 bg-amber-50 px-3.5 py-3 flex items-start gap-2.5">
               <FileText className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
               <div className="text-xs text-amber-800 leading-relaxed">
-                <p className="font-semibold">Factura emitida como Consumidor Final</p>
+                <p className="font-semibold">Factura emitida como Sin Nombre</p>
                 <p className="text-amber-700 mt-0.5">
                   NIT (5) · Documento <span className="font-mono">&quot;0&quot;</span> · Nombre
-                  <span className="font-mono"> &quot;CONSUMIDOR FINAL&quot;</span>.
+                  <span className="font-mono"> &quot;SIN NOMBRE&quot;</span>.
                 </p>
               </div>
             </div>
