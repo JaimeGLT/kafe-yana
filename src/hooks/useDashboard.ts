@@ -2,19 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { subDays, isSameDay, format } from 'date-fns';
 import { gql } from '../lib/graphql';
 import { GET_DASHBOARD_DATA } from '../lib/queries/dashboard.queries';
-
-interface VentaNode {
-  id: number;
-  numeroFactura: number;
-  fechaEmision: string;
-  nombreRazonSocial: string;
-  usuario: string;
-  estadoSiat: string;
-  montoTotalSujetoIva: number | string;
-  montoTotal: number | string;
-  numeroTarjeta: string | null;
-  detalles?: { id: number; id_venta: number; descripcion: string; cantidad: number; precioUnitario: number | string; subTotal: number | string }[];
-}
+import type { VentaNode } from '../types/ventas';
 
 interface CajaEstadoNode {
   id: number;
