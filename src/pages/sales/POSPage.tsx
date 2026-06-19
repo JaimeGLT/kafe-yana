@@ -41,7 +41,7 @@ import type { MilestoneReward, PointsCalculation } from '../../types/loyalty';
 import { VariacionPickerModal } from '../../components/modals/VariacionPickerModal';
 import { ElaboradoDetailModal } from '../../components/modals/ElaboradoDetailModal';
 import { ProdCard } from '../../components/modals/ProdCard';
-import { TIPO_DOC_NIT, DEFAULT_CF_NUMERO_DOC, DEFAULT_CF_COMPLEMENTO } from '../../constants/facturacion';
+import { TIPO_DOC_NIT, DEFAULT_CF_NUMERO_DOC, DEFAULT_CF_COMPLEMENTO, DEFAULT_SIN_NOMBRE } from '../../constants/facturacion';
 import { findConsumidorFinal, esConsumidorFinal } from '../../utils/consumidorFinal';
 import { useFacturacion } from '../../hooks/useFacturacion';
 
@@ -172,7 +172,7 @@ function construirBodyCobro(params: {
       aplicarDescuentos: params.aplicarDescuento,
       factura: true,
       codigoTipoDocumento: TIPO_DOC_NIT,
-      nombre: 'CONSUMIDOR FINAL',
+      nombre: DEFAULT_SIN_NOMBRE,
       dni: 99001,
       complemento: '',
     };
@@ -701,6 +701,8 @@ export const POSPage: React.FC = () => {
     ? customers.find((c) => String(c.id) === reviewClienteId) ?? null
     : null;
   const clienteEsConsumidorFinal = esConsumidorFinal(clienteEfectivoParaPago) || clienteEfectivoParaPago === null;
+  // Cliente real del dropdown (no CF, no "sin cliente") → omite verificación NIT.
+  const clienteAsignadoDelDropdown = !!reviewClienteId && !clienteEsConsumidorFinal;
 
   // ── Handlers de facturación con exclusión mutua entre toggles ────────
   // S/N y "No facturar" son excluyentes: activar uno desactiva el otro.
@@ -803,14 +805,18 @@ export const POSPage: React.FC = () => {
     if (!name || !phone) return;
     setIsCreatingCustomer(true);
     try {
+      // El body va plano: el parámetro C# `datos` es solo el nombre de variable,
+      // no parte del contrato JSON. System.Text.Json mapea contra las
+      // propiedades de DtoClienteCU al nivel raíz.
+      // Dni=null: el form del POS no pide C.L. (cliente anónimo).
       const res = await api.post<{ message: string; Id: number }>('/Cliente', {
-        nombre: name,
-        celular: phone,
-        correo: null,
-        dni: null,
-        fecha_nacimiento: null,
-        direccion: null,
-        estado: true,
+        Dni: null,
+        Nombre: name,
+        Celular: phone,
+        Correo: null,
+        Fecha_nacimiento: null,
+        Direccion: null,
+        Estado: true,
       });
       const id = String(res.Id);
       const newCustomer: Customer = { id, nombre: name, celular: phone, puntos: 0, estado: true };
@@ -833,14 +839,18 @@ export const POSPage: React.FC = () => {
     if (!name || !phone) return;
     setIsCreatingCustomer(true);
     try {
+      // El body va plano: el parámetro C# `datos` es solo el nombre de variable,
+      // no parte del contrato JSON. System.Text.Json mapea contra las
+      // propiedades de DtoClienteCU al nivel raíz.
+      // Dni=null: el form del POS no pide C.L. (cliente anónimo).
       const res = await api.post<{ message: string; Id: number }>('/Cliente', {
-        nombre: name,
-        celular: phone,
-        correo: null,
-        dni: null,
-        fecha_nacimiento: null,
-        direccion: null,
-        estado: true,
+        Dni: null,
+        Nombre: name,
+        Celular: phone,
+        Correo: null,
+        Fecha_nacimiento: null,
+        Direccion: null,
+        Estado: true,
       });
       const id = String(res.Id);
       const newCustomer: Customer = { id, nombre: name, celular: phone, puntos: 0, estado: true };
@@ -938,14 +948,16 @@ export const POSPage: React.FC = () => {
   }, []);
 
   const handleCreateCustomerCombobox = async (input: CustomerInput): Promise<Customer> => {
+    // Body plano: ver comentario en handleCreateCustomer sobre el wrapper.
+    // Dni se omite si no viene (la entidad es int?, la BD lo permite NULL).
     const res = await api.post<{ message: string; Id: number }>('/Cliente', {
-      nombre: input.nombre,
-      celular: input.celular,
-      correo: input.correo ?? null,
-      dni: input.dni ?? null,
-      fecha_nacimiento: null,
-      direccion: null,
-      estado: true,
+      Dni: input.dni ?? null,
+      Nombre: input.nombre,
+      Celular: input.celular,
+      Correo: input.correo ?? null,
+      Fecha_nacimiento: null,
+      Direccion: null,
+      Estado: true,
     });
     const id = String(res.Id);
     const newCustomer: Customer = { id, nombre: input.nombre, celular: input.celular, puntos: 0, estado: true };
@@ -2038,6 +2050,7 @@ export const POSPage: React.FC = () => {
                 onNumeroDocumentoChange={handleNumeroDocumentoChange}
                 onComplementoChange={handleComplementoChange}
                 clienteEsConsumidorFinal={clienteEsConsumidorFinal}
+                clienteAsignadoDelDropdown={clienteAsignadoDelDropdown}
                 esSinNombre={esSinNombre}
                 onEsSinNombreChange={handleEsSinNombreChange}
                 noFacturar={noFacturar}
