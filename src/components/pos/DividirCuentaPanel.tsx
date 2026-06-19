@@ -10,7 +10,7 @@ import { DEFAULT_SIN_NOMBRE } from '../../constants/facturacion';
 
 type SplitStep = 'modo' | 'configurar' | 'facturacion' | 'cobrar';
 type SplitMode = 'partes_iguales' | 'por_items' | 'montos_libres';
-type SplitPayMethod = 'cash' | 'card' | 'transfer';
+type SplitPayMethod = 'cash' | 'transfer';
 
 interface DisplayItem {
   name: string;
@@ -96,8 +96,8 @@ interface DividirCuentaPanelProps {
 }
 
 
-const PAY_LABEL: Record<SplitPayMethod, string> = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'QR' };
-const PAY_METHODS: SplitPayMethod[] = ['cash', 'card', 'transfer'];
+const PAY_LABEL: Record<SplitPayMethod, string> = { cash: 'Efectivo', transfer: 'QR' };
+const PAY_METHODS: SplitPayMethod[] = ['cash', 'transfer'];
 
 function buildIguales(n: number, total: number): CuentaDividida[] {
   const monto = Math.floor((total / n) * 100) / 100;
@@ -256,7 +256,6 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
     const pagos: PagosObject = { efectivo: 0, tarjeta: 0, qr: 0, total: mesaTotal };
     cuentas.forEach(c => {
       if (c.tipoPago === 'cash') pagos.efectivo += c.monto;
-      else if (c.tipoPago === 'card') pagos.tarjeta += c.monto;
       else if (c.tipoPago === 'transfer') pagos.qr += c.monto;
     });
     onAllPaid(pagos);
@@ -761,7 +760,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
 
               {cuenta.status === 'activo' && (
                 <div className="px-4 pb-4 border-t border-blue-100 pt-3 space-y-3">
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {PAY_METHODS.map(pm => (
                       <button
                         key={pm}
