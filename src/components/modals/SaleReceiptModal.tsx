@@ -102,7 +102,6 @@ export const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClos
       </head>
       <body>
         <h2>Kafe Yana</h2>
-        <p>Código: ${sale.code}</p>
         <p>${sale.customerName ? `Cliente: ${sale.customerName}` : ''}</p>
         <p>${new Date(sale.date).toLocaleString('es-PE')}</p>
         <div class="divider"></div>
@@ -150,7 +149,7 @@ export const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClos
             </div>
             <div>
               <p className="text-sm font-bold text-coffee-900">Imprimir cuenta</p>
-              <p className="text-xs text-coffee-400">{sale.code} · {sale.customerName ?? 'Sin cliente'}</p>
+              <p className="text-xs text-coffee-400">{sale.customerName ?? 'Sin cliente'}</p>
             </div>
           </div>
           <button

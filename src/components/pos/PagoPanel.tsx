@@ -478,19 +478,19 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
           disabled={
             isProcessing ||
             (paymentMethod === 'cash' && cashNum > 0 && cashNum < efectivoTotal) ||
-            (!noFacturar && !esSinNombre && !clienteEsConsumidorFinal && !numeroDocumento.trim())
+            (!noFacturar && !esSinNombre && (!numeroDocumento.trim() || !facturacionNombre.trim()))
           }
           className={clsx(
             'flex-1 py-3 rounded-2xl font-bold text-sm transition-all inline-flex items-center justify-center gap-2',
             isProcessing ||
             (paymentMethod === 'cash' && cashNum > 0 && cashNum < efectivoTotal) ||
-            (!noFacturar && !esSinNombre && !clienteEsConsumidorFinal && !numeroDocumento.trim())
+            (!noFacturar && !esSinNombre && (!numeroDocumento.trim() || !facturacionNombre.trim()))
               ? 'bg-coffee-100 text-coffee-400 cursor-not-allowed'
               : 'bg-coffee-800 text-cream hover:bg-coffee-700 active:scale-95 shadow-lg',
           )}
           title={
-            !noFacturar && !esSinNombre && !clienteEsConsumidorFinal && !numeroDocumento.trim()
-              ? 'Ingresa el número de documento'
+            !noFacturar && !esSinNombre && (!numeroDocumento.trim() || !facturacionNombre.trim())
+              ? 'Ingresa el nombre y el número de documento'
               : undefined
           }
         >

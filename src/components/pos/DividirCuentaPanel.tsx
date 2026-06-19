@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { clsx } from 'clsx';
-import { ChevronLeft, ChevronRight, ChevronDown, Check, Users, List, SlidersHorizontal, Minus, Plus, Printer } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Check, Users, List, SlidersHorizontal, Minus, Plus, Printer, FileText, Ban, UserX } from 'lucide-react';
 import { PrintComandaModal, type PrintComandaData } from './PrintComandaModal';
-import { CustomerCombobox } from '../forms/CustomerCombobox';
-import { toast } from '../ui/Toast';
-import type { Customer, CustomerInput } from '../../types';
+import type { Customer } from '../../types';
+import { ModoFacturacionCards, type ModoFacturacion } from './ModoFacturacionCards';
+import { ClienteFacturacionSection } from './ClienteFacturacionSection';
+import { DatosFiscalesForm } from './DatosFiscalesForm';
+import { DEFAULT_SIN_NOMBRE } from '../../constants/facturacion';
 
-type SplitStep = 'modo' | 'configurar' | 'cobrar';
+type SplitStep = 'modo' | 'configurar' | 'facturacion' | 'cobrar';
 type SplitMode = 'partes_iguales' | 'por_items' | 'montos_libres';
 type SplitPayMethod = 'cash' | 'card' | 'transfer';
 
@@ -51,8 +53,46 @@ interface DividirCuentaPanelProps {
   clientes: Customer[];
   selectedClienteId: string;
   onClienteChange: (id: string) => void;
-  onCreateCustomer: (input: CustomerInput) => Promise<Customer>;
   qrImageUrl?: string | null;
+
+  // ── Facturación (mismas props que PagoPanel) ──────────────────────────
+  noFacturar: boolean;
+  onNoFacturarChange: (v: boolean) => void;
+  esSinNombre: boolean;
+  onEsSinNombreChange: (v: boolean) => void;
+  codigoTipoDocumento: number;
+  onCodigoTipoDocumentoChange: (v: number) => void;
+  numeroDocumento: string;
+  onNumeroDocumentoChange: (v: string) => void;
+  complemento: string;
+  onComplementoChange: (v: string) => void;
+  facturacionNombre: string;
+  onFacturacionNombreChange: (v: string) => void;
+  /** Si el cliente seleccionado es "Consumidor Final" o no hay cliente. */
+  clienteEsConsumidorFinal: boolean;
+  /** Si el cliente fue asignado del dropdown (omite verificación NIT). */
+  clienteAsignadoDelDropdown: boolean;
+
+  // Búsqueda en backend desde Datos de facturación
+  docSearchResults: Customer[];
+  docSearchLoading: boolean;
+  docSearchActive: boolean;
+  nombreSearchResults: Customer[];
+  nombreSearchLoading: boolean;
+  nombreSearchActive: boolean;
+  onAssignCustomerFromSearch: (c: Customer) => void;
+  onClearSearchResults: () => void;
+
+  // Form de "crear cliente nuevo" inline
+  reviewShowNewCustomerForm: boolean;
+  onToggleReviewNewCustomerForm: () => void;
+  reviewNewCustomerName: string;
+  onReviewNewCustomerNameChange: (v: string) => void;
+  reviewNewCustomerPhone: string;
+  onReviewNewCustomerPhoneChange: (v: string) => void;
+  isCreatingCustomer: boolean;
+  /** Versión con callback (para reusar el de PagoPanel). */
+  onCreateCustomerReview: (nombre: string, celular: string, onCreated: (id: string) => void) => void;
 }
 
 
@@ -71,7 +111,22 @@ function buildIguales(n: number, total: number): CuentaDividida[] {
 
 export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
   mesaName, order, mesaTotal, formatCurrency, onBack, onAllPaid,
-  clientes, selectedClienteId, onClienteChange, onCreateCustomer, qrImageUrl,
+  clientes, selectedClienteId, onClienteChange, qrImageUrl,
+  // Facturación
+  noFacturar, onNoFacturarChange,
+  esSinNombre, onEsSinNombreChange,
+  codigoTipoDocumento, onCodigoTipoDocumentoChange,
+  numeroDocumento, onNumeroDocumentoChange,
+  complemento, onComplementoChange,
+  facturacionNombre, onFacturacionNombreChange,
+  clienteEsConsumidorFinal, clienteAsignadoDelDropdown,
+  docSearchResults, docSearchLoading, docSearchActive,
+  nombreSearchResults, nombreSearchLoading, nombreSearchActive,
+  onAssignCustomerFromSearch, onClearSearchResults,
+  reviewShowNewCustomerForm, onToggleReviewNewCustomerForm,
+  reviewNewCustomerName, onReviewNewCustomerNameChange,
+  reviewNewCustomerPhone, onReviewNewCustomerPhoneChange,
+  isCreatingCustomer, onCreateCustomerReview,
 }) => {
   const [step, setStep] = useState<SplitStep>('modo');
   const [mode, setMode] = useState<SplitMode>('partes_iguales');
@@ -193,11 +248,11 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
     setCashInput('');
   };
 
-  const handleTerminarCobro = () => {
-    if (!selectedClienteId) {
-      toast.warning('Cliente requerido', 'Selecciona un cliente antes de terminar el cobro.');
-      return;
-    }
+  const handleContinuarAFacturacion = () => {
+    setStep('facturacion');
+  };
+
+  const handleConfirmarVenta = () => {
     const pagos: PagosObject = { efectivo: 0, tarjeta: 0, qr: 0, total: mesaTotal };
     cuentas.forEach(c => {
       if (c.tipoPago === 'cash') pagos.efectivo += c.monto;
@@ -224,10 +279,38 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
     });
   };
 
+  // ── Modo de facturación derivado (mismo patrón que PagoPanel) ──────────
+  const selectedMode: ModoFacturacion = noFacturar
+    ? 'no_facturar'
+    : esSinNombre
+      ? 'sin_nombre'
+      : 'con_datos';
+
+  const handleModeChange = (modo: ModoFacturacion) => {
+    if (modo === 'no_facturar') {
+      onNoFacturarChange(true);
+      onEsSinNombreChange(false);
+    } else if (modo === 'sin_nombre') {
+      onNoFacturarChange(false);
+      onEsSinNombreChange(true);
+    } else {
+      onNoFacturarChange(false);
+      onEsSinNombreChange(false);
+    }
+  };
+
+  // Validación para habilitar "Siguiente" del paso facturación.
+  // En modo "Con datos" se requiere tanto el nombre como el número de documento.
+  const facturacionValida =
+    noFacturar
+    || esSinNombre
+    || (numeroDocumento.trim() !== '' && facturacionNombre.trim() !== '');
+
   const headerBack =
     step === 'modo' ? onBack :
     step === 'configurar' ? () => setStep('modo') :
-    () => setStep('configurar');
+    step === 'cobrar' ? () => setStep('configurar') :
+    () => setStep('cobrar');
 
   return (
     <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh]">
@@ -466,17 +549,134 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
         </>
       )}
 
+      {/* ── STEP: FACTURACIÓN (al final, después de cobrar todas las cuentas) ── */}
+      {step === 'facturacion' && (
+        <>
+          <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0 space-y-4">
+            {/* Sección: Cliente */}
+            <section>
+              <p className="text-[10px] font-bold text-coffee-400 uppercase tracking-wider mb-2">
+                Cliente
+              </p>
+              <ClienteFacturacionSection
+                customers={clientes}
+                reviewClienteId={selectedClienteId || null}
+                onReviewClienteChange={(id) => onClienteChange(id ?? '')}
+                reviewShowNewCustomerForm={reviewShowNewCustomerForm}
+                onToggleReviewNewCustomerForm={onToggleReviewNewCustomerForm}
+                reviewNewCustomerName={reviewNewCustomerName}
+                reviewNewCustomerPhone={reviewNewCustomerPhone}
+                onReviewNewCustomerNameChange={onReviewNewCustomerNameChange}
+                onReviewNewCustomerPhoneChange={onReviewNewCustomerPhoneChange}
+                onCreateCustomer={onCreateCustomerReview}
+                isCreatingCustomer={isCreatingCustomer}
+              />
+            </section>
+
+            {/* Sección: Datos de facturación */}
+            <section>
+              <p className="text-[10px] font-bold text-coffee-400 uppercase tracking-wider mb-2">
+                Datos de facturación
+              </p>
+              <div className="space-y-3">
+                <ModoFacturacionCards selected={selectedMode} onChange={handleModeChange} />
+
+                {esSinNombre ? (
+                  <div className="rounded-2xl border-2 border-coffee-400 bg-coffee-50/40 overflow-hidden">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-coffee-100/60 border-b border-coffee-200">
+                      <UserX className="h-3.5 w-3.5 text-amber-600 flex-shrink-0" />
+                      <p className="text-[10px] font-bold text-coffee-700 uppercase tracking-wider">
+                        Factura Sin Nombre
+                      </p>
+                    </div>
+                    <div className="p-3">
+                      <p className="text-[11px] text-coffee-700 leading-relaxed">
+                        NIT (5) · Documento <span className="font-mono">&quot;0&quot;</span> · Nombre{' '}
+                        <span className="font-mono">&quot;{DEFAULT_SIN_NOMBRE}&quot;</span>.
+                      </p>
+                    </div>
+                  </div>
+                ) : noFacturar ? (
+                  <div className="rounded-2xl border-2 border-coffee-400 bg-coffee-50/40 overflow-hidden">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-coffee-100/60 border-b border-coffee-200">
+                      <Ban className="h-3.5 w-3.5 text-coffee-600 flex-shrink-0" />
+                      <p className="text-[10px] font-bold text-coffee-700 uppercase tracking-wider">
+                        Venta sin factura
+                      </p>
+                    </div>
+                    <div className="p-3">
+                      <p className="text-[11px] text-coffee-600 leading-relaxed">
+                        Se registrará la venta internamente sin emitir factura al SIAT.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border-2 border-coffee-400 bg-coffee-50/40 overflow-hidden">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-coffee-100/60 border-b border-coffee-200">
+                      <FileText className="h-3.5 w-3.5 text-coffee-700 flex-shrink-0" />
+                      <p className="text-[10px] font-bold text-coffee-700 uppercase tracking-wider">
+                        Datos fiscales
+                      </p>
+                      <span className="ml-auto text-[9px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                        Requerido
+                      </span>
+                    </div>
+                    <div className="p-3">
+                      <DatosFiscalesForm
+                        codigoTipoDocumento={codigoTipoDocumento}
+                        numeroDocumento={numeroDocumento}
+                        complemento={complemento}
+                        facturacionNombre={facturacionNombre}
+                        onCodigoTipoDocumentoChange={onCodigoTipoDocumentoChange}
+                        onNumeroDocumentoChange={onNumeroDocumentoChange}
+                        onComplementoChange={onComplementoChange}
+                        onFacturacionNombreChange={onFacturacionNombreChange}
+                        docSearchResults={docSearchResults}
+                        docSearchLoading={docSearchLoading}
+                        docSearchActive={docSearchActive}
+                        nombreSearchResults={nombreSearchResults}
+                        nombreSearchLoading={nombreSearchLoading}
+                        nombreSearchActive={nombreSearchActive}
+                        onAssignCustomerFromSearch={onAssignCustomerFromSearch}
+                        onClearSearchResults={onClearSearchResults}
+                        clienteEsConsumidorFinal={clienteEsConsumidorFinal}
+                        clienteAsignadoDelDropdown={clienteAsignadoDelDropdown}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
+
+          <div className="flex-shrink-0 border-t border-coffee-100 px-5 py-4 flex gap-2">
+            <button
+              onClick={() => setStep('cobrar')}
+              className="flex-1 sm:flex-none sm:px-4 py-3 rounded-2xl border-2 border-coffee-200 bg-white text-coffee-700 font-bold text-sm hover:bg-coffee-50 transition-colors"
+            >
+              ← Atrás
+            </button>
+            <button
+              onClick={handleConfirmarVenta}
+              disabled={!facturacionValida}
+              className={clsx(
+                'flex-1 py-3 rounded-2xl font-bold text-sm transition-all inline-flex items-center justify-center gap-2',
+                facturacionValida
+                  ? 'bg-emerald-600 text-white hover:bg-emerald-500 active:scale-95 shadow-lg'
+                  : 'bg-coffee-100 text-coffee-400 cursor-not-allowed',
+              )}
+              title={!facturacionValida ? 'Ingresa el nombre y el número de documento' : undefined}
+            >
+              <Check className="h-4 w-4" /> Confirmar venta
+            </button>
+          </div>
+        </>
+      )}
+
       {/* ── STEP: COBRAR ── */}
       {step === 'cobrar' && (
         <>
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-0">
-          <CustomerCombobox
-            customers={clientes}
-            value={selectedClienteId}
-            onChange={onClienteChange}
-            onCreateCustomer={onCreateCustomer}
-          />
-
           <div className="bg-coffee-50 rounded-xl p-3 flex justify-between text-sm mb-2">
             <span className="text-coffee-500">{cuentas.length} cuentas</span>
             <span className="font-bold text-coffee-900">{formatCurrency(mesaTotal)}</span>
@@ -629,10 +829,10 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
         {allPaid && (
           <div className="flex-shrink-0 border-t border-coffee-100 px-5 py-4">
             <button
-              onClick={handleTerminarCobro}
+              onClick={handleContinuarAFacturacion}
               className="w-full py-4 rounded-2xl font-bold text-base bg-emerald-600 text-white hover:bg-emerald-500 active:scale-95 transition-all flex items-center justify-center gap-2"
             >
-              <Check className="h-5 w-5" /> Terminar cobro
+              Continuar a facturación <ChevronRight className="h-5 w-5" />
             </button>
           </div>
         )}

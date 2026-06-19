@@ -56,7 +56,7 @@ export const PrintReciboModal: React.FC<PrintReciboModalProps> = ({ data, onClos
             </div>
             <div>
               <p className="text-sm font-bold text-coffee-900">Imprimir recibo</p>
-              <p className="text-xs text-coffee-400">{data.mesaName} · {data.saleCode}</p>
+              <p className="text-xs text-coffee-400">{data.mesaName}</p>
             </div>
           </div>
           <button

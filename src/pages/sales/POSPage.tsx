@@ -36,7 +36,7 @@ import { ComboDetailPanel } from '../../components/pos/ComboDetailPanel';
 import { EditarRondaModal } from '../../components/pos/EditarRondaModal';
 import type { CartItem } from '../../hooks/usePOSCart';
 import type { DtoRondaDetalleEditar } from '../../hooks/useMesas';
-import type { Product, Category, Customer, CustomerInput, PaymentMethodType, VariacionAtributo } from '../../types';
+import type { Product, Category, Customer, PaymentMethodType, VariacionAtributo } from '../../types';
 import type { MilestoneReward, PointsCalculation } from '../../types/loyalty';
 import { VariacionPickerModal } from '../../components/modals/VariacionPickerModal';
 import { ElaboradoDetailModal } from '../../components/modals/ElaboradoDetailModal';
@@ -947,24 +947,6 @@ export const POSPage: React.FC = () => {
     toast.success('Cliente asignado', `${c.nombre} quedó vinculado al cobro.`);
   }, []);
 
-  const handleCreateCustomerCombobox = async (input: CustomerInput): Promise<Customer> => {
-    // Body plano: ver comentario en handleCreateCustomer sobre el wrapper.
-    // Dni se omite si no viene (la entidad es int?, la BD lo permite NULL).
-    const res = await api.post<{ message: string; Id: number }>('/Cliente', {
-      Dni: input.dni ?? null,
-      Nombre: input.nombre,
-      Celular: input.celular,
-      Correo: input.correo ?? null,
-      Fecha_nacimiento: null,
-      Direccion: null,
-      Estado: true,
-    });
-    const id = String(res.Id);
-    const newCustomer: Customer = { id, nombre: input.nombre, celular: input.celular, puntos: 0, estado: true };
-    setCustomers(prev => [newCustomer, ...prev]);
-    return newCustomer;
-  };
-
   const addTempProduct = (product: Product) => {
     if (product.tipo === 'combo') {
       setComboDetailProduct(product);
@@ -1346,6 +1328,7 @@ export const POSPage: React.FC = () => {
                       setShowNewCustomerForm(false);
                       setNewCustomerName('');
                       setNewCustomerPhone('');
+                      if (!productsLoaded) loadProducts();
                       setModalView('iniciar_para_llevar');
                     }
                   }}
@@ -1993,8 +1976,38 @@ export const POSPage: React.FC = () => {
                 clientes={customers}
                 selectedClienteId={reviewClienteId ?? ''}
                 onClienteChange={(id) => setReviewClienteId(id || null)}
-                onCreateCustomer={handleCreateCustomerCombobox}
                 qrImageUrl={qrImageUrl}
+                // Facturación
+                noFacturar={noFacturar}
+                onNoFacturarChange={handleNoFacturarChange}
+                esSinNombre={esSinNombre}
+                onEsSinNombreChange={handleEsSinNombreChange}
+                codigoTipoDocumento={codigoTipoDocumento}
+                onCodigoTipoDocumentoChange={setCodigoTipoDocumento}
+                numeroDocumento={numeroDocumento}
+                onNumeroDocumentoChange={handleNumeroDocumentoChange}
+                complemento={complemento}
+                onComplementoChange={handleComplementoChange}
+                facturacionNombre={facturacionNombre}
+                onFacturacionNombreChange={handleFacturacionNombreChange}
+                clienteEsConsumidorFinal={clienteEsConsumidorFinal}
+                clienteAsignadoDelDropdown={clienteAsignadoDelDropdown}
+                docSearchResults={docSearchResults}
+                docSearchLoading={docSearchLoading}
+                docSearchActive={docSearchActive}
+                nombreSearchResults={nombreSearchResults}
+                nombreSearchLoading={nombreSearchLoading}
+                nombreSearchActive={nombreSearchActive}
+                onAssignCustomerFromSearch={handleAssignCustomerFromSearch}
+                onClearSearchResults={clearSearchResults}
+                reviewShowNewCustomerForm={reviewShowNewCustomerForm}
+                onToggleReviewNewCustomerForm={() => { setReviewShowNewCustomerForm(v => !v); setReviewNewCustomerName(''); setReviewNewCustomerPhone(''); }}
+                reviewNewCustomerName={reviewNewCustomerName}
+                onReviewNewCustomerNameChange={setReviewNewCustomerName}
+                reviewNewCustomerPhone={reviewNewCustomerPhone}
+                onReviewNewCustomerPhoneChange={setReviewNewCustomerPhone}
+                isCreatingCustomer={isCreatingCustomer}
+                onCreateCustomerReview={handleCreateCustomerReview}
               />
             </Suspense>
           </Overlay>
