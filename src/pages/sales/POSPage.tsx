@@ -1125,7 +1125,6 @@ export const POSPage: React.FC = () => {
           : mesaTotal;
         const pagos: PagosObject = { efectivo: 0, tarjeta: 0, qr: 0, total: efectivoTotal };
         if (paymentMethod === 'cash') pagos.efectivo = efectivoTotal;
-        else if (paymentMethod === 'card') pagos.tarjeta = efectivoTotal;
         else if (paymentMethod === 'transfer') pagos.qr = efectivoTotal;
 
         // Body del cobro — ver `construirBodyCobro` para la cascada completa.
