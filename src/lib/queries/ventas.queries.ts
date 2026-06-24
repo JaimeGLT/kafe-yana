@@ -50,6 +50,7 @@ export const GET_VENTAS_REPORT = `
         nombreRazonSocial
         usuario
         estadoSiat
+        revertidaAnulacion
         montoTotalSujetoIva
         montoTotal
         numeroTarjeta
@@ -62,6 +63,8 @@ export const GET_VENTAS_REPORT = `
           subTotal
           codigoProducto
           unidadMedida
+          codigoProductoSin
+          actividadEconomica
         }
       }
       pageInfo {
@@ -83,6 +86,7 @@ export const GET_VENTAS = `
         nombreRazonSocial
         usuario
         estadoSiat
+        revertidaAnulacion
         montoTotalSujetoIva
         montoTotal
         numeroTarjeta
@@ -95,6 +99,8 @@ export const GET_VENTAS = `
           subTotal
           codigoProducto
           unidadMedida
+          codigoProductoSin
+          actividadEconomica
         }
       }
       pageInfo {
@@ -102,6 +108,26 @@ export const GET_VENTAS = `
         endCursor
       }
       totalCount
+    }
+  }
+`;
+
+/**
+ * KPIs agregados de ventas (totales monetarios y conteos para hoy/mes).
+ * El backend (VentaQuery.VentasEstadisticas) aplica el mismo `where` que la lista
+ * y calcula los agregados sobre todas las páginas, no sólo la cargada en la UI.
+ *
+ * El input `where` es un subconjunto de VentaFilterInput (fecha + estado SIAT)
+ * que coincide con `VentasEstadisticasFiltroInput` del backend.
+ */
+export const GET_VENTAS_STATS = `
+  query GetVentasStats($where: VentasEstadisticasFiltroInput) {
+    ventasEstadisticas(where: $where) {
+      totalHoy
+      totalMes
+      conteoHoy
+      conteoMes
+      ticketPromedioMes
     }
   }
 `;

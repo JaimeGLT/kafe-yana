@@ -1,232 +1,182 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { TrendingUp, ShoppingBag, Calendar } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Input, Select, SkeletonSalesTable } from '../../components/ui';
+import { Pagination } from '../../components/ui/Pagination';
 import { SalesTable } from '../../components/tables/SalesTable';
 import { SaleDetailModal } from '../../components/modals/SaleDetailModal';
 import { RefundModal } from '../../components/modals/RefundModal';
 import { AnularFacturaModal } from '../../components/modals/AnularFacturaModal';
+import { RevertirAnulacionFacturaModal } from '../../components/modals/RevertirAnulacionFacturaModal';
+import { NotaAjusteModal } from '../../components/modals/NotaAjusteModal';
 import { SaleReceiptModal } from '../../components/modals/SaleReceiptModal';
 import { api } from '../../lib/api';
 import { toast } from '../../components/ui/Toast';
 import { formatCurrency } from '../../utils';
 import type { Sale } from '../../types';
-import { esEstadoValidadaSiat } from '../../types/siat';
-import { gql } from '../../lib/graphql';
-import { GET_VENTAS } from '../../lib/queries/ventas.queries';
+import type { CrearNotaAjusteRequest } from '../../types/notaAjuste';
 import { useFacturacion } from '../../hooks/useFacturacion';
+import { usePagination } from '../../hooks/usePagination';
+import { useVentasPage } from '../../hooks/useVentasPage';
+import { useVentasStats } from '../../hooks/useVentasStats';
+import type { VentaFilters } from '../../types/ventas';
+import { startOfDay, endOfDay } from 'date-fns';
 
-interface SaleStats {
-  totalSalesToday: number;
-  totalSalesMonth: number;
-  averageTicket: number;
-}
+// ── Page-level filter state ────────────────────────────────────────────────
 
-// ── Backend mapping ───────────────────────────────────────────────────────────
+type StatusFilter = '' | 'completed' | 'refunded' | 'partially_refunded';
+type EstadoSiatFiltro = 'todos' | 'validada' | 'observada' | 'pendiente' | 'anulada';
 
-const mapEstadoToStatus = (estado: string | null): Sale['status'] => {
-  const e = (estado ?? '').toLowerCase();
-  if (e === 'validada' || e === 'finalizada' || e === 'finalizado') return 'completed';
-  if (e === 'anulada' || e === 'reembolsada' || e === 'reembolsado') return 'refunded';
-  if (e.startsWith('parcialmente')) return 'partially_refunded';
-  return 'completed';
+const isStatusFilter = (v: string): v is StatusFilter =>
+  v === '' || v === 'completed' || v === 'refunded' || v === 'partially_refunded';
+
+const isEstadoSiatFiltro = (v: string): v is EstadoSiatFiltro =>
+  v === 'todos' || v === 'validada' || v === 'observada' || v === 'pendiente' || v === 'anulada';
+
+const mapEstadoSiatToApi = (f: EstadoSiatFiltro): string => {
+  switch (f) {
+    case 'validada':  return 'VALIDADA';
+    case 'observada': return 'OBSERVADA';
+    case 'pendiente': return 'PENDIENTE';
+    case 'anulada':   return 'ANULADA';
+    case 'todos':
+    default:          return '';
+  }
 };
 
-interface BackendVentaDetalle {
-  id: number;
-  id_venta: number;
-  descripcion: string;
-  cantidad: number;
-  precioUnitario: number | string;
-  subTotal: number | string;
-  codigoProducto?: string;
-  unidadMedida?: number;
-}
+/** Construye el `where: VentaFilterInput` desde los inputs de la página. */
+function buildWhere(opts: {
+  dateFrom: string;
+  dateTo: string;
+  estadoSiatFilter: EstadoSiatFiltro;
+  search: string;
+}): VentaFilters {
+  const where: VentaFilters = {};
 
-interface BackendVenta {
-  id: number;
-  numeroFactura: number | null;
-  fechaEmision: string;
-  nombreRazonSocial: string;
-  usuario: string;
-  estadoSiat: string | null;
-  montoTotalSujetoIva: number | string;
-  montoTotal: number | string;
-  numeroTarjeta: string | null;
-  detalles: BackendVentaDetalle[];
-}
-
-interface BackendVentasResponse {
-  ventas: {
-    nodes: BackendVenta[];
-    totalCount: number;
-    pageInfo: { hasNextPage: boolean; endCursor: string | null };
-  };
-}
-
-const mapBackendVentaToSale = (v: BackendVenta): Sale => {
-  // numeroFactura llega null en ventas que aún no pasaron por SIAT
-  // (o fueron anuladas localmente). Caemos al id interno para que el código
-  // visible siga siendo único.
-  const codeLabel = `V-${v.numeroFactura ?? v.id}`;
-  const monto = Number(v.montoTotal);
-  const esTarjeta = v.numeroTarjeta != null && v.numeroTarjeta !== '';
-
-  const paymentMethods: Sale['paymentMethods'] = [];
-  if (esTarjeta) {
-    paymentMethods.push({ id: `${codeLabel}-card`, type: 'card', name: 'Tarjeta', amount: monto });
-  } else {
-    paymentMethods.push({ id: `${codeLabel}-cash`, type: 'cash', name: 'Efectivo', amount: monto });
+  if (opts.dateFrom || opts.dateTo) {
+    where.fechaEmision = {};
+    if (opts.dateFrom) where.fechaEmision.gte = startOfDay(new Date(opts.dateFrom + 'T00:00:00')).toISOString();
+    if (opts.dateTo)   where.fechaEmision.lte = endOfDay(new Date(opts.dateTo + 'T00:00:00')).toISOString();
   }
 
-  return {
-    id: String(v.id),
-    code: codeLabel,
-    date: new Date(v.fechaEmision),
-    customerId: undefined,
-    customerName: v.nombreRazonSocial || undefined,
-    cashierId: '',
-    cashierName: v.usuario,
-    branchId: '',
-    branchName: '',
-    status: mapEstadoToStatus(v.estadoSiat),
-    subtotal: Number(v.montoTotalSujetoIva),
-    discount: 0,
-    tax: 0,
-    taxPercentage: 18,
-    total: monto,
-    paymentMethods,
-    items: v.detalles.map((d, i) => ({
-      id: `${codeLabel}-${i}`,
-      productId: d.codigoProducto ?? '',
-      productCode: d.codigoProducto ?? '',
-      productName: d.descripcion,
-      quantity: d.cantidad,
-      unit: d.unidadMedida != null ? String(d.unidadMedida) : 'unidad',
-      unitPrice: Number(d.precioUnitario),
-      discount: 0,
-      subtotal: Number(d.subTotal),
-      tax: 0,
-      total: Number(d.subTotal),
-    })),
-    pointsEarned: undefined,
-    pointsRedeemed: undefined,
-    notes: undefined,
-    refunds: [],
-    createdAt: new Date(v.fechaEmision),
-    updatedAt: new Date(v.fechaEmision),
+  if (opts.estadoSiatFilter !== 'todos') {
+    where.estadoSiat = { eq: mapEstadoSiatToApi(opts.estadoSiatFilter) };
+  }
 
-    // SIAT
-    ventaId: v.id,
-    estadoSiat: v.estadoSiat,
-    siatAceptada: esEstadoValidadaSiat(v.estadoSiat),
-    errorSiat: null,
-    numeroFactura: v.numeroFactura,
-  };
-};
+  const trimmed = opts.search.trim();
+  if (trimmed.length > 0) {
+    const num = Number(trimmed);
+    const clauses: NonNullable<VentaFilters['or']>[number][] = [
+      { nombreRazonSocial: { contains: trimmed } },
+      { usuario: { contains: trimmed } },
+    ];
+    if (Number.isFinite(num)) {
+      clauses.push({ numeroFactura: { eq: num } });
+    }
+    where.or = clauses;
+  }
+
+  return where;
+}
+
+// ── Page ────────────────────────────────────────────────────────────────────
 
 export const SalesListPage: React.FC = () => {
   const location = useLocation();
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [stats, setStats] = useState<SaleStats>({ totalSalesToday: 0, totalSalesMonth: 0, averageTicket: 0 });
-  const [_isLoading, setIsLoading] = useState(true);
+  const initialState = (location.state as { dateFrom?: string; dateTo?: string } | null) ?? {};
 
-  const [search, setSearch] = useState('');
-  const [dateFrom, setDateFrom] = useState<string>(() => (location.state as any)?.dateFrom ?? '');
-  const [dateTo, setDateTo] = useState<string>(() => (location.state as any)?.dateTo ?? '');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [estadoSiatFilter, setEstadoSiatFilter] = useState<'todos'|'validada'|'observada'|'pendiente'|'anulada'>('todos');
+  // ── Filtros (UI state) ────────────────────────────────────────────────
+  const [searchInput, setSearchInput] = useState('');
+  const [dateFrom, setDateFrom] = useState<string>(initialState.dateFrom ?? '');
+  const [dateTo, setDateTo] = useState<string>(initialState.dateTo ?? '');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('');
+  const [estadoSiatFilter, setEstadoSiatFilter] = useState<EstadoSiatFiltro>('todos');
+
+  // ── Paginación (patrón usePagination como ProductsPage) ───────────────
+  const { page, pageSize, search: debouncedSearch, cursors, maxReachablePage, setPage, setSearch, setCursors, resetPage } =
+    usePagination({ pageSize: 15 });
+
+  // El `search` del hook de paginación se sincroniza con el input de la página.
+  // El reset a página 1 ocurre automáticamente al cambiar `debouncedSearch`
+  // (ver usePagination); para los demás filtros lo disparamos manualmente.
+  useEffect(() => {
+    setSearch(searchInput);
+  }, [searchInput, setSearch]);
+
+  useEffect(() => {
+    resetPage();
+  }, [dateFrom, dateTo, estadoSiatFilter, statusFilter, resetPage]);
+
+  // `where` efectivo: usa el search debounced para evitar una query por tecla.
+  // El useMemo garantiza que la referencia del objeto es estable mientras los
+  // valores no cambien — si pasáramos `JSON.parse(JSON.stringify(where))` o un
+  // objeto nuevo en cada render, los hooks abajo entrarían en loop infinito
+  // porque sus useCallback/useEffect detectarían una "nueva" dependencia.
+  const where = useMemo<VentaFilters>(
+    () => buildWhere({ dateFrom, dateTo, estadoSiatFilter, search: debouncedSearch }),
+    [dateFrom, dateTo, estadoSiatFilter, debouncedSearch],
+  );
+
+  // ── Data fetching (delegado a hooks) ─────────────────────────────────
+  // Lista y KPIs usan su propia query y su propio hook, pero comparten el
+  // mismo `where` (estable vía useMemo). Si los filtros cambian, ambos se
+  // re-fetchean juntos; si sólo cambia la página, sólo la lista.
+  const { ventas, isLoading, totalCount, endCursor, refresh: refreshPage } = useVentasPage({
+    page,
+    pageSize,
+    afterCursor: page > 1 ? cursors[page - 1] : undefined,
+    where,
+  });
+
+  // Cuando llega un nuevo endCursor lo guardamos en el cache por página.
+  useEffect(() => {
+    if (endCursor) setCursors((prev) => ({ ...prev, [page]: endCursor }));
+  }, [endCursor, page, setCursors]);
+
+  const { stats, refresh: refreshStats } = useVentasStats(where);
+
+  const refresh = async () => {
+    await Promise.all([refreshPage(), refreshStats()]);
+  };
+
+  // ── Modal state ──────────────────────────────────────────────────────
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [refundingSale, setRefundingSale] = useState<Sale | null>(null);
   const [printSale, setPrintSale] = useState<Sale | null>(null);
   const [anularSale, setAnularSale] = useState<Sale | null>(null);
+  const [revertirAnulacionSale, setRevertirAnulacionSale] = useState<Sale | null>(null);
+  const [notaAjusteSale, setNotaAjusteSale] = useState<Sale | null>(null);
 
   // SIAT
-  const { imprimirFactura, reenviarFactura, anularFactura } = useFacturacion();
+  const {
+    imprimirFactura,
+    reenviarFactura,
+    anularFactura,
+    revertirAnulacionFactura,
+    crearNotaAjuste,
+  } = useFacturacion();
 
-  // ── Pagination ────────────────────────────────────────────────────────────────
-  const [afterCursor, setAfterCursor] = useState<string | null>(null);
-  const [hasNextPage, setHasNextPage] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [totalCount, setTotalCount] = useState(0);
+  // ── Post-filter client-side (statusFilter: derivado de estadoSiat) ───
+  // El backend ya filtra por estadoSiat cuando hay valor; statusFilter es un
+  // refinamiento secundario (completada vs reembolsada) sobre la página actual.
+  const filteredVentas = useMemo(() => {
+    if (!statusFilter) return ventas;
+    return ventas.filter((s) => s.status === statusFilter);
+  }, [ventas, statusFilter]);
 
-  // ── Load from backend ────────────────────────────────────────────────────────
-
-  const loadVentas = useCallback((cursor: string | null, append: boolean) => {
-    if (cursor === null) {
-      setIsLoading(true);
-    } else {
-      setIsLoadingMore(true);
-    }
-
-    gql<BackendVentasResponse>(GET_VENTAS, cursor ? { after: cursor } : {})
-      .then(data => {
-        if (!data.ventas) return;
-        const nodes = data.ventas.nodes.map(mapBackendVentaToSale);
-        if (append) {
-          setSales(prev => [...prev, ...nodes]);
-        } else {
-          setSales(nodes);
-        }
-        setAfterCursor(data.ventas.pageInfo.endCursor ?? null);
-        setHasNextPage(data.ventas.pageInfo.hasNextPage ?? false);
-        setTotalCount(data.ventas.totalCount ?? 0);
-
-        // Si el modal de detalle está abierto, sincronizarlo con la versión
-        // recién cargada (importante tras anular en SIAT para que el badge
-        // y el botón "Anular en SIAT" reflejen el estado real sin recargar).
-        setSelectedSale(prev => {
-          if (!prev || prev.ventaId == null) return prev;
-          const updated = nodes.find(n => n.ventaId === prev.ventaId);
-          return updated ?? prev;
-        });
-      })
-      .catch((err) => {
-        // Si el mapper explota (p.ej. un null inesperado del backend) lo
-        // registramos para que no se pierda silenciosamente y bloquee la lista.
-        console.error('[SalesListPage] Error cargando ventas:', err);
-      })
-      .finally(() => {
-        setIsLoading(false);
-        setIsLoadingMore(false);
-      });
-  }, []);
-
+  // ── Sync del modal abierto tras refetch ──────────────────────────────
+  // Si el modal está abierto y la lista se refrescó (p.ej. tras anular en
+  // SIAT), sincronizamos `selectedSale` con la versión recién cargada para
+  // que el badge y los botones reflejen el estado real sin recargar.
   useEffect(() => {
-    loadVentas(null, false);
-  }, [loadVentas]);
+    if (!selectedSale || selectedSale.ventaId == null) return;
+    const updated = ventas.find((s) => s.ventaId === selectedSale.ventaId);
+    if (updated && updated !== selectedSale) setSelectedSale(updated);
+  }, [ventas, selectedSale]);
 
-  const handleLoadMore = () => {
-    if (afterCursor && !isLoadingMore) {
-      loadVentas(afterCursor, true);
-    }
-  };
-
-  // ── Stats from real data ─────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (sales.length === 0) {
-      setStats({ totalSalesToday: 0, totalSalesMonth: 0, averageTicket: 0 });
-      return;
-    }
-
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    const todayCompleted = sales.filter(s => s.status === 'completed' && new Date(s.date) >= startOfToday);
-    const monthCompleted = sales.filter(s => s.status === 'completed' && new Date(s.date) >= startOfMonth);
-
-    const totalSalesToday = todayCompleted.reduce((sum, s) => sum + s.total, 0);
-    const totalSalesMonth = monthCompleted.reduce((sum, s) => sum + s.total, 0);
-    const countCompleted = monthCompleted.length;
-    const averageTicket = countCompleted > 0 ? totalSalesMonth / countCompleted : 0;
-
-    setStats({ totalSalesToday, totalSalesMonth, averageTicket });
-  }, [sales]);
-
+  // ── Reembolso ────────────────────────────────────────────────────────
   const handleSimpleRefund = async (id: string, amount: number, reason: string, paymentType: string) => {
     if (!refundingSale) return;
     await api.post(`/Venta/reembolso/${id}`, {
@@ -234,68 +184,12 @@ export const SalesListPage: React.FC = () => {
       nota: reason,
       tipoPago: paymentType,
     });
-    setSales(prev => prev.map(s =>
-      s.id === refundingSale.id ? { ...s, status: 'refunded' as const } : s
-    ));
     toast.success('Reembolso registrado', `${formatCurrency(amount)} reembolsados.`);
+    await refresh();
     setRefundingSale(null);
   };
 
-  // ── Filtros ────────────────────────────────────────────────────────────────
-
-  const filteredSales = useMemo(() => {
-    return sales.filter((sale) => {
-      if (search) {
-        const q = search.toLowerCase();
-        if (
-          !sale.code.toLowerCase().includes(q) &&
-          !(sale.customerName ?? '').toLowerCase().includes(q)
-        ) return false;
-      }
-      if (dateFrom || dateTo) {
-        const saleDate = sale.date instanceof Date && !isNaN(sale.date.getTime())
-          ? sale.date.toLocaleDateString('en-CA')
-          : '';
-        if (dateFrom && saleDate < dateFrom) return false;
-        if (dateTo   && saleDate > dateTo)   return false;
-      }
-      if (statusFilter && sale.status !== statusFilter) return false;
-      if (estadoSiatFilter !== 'todos') {
-        const e = String(sale.estadoSiat ?? '').toLowerCase();
-        if (estadoSiatFilter === 'validada'  && !(e === 'validada'  || e === 'finalizada'  || e === 'finalizado')) return false;
-        if (estadoSiatFilter === 'anulada'   && !(e === 'anulada'   || e === 'reembolsada' || e === 'reembolsado')) return false;
-        if (estadoSiatFilter === 'pendiente' && e !== 'pendiente') return false;
-        if (estadoSiatFilter === 'observada' && e !== 'observada') return false;
-      }
-      return true;
-    });
-  }, [sales, search, dateFrom, dateTo, statusFilter, estadoSiatFilter]);
-
-  const todaySales = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return sales.filter((s) => s.status === 'completed' && new Date(s.date) >= today);
-  }, [sales]);
-
-  const statusOptions = [
-    { value: '',                   label: 'Todos los estados' },
-    { value: 'completed',          label: 'Completada' },
-    { value: 'refunded',           label: 'Reembolsada' },
-    { value: 'partially_refunded', label: 'Parcialmente reembolsada' },
-  ];
-
-  const estadoSiatOptions = [
-    { value: 'todos',     label: 'Todos los estados SIAT' },
-    { value: 'validada',  label: 'SIAT: Validada' },
-    { value: 'observada', label: 'SIAT: Observada' },
-    { value: 'pendiente', label: 'SIAT: Pendiente' },
-    { value: 'anulada',   label: 'SIAT: Anulada' },
-  ];
-
-  const handlePrintComanda = (sale: Sale) => setPrintSale(sale);
-
-  // ── SIAT: imprimir y reenviar factura ────────────────────────────────────────
-
+  // ── SIAT handlers (delegados a useFacturacion) ───────────────────────
   const handleImprimirSiat = async (sale: Sale) => {
     if (!sale.ventaId) {
       toast.error('Sin identificador SIAT', 'Esta venta no tiene un id válido para reimprimir.');
@@ -304,35 +198,78 @@ export const SalesListPage: React.FC = () => {
     await imprimirFactura(sale.ventaId);
   };
 
-  const handleImprimirSiatById = async (ventaId: number) => {
-    await imprimirFactura(ventaId);
+  const handleImprimirSiatById = (ventaId: number) => {
+    void imprimirFactura(ventaId);
   };
-
   const handleReenviarSiatById = async (ventaId: number) => {
     await reenviarFactura(ventaId);
-    loadVentas(null, false);
+    await refresh();
   };
 
-  // Abre el modal de anulación con la venta que coincida con el ventaId.
   const handleAnularSiatById = (ventaId: number) => {
-    const target = sales.find((s) => s.ventaId === ventaId) ?? selectedSale;
+    const target = ventas.find((s) => s.ventaId === ventaId) ?? selectedSale;
     if (target) setAnularSale(target);
   };
 
-  // Confirma la anulación: llama al backend y refresca si la transacción fue exitosa.
-  // Nos basta con Transaccion=true (el backend ya garantiza que el estado final es Anulada
-  // o que la factura ya estaba anulada). Comparar el string 'Anulada' era frágil porque
-  // el backend serializa el enum FacturaEstado como número (no usa JsonStringEnumConverter).
+  // Confirma la anulación: basta con Transaccion=true (el backend garantiza
+  // que la factura quedó Anulada o ya lo estaba).
   const handleConfirmAnularSiat = async (ventaId: number, codigoMotivo: number, nota?: string) => {
     const res = await anularFactura(ventaId, codigoMotivo, nota);
     if (res?.Siat?.Transaccion) {
-      loadVentas(null, false);
+      await refresh();
       return true;
     }
     return false;
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const handleRevertirAnulacionSiatById = (ventaId: number) => {
+    const target = ventas.find((s) => s.ventaId === ventaId) ?? selectedSale;
+    if (target) setRevertirAnulacionSale(target);
+  };
+
+  const handleConfirmRevertirAnulacionSiat = async (ventaId: number) => {
+    const res = await revertirAnulacionFactura(ventaId);
+    if (res?.Siat?.Transaccion) {
+      await refresh();
+      return true;
+    }
+    return false;
+  };
+
+  // ── Nota de Crédito/Débito ───────────────────────────────────────────
+  const handleNotaAjusteSiatById = (ventaId: number) => {
+    const target = ventas.find((s) => s.ventaId === ventaId) ?? selectedSale;
+    if (target) setNotaAjusteSale(target);
+  };
+
+  const handleConfirmNotaAjuste = async (body: CrearNotaAjusteRequest) => {
+    const res = await crearNotaAjuste(body);
+    if (res?.Siat?.Transaccion) {
+      await refresh();
+      return true;
+    }
+    return false;
+  };
+
+  const handlePrintComanda = (sale: Sale) => setPrintSale(sale);
+
+  // ── Static options ───────────────────────────────────────────────────
+  const statusOptions = [
+    { value: '',                   label: 'Todos los estados' },
+    { value: 'completed',          label: 'Completada' },
+    { value: 'refunded',           label: 'Reembolsada' },
+    { value: 'partially_refunded', label: 'Parcialmente reembolsada' },
+  ];
+
+  const estadoSiatOptions: { value: EstadoSiatFiltro; label: string }[] = [
+    { value: 'todos',     label: 'Todos los estados SIAT' },
+    { value: 'validada',  label: 'SIAT: Validada' },
+    { value: 'observada', label: 'SIAT: Observada' },
+    { value: 'pendiente', label: 'SIAT: Pendiente' },
+    { value: 'anulada',   label: 'SIAT: Anulada' },
+  ];
+
+  // ── Render ───────────────────────────────────────────────────────────
 
   return (
     <MainLayout>
@@ -342,7 +279,7 @@ export const SalesListPage: React.FC = () => {
           subtitle="Consulta y filtra todas las ventas realizadas"
         />
 
-        {/* KPI Strip */}
+        {/* KPI Strip — agregados reales desde el backend */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-5 flex items-center gap-4">
             <div className="h-12 w-12 rounded-xl bg-coffee-100 flex items-center justify-center flex-shrink-0">
@@ -351,9 +288,9 @@ export const SalesListPage: React.FC = () => {
             <div>
               <p className="text-sm text-coffee-500">Ventas Hoy</p>
               <p className="text-2xl font-display font-bold text-coffee-900">
-                {formatCurrency(stats.totalSalesToday)}
+                {formatCurrency(stats.totalHoy)}
               </p>
-              <p className="text-xs text-coffee-400">{todaySales.length} transacciones</p>
+              <p className="text-xs text-coffee-400">{stats.conteoHoy} transacciones</p>
             </div>
           </div>
 
@@ -364,9 +301,11 @@ export const SalesListPage: React.FC = () => {
             <div>
               <p className="text-sm text-coffee-500">Ventas del Mes</p>
               <p className="text-2xl font-display font-bold text-coffee-900">
-                {formatCurrency(stats.totalSalesMonth)}
+                {formatCurrency(stats.totalMes)}
               </p>
-              <p className="text-xs text-coffee-400">Ticket promedio: {formatCurrency(stats.averageTicket)}</p>
+              <p className="text-xs text-coffee-400">
+                Ticket promedio: {formatCurrency(stats.ticketPromedioMes)}
+              </p>
             </div>
           </div>
 
@@ -376,19 +315,19 @@ export const SalesListPage: React.FC = () => {
             </div>
             <div>
               <p className="text-sm text-coffee-500">Ventas Hoy (conteo)</p>
-              <p className="text-2xl font-display font-bold text-coffee-900">{todaySales.length}</p>
-              <p className="text-xs text-coffee-400">Transacciones completadas</p>
+              <p className="text-2xl font-display font-bold text-coffee-900">{stats.conteoHoy}</p>
+              <p className="text-xs text-coffee-400">{stats.conteoMes} en el mes</p>
             </div>
           </div>
         </div>
 
-        {/* Filtros */}
+        {/* Filtros — van al backend */}
         <div className="bg-white rounded-xl border border-coffee-100 shadow-sm p-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <Input
               placeholder="Buscar por código o cliente..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
             />
             <Input
               type="date"
@@ -404,12 +343,12 @@ export const SalesListPage: React.FC = () => {
             />
             <Select
               value={statusFilter}
-              onChange={setStatusFilter}
+              onChange={(v) => isStatusFilter(v) && setStatusFilter(v)}
               options={statusOptions}
             />
             <Select
               value={estadoSiatFilter}
-              onChange={(v) => setEstadoSiatFilter(v as typeof estadoSiatFilter)}
+              onChange={(v) => isEstadoSiatFiltro(v) && setEstadoSiatFilter(v)}
               options={estadoSiatOptions}
             />
           </div>
@@ -417,46 +356,40 @@ export const SalesListPage: React.FC = () => {
 
         {/* Tabla */}
         <PageSection>
-          {_isLoading ? (
-            <SkeletonSalesTable />
-          ) : (
-            <>
-              <SalesTable
-                sales={filteredSales}
-                onView={(sale) => setSelectedSale(sale)}
-                onRefund={(sale) => setRefundingSale(sale)}
-                onPrint={handlePrintComanda}
-                onInvoice={handleImprimirSiat}
-              />
-              {hasNextPage && (
-                <div className="mt-4 flex justify-center">
-                  <button
-                    onClick={handleLoadMore}
-                    disabled={isLoadingMore}
-                    className="px-6 py-2.5 bg-coffee-100 hover:bg-coffee-200 text-coffee-700 font-semibold text-sm rounded-xl transition-colors disabled:opacity-60 flex items-center gap-2"
-                  >
-                    {isLoadingMore ? (
-                      <>
-                        <div className="h-4 w-4 border-2 border-coffee-400 border-t-transparent rounded-full animate-spin" />
-                        Cargando más...
-                      </>
-                    ) : (
-                      <>Ver más ({sales.length} de {totalCount})</>
-                    )}
-                  </button>
-                </div>
-              )}
-            </>
-          )}
+          <div className="bg-white rounded-xl border border-coffee-100 shadow-sm overflow-hidden">
+            {isLoading ? (
+              <SkeletonSalesTable />
+            ) : (
+              <>
+                <SalesTable
+                  sales={filteredVentas}
+                  onView={(sale) => setSelectedSale(sale)}
+                  onRefund={(sale) => setRefundingSale(sale)}
+                  onPrint={handlePrintComanda}
+                  onInvoice={handleImprimirSiat}
+                />
+                <Pagination
+                  totalCount={totalCount}
+                  page={page}
+                  pageSize={pageSize}
+                  onPageChange={setPage}
+                  maxPage={maxReachablePage}
+                  isLoading={isLoading}
+                />
+              </>
+            )}
+          </div>
         </PageSection>
 
-        {/* Modal de detalle */}
+        {/* Modales */}
         <SaleDetailModal
           sale={selectedSale}
           onClose={() => setSelectedSale(null)}
           onImprimirSiat={handleImprimirSiatById}
           onReenviarSiat={handleReenviarSiatById}
           onAnularSiat={handleAnularSiatById}
+          onRevertirAnulacionSiat={handleRevertirAnulacionSiatById}
+          onNotaAjusteSiat={handleNotaAjusteSiatById}
         />
 
         <RefundModal
@@ -471,6 +404,20 @@ export const SalesListPage: React.FC = () => {
           onClose={() => setAnularSale(null)}
           sale={anularSale}
           onConfirm={handleConfirmAnularSiat}
+        />
+
+        <RevertirAnulacionFacturaModal
+          isOpen={!!revertirAnulacionSale}
+          onClose={() => setRevertirAnulacionSale(null)}
+          sale={revertirAnulacionSale}
+          onConfirm={handleConfirmRevertirAnulacionSiat}
+        />
+
+        <NotaAjusteModal
+          isOpen={!!notaAjusteSale}
+          onClose={() => setNotaAjusteSale(null)}
+          sale={notaAjusteSale}
+          onConfirm={handleConfirmNotaAjuste}
         />
 
         <SaleReceiptModal

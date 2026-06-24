@@ -6,6 +6,8 @@ export { PurchaseOrderModal } from './PurchaseOrderModal';
 export { CashMovementModal } from './CashMovementModal';
 export { StockAdjustmentModal } from './StockAdjustmentModal';
 export { AnularFacturaModal } from './AnularFacturaModal';
+export { RevertirAnulacionFacturaModal } from './RevertirAnulacionFacturaModal';
+export { NotaAjusteModal } from './NotaAjusteModal';
 export { CodigoSinModal } from './CodigoSinModal';
 export { SaleDetailModal } from './SaleDetailModal';
 export { SaleReceiptModal } from './SaleReceiptModal';

@@ -104,3 +104,13 @@ export interface AnularFacturaRespuesta {
   MotivoDescripcion: string;
   Siat: SiatResultado;
 }
+
+/** Respuesta de POST /api/Facturacion/revertir-anulacion/{ventaId}.
+ *  El endpoint no recibe body; sólo el ventaId en la URL.
+ *  Si Transaccion=true, el estado SIAT vuelve a Validada (908) y
+ *  Venta.RevertidaAnulacion queda en true. */
+export interface RevertirAnulacionFacturaRespuesta {
+  message: string;
+  VentaId: number;
+  Siat: SiatResultado;
+}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { RotateCcw, Star, Gift, FileText, RefreshCw, Ban } from 'lucide-react';
+import { RotateCcw, Star, Gift, FileText, RefreshCw, Ban, Undo2, ScrollText } from 'lucide-react';
 import { Modal, Badge } from '../ui';
 import { formatCurrency, formatDateTime, getPaymentMethodLabel } from '../../utils';
 import { esEstadoAnuladaSiat } from '../../types/siat';
@@ -25,6 +25,9 @@ interface Props {
   onImprimirSiat?: (ventaId: number) => void | Promise<void>;
   onReenviarSiat?: (ventaId: number) => void | Promise<void>;
   onAnularSiat?: (ventaId: number) => void;
+  onRevertirAnulacionSiat?: (ventaId: number) => void;
+  /** Abre el modal para emitir una Nota de Crédito/Débito sobre la venta. */
+  onNotaAjusteSiat?: (ventaId: number) => void;
 }
 
 export const SaleDetailModal: React.FC<Props> = ({
@@ -35,6 +38,8 @@ export const SaleDetailModal: React.FC<Props> = ({
   onImprimirSiat,
   onReenviarSiat,
   onAnularSiat,
+  onRevertirAnulacionSiat,
+  onNotaAjusteSiat,
 }) => {
   if (!sale && !isLoading && !error) return null;
 
@@ -279,6 +284,18 @@ export const SaleDetailModal: React.FC<Props> = ({
                   <FileText className="h-3.5 w-3.5" /> Imprimir factura SIAT
                 </button>
               )}
+              {sale.siatAceptada &&
+                !esEstadoAnuladaSiat(sale.estadoSiat) &&
+                !sale.revertidaAnulacion &&
+                onNotaAjusteSiat && (
+                  <button
+                    onClick={() => onNotaAjusteSiat(sale.ventaId!)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors"
+                    title="Emitir una Nota de Crédito o Débito sobre esta venta"
+                  >
+                    <ScrollText className="h-3.5 w-3.5" /> Emitir Nota de Ajuste
+                  </button>
+                )}
               {!sale.siatAceptada &&
                 sale.estadoSiat &&
                 !esEstadoAnuladaSiat(sale.estadoSiat) &&
@@ -292,6 +309,7 @@ export const SaleDetailModal: React.FC<Props> = ({
                 )}
               {sale.siatAceptada &&
                 !esEstadoAnuladaSiat(sale.estadoSiat) &&
+                !sale.revertidaAnulacion &&
                 onAnularSiat && (
                   <button
                     onClick={() => onAnularSiat(sale.ventaId!)}
@@ -301,6 +319,39 @@ export const SaleDetailModal: React.FC<Props> = ({
                     <Ban className="h-3.5 w-3.5" /> Anular en SIAT
                   </button>
                 )}
+              {/* Si la factura está Validada pero su anulación ya fue revertida,
+                  el SIAT no permite volver a anularla. Mostramos un aviso para
+                  que el usuario entienda por qué el botón "Anular" no aparece. */}
+              {sale.siatAceptada &&
+                !esEstadoAnuladaSiat(sale.estadoSiat) &&
+                sale.revertidaAnulacion && (
+                  <span
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold"
+                    title="La anulación de esta factura ya fue revertida; el SIAT no permite anularla de nuevo."
+                  >
+                    <Undo2 className="h-3.5 w-3.5" /> No se puede anular (reversión aplicada)
+                  </span>
+                )}
+              {/* Revertir anulación: solo cuando el estado es Anulada y NO se revirtió antes. */}
+              {esEstadoAnuladaSiat(sale.estadoSiat) &&
+                !sale.revertidaAnulacion &&
+                onRevertirAnulacionSiat && (
+                  <button
+                    onClick={() => onRevertirAnulacionSiat(sale.ventaId!)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition-colors"
+                    title="Revertir la anulación en el SIAT (la factura vuelve a Validada)"
+                  >
+                    <Undo2 className="h-3.5 w-3.5" /> Revertir anulación SIAT
+                  </button>
+                )}
+              {esEstadoAnuladaSiat(sale.estadoSiat) && sale.revertidaAnulacion && (
+                <span
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold"
+                  title="La anulación de esta factura ya fue revertida en el SIAT."
+                >
+                  <Undo2 className="h-3.5 w-3.5" /> Reversión aplicada
+                </span>
+              )}
             </div>
           </div>
         )}
