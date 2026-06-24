@@ -170,8 +170,11 @@ export const CashRegisterPage: React.FC = () => {
   if (!caja || !caja.abierta) {
     const sesion = ultimaSesion;
     const diff = sesion?.diferencia ?? null;
+    // El "Saldo Esperado" representa lo que el cajero debe tener FÍSICAMENTE en la caja.
+    // Por eso se usa `totalEfectivo` y NO `totalVentas` (que incluye QR + Tarjeta, dinero
+    // que no entra a la caja registradora sino que va al banco).
     const saldoEsperado = caja?.saldoEsperado ??
-      (sesion ? sesion.saldoInicial + sesion.totalVentas + sesion.totalIngresos - sesion.totalEgresos : 0);
+      (sesion ? sesion.saldoInicial + (sesion.totalEfectivo ?? 0) + sesion.totalIngresos - sesion.totalEgresos : 0);
 
     const diffColor = diff === null ? '' : diff === 0 ? 'text-green-600' : diff > 0 ? 'text-blue-600' : 'text-red-600';
     const diffLabel = diff === null ? '—' : diff === 0 ? 'Sin diferencia' : diff > 0 ? 'Sobrante' : 'Faltante';

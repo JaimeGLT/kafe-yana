@@ -81,6 +81,16 @@ export interface SaleItem {
   notes?: string;
   isRedeemed?: boolean; // producto pagado con puntos de fidelidad
   ubicacion?: string;
+
+  // ── SIAT (Facturación) ─────────────────────────────────────────────
+  /** Id numérico del Detalle_Pago en la BD backend. Necesario para emitir
+   *  notas de crédito/débito (cada `DtoNotaAjusteDetalle.IdDetallePagoOriginal`
+   *  debe corresponder a una línea real de la venta). */
+  idDetallePagoOriginal?: number;
+  /** Código SIN del producto, requerido por el XSD de la nota. */
+  codigoProductoSin?: number;
+  /** Actividad económica declarada en la factura original. */
+  actividadEconomica?: string;
 }
 
 export interface SaleItemInput {
@@ -122,6 +132,8 @@ export interface Sale extends BaseEntity {
   siatAceptada?: boolean;
   errorSiat?: string | null;
   numeroFactura?: number | null;
+  /** True cuando la anulación en SIAT ya fue revertida (operación permitida una sola vez). */
+  revertidaAnulacion?: boolean;
 }
 
 export interface SaleInput {

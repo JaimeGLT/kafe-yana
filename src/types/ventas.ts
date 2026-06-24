@@ -20,6 +20,10 @@ export interface DetalleVentaNode {
   subTotal: number | string;
   codigoProducto?: string;
   unidadMedida?: number;
+  /** Código SIN del producto (requerido por XSD de nota de crédito/débito). */
+  codigoProductoSin?: number;
+  /** Actividad económica declarada en la factura (requerida por XSD de nota). */
+  actividadEconomica?: string;
 }
 
 export interface VentaFilters {
@@ -29,7 +33,14 @@ export interface VentaFilters {
   };
   estadoSiat?: {
     eq?: string;
+    in?: string[];
   };
+  /** Búsqueda por OR — usado para matchear nombre de cliente o usuario. */
+  or?: Array<{
+    nombreRazonSocial?: { contains?: string };
+    usuario?: { contains?: string };
+    numeroFactura?: { eq?: number };
+  }>;
 }
 
 export interface VentaReportStats {
