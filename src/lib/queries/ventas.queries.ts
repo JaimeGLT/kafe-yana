@@ -54,6 +54,8 @@ export const GET_VENTAS_REPORT = `
         montoTotalSujetoIva
         montoTotal
         numeroTarjeta
+        cuf
+        numeroDocumento
         detalles {
           id
           id_venta
@@ -103,6 +105,8 @@ export const GET_VENTAS = `
         montoTotalSujetoIva
         montoTotal
         numeroTarjeta
+        cuf
+        numeroDocumento
         detalles {
           id
           id_venta

@@ -20,6 +20,7 @@ import { usePOSCart } from '../../hooks/usePOSCart';
 import { usePOSLoyalty } from '../../hooks/usePOSLoyalty';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import { formatCurrency } from '../../utils';
+import { consolidarItemsPorNombre } from '../../utils/consolidarItems';
 import { formatOpcionLabel } from '../../utils/opcionUtils';
 import { enviarCatalogo } from '../../utils/comandas';
 import { PrintComandaModal } from '../../components/pos/PrintComandaModal';
@@ -28,6 +29,8 @@ import { PrintReciboModal } from '../../components/pos/PrintReciboModal';
 import type { PrintReciboData } from '../../components/pos/PrintReciboModal';
 import { PreCuentaModal } from '../../components/pos/PreCuentaModal';
 import type { PreCuentaData } from '../../components/pos/PreCuentaModal';
+import { PrintFacturaModal } from '../../components/pos/PrintFacturaModal';
+import type { PrintFacturaData } from '../../components/pos/PrintFacturaModal';
 import { SkeletonMesaGrid, SkeletonCategoryTabs, SkeletonProductScroll, Overlay, ConfirmModal } from '../../components/ui';
 import { MesaCard } from '../../components/pos/MesaCard';
 import { NuevaMesaModal } from '../../components/pos/NuevaMesaModal';
@@ -100,6 +103,14 @@ interface SaleResult {
   errorSiat: string | null;
   codigoRecepcion: string | null;
   numeroFactura: number | null;
+  /** CUF / hash SIAT de la factura. */
+  cuf: string | null;
+  /** NIT del cliente (cadena, viene de la respuesta del backend si fue tipeado). */
+  nitCliente: string | null;
+  /** Razón social del cliente (cliente del dropdown o nombre tipeado). */
+  razonSocialCliente: string | null;
+  /** Fecha/hora de la venta (string ISO). */
+  fechaEmision: string | null;
 }
 
 interface PagosObject {
@@ -238,6 +249,7 @@ export const POSPage: React.FC = () => {
   const [printComandaData, setPrintComandaData] = useState<PrintComandaData | null>(null);
   const [printReciboData, setPrintReciboData] = useState<PrintReciboData | null>(null);
   const [printPreCuentaData, setPrintPreCuentaData] = useState<PreCuentaData | null>(null);
+  const [printFacturaData, setPrintFacturaData] = useState<PrintFacturaData | null>(null);
   const [atributos, setAtributos] = useState<VariacionAtributo[]>([]);
   const [comboDetails, setComboDetails] = useState<Record<string, { name: string; quantity: number; emoji: string }[]>>({});
   const [milestones, _setMilestones] = useState<MilestoneReward[]>([]);
@@ -1059,16 +1071,19 @@ export const POSPage: React.FC = () => {
 
   const handlePrintResumen = () => {
     if (!activeMesa || activeMesa.order.length === 0) return;
+    const itemsCrudos = activeMesa.order.map(i => ({
+      nombre: i.product.name + (i.opciones?.length ? ` (${i.opciones.map((o: any) => formatOpcionLabel(o)).join(', ')})` : ''),
+      cantidad: i.quantity,
+      precioFinal: i.precioFinal,
+      ubicacion: i.product.destino === 'cocina' ? 'cocina'
+               : i.product.destino === 'barra'  ? 'barra'
+               : 'principal',
+    }));
     setPrintPreCuentaData({
       mesaName: activeMesa.name,
-      items: activeMesa.order.map(i => ({
-        nombre: i.product.name + (i.opciones?.length ? ` (${i.opciones.map((o: any) => formatOpcionLabel(o)).join(', ')})` : ''),
-        cantidad: i.quantity,
-        precioFinal: i.precioFinal,
-        ubicacion: i.product.destino === 'cocina' ? 'cocina'
-                 : i.product.destino === 'barra'  ? 'barra'
-                 : 'principal',
-      })),
+      // Consolidar por nombre exacto: si el cliente pidió 2x Café en ronda 1
+      // y 3x Café en ronda 2, aparece una sola línea con cantidad 5.
+      items: consolidarItemsPorNombre(itemsCrudos),
     });
   };
 
@@ -1150,12 +1165,16 @@ export const POSPage: React.FC = () => {
         }
 
         if (res !== null) {
-          const snapshotItems = activeMesa.order.map((i: any) => ({
+          const snapshotItemsCrudos = activeMesa.order.map((i: any) => ({
             cantidad: i.quantity,
             nombre: i.product.name,
             precio: i.precioFinal ?? i.product.price ?? 0,
             total: (i.precioFinal ?? i.product.price ?? 0) * i.quantity,
           }));
+          // Consolidar por nombre exacto: si el cliente pidió 2x Café en ronda 1
+          // y 3x Café en ronda 2, la factura SIAT y el recibo muestran una sola
+          // línea con cantidad 5.
+          const snapshotItems = consolidarItemsPorNombre(snapshotItemsCrudos);
           setLastSaleResult({
             code: res.CodigoVenta ?? (isParaLlevar ? `PL-${pedidoId}` : `MESA-${activeMesa.id}`),
             total: res.TotalCobrado,
@@ -1174,6 +1193,12 @@ export const POSPage: React.FC = () => {
             errorSiat: res.ErrorSiat ?? null,
             codigoRecepcion: res.CodigoRecepcion ?? null,
             numeroFactura: res.NumeroFactura ?? null,
+            cuf: res.CodigoHash ?? null,
+            nitCliente: numeroDocumento.trim() !== '' && numeroDocumento.trim() !== DEFAULT_CF_NUMERO_DOC ? numeroDocumento.trim() : null,
+            razonSocialCliente: facturacionNombre.trim() !== ''
+              ? facturacionNombre.trim()
+              : (clienteEfectivoParaPago?.nombre ?? null),
+            fechaEmision: new Date().toISOString(),
           });
           setModalView('success');
         }
@@ -1221,12 +1246,14 @@ export const POSPage: React.FC = () => {
       }
 
       if (res !== null) {
-        const snapshotItemsDividida = activeMesa.order.map((i: any) => ({
+        const snapshotItemsDivididaCrudos = activeMesa.order.map((i: any) => ({
           cantidad: i.quantity,
           nombre: i.product.name,
           precio: i.precioFinal ?? i.product.price ?? 0,
           total: (i.precioFinal ?? i.product.price ?? 0) * i.quantity,
         }));
+        // Consolidar por nombre exacto para recibo/factura en división de cuenta.
+        const snapshotItemsDividida = consolidarItemsPorNombre(snapshotItemsDivididaCrudos);
         setLastSaleResult({
           code: res.CodigoVenta ?? (isParaLlevar ? `PL-${pedidoId}` : `MESA-${activeMesa.id}`),
           total: res.TotalCobrado,
@@ -1244,6 +1271,12 @@ export const POSPage: React.FC = () => {
           errorSiat: res.ErrorSiat ?? null,
           codigoRecepcion: res.CodigoRecepcion ?? null,
           numeroFactura: res.NumeroFactura ?? null,
+          cuf: res.CodigoHash ?? null,
+          nitCliente: numeroDocumento.trim() !== '' && numeroDocumento.trim() !== DEFAULT_CF_NUMERO_DOC ? numeroDocumento.trim() : null,
+          razonSocialCliente: facturacionNombre.trim() !== ''
+            ? facturacionNombre.trim()
+            : (clienteEfectivoParaPago?.nombre ?? null),
+          fechaEmision: new Date().toISOString(),
         });
         setModalView('success');
       }
@@ -2101,18 +2134,19 @@ export const POSPage: React.FC = () => {
                 errorSiat={lastSaleResult.errorSiat}
                 codigoRecepcion={lastSaleResult.codigoRecepcion}
                 numeroFactura={lastSaleResult.numeroFactura}
-                onPrintSiat={async (ventaId) => {
-                  const r = await imprimirFactura(ventaId);
-                  if (r) {
-                    // Reflejar el estado en el modal de éxito si cambió.
-                    if (r.ImpresionFactura?.Ok === false) {
-                      setLastSaleResult((prev) => prev ? {
-                        ...prev,
-                        siatAceptada: false,
-                        errorSiat: r.ImpresionFactura.ErrorMensaje ?? 'Falló la impresión.',
-                      } : prev);
-                    }
-                  }
+                onOpenFacturaModal={() => {
+                  if (!lastSaleResult?.ventaId) return;
+                  setPrintFacturaData({
+                    ventaId: lastSaleResult.ventaId,
+                    numeroFactura: lastSaleResult.numeroFactura,
+                    codigoRecepcion: lastSaleResult.codigoRecepcion,
+                    cuf: lastSaleResult.cuf,
+                    nitCliente: lastSaleResult.nitCliente,
+                    razonSocialCliente: lastSaleResult.razonSocialCliente,
+                    fechaEmision: lastSaleResult.fechaEmision,
+                    total: lastSaleResult.total,
+                    items: lastSaleResult.items,
+                  });
                 }}
                 onResendSiat={async (ventaId) => {
                   const r = await reenviarFactura(ventaId);
@@ -2255,6 +2289,14 @@ export const POSPage: React.FC = () => {
       <PreCuentaModal
         data={printPreCuentaData}
         onClose={() => setPrintPreCuentaData(null)}
+      />
+      <PrintFacturaModal
+        data={printFacturaData}
+        onConfirm={async (destinos, ancho) => {
+          if (!printFacturaData) return;
+          await imprimirFactura(printFacturaData.ventaId, destinos, ancho);
+        }}
+        onClose={() => setPrintFacturaData(null)}
       />
     </MainLayout>
   );

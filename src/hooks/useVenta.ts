@@ -70,7 +70,6 @@ export interface RespuestaCobro {
   CodigoHash: string | null;
   Siat: import('../types/siat').SiatResultado | null;
   XmlGenerado: boolean;
-  ImpresionFactura: import('../types/siat').SiatImpresion | null;
 }
 
 interface UseVentaReturn {

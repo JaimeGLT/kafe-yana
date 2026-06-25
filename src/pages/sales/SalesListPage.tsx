@@ -11,10 +11,14 @@ import { RefundModal } from '../../components/modals/RefundModal';
 import { AnularFacturaModal } from '../../components/modals/AnularFacturaModal';
 import { RevertirAnulacionFacturaModal } from '../../components/modals/RevertirAnulacionFacturaModal';
 import { NotaAjusteModal } from '../../components/modals/NotaAjusteModal';
-import { SaleReceiptModal } from '../../components/modals/SaleReceiptModal';
+import { PrintFacturaModal } from '../../components/pos/PrintFacturaModal';
+import type { PrintFacturaData } from '../../components/pos/PrintFacturaModal';
+import { PrintComandaModal } from '../../components/pos/PrintComandaModal';
+import type { PrintComandaData } from '../../components/pos/PrintComandaModal';
 import { api } from '../../lib/api';
 import { toast } from '../../components/ui/Toast';
 import { formatCurrency } from '../../utils';
+import { consolidarItemsPorNombre } from '../../utils/consolidarItems';
 import type { Sale } from '../../types';
 import type { CrearNotaAjusteRequest } from '../../types/notaAjuste';
 import { useFacturacion } from '../../hooks/useFacturacion';
@@ -144,10 +148,11 @@ export const SalesListPage: React.FC = () => {
   // ── Modal state ──────────────────────────────────────────────────────
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [refundingSale, setRefundingSale] = useState<Sale | null>(null);
-  const [printSale, setPrintSale] = useState<Sale | null>(null);
   const [anularSale, setAnularSale] = useState<Sale | null>(null);
   const [revertirAnulacionSale, setRevertirAnulacionSale] = useState<Sale | null>(null);
   const [notaAjusteSale, setNotaAjusteSale] = useState<Sale | null>(null);
+  const [printFacturaData, setPrintFacturaData] = useState<PrintFacturaData | null>(null);
+  const [printComandaData, setPrintComandaData] = useState<PrintComandaData | null>(null);
 
   // SIAT
   const {
@@ -190,16 +195,89 @@ export const SalesListPage: React.FC = () => {
   };
 
   // ── SIAT handlers (delegados a useFacturacion) ───────────────────────
-  const handleImprimirSiat = async (sale: Sale) => {
+
+  const handleOpenFacturaModal = () => {
+    if (!selectedSale?.ventaId) return;
+    setPrintFacturaData({
+      ventaId: selectedSale.ventaId,
+      numeroFactura: selectedSale.numeroFactura ?? null,
+      codigoRecepcion: selectedSale.codigoRecepcion ?? null,
+      cuf: selectedSale.cuf ?? null,
+      nitCliente: selectedSale.nitCliente ?? null,
+      razonSocialCliente: selectedSale.customerName ?? null,
+      fechaEmision: selectedSale.date ? new Date(selectedSale.date).toISOString() : null,
+      total: selectedSale.total,
+      items: selectedSale.items.map((it) => ({
+        cantidad: it.quantity,
+        nombre: it.productName ?? 'Producto',
+        precio: it.unitPrice,
+        total: it.total,
+      })),
+    });
+  };
+
+  /**
+   * Abre el modal de factura desde la fila de la tabla (no desde el detalle).
+   * Construye el `PrintFacturaData` directamente desde la `sale` recibida.
+   * NO setea `selectedSale`: si lo hiciéramos, el `SaleDetailModal` se abriría
+   * junto al modal de impresión (doble modal apilado). El usuario debe abrir
+   * el detalle explícitamente desde el botón "Ver".
+   */
+  const handlePrintFacturaSiat = (sale: Sale) => {
     if (!sale.ventaId) {
       toast.error('Sin identificador SIAT', 'Esta venta no tiene un id válido para reimprimir.');
       return;
     }
-    await imprimirFactura(sale.ventaId);
+    const itemsCrudos = sale.items.map((it) => ({
+      cantidad: it.quantity,
+      nombre: it.productName ?? 'Producto',
+      precio: it.unitPrice,
+      total: it.total,
+    }));
+    // Consolidar items por nombre: si la venta histórica tiene el mismo
+    // producto en múltiples rondas, la preview muestra una sola línea.
+    // El ticket físico usa `Venta.Detalles` de la BD (consolidado en backend).
+    setPrintFacturaData({
+      ventaId: sale.ventaId,
+      numeroFactura: sale.numeroFactura ?? null,
+      codigoRecepcion: sale.codigoRecepcion ?? null,
+      cuf: sale.cuf ?? null,
+      nitCliente: sale.nitCliente ?? null,
+      razonSocialCliente: sale.customerName ?? null,
+      fechaEmision: sale.date ? new Date(sale.date).toISOString() : null,
+      total: sale.total,
+      items: consolidarItemsPorNombre(itemsCrudos),
+    });
   };
 
-  const handleImprimirSiatById = (ventaId: number) => {
-    void imprimirFactura(ventaId);
+  /**
+   * Abre el modal de comanda desde la fila de la tabla.
+   * Construye un `PrintComandaData` a partir de la venta (que no tiene
+   * metadata de ronda original — usamos placeholders neutros).
+   * NO setea `selectedSale` por la misma razón que `handlePrintFacturaSiat`.
+   */
+  const handlePrintComanda = (sale: Sale) => {
+    if (!sale.items?.length) {
+      toast.error('Sin items', 'Esta venta no tiene items para reimprimir como comanda.');
+      return;
+    }
+    const itemsCrudos = sale.items.map((it) => ({
+      cantidad: it.quantity,
+      nombre: it.productName ?? 'Producto',
+      nota: '',
+      // Por defecto enviamos a cocina; el cajero puede ajustar destinos
+      // desde el modal antes de confirmar.
+      ubicacion: 'cocina' as const,
+      precio: it.unitPrice,
+    }));
+    // Consolidar items por nombre para que la comanda reimpresa no duplique
+    // líneas cuando el producto aparece en varias rondas.
+    setPrintComandaData({
+      mesaName: sale.branchName && sale.branchName.trim() !== '' ? sale.branchName : 'Venta',
+      roundNumber: 1,
+      rondaDesc: 'Comanda',
+      items: consolidarItemsPorNombre(itemsCrudos),
+    });
   };
   const handleReenviarSiatById = async (ventaId: number) => {
     await reenviarFactura(ventaId);
@@ -250,8 +328,6 @@ export const SalesListPage: React.FC = () => {
     }
     return false;
   };
-
-  const handlePrintComanda = (sale: Sale) => setPrintSale(sale);
 
   // ── Static options ───────────────────────────────────────────────────
   const statusOptions = [
@@ -366,7 +442,7 @@ export const SalesListPage: React.FC = () => {
                   onView={(sale) => setSelectedSale(sale)}
                   onRefund={(sale) => setRefundingSale(sale)}
                   onPrint={handlePrintComanda}
-                  onInvoice={handleImprimirSiat}
+                  onPrintFacturaSiat={handlePrintFacturaSiat}
                 />
                 <Pagination
                   totalCount={totalCount}
@@ -385,7 +461,7 @@ export const SalesListPage: React.FC = () => {
         <SaleDetailModal
           sale={selectedSale}
           onClose={() => setSelectedSale(null)}
-          onImprimirSiat={handleImprimirSiatById}
+          onOpenFacturaModal={handleOpenFacturaModal}
           onReenviarSiat={handleReenviarSiatById}
           onAnularSiat={handleAnularSiatById}
           onRevertirAnulacionSiat={handleRevertirAnulacionSiatById}
@@ -420,9 +496,18 @@ export const SalesListPage: React.FC = () => {
           onConfirm={handleConfirmNotaAjuste}
         />
 
-        <SaleReceiptModal
-          sale={printSale}
-          onClose={() => setPrintSale(null)}
+        <PrintComandaModal
+          data={printComandaData}
+          onClose={() => setPrintComandaData(null)}
+        />
+
+        <PrintFacturaModal
+          data={printFacturaData}
+          onConfirm={async (destinos, ancho) => {
+            if (!printFacturaData) return;
+            await imprimirFactura(printFacturaData.ventaId, destinos, ancho);
+          }}
+          onClose={() => setPrintFacturaData(null)}
         />
       </PageContainer>
     </MainLayout>

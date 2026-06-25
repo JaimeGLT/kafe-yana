@@ -18,7 +18,16 @@ import type { CrearNotaAjusteRequest, CrearNotaAjusteRespuesta } from '../types/
 import { formatearPrimerErrorSiat } from '../lib/erroresSiat';
 
 export interface UseFacturacionReturn {
-  imprimirFactura: (ventaId: number) => Promise<ImprimirFacturaRespuesta | null>;
+  /**
+   * Imprime la factura SIAT de una venta. Acepta la lista de impresoras de
+   * destino (claves de `Impresoras.Destinos` en appsettings) y un ancho de
+   * ticket opcional. Por defecto imprime sólo en `principal`.
+   */
+  imprimirFactura: (
+    ventaId: number,
+    destinos?: string[],
+    anchoCaracteres?: number,
+  ) => Promise<ImprimirFacturaRespuesta | null>;
   reenviarFactura: (ventaId: number) => Promise<ReenviarFacturaRespuesta | null>;
   /**
    * Anula una factura en el SIAT.
@@ -43,9 +52,16 @@ export interface UseFacturacionReturn {
 }
 
 export function useFacturacion(): UseFacturacionReturn {
-  const imprimirFactura = useCallback(async (ventaId: number) => {
+  const imprimirFactura = useCallback(async (
+    ventaId: number,
+    destinos: string[] = ['principal'],
+    anchoCaracteres?: number,
+  ) => {
     try {
-      const res = await api.post<ImprimirFacturaRespuesta>(`/Facturacion/imprimir/${ventaId}`);
+      const res = await api.post<ImprimirFacturaRespuesta>(
+        `/Facturacion/imprimir/${ventaId}`,
+        { Destinos: destinos, AnchoCaracteres: anchoCaracteres ?? null },
+      );
       const ok = res.ImpresionFactura?.Ok === true;
       if (ok) {
         toast.success('Factura enviada', res.ImpresionFactura?.ErrorMensaje ?? res.message);

@@ -138,6 +138,11 @@ export interface Sale extends BaseEntity {
   siatAceptada?: boolean;
   errorSiat?: string | null;
   numeroFactura?: number | null;
+  /** CUF (Código Único de Factura) generado por SIAT. Necesario para construir
+   *  la URL del QR que se muestra en la preview de la factura. */
+  cuf?: string | null;
+  /** NIT/CI del cliente (mapea a Venta.NumeroDocumento en backend). */
+  nitCliente?: string | null;
   /** True cuando la anulación en SIAT ya fue revertida (operación permitida una sola vez). */
   revertidaAnulacion?: boolean;
 

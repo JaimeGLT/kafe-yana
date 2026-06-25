@@ -57,6 +57,8 @@ export interface BackendVenta {
   montoTotalSujetoIva: number | string;
   montoTotal: number | string;
   numeroTarjeta: string | null;
+  cuf?: string | null;
+  numeroDocumento?: string | null;
   detalles: BackendVentaDetalle[];
   notasAjuste?: BackendVentaNotaAjuste[] | null;
 }
@@ -164,6 +166,8 @@ export const mapBackendVentaToSale = (v: BackendVenta): Sale => {
     siatAceptada: esEstadoValidadaSiat(v.estadoSiat),
     errorSiat: null,
     numeroFactura: v.numeroFactura,
+    cuf: v.cuf ?? null,
+    nitCliente: v.numeroDocumento ?? null,
     revertidaAnulacion: v.revertidaAnulacion === true,
 
     // Notas de Crédito/Débito (sólo las válidas)

@@ -22,7 +22,8 @@ interface Props {
   onClose: () => void;
   isLoading?: boolean;
   error?: string | null;
-  onImprimirSiat?: (ventaId: number) => void | Promise<void>;
+  /** Abre el modal de impresión de factura SIAT (con selección de impresoras). */
+  onOpenFacturaModal?: () => void;
   onReenviarSiat?: (ventaId: number) => void | Promise<void>;
   onAnularSiat?: (ventaId: number) => void;
   onRevertirAnulacionSiat?: (ventaId: number) => void;
@@ -53,7 +54,7 @@ export const SaleDetailModal: React.FC<Props> = ({
   onClose,
   isLoading,
   error,
-  onImprimirSiat,
+  onOpenFacturaModal,
   onReenviarSiat,
   onAnularSiat,
   onRevertirAnulacionSiat,
@@ -321,9 +322,9 @@ export const SaleDetailModal: React.FC<Props> = ({
         {/* ── Acciones SIAT (footer operativo, fuera del spec visual) ── */}
         {sale.ventaId && (
           <div className="px-5 py-3 border-t border-coffee-100 flex flex-wrap gap-2">
-            {sale.siatAceptada && onImprimirSiat && (
+            {sale.siatAceptada && onOpenFacturaModal && (
               <button
-                onClick={() => onImprimirSiat(sale.ventaId!)}
+                onClick={() => onOpenFacturaModal()}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 text-white text-[12px] font-medium px-3 py-1.5 hover:bg-emerald-700 transition-colors"
               >
                 <ScrollText className="h-3.5 w-3.5" /> Imprimir factura SIAT
