@@ -3,13 +3,14 @@ import { ScrollText, AlertTriangle } from 'lucide-react';
 import { Modal, Button, Select } from '../ui';
 import { formatCurrency } from '../../utils';
 import { esEstadoValidadaSiat } from '../../types/siat';
-import {
-  CODIGOS_DETALLE_TRANSACCION,
-  MOTIVOS_AJUSTE,
-  type CrearNotaAjusteRequest,
-  type DtoNotaAjusteDetalle,
-} from '../../types/notaAjuste';
+import { MOTIVOS_AJUSTE, type CrearNotaAjusteRequest } from '../../types/notaAjuste';
 import type { Sale, SaleItem } from '../../types';
+import {
+  calcularMontoDevuelto,
+  construirCuerpoNotaAjuste,
+  mapearSeleccionados,
+  round,
+} from '../../lib/notaAjuste';
 
 interface Props {
   isOpen: boolean;
@@ -22,12 +23,6 @@ interface Props {
    */
   onConfirm: (body: CrearNotaAjusteRequest) => Promise<boolean>;
 }
-
-/** Redondeo a N decimales sin arrastrar errores de coma flotante. */
-const round = (x: number, decimals = 2): number => {
-  const factor = 10 ** decimals;
-  return Math.round((x + Number.EPSILON) * factor) / factor;
-};
 
 export const NotaAjusteModal: React.FC<Props> = ({ isOpen, onClose, sale, onConfirm }) => {
   // Cantidad a devolver por cada item seleccionado. Clave = `SaleItem.id` (UUID string).
@@ -51,20 +46,15 @@ export const NotaAjusteModal: React.FC<Props> = ({ isOpen, onClose, sale, onConf
 
   const selectedCount = Object.keys(selectedItems).filter((id) => selectedItems[id] > 0).length;
 
-  const totalDevuelto = useMemo<number>(() => {
-    return Object.entries(selectedItems).reduce<number>((acc, [id, qty]) => {
-      const item = items.find((i) => i.id === id);
-      if (!item || qty <= 0) return acc;
-      return acc + round(item.unitPrice * qty, 2);
-    }, 0);
-  }, [selectedItems, items]);
+  const totalDevuelto = useMemo<number>(
+    () => calcularMontoDevuelto(mapearSeleccionados(selectedItems, items)),
+    [selectedItems, items],
+  );
 
-  // Cada producto seleccionado del cajero = una línea en la nota (sin split).
-  // El SIAT acepta notas con 1 sola línea; el XSD exige minOccurs=1 en
-  // <detalle>, no 2 como creíamos. Dividir el mismo producto en dos líneas
-  // con el mismo idDetallePagoOriginal hacía que el SIAT rechazara con 1049
-  // y 1029 (Monto devuelto esperado 0.00 enviado 20.00). Ver memoria
-  // [[kafeyana-notaajuste-siat-reglas]].
+  // Por cada producto seleccionado, `construirCuerpoNotaAjuste` genera el PAR
+  // SIAT canónico (trans=1 + trans=2) y el backend lo reconstruye de forma
+  // autoritativa a partir del detalle original (regla 1049). El XSD exige
+  // minOccurs=2 en <detalle> — seleccionar al menos 1 producto cumple el mínimo.
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const toggleItem = (item: SaleItem) => {
@@ -101,48 +91,30 @@ export const NotaAjusteModal: React.FC<Props> = ({ isOpen, onClose, sale, onConf
       return;
     }
 
-    // ── Construir `detallesReales` (lo que el cajero marcó) ─────────────
-    // Usamos un loop explícito en vez de `.map().filter()` para evitar que TS
-    // infiera el literal `1` (de CODIGOS_DETALLE_TRANSACCION con `as const`) y
-    // estreche el tipo de `codigoDetalleTransaccion` a `1`, rompiendo la
-    // asignación a `DtoNotaAjusteDetalle.codigoDetalleTransaccion: number`.
-    const detallesReales: DtoNotaAjusteDetalle[] = [];
-    for (const [id, qty] of Object.entries(selectedItems)) {
-      const item = items.find((i) => i.id === id);
-      if (!item || qty <= 0) continue;
-      if (item.idDetallePagoOriginal == null) {
-        // No deberíamos llegar acá si la query GraphQL trae el campo, pero
-        // si el item es muy viejo y no tiene `idDetallePagoOriginal`, fallamos
-        // explícitamente en vez de mandar undefined al backend.
-        throw new Error(
-          `El producto "${item.productName}" no tiene un id de detalle válido. Recargá la página.`,
-        );
-      }
-      detallesReales.push({
-        idDetallePagoOriginal: item.idDetallePagoOriginal,
-        codigoDetalleTransaccion: CODIGOS_DETALLE_TRANSACCION.Devolucion,
-        cantidad: qty,
-        precioUnitario: item.unitPrice,
-        subTotal: round(item.unitPrice * qty, 2),
-      });
-    }
-
-    if (detallesReales.length === 0) {
+    // Mapear selección a productos resueltos y construir el body canónico.
+    // `construirCuerpoNotaAjuste` expande cada producto al par SIAT (trans=1 + trans=2).
+    const seleccionados = mapearSeleccionados(selectedItems, items);
+    if (seleccionados.length === 0) {
       setError('Ninguno de los productos seleccionados tiene un id de detalle válido.');
       return;
     }
 
-    // Sin split: el array armado del cajero es el array que viaja al backend.
-    const detallesFinales: DtoNotaAjusteDetalle[] = detallesReales;
+    let body: CrearNotaAjusteRequest;
+    try {
+      body = construirCuerpoNotaAjuste({
+        ventaId: sale.ventaId,
+        codigoMotivoAjuste: motivoParsed,
+        seleccionados,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo preparar la nota de ajuste.');
+      return;
+    }
 
     setError(null);
     setIsLoading(true);
     try {
-      const ok = await onConfirm({
-        idVenta: sale.ventaId,
-        codigoMotivoAjuste: motivoParsed,
-        detalles: detallesFinales,
-      });
+      const ok = await onConfirm(body);
       if (ok) onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo emitir la nota de ajuste.');
