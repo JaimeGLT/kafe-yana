@@ -9,7 +9,6 @@ import {
   Eye,
   Printer,
   RotateCcw,
-  FileCheck,
   Receipt,
   ScrollText,
 } from 'lucide-react';
@@ -36,7 +35,7 @@ type EstadoBarra = 'roja' | 'ambar' | 'azul';
 const BARRA_COLORS: Record<EstadoBarra, string> = {
   roja: '#A32D2D',
   ambar: '#BA7517',
-  azul: '#378ADD',
+  azul: '#1E40AF',
 };
 
 /**
@@ -124,41 +123,24 @@ const EstadoBadge: React.FC<{ info: EstadoBadgeInfo }> = ({ info }) => (
   </span>
 );
 
-/** Celda de código con barra lateral opcional + badge azul de factura SIAT. */
+/** Celda de código con barra lateral opcional. */
 const CodigoCell: React.FC<{
   sale: Sale;
   barraColor: string | null;
 }> = ({ sale, barraColor }) => {
-  const validadaSiat =
-    esEstadoValidadaSiat(sale.estadoSiat) && sale.numeroFactura != null;
   return (
     <td className="relative px-6 py-2.5 whitespace-nowrap align-middle" style={{ position: 'relative' }}>
       {barraColor && (
         <div
           aria-hidden
           className="absolute left-0 top-0 bottom-0"
-          style={{ width: '3px', backgroundColor: BARRA_COLORS[barraColor as EstadoBarra] }}
+          style={{ width: '5px', backgroundColor: BARRA_COLORS[barraColor as EstadoBarra] }}
         />
       )}
       <div className="flex items-center gap-1.5">
         <span className="font-mono text-[13px] font-medium text-coffee-900">
           {sale.code}
         </span>
-        {validadaSiat && (
-          <span
-            className="inline-flex items-center gap-1 text-[11px] font-medium whitespace-nowrap"
-            style={{
-              backgroundColor: '#E6F1FB',
-              color: '#0C447C',
-              border: '1px solid #378ADD',
-              padding: '3px 10px',
-              borderRadius: '20px',
-            }}
-          >
-            <FileCheck className="h-3.5 w-3.5 flex-shrink-0" />
-            N° {sale.numeroFactura}
-          </span>
-        )}
       </div>
     </td>
   );
@@ -184,14 +166,12 @@ const TotalCell: React.FC<{ sale: Sale }> = ({ sale }) => {
   return (
     <td className="px-6 py-1.5 align-middle">
       <div className="flex flex-col gap-0.5">
-        <div className="flex items-baseline gap-2 whitespace-nowrap">
-          <span className="text-[13px] text-coffee-500 line-through">
-            {formatCurrency(sale.total)}
-          </span>
-          <span className="text-[14px] font-medium text-coffee-900">
-            Saldo: {formatCurrency(saldo)}
-          </span>
-        </div>
+        <span className="text-[13px] text-coffee-500 line-through">
+          {formatCurrency(sale.total)}
+        </span>
+        <span className="text-[14px] font-medium text-coffee-900">
+          Saldo: {formatCurrency(saldo)}
+        </span>
         <span
           className="inline-flex items-center gap-1 self-start text-[12px] font-medium whitespace-nowrap"
           style={{
@@ -322,8 +302,6 @@ export const SalesTable: React.FC<SalesTableProps> = ({
             const tieneNotas = notas.length > 0;
             const devuelto = sale.montoNotasAjuste ?? 0;
             const saldo = Math.max(0, sale.total - devuelto);
-            const validadaSiat =
-              esEstadoValidadaSiat(sale.estadoSiat) && sale.numeroFactura != null;
             return (
               <div
                 key={sale.id}
@@ -334,7 +312,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                   <div
                     aria-hidden
                     className="absolute left-0 top-0 bottom-0"
-                    style={{ width: '3px', backgroundColor: BARRA_COLORS[barra] }}
+                    style={{ width: '5px', backgroundColor: BARRA_COLORS[barra] }}
                   />
                 )}
 
@@ -344,21 +322,6 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                     <span className="font-mono text-[13px] font-medium text-coffee-900">
                       {sale.code}
                     </span>
-                    {validadaSiat && (
-                      <span
-                        className="inline-flex items-center gap-1 text-[11px] font-medium whitespace-nowrap"
-                        style={{
-                          backgroundColor: '#E6F1FB',
-                          color: '#0C447C',
-                          border: '1px solid #378ADD',
-                          padding: '3px 10px',
-                          borderRadius: '20px',
-                        }}
-                      >
-                        <FileCheck className="h-3.5 w-3.5 flex-shrink-0" />
-                        N° {sale.numeroFactura}
-                      </span>
-                    )}
                   </div>
                   <EstadoBadge info={badge} />
                 </div>
@@ -387,14 +350,12 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                 <div className="flex flex-col gap-1">
                   {tieneNotas ? (
                     <>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-[13px] text-coffee-500 line-through">
-                          {formatCurrency(sale.total)}
-                        </span>
-                        <span className="text-[14px] font-medium text-coffee-900">
-                          Saldo: {formatCurrency(saldo)}
-                        </span>
-                      </div>
+                      <span className="text-[13px] text-coffee-500 line-through">
+                        {formatCurrency(sale.total)}
+                      </span>
+                      <span className="text-[14px] font-medium text-coffee-900">
+                        Saldo: {formatCurrency(saldo)}
+                      </span>
                       <span
                         className="inline-flex items-center gap-1 self-start text-[12px] font-medium whitespace-nowrap"
                         style={{

@@ -17,6 +17,7 @@ interface ElaboradoNode {
     precio: number;
     tipo: string;
     urlImagen?: string;
+    codigoSin?: string;
     categoria: { id: number; nombre: string; descripcion: string; estado: boolean; color: string } | null;
   };
   receta: {
@@ -131,6 +132,7 @@ export function useElaboradosPage(options: UseElaboradosPageOptions): UseElabora
           code: String(n.id_Producto),
           name: n.producto.nombre,
           description: n.producto.descripcion,
+          codigoSin: n.producto.codigoSin ?? '',
           tipo: 'elaborado' as const,
           categoryId: cat ? String(cat.id) : '',
           categoryName: cat ? cat.nombre : '',

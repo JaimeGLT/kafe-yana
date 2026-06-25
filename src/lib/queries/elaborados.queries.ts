@@ -292,6 +292,7 @@ export const GET_ELABORADOS_PAGE = `
           precio
           tipo
           urlImagen
+          codigoSin
           categoria { id nombre descripcion estado color }
         }
         receta {
