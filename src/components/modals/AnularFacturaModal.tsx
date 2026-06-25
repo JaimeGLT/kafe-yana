@@ -14,14 +14,16 @@ interface Props {
 }
 
 export const AnularFacturaModal: React.FC<Props> = ({ isOpen, onClose, sale, onConfirm }) => {
-  const [codigoMotivo, setCodigoMotivo] = useState<string>('');
+  const [codigoMotivo, setCodigoMotivo] = useState<string>(
+    String(MOTIVOS_ANULACION[0].codigo),
+  );
   const [nota, setNota] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      setCodigoMotivo('');
+      setCodigoMotivo(String(MOTIVOS_ANULACION[0].codigo));
       setNota('');
       setError(null);
     }
