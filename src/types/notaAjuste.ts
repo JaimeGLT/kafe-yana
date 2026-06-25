@@ -68,6 +68,36 @@ export interface CrearNotaAjusteRespuesta {
   Siat: NotaAjusteSiatResultado;
 }
 
+/**
+ * Resumen de una NotaAjuste para listas y badges.
+ * Proyección delgada (sin detalles ni XML) — sirve para mostrar la nota
+ * en la lista de ventas y en el detalle, sin cargar el grafo completo.
+ *
+ * Espejo de `DtoNotaAjusteResumen` en backend.
+ */
+export interface NotaAjusteResumen {
+  id: number;
+  idVenta: number;
+  numeroNotaCreditoDebito: number;
+  /** Nombre del estado SIAT: 'Validada' | 'Observada' | 'Pendiente' | 'Anulada'. */
+  estadoSiat: string | null;
+  codigoRecepcion: string | null;
+  codigoMotivoAjuste: number;
+  /** ISO 8601 — se formatea con `formatDate` en la UI. */
+  fechaEmision: string;
+  montoTotalOriginal: number;
+  montoTotalDevuelto: number;
+  montoEfectivoCreditoDebito: number;
+  cuf?: string | null;
+}
+
+/** Respuesta tipada de GET /api/NotaAjuste/por-venta/{ventaId}. */
+export interface NotasPorVentaRespuesta {
+  ventaId: number;
+  total: number;
+  notas: NotaAjusteResumen[];
+}
+
 // ── Catálogos ──────────────────────────────────────────────────────────────
 
 /**

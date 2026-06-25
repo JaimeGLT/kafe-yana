@@ -1,21 +1,21 @@
 import React from 'react';
-import { RotateCcw, Star, Gift, FileText, RefreshCw, Ban, Undo2, ScrollText } from 'lucide-react';
-import { Modal, Badge } from '../ui';
+import {
+  CircleCheck,
+  FileCheck,
+  RotateCcw,
+  Banknote,
+  Check,
+  X,
+  ScrollText,
+  RefreshCw,
+  Ban,
+  Undo2,
+} from 'lucide-react';
+import { Modal } from '../ui';
 import { formatCurrency, formatDateTime, getPaymentMethodLabel } from '../../utils';
 import { esEstadoAnuladaSiat } from '../../types/siat';
 import type { Sale } from '../../types';
-
-const STATUS_LABEL: Record<Sale['status'], string> = {
-  completed:          'Completada',
-  refunded:           'Reembolsada',
-  partially_refunded: 'Parcialmente reembolsada',
-};
-
-const STATUS_VARIANT: Record<Sale['status'], 'warning' | 'success' | 'danger' | 'info'> = {
-  completed:          'success',
-  refunded:           'info',
-  partially_refunded: 'warning',
-};
+import type { NotaAjusteResumen } from '../../types/notaAjuste';
 
 interface Props {
   sale: Sale | null;
@@ -29,6 +29,24 @@ interface Props {
   /** Abre el modal para emitir una Nota de Crédito/Débito sobre la venta. */
   onNotaAjusteSiat?: (ventaId: number) => void;
 }
+
+// Etiqueta humana del motivo de la nota (1=Devolución, 2=Descuento, 3=Corrección, 4=Otros).
+const MOTIVO_LABEL: Record<number, string> = {
+  1: 'Devolución de productos',
+  2: 'Descuento aplicado',
+  3: 'Corrección',
+  4: 'Otros ajustes',
+};
+
+/** Cabecera de sección reusable (estilo spec: 11px, peso 500, gris, mayúsculas). */
+const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <h3
+    className="text-[11px] font-medium text-coffee-500 uppercase mb-2"
+    style={{ letterSpacing: '0.05em' }}
+  >
+    {children}
+  </h3>
+);
 
 export const SaleDetailModal: React.FC<Props> = ({
   sale,
@@ -45,9 +63,9 @@ export const SaleDetailModal: React.FC<Props> = ({
 
   if (isLoading) {
     return (
-      <Modal isOpen onClose={onClose} title="Cargando detalle..." size="lg" bottomSheet>
+      <Modal isOpen onClose={onClose} title="Cargando detalle..." size="md">
         <div className="flex items-center justify-center py-12">
-          <p className="text-coffee-500">Cargando...</p>
+          <p className="text-coffee-500 text-[13px]">Cargando...</p>
         </div>
       </Modal>
     );
@@ -55,9 +73,9 @@ export const SaleDetailModal: React.FC<Props> = ({
 
   if (error) {
     return (
-      <Modal isOpen onClose={onClose} title="Error" size="lg" bottomSheet>
+      <Modal isOpen onClose={onClose} title="Error" size="md">
         <div className="flex items-center justify-center py-12">
-          <p className="text-red-500">{error}</p>
+          <p className="text-red-500 text-[13px]">{error}</p>
         </div>
       </Modal>
     );
@@ -65,297 +83,331 @@ export const SaleDetailModal: React.FC<Props> = ({
 
   if (!sale) return null;
 
-  const alreadyRefundedQty = (itemId: string): number => {
-    if (!sale.refunds) return 0;
-    return sale.refunds.reduce((sum, r) => {
-      const ri = r.items.find(ri => ri.saleItemId === itemId);
-      return sum + (ri?.quantity ?? 0);
-    }, 0);
-  };
+  // ── Derivados ──────────────────────────────────────────────────────────
+  const notas: NotaAjusteResumen[] = sale.notasAjuste ?? [];
+  const tieneNotas = notas.length > 0;
+  const devueltoEnNotas = sale.montoNotasAjuste ?? 0;
+  const saldoEfectivo = Math.max(0, sale.total - devueltoEnNotas);
+  const saldoAgotadoPorNotas = tieneNotas && saldoEfectivo <= 0;
 
-  const hasLoyalty = !!sale.customerId && ((sale.pointsEarned ?? 0) > 0 || (sale.pointsRedeemed ?? 0) > 0);
+  // Items que tienen al menos una unidad devuelta por notas válidas.
+  const itemsDevueltos = sale.items.filter(
+    (it) => Number(it.cantidadDevuelta ?? 0) > 0,
+  );
+
+  // Método de pago principal (primer método con monto > 0). En la práctica
+  // el mapper actual siempre devuelve 1 método, pero defendemos ante varios.
+  const metodoPagoPrincipal = sale.paymentMethods.find((pm) => pm.amount > 0);
 
   return (
-    <Modal isOpen={!!sale} onClose={onClose} title={`Venta — ${sale.code}`} size="lg" bottomSheet>
-      <div className="space-y-5">
+    <Modal
+      isOpen={!!sale}
+      onClose={onClose}
+      size="md"
+      showCloseButton={false}
+      bottomSheet
+    >
+      <div className="relative" style={{ maxWidth: '480px' }}>
+        {/* Botón cerrar flotante — el Modal ya no muestra su propio header */}
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 z-10 text-coffee-400 hover:text-coffee-600 transition-colors"
+          title="Cerrar"
+        >
+          <X className="h-4 w-4" />
+        </button>
 
-        {/* Meta */}
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-coffee-500">Fecha</p>
-            <p className="font-medium text-coffee-900">{formatDateTime(sale.date)}</p>
-          </div>
-          <div>
-            <p className="text-coffee-500">Estado</p>
-            <Badge variant={STATUS_VARIANT[sale.status]}>{STATUS_LABEL[sale.status]}</Badge>
-          </div>
-          <div>
-            <p className="text-coffee-500">Cliente</p>
-            <p className="font-medium text-coffee-900">{sale.customerName ?? 'Cliente General'}</p>
-          </div>
-          <div>
-            <p className="text-coffee-500">Cajero</p>
-            <p className="font-medium text-coffee-900">{sale.cashierName ?? 'N/A'}</p>
-          </div>
-        </div>
-
-        {/* Items */}
-        <div>
-          <h4 className="text-sm font-semibold text-coffee-700 mb-2">Productos</h4>
-          <div className="rounded-lg border border-coffee-100 divide-y divide-coffee-50">
-            {sale.items.map((item) => {
-              const refundedQty = alreadyRefundedQty(item.id);
-              return (
-                <div key={item.id} className={`px-3 py-2.5 flex items-start justify-between gap-3 ${item.isRedeemed ? 'bg-amber-50/40' : ''}`}>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-coffee-900 leading-snug">{item.productName ?? 'Producto'}</p>
-                    {item.variationName && <p className="text-xs text-coffee-400">{item.variationName}</p>}
-                    <div className="flex flex-wrap gap-1 mt-0.5">
-                      {item.isRedeemed && (
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-                          <Gift className="h-3 w-3" /> Canjeado
-                        </span>
-                      )}
-                      {refundedQty > 0 && (
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
-                          <RotateCcw className="h-3 w-3" /> {refundedQty} reemb.
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex-shrink-0 text-right text-sm">
-                    <p className="font-semibold text-coffee-900">
-                      {item.isRedeemed ? <span className="text-amber-600">Canje</span> : formatCurrency(item.total)}
-                    </p>
-                    <p className="text-xs text-coffee-400">
-                      {item.quantity} × {item.isRedeemed ? '—' : formatCurrency(item.unitPrice)}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Totales */}
-        <div className="flex justify-end">
-          <div className="w-56 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-coffee-500">Subtotal:</span>
-              <span className="text-coffee-900">{formatCurrency(sale.subtotal)}</span>
+        {/* ── Sección 1 — Header ──────────────────────────────────────── */}
+        <div className="px-4 py-3.5 border-b border-coffee-100">
+          {/* Banner verde de confirmación (solo si hay notas) */}
+          {tieneNotas && (
+            <div
+              className="rounded-lg px-3.5 py-2.5 mb-3 flex items-center gap-2"
+              style={{ backgroundColor: '#EAF3DE' }}
+            >
+              <CircleCheck className="h-4 w-4 flex-shrink-0" style={{ color: '#3B6D11' }} />
+              <span
+                className="font-medium text-[13px] leading-snug"
+                style={{ color: '#3B6D11' }}
+              >
+                Devolución completada — nota de crédito emitida
+              </span>
             </div>
-            {sale.discount > 0 && (
-              <div className="flex justify-between text-green-600">
-                <span>Descuento:</span>
-                <span>-{formatCurrency(sale.discount)}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-base font-bold border-t border-coffee-200 pt-2">
-              <span className="text-coffee-900">Total:</span>
-              <span className="text-coffee-900">{formatCurrency(sale.total)}</span>
+          )}
+
+          {/* Fila: título + meta a la izquierda, badge factura a la derecha */}
+          <div className="flex items-start justify-between gap-3 pr-6">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-[17px] font-medium text-coffee-900 leading-tight">
+                Venta {sale.code}
+              </h2>
+              <p className="text-[12px] text-coffee-500 mt-0.5 leading-snug">
+                {formatDateTime(sale.date)} · {sale.cashierName ?? 'N/A'} · {sale.customerName ?? 'Sin nombre'}
+              </p>
             </div>
-            {(sale.refunds?.length ?? 0) > 0 && (
-              <div className="flex justify-between text-red-600 text-sm">
-                <span>Reembolsado:</span>
-                <span>-{formatCurrency(sale.refunds!.reduce((s, r) => s + r.amount, 0))}</span>
-              </div>
+            {sale.numeroFactura != null && (
+              <span
+                className="inline-flex items-center gap-1 rounded-lg text-[11px] font-medium flex-shrink-0"
+                style={{
+                  backgroundColor: '#E6F1FB',
+                  color: '#0C447C',
+                  padding: '3px 8px',
+                }}
+              >
+                <FileCheck className="h-3 w-3" />
+                Factura Nº {sale.numeroFactura}
+              </span>
             )}
           </div>
         </div>
 
-        {/* Historial de reembolsos */}
-        {(sale.refunds?.length ?? 0) > 0 && (
-          <div>
-            <h4 className="text-sm font-semibold text-coffee-700 mb-2">Reembolsos aplicados</h4>
-            <div className="space-y-2">
-              {sale.refunds!.map((r, idx) => (
-                <div key={r.id} className="flex items-start gap-3 p-3 bg-red-50 border border-red-100 rounded-lg text-sm">
-                  <RotateCcw className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-red-800">
-                        Reembolso #{idx + 1} — {r.type === 'total' ? 'Total' : 'Parcial'}
-                      </span>
-                      <span className="font-bold text-red-700">-{formatCurrency(r.amount)}</span>
-                    </div>
-                    <p className="text-xs text-red-600 mt-0.5">
-                      {r.refundedBy} · {formatDateTime(r.refundedAt)}
-                    </p>
-                    {r.items.map(ri => (
-                      <p key={ri.saleItemId} className="text-xs text-red-500">
-                        • {ri.quantity}× {ri.productName}
+        {/* ── Sección 2 — Productos devueltos ────────────────────────── */}
+        {itemsDevueltos.length > 0 && (
+          <div className="px-5 py-3.5 border-b border-coffee-100">
+            <SectionLabel>Productos devueltos</SectionLabel>
+            <div className="divide-y divide-coffee-100">
+              {itemsDevueltos.map((item) => {
+                const devueltoPorNotas = Number(item.cantidadDevuelta ?? 0);
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between gap-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium text-coffee-900 leading-snug truncate">
+                        {item.productName ?? 'Producto'}
                       </p>
-                    ))}
-                    {r.reason && <p className="text-xs text-red-400 italic mt-0.5">"{r.reason}"</p>}
+                      <p className="text-[12px] text-coffee-500 mt-0.5">
+                        {devueltoPorNotas} × {formatCurrency(item.unitPrice)}
+                      </p>
+                    </div>
+                    <div className="flex-shrink-0 text-right">
+                      <p className="text-[12px] text-coffee-400 line-through leading-snug">
+                        {formatCurrency(item.total)}
+                      </p>
+                      <p
+                        className="text-[12px] font-medium inline-flex items-center gap-1 mt-0.5"
+                        style={{ color: '#3B6D11' }}
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        Devuelto
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* Métodos de pago */}
-        <div>
-          <h4 className="text-sm font-semibold text-coffee-700 mb-2">Métodos de Pago</h4>
-          <div className="flex flex-wrap gap-2">
-            {sale.paymentMethods.map((pm) => (
-              <Badge key={pm.id} variant="info">
-                {getPaymentMethodLabel(pm.type)}: {formatCurrency(pm.amount)}
-              </Badge>
-            ))}
-          </div>
-        </div>
+        {/* ── Sección 3 — Resumen de pago ────────────────────────────── */}
+        <div className="px-5 py-3.5 border-b border-coffee-100">
+          <SectionLabel>Resumen de pago</SectionLabel>
+          <div className="grid grid-cols-2 gap-y-1.5 text-[12px]">
+            <span className="text-coffee-500">Cobrado originalmente</span>
+            <span className="text-coffee-900 text-right font-normal">
+              {formatCurrency(sale.total)}
+            </span>
 
-        {/* Fidelidad */}
-        {hasLoyalty && (
-          <div className="bg-amber-50 border border-amber-100 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Star className="h-4 w-4 text-amber-500" />
-              <h4 className="text-sm font-semibold text-amber-800">Puntos de Fidelidad</h4>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              {(sale.pointsEarned ?? 0) > 0 && (
-                <div>
-                  <p className="text-amber-600">Puntos ganados</p>
-                  <p className="font-bold text-amber-900">+{sale.pointsEarned} pts</p>
-                </div>
-              )}
-              {(sale.pointsRedeemed ?? 0) > 0 && (
-                <div>
-                  <p className="text-amber-600">Puntos canjeados</p>
-                  <p className="font-bold text-amber-900">−{sale.pointsRedeemed} pts</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Notas */}
-        {sale.notes && (
-          <div>
-            <h4 className="text-sm font-semibold text-coffee-700 mb-1">Notas</h4>
-            <p className="text-sm text-coffee-600">{sale.notes}</p>
-          </div>
-        )}
-
-        {/* SIAT — Facturación */}
-        {sale.ventaId && (
-          <div className="border-t border-coffee-100 pt-4 space-y-3">
-            <h4 className="text-sm font-semibold text-coffee-700 flex items-center gap-2">
-              <FileText className="h-4 w-4" /> Facturación SIAT
-            </h4>
-            <div className="flex items-center gap-2 text-sm flex-wrap">
-              <span className="text-coffee-500">Estado:</span>
-              {sale.estadoSiat ? (
-                <Badge
-                  variant={
-                    sale.siatAceptada
-                      ? 'success'
-                      : esEstadoAnuladaSiat(sale.estadoSiat)
-                      ? 'danger'
-                      : 'warning'
-                  }
+            <span className="text-coffee-500 self-center">Pagado con</span>
+            <span className="text-right">
+              {metodoPagoPrincipal ? (
+                <span
+                  className="inline-flex items-center gap-1 rounded-lg text-[12px] bg-coffee-50"
+                  style={{
+                    border: '0.5px solid #E5DCC8',
+                    padding: '2px 8px',
+                  }}
                 >
-                  {sale.estadoSiat}
-                </Badge>
+                  <Banknote className="h-3 w-3" />
+                  {getPaymentMethodLabel(metodoPagoPrincipal.type)}
+                </span>
               ) : (
                 <span className="text-coffee-400">—</span>
               )}
-              {sale.numeroFactura != null && (
-                <span className="text-coffee-500 text-xs">N° factura: {sale.numeroFactura}</span>
-              )}
-              {sale.codigoRecepcion && (
-                <span className="font-mono text-[10px] text-coffee-400" title="Código de recepción SIAT">
-                  {sale.codigoRecepcion}
-                </span>
-              )}
-            </div>
-            {sale.errorSiat && (
-              <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg p-2">
-                {sale.errorSiat}
-              </p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              {sale.siatAceptada && onImprimirSiat && (
-                <button
-                  onClick={() => onImprimirSiat(sale.ventaId!)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors"
-                >
-                  <FileText className="h-3.5 w-3.5" /> Imprimir factura SIAT
-                </button>
-              )}
-              {sale.siatAceptada &&
-                !esEstadoAnuladaSiat(sale.estadoSiat) &&
-                !sale.revertidaAnulacion &&
-                onNotaAjusteSiat && (
-                  <button
-                    onClick={() => onNotaAjusteSiat(sale.ventaId!)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors"
-                    title="Emitir una Nota de Crédito o Débito sobre esta venta"
-                  >
-                    <ScrollText className="h-3.5 w-3.5" /> Emitir Nota de Ajuste
-                  </button>
-                )}
-              {!sale.siatAceptada &&
-                sale.estadoSiat &&
-                !esEstadoAnuladaSiat(sale.estadoSiat) &&
-                onReenviarSiat && (
-                  <button
-                    onClick={() => onReenviarSiat(sale.ventaId!)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition-colors"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" /> Reenviar al SIAT
-                  </button>
-                )}
-              {sale.siatAceptada &&
-                !esEstadoAnuladaSiat(sale.estadoSiat) &&
-                !sale.revertidaAnulacion &&
-                onAnularSiat && (
-                  <button
-                    onClick={() => onAnularSiat(sale.ventaId!)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition-colors"
-                    title="Anular la factura en el SIAT"
-                  >
-                    <Ban className="h-3.5 w-3.5" /> Anular en SIAT
-                  </button>
-                )}
-              {/* Si la factura está Validada pero su anulación ya fue revertida,
-                  el SIAT no permite volver a anularla. Mostramos un aviso para
-                  que el usuario entienda por qué el botón "Anular" no aparece. */}
-              {sale.siatAceptada &&
-                !esEstadoAnuladaSiat(sale.estadoSiat) &&
-                sale.revertidaAnulacion && (
-                  <span
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold"
-                    title="La anulación de esta factura ya fue revertida; el SIAT no permite anularla de nuevo."
-                  >
-                    <Undo2 className="h-3.5 w-3.5" /> No se puede anular (reversión aplicada)
-                  </span>
-                )}
-              {/* Revertir anulación: solo cuando el estado es Anulada y NO se revirtió antes. */}
-              {esEstadoAnuladaSiat(sale.estadoSiat) &&
-                !sale.revertidaAnulacion &&
-                onRevertirAnulacionSiat && (
-                  <button
-                    onClick={() => onRevertirAnulacionSiat(sale.ventaId!)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition-colors"
-                    title="Revertir la anulación en el SIAT (la factura vuelve a Validada)"
-                  >
-                    <Undo2 className="h-3.5 w-3.5" /> Revertir anulación SIAT
-                  </button>
-                )}
-              {esEstadoAnuladaSiat(sale.estadoSiat) && sale.revertidaAnulacion && (
+            </span>
+
+            {tieneNotas && (
+              <>
+                <span className="text-coffee-500">Notas de crédito emitidas</span>
                 <span
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold"
-                  title="La anulación de esta factura ya fue revertida en el SIAT."
+                  className="text-right font-medium"
+                  style={{ color: '#A32D2D' }}
                 >
-                  <Undo2 className="h-3.5 w-3.5" /> Reversión aplicada
+                  −{formatCurrency(devueltoEnNotas)}
                 </span>
-              )}
+              </>
+            )}
+
+            {/* Divisor de cierre — ocupa las 2 columnas */}
+            <div
+              className="col-span-2 my-1"
+              style={{ borderTop: '0.5px solid #E5DCC8' }}
+            />
+
+            <span className="text-[13px] font-medium text-coffee-900">
+              Saldo pendiente
+            </span>
+            <span className="text-[13px] font-medium text-coffee-900 text-right">
+              {formatCurrency(saldoEfectivo)}
+            </span>
+          </div>
+        </div>
+
+        {/* ── Sección 4 — Notas de ajuste emitidas ───────────────────── */}
+        {tieneNotas && (
+          <div className="px-5 py-3.5">
+            <SectionLabel>Notas de ajuste emitidas</SectionLabel>
+            <div className="space-y-2">
+              {notas.map((nota) => {
+                const motivo = MOTIVO_LABEL[nota.codigoMotivoAjuste] ?? 'Ajuste';
+                const esValidada =
+                  (nota.estadoSiat ?? '').toLowerCase() === 'validada';
+                return (
+                  <div
+                    key={nota.id}
+                    className="rounded-lg px-3 py-2.5 grid items-start"
+                    style={{
+                      backgroundColor: '#F7F4EE',
+                      gridTemplateColumns: 'auto 1fr auto',
+                      columnGap: '12px',
+                    }}
+                  >
+                    {/* Col 1: número + estado SIAT */}
+                    <div>
+                      <p className="text-[11px] font-medium text-coffee-500">
+                        Nota Nº {nota.numeroNotaCreditoDebito}
+                      </p>
+                      {esValidada && (
+                        <p
+                          className="text-[11px] inline-flex items-center gap-1 mt-0.5"
+                          style={{ color: '#3B6D11' }}
+                        >
+                          <Check className="h-3 w-3" />
+                          Validada SIAT
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Col 2: motivo + fecha */}
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium text-coffee-900 leading-snug truncate">
+                        {motivo}
+                      </p>
+                      <p className="text-[11px] text-coffee-500 mt-0.5">
+                        {formatDateTime(nota.fechaEmision)}
+                      </p>
+                    </div>
+
+                    {/* Col 3: monto + IVA */}
+                    <div className="text-right flex-shrink-0">
+                      <p
+                        className="text-[14px] font-medium leading-tight"
+                        style={{ color: '#A32D2D' }}
+                      >
+                        −{formatCurrency(nota.montoTotalDevuelto)}
+                      </p>
+                      <p className="text-[11px] text-coffee-500 mt-0.5">
+                        IVA {formatCurrency(nota.montoEfectivoCreditoDebito)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
 
+        {/* ── Acciones SIAT (footer operativo, fuera del spec visual) ── */}
+        {sale.ventaId && (
+          <div className="px-5 py-3 border-t border-coffee-100 flex flex-wrap gap-2">
+            {sale.siatAceptada && onImprimirSiat && (
+              <button
+                onClick={() => onImprimirSiat(sale.ventaId!)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 text-white text-[12px] font-medium px-3 py-1.5 hover:bg-emerald-700 transition-colors"
+              >
+                <ScrollText className="h-3.5 w-3.5" /> Imprimir factura SIAT
+              </button>
+            )}
+            {sale.siatAceptada &&
+              !esEstadoAnuladaSiat(sale.estadoSiat) &&
+              !sale.revertidaAnulacion &&
+              saldoEfectivo > 0 &&
+              onNotaAjusteSiat && (
+                <button
+                  onClick={() => onNotaAjusteSiat(sale.ventaId!)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 text-white text-[12px] font-medium px-3 py-1.5 hover:bg-indigo-700 transition-colors"
+                  title="Emitir una Nota de Crédito o Débito sobre esta venta"
+                >
+                  <ScrollText className="h-3.5 w-3.5" /> Emitir Nota de Ajuste
+                </button>
+              )}
+            {sale.siatAceptada &&
+              !esEstadoAnuladaSiat(sale.estadoSiat) &&
+              !sale.revertidaAnulacion &&
+              saldoAgotadoPorNotas && (
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-lg text-[12px] font-medium px-3 py-1.5"
+                  style={{ backgroundColor: '#FBF1DA', color: '#8B5E1A', border: '0.5px solid #E8C77A' }}
+                  title="El saldo de la venta fue agotado por notas de ajuste válidas."
+                >
+                  <ScrollText className="h-3.5 w-3.5" /> Saldo agotado
+                </span>
+              )}
+            {!sale.siatAceptada &&
+              sale.estadoSiat &&
+              !esEstadoAnuladaSiat(sale.estadoSiat) &&
+              onReenviarSiat && (
+                <button
+                  onClick={() => onReenviarSiat(sale.ventaId!)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 text-white text-[12px] font-medium px-3 py-1.5 hover:bg-amber-700 transition-colors"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" /> Reenviar al SIAT
+                </button>
+              )}
+            {sale.siatAceptada &&
+              !esEstadoAnuladaSiat(sale.estadoSiat) &&
+              !sale.revertidaAnulacion &&
+              onAnularSiat && (
+                <button
+                  onClick={() => onAnularSiat(sale.ventaId!)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 text-white text-[12px] font-medium px-3 py-1.5 hover:bg-red-700 transition-colors"
+                  title="Anular la factura en el SIAT"
+                >
+                  <Ban className="h-3.5 w-3.5" /> Anular en SIAT
+                </button>
+              )}
+            {sale.siatAceptada &&
+              !esEstadoAnuladaSiat(sale.estadoSiat) &&
+              sale.revertidaAnulacion && (
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-[12px] font-medium px-3 py-1.5"
+                  title="La anulación ya fue revertida; el SIAT no permite anularla de nuevo."
+                >
+                  <Undo2 className="h-3.5 w-3.5" /> No se puede anular
+                </span>
+              )}
+            {esEstadoAnuladaSiat(sale.estadoSiat) &&
+              !sale.revertidaAnulacion &&
+              onRevertirAnulacionSiat && (
+                <button
+                  onClick={() => onRevertirAnulacionSiat(sale.ventaId!)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 text-white text-[12px] font-medium px-3 py-1.5 hover:bg-amber-700 transition-colors"
+                  title="Revertir la anulación en el SIAT (la factura vuelve a Validada)"
+                >
+                  <Undo2 className="h-3.5 w-3.5" /> Revertir anulación
+                </button>
+              )}
+            {esEstadoAnuladaSiat(sale.estadoSiat) && sale.revertidaAnulacion && (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-[12px] font-medium px-3 py-1.5"
+                title="La anulación ya fue revertida en el SIAT."
+              >
+                <Undo2 className="h-3.5 w-3.5" /> Reversión aplicada
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </Modal>
   );

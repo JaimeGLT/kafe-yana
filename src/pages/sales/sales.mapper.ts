@@ -2,6 +2,7 @@
 // Vive en pages/sales/ porque solo lo consume el módulo de ventas.
 
 import { esEstadoValidadaSiat } from '../../types/siat';
+import type { NotaAjusteResumen } from '../../types/notaAjuste';
 import type { Sale } from '../../types';
 
 const mapEstadoToStatus = (estado: string | null): Sale['status'] => {
@@ -23,6 +24,26 @@ export interface BackendVentaDetalle {
   unidadMedida?: number;
   codigoProductoSin?: number;
   actividadEconomica?: string;
+  /**
+   * Cantidad ya devuelta en notas de ajuste VÁLIDAS (estado SIAT = Validada).
+   * Lo calcula el resolver GraphQL `DetallePago.cantidadDevuelta` en backend.
+   * Si no viene (datos legacy, error de schema, etc.) se asume 0.
+   */
+  cantidadDevuelta?: number | string;
+}
+
+export interface BackendVentaNotaAjuste {
+  id: number;
+  idVenta: number;
+  numeroNotaCreditoDebito: number;
+  estadoSiat: string | null;
+  codigoRecepcion: string | null;
+  codigoMotivoAjuste: number;
+  fechaEmision: string;
+  montoTotalOriginal: number | string;
+  montoTotalDevuelto: number | string;
+  montoEfectivoCreditoDebito: number | string;
+  cuf?: string | null;
 }
 
 export interface BackendVenta {
@@ -37,6 +58,7 @@ export interface BackendVenta {
   montoTotal: number | string;
   numeroTarjeta: string | null;
   detalles: BackendVentaDetalle[];
+  notasAjuste?: BackendVentaNotaAjuste[] | null;
 }
 
 export interface BackendVentasResponse {
@@ -61,6 +83,30 @@ export const mapBackendVentaToSale = (v: BackendVenta): Sale => {
   } else {
     paymentMethods.push({ id: `${codeLabel}-cash`, type: 'cash', name: 'Efectivo', amount: monto });
   }
+
+  // ── Notas de ajuste ─────────────────────────────────────────────────────
+  // Sólo las que están en estado 'Validada' afectan el saldo efectivo. Las
+  // 'Observada' / 'Pendiente' / 'Anulada' se ignoran — si después pasan a
+  // 'Validada', basta refrescar para que aparezcan.
+  const notasValidas: NotaAjusteResumen[] = (v.notasAjuste ?? [])
+    .filter((n) => (n.estadoSiat ?? '').toLowerCase() === 'validada')
+    .map((n) => ({
+      id: n.id,
+      idVenta: n.idVenta,
+      numeroNotaCreditoDebito: n.numeroNotaCreditoDebito,
+      estadoSiat: n.estadoSiat,
+      codigoRecepcion: n.codigoRecepcion,
+      codigoMotivoAjuste: n.codigoMotivoAjuste,
+      fechaEmision: n.fechaEmision,
+      montoTotalOriginal: Number(n.montoTotalOriginal),
+      montoTotalDevuelto: Number(n.montoTotalDevuelto),
+      montoEfectivoCreditoDebito: Number(n.montoEfectivoCreditoDebito),
+      cuf: n.cuf ?? null,
+    }));
+  const montoNotasAjuste = notasValidas.reduce(
+    (acc, n) => acc + (Number.isFinite(n.montoTotalDevuelto) ? n.montoTotalDevuelto : 0),
+    0,
+  );
 
   return {
     id: String(v.id),
@@ -100,6 +146,10 @@ export const mapBackendVentaToSale = (v: BackendVenta): Sale => {
       idDetallePagoOriginal: d.id,
       codigoProductoSin: d.codigoProductoSin,
       actividadEconomica: d.actividadEconomica,
+
+      // Cantidad ya devuelta en notas válidas (GraphQL backend).
+      // Defensivo: si no viene (legacy), se asume 0.
+      cantidadDevuelta: Number(d.cantidadDevuelta ?? 0),
     })),
     pointsEarned: undefined,
     pointsRedeemed: undefined,
@@ -115,5 +165,16 @@ export const mapBackendVentaToSale = (v: BackendVenta): Sale => {
     errorSiat: null,
     numeroFactura: v.numeroFactura,
     revertidaAnulacion: v.revertidaAnulacion === true,
+
+    // Notas de Crédito/Débito (sólo las válidas)
+    notasAjuste: notasValidas,
+    montoNotasAjuste,
+
+    // Conteo de items 100% devueltos (cantidadDevuelta >= quantity).
+    // Útil para mostrar un aviso en la lista y deshabilitar el botón
+    // "Emitir Nota" cuando la venta está completamente devuelta.
+    itemsAgotados: v.detalles.filter(
+      (d) => Number(d.cantidadDevuelta ?? 0) >= d.cantidad,
+    ).length,
   };
 };

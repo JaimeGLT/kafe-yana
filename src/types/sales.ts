@@ -1,6 +1,7 @@
 // Sales module types
 
 import type { UUID, BaseEntity } from './common';
+import type { NotaAjusteResumen } from './notaAjuste';
 
 // Customer
 export interface Customer {
@@ -91,6 +92,11 @@ export interface SaleItem {
   codigoProductoSin?: number;
   /** Actividad económica declarada en la factura original. */
   actividadEconomica?: string;
+  /** Cantidad ya devuelta en notas de ajuste válidas (estado SIAT = Validada).
+   *  Se calcula en backend (resolver GraphQL `DetallePago.cantidadDevuelta`)
+   *  y se usa para deshabilitar productos agotados y acotar el input del modal.
+   *  Default 0 si la venta es nueva. */
+  cantidadDevuelta?: number;
 }
 
 export interface SaleItemInput {
@@ -134,6 +140,19 @@ export interface Sale extends BaseEntity {
   numeroFactura?: number | null;
   /** True cuando la anulación en SIAT ya fue revertida (operación permitida una sola vez). */
   revertidaAnulacion?: boolean;
+
+  // ── Notas de Crédito/Débito (derivado, sólo Notas VÁLIDAS) ────────
+  /** Notas de ajuste SIAT que aplican a esta venta (sólo las que están en
+   *  estado Validada, para que el saldo efectivo no descuente pendientes).
+   *  El backend las entrega vía el JOIN del resolver GraphQL `ventas`. */
+  notasAjuste?: NotaAjusteResumen[];
+  /** Σ(montoTotalDevuelto) de las notas válidas. Derivado: no se guarda en BD,
+   *  lo calcula el mapper a partir de `notasAjuste`. */
+  montoNotasAjuste?: number;
+  /** Cantidad de items cuyo `cantidadDevuelta >= quantity` (agotados).
+   *  Derivado: lo calcula el mapper a partir de `items[].cantidadDevuelta`.
+   *  Sirve para mostrar un aviso en la lista y deshabilitar el modal. */
+  itemsAgotados?: number;
 }
 
 export interface SaleInput {

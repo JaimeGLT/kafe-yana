@@ -6,7 +6,9 @@ import { esEstadoValidadaSiat } from '../../types/siat';
 import { MOTIVOS_AJUSTE, type CrearNotaAjusteRequest } from '../../types/notaAjuste';
 import type { Sale, SaleItem } from '../../types';
 import {
+  calcularCantidadDisponible,
   calcularMontoDevuelto,
+  calcularSaldoEfectivo,
   construirCuerpoNotaAjuste,
   mapearSeleccionados,
   round,
@@ -51,6 +53,13 @@ export const NotaAjusteModal: React.FC<Props> = ({ isOpen, onClose, sale, onConf
     [selectedItems, items],
   );
 
+  // Saldo monetario efectivo de la venta (total − notas válidas).
+  // Si es ≤ 0, no se puede emitir más notas — backend también lo rechaza.
+  const saldoEfectivo = useMemo<number>(
+    () => (sale ? calcularSaldoEfectivo(sale.total, sale.notasAjuste) : 0),
+    [sale],
+  );
+
   // Por cada producto seleccionado, `construirCuerpoNotaAjuste` genera el PAR
   // SIAT canónico (trans=1 + trans=2) y el backend lo reconstruye de forma
   // autoritativa a partir del detalle original (regla 1049). El XSD exige
@@ -72,7 +81,12 @@ export const NotaAjusteModal: React.FC<Props> = ({ isOpen, onClose, sale, onConf
   const setItemQty = (itemId: string, qty: number) => {
     const item = items.find((i) => i.id === itemId);
     if (!item) return;
-    const clamped = Math.max(1, Math.min(item.quantity, Math.floor(qty)));
+    // El tope ya no es la cantidad ORIGINAL de la factura, sino lo que
+    // queda realmente disponible después de devoluciones previas. Esto
+    // evita devolver más unidades de las que aún existen.
+    const disponible = calcularCantidadDisponible(item);
+    if (disponible <= 0) return;
+    const clamped = Math.max(1, Math.min(disponible, Math.floor(qty)));
     setSelectedItems((prev) => ({ ...prev, [itemId]: clamped }));
   };
 
@@ -85,6 +99,18 @@ export const NotaAjusteModal: React.FC<Props> = ({ isOpen, onClose, sale, onConf
       setError('Seleccioná al menos un producto para ajustar.');
       return;
     }
+
+    // Defensa adicional: el botón ya está deshabilitado, pero si el usuario
+    // logra llegar acá con un monto mayor al saldo disponible, mostramos
+    // el motivo exacto en lugar de un 500 del backend.
+    if (totalDevuelto - 0.01 > saldoEfectivo) {
+      setError(
+        `El monto a devolver (${formatCurrency(totalDevuelto)}) excede el saldo ` +
+        `disponible (${formatCurrency(saldoEfectivo)}).`,
+      );
+      return;
+    }
+
     const motivoParsed = parseInt(codigoMotivo, 10);
     if (!motivoParsed || !MOTIVOS_AJUSTE.some((m) => m.codigo === motivoParsed)) {
       setError('Selecciona un motivo de ajuste válido.');
@@ -170,26 +196,57 @@ export const NotaAjusteModal: React.FC<Props> = ({ isOpen, onClose, sale, onConf
               <p className="text-sm text-coffee-400 px-3 py-3">Esta venta no tiene productos.</p>
             )}
             {items.map((item) => {
-              const checked = selectedItems[item.id] != null;
+              const disponible = calcularCantidadDisponible(item);
+              const agotado = disponible <= 0;
+              const checked = !agotado && selectedItems[item.id] != null;
               const qty = selectedItems[item.id] ?? 0;
+              const devueltoPrevio = Number(item.cantidadDevuelta ?? 0);
               return (
                 <label
                   key={item.id}
-                  className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${
-                    checked ? 'bg-coffee-50/60' : 'hover:bg-coffee-50/30'
+                  className={`flex items-center gap-3 px-3 py-2.5 transition-colors ${
+                    agotado
+                      ? 'bg-coffee-50/30 cursor-not-allowed opacity-60'
+                      : checked
+                        ? 'bg-coffee-50/60 cursor-pointer'
+                        : 'hover:bg-coffee-50/30 cursor-pointer'
                   }`}
+                  title={agotado ? 'Este producto ya fue devuelto en su totalidad' : undefined}
                 >
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 accent-coffee-600 flex-shrink-0"
-                    checked={checked}
-                    onChange={() => toggleItem(item)}
-                  />
+                  {agotado ? (
+                    <div
+                      aria-disabled
+                      className="h-4 w-4 rounded border-2 border-coffee-300 bg-coffee-100 flex-shrink-0"
+                      title="Producto agotado (ya devuelto en su totalidad)"
+                    />
+                  ) : (
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-coffee-600 flex-shrink-0"
+                      checked={checked}
+                      onChange={() => toggleItem(item)}
+                    />
+                  )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-coffee-900 truncate">{item.productName}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-coffee-900 truncate">{item.productName}</p>
+                      {agotado && (
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5 flex-shrink-0"
+                          title={`Ya se devolvieron ${devueltoPrevio} de ${item.quantity} unidades`}
+                        >
+                          Ya devuelto ({devueltoPrevio}/{item.quantity})
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-coffee-500">
                       {item.quantity} × {formatCurrency(item.unitPrice)}
                       {item.variationName ? ` · ${item.variationName}` : ''}
+                      {!agotado && devueltoPrevio > 0 && (
+                        <span className="ml-2 text-amber-700">
+                          · Ya devolviste {devueltoPrevio}, te quedan {disponible}
+                        </span>
+                      )}
                     </p>
                   </div>
                   {checked && (
@@ -198,7 +255,7 @@ export const NotaAjusteModal: React.FC<Props> = ({ isOpen, onClose, sale, onConf
                       <input
                         type="number"
                         min={1}
-                        max={item.quantity}
+                        max={disponible}
                         value={qty}
                         onChange={(e) => setItemQty(item.id, Number(e.target.value))}
                         onClick={(e) => e.stopPropagation()}
@@ -224,16 +281,33 @@ export const NotaAjusteModal: React.FC<Props> = ({ isOpen, onClose, sale, onConf
         </div>
 
         {/* Resumen en vivo */}
-        <div className="flex items-center justify-between bg-coffee-50 rounded-lg px-4 py-3 text-sm">
+        <div className="grid grid-cols-3 gap-3 bg-coffee-50 rounded-lg px-4 py-3 text-sm">
           <div>
-            <p className="text-coffee-500">Productos seleccionados</p>
+            <p className="text-coffee-500">Seleccionados</p>
             <p className="font-bold text-coffee-900">{selectedCount}</p>
           </div>
+          <div>
+            <p className="text-coffee-500">A devolver</p>
+            <p className="font-bold text-coffee-900">{formatCurrency(totalDevuelto)}</p>
+          </div>
           <div className="text-right">
-            <p className="text-coffee-500">Monto a devolver</p>
-            <p className="text-lg font-bold text-coffee-900">{formatCurrency(totalDevuelto)}</p>
+            <p className="text-coffee-500">Saldo efectivo</p>
+            <p
+              className={`font-bold ${
+                saldoEfectivo <= 0 ? 'text-red-600' : 'text-emerald-700'
+              }`}
+            >
+              {formatCurrency(saldoEfectivo)}
+            </p>
           </div>
         </div>
+
+        {/* Aviso de saldo agotado: bloquea la emisión de más notas */}
+        {saldoEfectivo <= 0 && esEstadoValidadaSiat(sale.estadoSiat) && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
+            Esta venta ya fue devuelta en su totalidad. No se pueden emitir más notas.
+          </p>
+        )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
@@ -247,7 +321,9 @@ export const NotaAjusteModal: React.FC<Props> = ({ isOpen, onClose, sale, onConf
             isLoading={isLoading}
             disabled={
               selectedCount === 0 ||
-              !esEstadoValidadaSiat(sale.estadoSiat)
+              !esEstadoValidadaSiat(sale.estadoSiat) ||
+              saldoEfectivo <= 0 ||
+              totalDevuelto - 0.01 > saldoEfectivo
             }
             leftIcon={<ScrollText className="h-4 w-4" />}
           >

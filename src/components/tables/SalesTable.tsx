@@ -5,7 +5,7 @@ import { esEstadoAnuladaSiat, esEstadoValidadaSiat } from '../../types/siat';
 import { StatusBadge, Badge } from '../ui';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Eye, FileText, RotateCcw, Printer } from 'lucide-react';
+import { Eye, FileText, RotateCcw, Printer, ScrollText } from 'lucide-react';
 
 interface SalesTableProps {
   sales: Sale[];
@@ -19,6 +19,30 @@ interface SalesTableProps {
 const formatCurrency = (amount: number) => `S/ ${amount.toFixed(2)}`;
 const formatDate = (date: Date) => format(new Date(date), 'dd MMM yyyy HH:mm', { locale: es });
 const formatDateShort = (date: Date) => format(new Date(date), 'dd MMM · HH:mm', { locale: es });
+
+/** Saldo efectivo = venta.MontoTotal - Σ(montoTotalDevuelto) de notas válidas.
+ *  Si no hay notas, devuelve el total sin cambios. */
+const calcularSaldoEfectivo = (sale: Sale): number => {
+  const devuelto = sale.montoNotasAjuste ?? 0;
+  return Math.max(0, sale.total - devuelto);
+};
+
+/** Tooltip y texto del badge "Con Nota" en la lista. */
+const badgeNotaAjuste = (sale: Sale): { texto: string; tip: string } | null => {
+  const n = sale.notasAjuste?.length ?? 0;
+  if (n === 0) return null;
+  if (n === 1) {
+    const nota = sale.notasAjuste![0];
+    return {
+      texto: `Con Nota #${nota.numeroNotaCreditoDebito}`,
+      tip: `Nota N° ${nota.numeroNotaCreditoDebito} · ${formatCurrency(nota.montoTotalDevuelto)} devueltos · ${nota.estadoSiat ?? '—'}`,
+    };
+  }
+  return {
+    texto: `Con ${n} notas`,
+    tip: `${n} notas de crédito/débito válidas asociadas a esta venta.`,
+  };
+};
 
 const PAYMENT_NAMES: Record<string, string> = {
   cash: 'Efectivo',
@@ -65,13 +89,46 @@ export const SalesTable: React.FC<SalesTableProps> = ({
         ) : sales.length === 0 ? (
           <div className="py-12 text-center text-coffee-500 text-sm">No hay ventas registradas</div>
         ) : (
-          sales.map((sale) => (
+          sales.map((sale) => {
+            const notaBadge = badgeNotaAjuste(sale);
+            const saldoEfectivo = notaBadge ? calcularSaldoEfectivo(sale) : sale.total;
+            return (
             <div key={sale.id} className={clsx('px-4 py-4 space-y-3', getSiatRowClass(sale))}>
-              {/* Fila 1: código + total */}
+              {/* Fila 1: código + total (+ badge de nota si aplica) */}
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-xs text-coffee-400">{sale.code}</span>
-                <span className="font-bold text-coffee-900 text-base">{formatCurrency(sale.total)}</span>
+                <div className="flex items-center gap-2">
+                  {notaBadge && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 text-[10px] font-semibold"
+                      title={notaBadge.tip}
+                    >
+                      <ScrollText className="h-3 w-3" />
+                      {notaBadge.texto}
+                    </span>
+                  )}
+                  <span className={clsx(
+                    'font-bold text-base',
+                    notaBadge ? 'text-coffee-400 line-through' : 'text-coffee-900'
+                  )}>
+                    {formatCurrency(sale.total)}
+                  </span>
+                </div>
               </div>
+
+              {/* Si tiene nota, mostramos el saldo efectivo debajo del total */}
+              {notaBadge && (
+                <>
+                  <p className="text-xs text-emerald-700 -mt-2">
+                    Saldo efectivo: <strong>{formatCurrency(saldoEfectivo)}</strong>
+                  </p>
+                  {(sale.itemsAgotados ?? 0) > 0 && (
+                    <p className="text-[10px] text-amber-700 -mt-1">
+                      {sale.itemsAgotados} producto{sale.itemsAgotados === 1 ? '' : 's'} ya devuelto{sale.itemsAgotados === 1 ? '' : 's'} en su totalidad
+                    </p>
+                  )}
+                </>
+              )}
 
               {/* Fila 2: cliente + estado */}
               <div className="flex items-center justify-between gap-2">
@@ -118,7 +175,8 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                 )}
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
 
@@ -150,7 +208,10 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                 </td>
               </tr>
             ) : (
-              sales.map((sale) => (
+              sales.map((sale) => {
+                const notaBadge = badgeNotaAjuste(sale);
+                const saldoEfectivo = notaBadge ? calcularSaldoEfectivo(sale) : sale.total;
+                return (
                 <tr key={sale.id} className={clsx('transition-colors', getSiatRowClass(sale))}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="font-mono text-sm text-coffee-600">{sale.code}</span>
@@ -165,7 +226,33 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                     <Badge variant="info" size="sm">{(sale.items as unknown[]).length} items</Badge>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="font-semibold text-coffee-900">{formatCurrency(sale.total)}</span>
+                    <div className="flex flex-col gap-0.5">
+                      {notaBadge && (
+                        <span
+                          className="inline-flex items-center gap-1 self-start rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 text-[10px] font-semibold"
+                          title={notaBadge.tip}
+                        >
+                          <ScrollText className="h-3 w-3" />
+                          {notaBadge.texto}
+                        </span>
+                      )}
+                      <span className={clsx(
+                        'font-semibold',
+                        notaBadge ? 'text-coffee-400 line-through' : 'text-coffee-900'
+                      )}>
+                        {formatCurrency(sale.total)}
+                      </span>
+                      {notaBadge && (
+                        <span className="text-[11px] text-emerald-700">
+                          Saldo: <strong>{formatCurrency(saldoEfectivo)}</strong>
+                        </span>
+                      )}
+                      {notaBadge && (sale.itemsAgotados ?? 0) > 0 && (
+                        <span className="text-[10px] text-amber-700">
+                          {sale.itemsAgotados} producto{sale.itemsAgotados === 1 ? '' : 's'} ya devuelto{sale.itemsAgotados === 1 ? '' : 's'} en su totalidad
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="text-sm text-coffee-600">
@@ -204,7 +291,8 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                     </div>
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

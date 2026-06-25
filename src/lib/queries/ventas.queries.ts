@@ -66,6 +66,19 @@ export const GET_VENTAS_REPORT = `
           codigoProductoSin
           actividadEconomica
         }
+        notasAjuste {
+          id
+          idVenta
+          numeroNotaCreditoDebito
+          estadoSiat
+          codigoRecepcion
+          codigoMotivoAjuste
+          fechaEmision
+          montoTotalOriginal
+          montoTotalDevuelto
+          montoEfectivoCreditoDebito
+          cuf
+        }
       }
       pageInfo {
         hasNextPage
@@ -101,6 +114,20 @@ export const GET_VENTAS = `
           unidadMedida
           codigoProductoSin
           actividadEconomica
+          cantidadDevuelta
+        }
+        notasAjuste {
+          id
+          idVenta
+          numeroNotaCreditoDebito
+          estadoSiat
+          codigoRecepcion
+          codigoMotivoAjuste
+          fechaEmision
+          montoTotalOriginal
+          montoTotalDevuelto
+          montoEfectivoCreditoDebito
+          cuf
         }
       }
       pageInfo {

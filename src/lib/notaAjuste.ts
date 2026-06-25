@@ -18,6 +18,7 @@ import {
   CODIGOS_DETALLE_TRANSACCION,
   type CrearNotaAjusteRequest,
   type DtoNotaAjusteDetalle,
+  type NotaAjusteResumen,
 } from '../types/notaAjuste';
 
 /** Redondeo a N decimales sin arrastrar errores de coma flotante. */
@@ -106,4 +107,41 @@ export function mapearSeleccionados(
     resultado.push({ item, cantidad: qty });
   }
   return resultado;
+}
+
+/**
+ * Cantidad disponible para devolver de un item = quantity − cantidadDevuelta.
+ * Si ya se devolvió todo, devuelve 0 (el modal debe bloquear el item).
+ *
+ * Alineado con el backend (`NotaAjusteSiatEnvioService` línea ~80 y
+ * `NotaAjusteRepositorio.ObtenerCantidadDevueltaPorDetallePagoAsync`):
+ * ambos calculan sobre notas con EstadoSiat = Validada.
+ */
+export function calcularCantidadDisponible(item: SaleItem): number {
+  const devuelto = Number(item.cantidadDevuelta ?? 0);
+  return Math.max(0, item.quantity - devuelto);
+}
+
+/**
+ * Saldo monetario efectivo de una venta = total − Σ(montoTotalDevuelto) de
+ * las notas válidas. Alineado con el backend
+ * (`NotaAjusteSiatEnvioService` validación de saldoEfectivo) y con el
+ * mapper existente (`sales.mapper.ts:85-103`, que sólo considera notas
+ * en estado 'Validada').
+ *
+ * Devuelve 0 si el saldo es negativo (ya devuelto más que el total —
+ * situación anómala pero defensiva).
+ */
+export function calcularSaldoEfectivo(
+  totalVenta: number,
+  notas: NotaAjusteResumen[] | undefined | null,
+): number {
+  if (!notas || notas.length === 0) return Math.max(0, totalVenta);
+  const devuelto = notas
+    .filter((n) => (n.estadoSiat ?? '').toLowerCase() === 'validada')
+    .reduce(
+      (acc, n) => acc + (Number.isFinite(n.montoTotalDevuelto) ? n.montoTotalDevuelto : 0),
+      0,
+    );
+  return Math.max(0, totalVenta - devuelto);
 }
