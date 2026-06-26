@@ -59,7 +59,12 @@ function getBarraLateral(sale: Sale): EstadoBarra | null {
   if (sale.status === 'refunded' || sale.status === 'partially_refunded') {
     return 'roja';
   }
-  const tieneNotas = (sale.notasAjuste?.length ?? 0) > 0;
+  // Sólo cuentan las notas Validada para los cálculos monetarios / visuales.
+  // Una nota anulada ya no representa dinero devuelto (y queda mostrada en
+  // el modal de detalle con su badge "Anulada SIAT").
+  const tieneNotas = (sale.notasAjuste ?? []).some(
+    (n) => (n.estadoSiat ?? '').toLowerCase() === 'validada',
+  );
   if (tieneNotas) {
     const devuelto = sale.montoNotasAjuste ?? 0;
     const saldo = Math.max(0, sale.total - devuelto);
@@ -158,7 +163,11 @@ const CodigoCell: React.FC<{
 /** Celda TOTAL con lógica de tachado + saldo + chip de notas. */
 const TotalCell: React.FC<{ sale: Sale }> = ({ sale }) => {
   const notas = sale.notasAjuste ?? [];
-  const tieneNotas = notas.length > 0;
+  // Solo notas VÁLIDAS impactan el saldo (las anuladas no representan
+  // dinero devuelto; se siguen mostrando en el modal de detalle).
+  const tieneNotas = notas.some(
+    (n) => (n.estadoSiat ?? '').toLowerCase() === 'validada',
+  );
   const devuelto = sale.montoNotasAjuste ?? 0;
   const saldo = Math.max(0, sale.total - devuelto);
 
@@ -377,7 +386,11 @@ export const SalesTable: React.FC<SalesTableProps> = ({
             const cliente = getClienteLabel(sale);
             const reversible = esReversible(sale);
             const notas = sale.notasAjuste ?? [];
-            const tieneNotas = notas.length > 0;
+            // Solo notas VÁLIDAS para el cálculo del saldo (las anuladas ya
+            // no son devoluciones efectivas; se ven en el modal de detalle).
+            const tieneNotas = notas.some(
+              (n) => (n.estadoSiat ?? '').toLowerCase() === 'validada',
+            );
             const devuelto = sale.montoNotasAjuste ?? 0;
             const saldo = Math.max(0, sale.total - devuelto);
             return (

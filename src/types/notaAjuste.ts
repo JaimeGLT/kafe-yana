@@ -89,6 +89,14 @@ export interface NotaAjusteResumen {
   montoTotalDevuelto: number;
   montoEfectivoCreditoDebito: number;
   cuf?: string | null;
+  /**
+   * True si la anulación de esta nota ya fue revertida en el SIAT. El SIN
+   * solo permite revertir una vez; tras revertir, la nota vuelve a estado
+   * Validada pero NO puede volver a anularse (el backend rechaza con
+   * VentaException, pero acá lo reflejamos también en la UI ocultando
+   * el botón "Anular en SIAT").
+   */
+  revertidaAnulacion?: boolean;
 }
 
 /** Respuesta tipada de GET /api/NotaAjuste/por-venta/{ventaId}. */

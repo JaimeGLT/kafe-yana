@@ -80,6 +80,7 @@ export const GET_VENTAS_REPORT = `
           montoTotalDevuelto
           montoEfectivoCreditoDebito
           cuf
+          revertidaAnulacion
         }
       }
       pageInfo {
@@ -132,6 +133,7 @@ export const GET_VENTAS = `
           montoTotalDevuelto
           montoEfectivoCreditoDebito
           cuf
+          revertidaAnulacion
         }
       }
       pageInfo {

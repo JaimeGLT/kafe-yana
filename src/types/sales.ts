@@ -146,10 +146,14 @@ export interface Sale extends BaseEntity {
   /** True cuando la anulación en SIAT ya fue revertida (operación permitida una sola vez). */
   revertidaAnulacion?: boolean;
 
-  // ── Notas de Crédito/Débito (derivado, sólo Notas VÁLIDAS) ────────
-  /** Notas de ajuste SIAT que aplican a esta venta (sólo las que están en
-   *  estado Validada, para que el saldo efectivo no descuente pendientes).
-   *  El backend las entrega vía el JOIN del resolver GraphQL `ventas`. */
+  // ── Notas de Crédito/Débito (derivado, TODOS los estados) ──────────
+  /** Notas de ajuste SIAT que aplican a esta venta (incluye TODOS los
+   *  estados: Validada / Anulada / Pendiente / Observada). Esto permite
+   *  que el modal de detalle muestre también las notas anuladas con su
+   *  badge "Anulada SIAT" y el botón "Revertir anulación".
+   *  El backend las entrega vía el JOIN del resolver GraphQL `ventas`.
+   *  Para cálculos monetarios (saldo efectivo, tachado) usar `montoNotasAjuste`,
+   *  que ya excluye anuladas. */
   notasAjuste?: NotaAjusteResumen[];
   /** Σ(montoTotalDevuelto) de las notas válidas. Derivado: no se guarda en BD,
    *  lo calcula el mapper a partir de `notasAjuste`. */

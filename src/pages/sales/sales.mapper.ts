@@ -44,6 +44,7 @@ export interface BackendVentaNotaAjuste {
   montoTotalDevuelto: number | string;
   montoEfectivoCreditoDebito: number | string;
   cuf?: string | null;
+  revertidaAnulacion?: boolean | null;
 }
 
 export interface BackendVenta {
@@ -87,25 +88,35 @@ export const mapBackendVentaToSale = (v: BackendVenta): Sale => {
   }
 
   // ── Notas de ajuste ─────────────────────────────────────────────────────
-  // Sólo las que están en estado 'Validada' afectan el saldo efectivo. Las
-  // 'Observada' / 'Pendiente' / 'Anulada' se ignoran — si después pasan a
-  // 'Validada', basta refrescar para que aparezcan.
-  const notasValidas: NotaAjusteResumen[] = (v.notasAjuste ?? [])
-    .filter((n) => (n.estadoSiat ?? '').toLowerCase() === 'validada')
-    .map((n) => ({
-      id: n.id,
-      idVenta: n.idVenta,
-      numeroNotaCreditoDebito: n.numeroNotaCreditoDebito,
-      estadoSiat: n.estadoSiat,
-      codigoRecepcion: n.codigoRecepcion,
-      codigoMotivoAjuste: n.codigoMotivoAjuste,
-      fechaEmision: n.fechaEmision,
-      montoTotalOriginal: Number(n.montoTotalOriginal),
-      montoTotalDevuelto: Number(n.montoTotalDevuelto),
-      montoEfectivoCreditoDebito: Number(n.montoEfectivoCreditoDebito),
-      cuf: n.cuf ?? null,
-    }));
-  const montoNotasAjuste = notasValidas.reduce(
+  // Devolvemos TODAS las notas (Validada / Anulada / Observada / Pendiente)
+  // para que el modal de detalle pueda:
+  //   • Mostrar el badge "Anulada SIAT" + botón "Revertir anulación" en las
+  //     notas anuladas (necesario desde que se implementó reversión).
+  //   • Mantener la coherencia visual: la lista del modal muestra la historia
+  //     completa de la venta.
+  // Para el cálculo monetario (saldo efectivo, tachado, barra lateral de la
+  // tabla) SÓLO cuentan las notas Validada — una nota anulada no representa
+  // dinero efectivamente devuelto. Por eso derivamos `notasValidadas` aparte.
+  const mapNota = (n: BackendVentaNotaAjuste): NotaAjusteResumen => ({
+    id: n.id,
+    idVenta: n.idVenta,
+    numeroNotaCreditoDebito: n.numeroNotaCreditoDebito,
+    estadoSiat: n.estadoSiat,
+    codigoRecepcion: n.codigoRecepcion,
+    codigoMotivoAjuste: n.codigoMotivoAjuste,
+    fechaEmision: n.fechaEmision,
+    montoTotalOriginal: Number(n.montoTotalOriginal),
+    montoTotalDevuelto: Number(n.montoTotalDevuelto),
+    montoEfectivoCreditoDebito: Number(n.montoEfectivoCreditoDebito),
+    cuf: n.cuf ?? null,
+    revertidaAnulacion: n.revertidaAnulacion === true,
+  });
+
+  const todasNotas: NotaAjusteResumen[] = (v.notasAjuste ?? []).map(mapNota);
+  const notasValidadas: NotaAjusteResumen[] = todasNotas.filter(
+    (n) => (n.estadoSiat ?? '').toLowerCase() === 'validada',
+  );
+  const montoNotasAjuste = notasValidadas.reduce(
     (acc, n) => acc + (Number.isFinite(n.montoTotalDevuelto) ? n.montoTotalDevuelto : 0),
     0,
   );
@@ -170,8 +181,9 @@ export const mapBackendVentaToSale = (v: BackendVenta): Sale => {
     nitCliente: v.numeroDocumento ?? null,
     revertidaAnulacion: v.revertidaAnulacion === true,
 
-    // Notas de Crédito/Débito (sólo las válidas)
-    notasAjuste: notasValidas,
+    // Notas de Crédito/Débito (TODAS — el modal filtra por estado al renderizar;
+    // `montoNotasAjuste` ya excluye anuladas para no distorsionar el saldo).
+    notasAjuste: todasNotas,
     montoNotasAjuste,
 
     // Conteo de items 100% devueltos (cantidadDevuelta >= quantity).

@@ -1,14 +1,119 @@
 import React from 'react';
-import { LogOut, ChevronDown, Menu, Settings } from 'lucide-react';
+import { LogOut, ChevronDown, Menu, Settings, Store, Check, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useUI } from '../../contexts/UIContext';
-import { useSettings } from '../../contexts/SettingsContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePuntoVenta } from '../../contexts/PuntoVentaContext';
 import { NotificationBell } from './NotificationBell';
+
+/**
+ * Selector de Punto de Venta en el header.
+ *
+ * Permite al cajero cambiar entre PVs activos desde la UI sin tocar la BD.
+ * La selección se persiste en localStorage y se envía en cada cobro.
+ *
+ * Estados visuales:
+ *   - 0 PVs activos → "Sin PV activo" en gris, deshabilitado.
+ *   - 1 PV activo   → badge con el nombre (no es interactivo, pero da claridad).
+ *   - >1 PVs        → dropdown con check al lado del actual.
+ */
+const PuntoVentaSelector: React.FC = () => {
+  const { puntoVentaActual, puntosVentaDisponibles, cargando, error, seleccionar } = usePuntoVenta();
+
+  const deshabilitado = puntosVentaDisponibles.length === 0;
+  const cargandoOCero = cargando || deshabilitado;
+
+  const label =
+    cargando
+      ? 'Cargando PV…'
+      : deshabilitado
+        ? 'Sin PV activo'
+        : (puntoVentaActual?.nombre ?? 'Seleccionar PV');
+
+  const detalle =
+    !cargandoOCero && puntoVentaActual
+      ? `Suc ${puntoVentaActual.codigoSucursal} · PV ${puntoVentaActual.codigoPuntoVenta}`
+      : undefined;
+
+  const sinDropdown = puntosVentaDisponibles.length <= 1;
+
+  // Sin dropdown → badge simple sin <details>.
+  if (sinDropdown) {
+    return (
+      <div
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
+          error
+            ? 'border-red-200 bg-red-50 text-red-700'
+            : 'border-coffee-200 bg-coffee-50 text-coffee-700'
+        }`}
+        title={error || detalle || label}
+      >
+        {error ? (
+          <AlertCircle className="h-4 w-4" />
+        ) : (
+          <Store className="h-4 w-4" />
+        )}
+        <div className="hidden md:block text-left">
+          <p className="text-sm font-medium leading-tight">{label}</p>
+          {detalle && (
+            <p className="text-xs text-coffee-500 leading-tight">{detalle}</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <details className="group">
+        <summary className="flex items-center gap-2 px-3 py-2 rounded-lg border border-coffee-200 bg-coffee-50 hover:bg-coffee-100 transition-colors cursor-pointer list-none">
+          <Store className="h-4 w-4 text-coffee-700" />
+          <div className="hidden md:block text-left">
+            <p className="text-sm font-medium text-coffee-900 leading-tight">{label}</p>
+            {detalle && (
+              <p className="text-xs text-coffee-500 leading-tight">{detalle}</p>
+            )}
+          </div>
+          <ChevronDown className="h-4 w-4 text-coffee-500" />
+        </summary>
+        <div className="absolute right-0 mt-1 min-w-56 bg-white rounded-lg border border-coffee-200 shadow-lg py-1 z-30">
+          <p className="px-4 py-1.5 text-xs uppercase tracking-wide text-coffee-500">
+            Cambiar de punto de venta
+          </p>
+          {puntosVentaDisponibles.map((pv) => {
+            const esActual =
+              pv.codigoSucursal === puntoVentaActual?.codigoSucursal &&
+              pv.codigoPuntoVenta === puntoVentaActual?.codigoPuntoVenta;
+            return (
+              <button
+                key={`${pv.codigoSucursal}-${pv.codigoPuntoVenta}`}
+                onClick={(e) => {
+                  e.currentTarget.closest('details')?.removeAttribute('open');
+                  seleccionar(pv);
+                }}
+                className="w-full px-4 py-2 text-left text-sm transition-colors hover:bg-coffee-50 flex items-center justify-between gap-2 text-coffee-700"
+              >
+                <span className="flex items-center gap-2">
+                  <Store className="h-4 w-4 text-coffee-500" />
+                  <span>
+                    <span className="block leading-tight">{pv.nombre}</span>
+                    <span className="block text-xs text-coffee-500 leading-tight">
+                      Suc {pv.codigoSucursal} · PV {pv.codigoPuntoVenta}
+                    </span>
+                  </span>
+                </span>
+                {esActual && <Check className="h-4 w-4 text-emerald-600" />}
+              </button>
+            );
+          })}
+        </div>
+      </details>
+    </div>
+  );
+};
 
 export const Header: React.FC = () => {
   const { toggleMobileSidebar } = useUI();
-  const { currentBranch } = useSettings();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -21,7 +126,8 @@ export const Header: React.FC = () => {
 
   const handleUserMenu = (id: string) => {
     if (id === 'logout') {
-      logout().then(() => navigate('/login', { replace: true }));
+      logout()
+        .then(() => navigate('/login', { replace: true }));
     } else if (id === 'settings') {
       navigate('/settings');
     }
@@ -40,20 +146,15 @@ export const Header: React.FC = () => {
         </div>
 
         <div className="flex-1 flex items-center justify-end gap-4">
-          {currentBranch && (
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-coffee-50 rounded-lg">
-              <span className="text-sm text-coffee-600">Sucursal:</span>
-              <span className="text-sm font-medium text-coffee-900">{currentBranch.name}</span>
-              <ChevronDown className="h-4 w-4 text-coffee-500" />
-            </div>
-          )}
-
           {user?.rol?.toLowerCase() === 'admin' && <NotificationBell />}
 
+          {/* Selector de Punto de Venta */}
+          <PuntoVentaSelector />
+
           {/* User Menu */}
-          <Dropdown
-            trigger={
-              <button className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-coffee-50 transition-colors">
+          <div className="relative">
+            <details className="group">
+              <summary className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-coffee-50 transition-colors cursor-pointer list-none">
                 <div className="w-8 h-8 bg-cream rounded-full flex items-center justify-center">
                   <span className="text-coffee-700 font-medium text-sm">
                     {displayUser?.nombre?.[0]?.toUpperCase() || 'U'}
@@ -66,91 +167,26 @@ export const Header: React.FC = () => {
                   <p className="text-xs text-coffee-500">{displayUser?.rol}</p>
                 </div>
                 <ChevronDown className="h-4 w-4 text-coffee-500" />
-              </button>
-            }
-            items={userMenuItems}
-            onSelect={handleUserMenu}
-            align="right"
-          />
+              </summary>
+              <div className="absolute right-0 mt-1 min-w-48 bg-white rounded-lg border border-coffee-200 shadow-lg py-1 z-30">
+                {userMenuItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={(e) => {
+                      e.currentTarget.closest('details')?.removeAttribute('open');
+                      handleUserMenu(item.id);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm transition-colors hover:bg-coffee-50 flex items-center gap-2 text-coffee-700"
+                  >
+                    <span className="text-coffee-500">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </details>
+          </div>
         </div>
       </div>
     </header>
-  );
-};
-
-interface DropdownItem {
-  id: string;
-  label: string;
-  icon?: React.ReactNode;
-  description?: string;
-  disabled?: boolean;
-}
-
-interface DropdownProps {
-  trigger: React.ReactNode;
-  items: DropdownItem[];
-  onSelect: (id: string) => void;
-  align?: 'left' | 'right';
-  className?: string;
-}
-
-const Dropdown: React.FC<DropdownProps> = ({
-  trigger,
-  items,
-  onSelect,
-  align = 'left',
-  className,
-}) => {
-  const [isOpen, setIsOpen] = React.useState(false);
-  const dropdownRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  return (
-    <div ref={dropdownRef} className={`relative ${className || ''}`}>
-      <div onClick={() => setIsOpen(!isOpen)}>
-        {trigger}
-      </div>
-      {isOpen && (
-        <div
-          className={`absolute z-20 mt-1 min-w-48 bg-white rounded-lg border border-coffee-200 shadow-lg py-1 ${
-            align === 'right' ? 'right-0' : 'left-0'
-          }`}
-        >
-          {items.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => {
-                if (!item.disabled) {
-                  onSelect(item.id);
-                  setIsOpen(false);
-                }
-              }}
-              disabled={item.disabled}
-              className={`w-full px-4 py-2 text-left text-sm transition-colors hover:bg-coffee-50 ${
-                item.disabled ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                {item.icon && <span className="text-coffee-500">{item.icon}</span>}
-                <span className="text-coffee-700">{item.label}</span>
-              </div>
-              {item.description && (
-                <p className="text-xs text-coffee-500 mt-0.5">{item.description}</p>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
   );
 };

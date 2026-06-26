@@ -15,6 +15,10 @@ import type {
   VerificarNitRespuesta,
 } from '../types/siat';
 import type { CrearNotaAjusteRequest, CrearNotaAjusteRespuesta } from '../types/notaAjuste';
+import type {
+  AnularNotaAjusteRespuesta,
+  RevertirAnulacionNotaAjusteRespuesta,
+} from '../types/notaAjusteAnulacion';
 import { formatearPrimerErrorSiat } from '../lib/erroresSiat';
 
 export interface UseFacturacionReturn {
@@ -49,6 +53,21 @@ export interface UseFacturacionReturn {
    * disparan aquí mismo (no en el modal); el modal sólo recibe el boolean.
    */
   crearNotaAjuste: (body: CrearNotaAjusteRequest) => Promise<CrearNotaAjusteRespuesta | null>;
+  /**
+   * Anula en el SIAT una nota de crédito/débito previamente validada.
+   * `nota` es justificación libre opcional (se envía al backend pero no al SIAT).
+   */
+  anularNotaAjuste: (
+    notaId: number,
+    codigoMotivo: number,
+    nota?: string | null,
+  ) => Promise<AnularNotaAjusteRespuesta | null>;
+  /**
+   * Revierte en el SIAT la anulación de una nota C/D. Solo se permite una
+   * vez por nota (el backend rechaza llamadas posteriores). El endpoint
+   * no recibe body; basta con el notaId en la URL.
+   */
+  revertirAnulacionNotaAjuste: (notaId: number) => Promise<RevertirAnulacionNotaAjusteRespuesta | null>;
 }
 
 export function useFacturacion(): UseFacturacionReturn {
@@ -175,5 +194,55 @@ export function useFacturacion(): UseFacturacionReturn {
     }
   }, []);
 
-  return { imprimirFactura, reenviarFactura, anularFactura, revertirAnulacionFactura, verificarNit, crearNotaAjuste };
+  const anularNotaAjuste = useCallback(async (notaId: number, codigoMotivo: number, nota?: string | null) => {
+    try {
+      const res = await api.post<AnularNotaAjusteRespuesta>(`/NotaAjuste/anular/${notaId}`, {
+        CodigoMotivo: codigoMotivo,
+        Nota: nota ?? null,
+      });
+      if (res.Siat?.Transaccion && esEstadoAnuladaSiat(res.Siat.EstadoSiat)) {
+        toast.success('Nota de ajuste anulada', res.message);
+      } else if (res.Siat?.Transaccion) {
+        toast.info('SIAT', res.message);
+      } else {
+        toast.warning('SIAT', res.Siat?.ErrorMensaje ?? res.message);
+      }
+      return res;
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'No se pudo anular la nota de ajuste.';
+      toast.error('Error al anular la nota', msg);
+      return null;
+    }
+  }, []);
+
+  const revertirAnulacionNotaAjuste = useCallback(async (notaId: number) => {
+    try {
+      const res = await api.post<RevertirAnulacionNotaAjusteRespuesta>(
+        `/NotaAjuste/revertir-anulacion/${notaId}`,
+      );
+      if (res.Siat?.Transaccion && esEstadoValidadaSiat(res.Siat.EstadoSiat)) {
+        toast.success('Reversión aplicada', res.message);
+      } else if (res.Siat?.Transaccion) {
+        toast.info('SIAT', res.message);
+      } else {
+        toast.warning('SIAT', res.Siat?.ErrorMensaje ?? res.message);
+      }
+      return res;
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'No se pudo revertir la anulación de la nota en el SIAT.';
+      toast.error('Error al revertir la nota', msg);
+      return null;
+    }
+  }, []);
+
+  return {
+    imprimirFactura,
+    reenviarFactura,
+    anularFactura,
+    revertirAnulacionFactura,
+    verificarNit,
+    crearNotaAjuste,
+    anularNotaAjuste,
+    revertirAnulacionNotaAjuste,
+  };
 }

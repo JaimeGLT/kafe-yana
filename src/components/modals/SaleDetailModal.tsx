@@ -12,6 +12,7 @@ import {
   Undo2,
 } from 'lucide-react';
 import { Modal } from '../ui';
+import { toast } from '../ui/Toast';
 import { formatCurrency, formatDateTime, getPaymentMethodLabel } from '../../utils';
 import { esEstadoAnuladaSiat } from '../../types/siat';
 import type { Sale } from '../../types';
@@ -29,6 +30,15 @@ interface Props {
   onRevertirAnulacionSiat?: (ventaId: number) => void;
   /** Abre el modal para emitir una Nota de Crédito/Débito sobre la venta. */
   onNotaAjusteSiat?: (ventaId: number) => void;
+  /**
+   * Abre el modal de anulación SIAT para una nota C/D específica (estado Validada).
+   * Se invoca desde cada fila de "Notas de ajuste emitidas".
+   */
+  onAnularNotaAjusteSiat?: (nota: NotaAjusteResumen) => void;
+  /**
+   * Abre el modal de reversión de anulación para una nota C/D específica (estado Anulada).
+   */
+  onRevertirAnulacionNotaAjusteSiat?: (nota: NotaAjusteResumen) => void;
 }
 
 // Etiqueta humana del motivo de la nota (1=Devolución, 2=Descuento, 3=Corrección, 4=Otros).
@@ -59,6 +69,8 @@ export const SaleDetailModal: React.FC<Props> = ({
   onAnularSiat,
   onRevertirAnulacionSiat,
   onNotaAjusteSiat,
+  onAnularNotaAjusteSiat,
+  onRevertirAnulacionNotaAjusteSiat,
 }) => {
   if (!sale && !isLoading && !error) return null;
 
@@ -264,6 +276,16 @@ export const SaleDetailModal: React.FC<Props> = ({
                 const motivo = MOTIVO_LABEL[nota.codigoMotivoAjuste] ?? 'Ajuste';
                 const esValidada =
                   (nota.estadoSiat ?? '').toLowerCase() === 'validada';
+                const esAnulada =
+                  (nota.estadoSiat ?? '').toLowerCase() === 'anulada';
+                // El SIAT solo permite revertir UNA VEZ. Tras revertir, la nota
+                // vuelve a estado Validada pero queda con `revertidaAnulacion=true`
+                // y NO puede volver a anularse (el backend rechaza con 400).
+                // La UI refleja esa restricción ocultando el botón "Anular en SIAT"
+                // y mostrando un badge verde "Anulación revertida".
+                const revertida = nota.revertidaAnulacion === true;
+                const puedeAnular = esValidada && !revertida && !!onAnularNotaAjusteSiat;
+                const puedeRevertir = esAnulada && !revertida && !!onRevertirAnulacionNotaAjusteSiat;
                 return (
                   <div
                     key={nota.id}
@@ -279,7 +301,7 @@ export const SaleDetailModal: React.FC<Props> = ({
                       <p className="text-[11px] font-medium text-coffee-500">
                         Nota Nº {nota.numeroNotaCreditoDebito}
                       </p>
-                      {esValidada && (
+                      {esValidada && !revertida && (
                         <p
                           className="text-[11px] inline-flex items-center gap-1 mt-0.5"
                           style={{ color: '#3B6D11' }}
@@ -288,9 +310,28 @@ export const SaleDetailModal: React.FC<Props> = ({
                           Validada SIAT
                         </p>
                       )}
+                      {esAnulada && (
+                        <p
+                          className="text-[11px] inline-flex items-center gap-1 mt-0.5"
+                          style={{ color: '#A32D2D' }}
+                        >
+                          <Ban className="h-3 w-3" />
+                          Anulada SIAT
+                        </p>
+                      )}
+                      {revertida && (
+                        <p
+                          className="text-[11px] inline-flex items-center gap-1 mt-0.5"
+                          style={{ color: '#3B6D11' }}
+                          title="La anulación de esta nota ya fue revertida en el SIAT. No se puede volver a anular."
+                        >
+                          <Undo2 className="h-3 w-3" />
+                          Anulación revertida
+                        </p>
+                      )}
                     </div>
 
-                    {/* Col 2: motivo + fecha */}
+                    {/* Col 2: motivo + fecha + acciones SIAT */}
                     <div className="min-w-0">
                       <p className="text-[13px] font-medium text-coffee-900 leading-snug truncate">
                         {motivo}
@@ -298,6 +339,29 @@ export const SaleDetailModal: React.FC<Props> = ({
                       <p className="text-[11px] text-coffee-500 mt-0.5">
                         {formatDateTime(nota.fechaEmision)}
                       </p>
+                      {/* Botones SIAT per-nota */}
+                      {puedeAnular || puedeRevertir ? (
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {puedeAnular && (
+                            <button
+                              onClick={() => onAnularNotaAjusteSiat!(nota)}
+                              className="inline-flex items-center gap-1 rounded-lg bg-red-600 text-white text-[11px] font-medium px-2 py-1 hover:bg-red-700 transition-colors"
+                              title="Anular esta nota de crédito/débito en el SIAT"
+                            >
+                              <Ban className="h-3 w-3" /> Anular en SIAT
+                            </button>
+                          )}
+                          {puedeRevertir && (
+                            <button
+                              onClick={() => onRevertirAnulacionNotaAjusteSiat!(nota)}
+                              className="inline-flex items-center gap-1 rounded-lg bg-amber-600 text-white text-[11px] font-medium px-2 py-1 hover:bg-amber-700 transition-colors"
+                              title="Revertir la anulación en el SIAT (la nota vuelve a Validada)"
+                            >
+                              <Undo2 className="h-3 w-3" /> Revertir anulación
+                            </button>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
 
                     {/* Col 3: monto + IVA */}
@@ -369,15 +433,55 @@ export const SaleDetailModal: React.FC<Props> = ({
             {sale.siatAceptada &&
               !esEstadoAnuladaSiat(sale.estadoSiat) &&
               !sale.revertidaAnulacion &&
-              onAnularSiat && (
-                <button
-                  onClick={() => onAnularSiat(sale.ventaId!)}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 text-white text-[12px] font-medium px-3 py-1.5 hover:bg-red-700 transition-colors"
-                  title="Anular la factura en el SIAT"
-                >
-                  <Ban className="h-3.5 w-3.5" /> Anular en SIAT
-                </button>
-              )}
+              onAnularSiat &&
+              (() => {
+                // ── Cascada obligatoria: anular notas antes que la factura ──
+                // Si la venta tiene notas activas (cualquier estado ≠ Anulada:
+                // Validada, Pendiente, Observada), el botón de anular factura
+                // queda deshabilitado con un tooltip explicativo. El usuario
+                // debe anular primero cada nota desde su fila y solo después
+                // se habilita este botón. El backend refuerza la regla.
+                const notasActivasCount = notas.filter(
+                  (n) =>
+                    (n.estadoSiat ?? '').toLowerCase() !== 'anulada',
+                ).length;
+                const bloqueadaPorNotas = notasActivasCount > 0;
+
+                return (
+                  <button
+                    onClick={() => {
+                      if (bloqueadaPorNotas) {
+                        toast.warning(
+                          'Anulá las notas primero',
+                          `La factura tiene ${notasActivasCount} nota(s) de ajuste vinculada(s). `
+                            + 'Anulá cada nota antes de anular la factura en el SIAT.',
+                        );
+                        return;
+                      }
+                      onAnularSiat(sale.ventaId!);
+                    }}
+                    disabled={bloqueadaPorNotas}
+                    className={
+                      bloqueadaPorNotas
+                        ? 'inline-flex items-center gap-1.5 rounded-lg bg-coffee-200 text-coffee-500 text-[12px] font-medium px-3 py-1.5 cursor-not-allowed'
+                        : 'inline-flex items-center gap-1.5 rounded-lg bg-red-600 text-white text-[12px] font-medium px-3 py-1.5 hover:bg-red-700 transition-colors'
+                    }
+                    title={
+                      bloqueadaPorNotas
+                        ? `Anulá primero las ${notasActivasCount} nota(s) de ajuste vinculada(s). `
+                          + 'Solo después podés anular la factura.'
+                        : 'Anular la factura en el SIAT'
+                    }
+                  >
+                    <Ban className="h-3.5 w-3.5" /> Anular en SIAT
+                    {bloqueadaPorNotas && (
+                      <span className="ml-0.5 inline-flex items-center justify-center rounded-full bg-coffee-300 text-coffee-700 text-[10px] font-semibold px-1.5">
+                        {notasActivasCount}
+                      </span>
+                    )}
+                  </button>
+                );
+              })()}
             {sale.siatAceptada &&
               !esEstadoAnuladaSiat(sale.estadoSiat) &&
               sale.revertidaAnulacion && (

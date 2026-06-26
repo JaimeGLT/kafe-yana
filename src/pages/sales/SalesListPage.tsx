@@ -11,6 +11,9 @@ import { RefundModal } from '../../components/modals/RefundModal';
 import { AnularFacturaModal } from '../../components/modals/AnularFacturaModal';
 import { RevertirAnulacionFacturaModal } from '../../components/modals/RevertirAnulacionFacturaModal';
 import { NotaAjusteModal } from '../../components/modals/NotaAjusteModal';
+import { AnularNotaAjusteModal } from '../../components/modals/AnularNotaAjusteModal';
+import { RevertirAnulacionNotaAjusteModal } from '../../components/modals/RevertirAnulacionNotaAjusteModal';
+import type { NotaAjusteParaAnular } from '../../components/modals/AnularNotaAjusteModal';
 import { PrintFacturaModal } from '../../components/pos/PrintFacturaModal';
 import type { PrintFacturaData } from '../../components/pos/PrintFacturaModal';
 import { PrintComandaModal } from '../../components/pos/PrintComandaModal';
@@ -21,6 +24,7 @@ import { formatCurrency } from '../../utils';
 import { consolidarItemsPorNombre } from '../../utils/consolidarItems';
 import type { Sale } from '../../types';
 import type { CrearNotaAjusteRequest } from '../../types/notaAjuste';
+import type { NotaAjusteResumen } from '../../types/notaAjuste';
 import { useFacturacion } from '../../hooks/useFacturacion';
 import { usePagination } from '../../hooks/usePagination';
 import { useVentasPage } from '../../hooks/useVentasPage';
@@ -151,6 +155,8 @@ export const SalesListPage: React.FC = () => {
   const [anularSale, setAnularSale] = useState<Sale | null>(null);
   const [revertirAnulacionSale, setRevertirAnulacionSale] = useState<Sale | null>(null);
   const [notaAjusteSale, setNotaAjusteSale] = useState<Sale | null>(null);
+  const [notaParaAnular, setNotaParaAnular] = useState<NotaAjusteParaAnular | null>(null);
+  const [notaParaRevertirAnulacion, setNotaParaRevertirAnulacion] = useState<NotaAjusteParaAnular | null>(null);
   const [printFacturaData, setPrintFacturaData] = useState<PrintFacturaData | null>(null);
   const [printComandaData, setPrintComandaData] = useState<PrintComandaData | null>(null);
 
@@ -161,6 +167,8 @@ export const SalesListPage: React.FC = () => {
     anularFactura,
     revertirAnulacionFactura,
     crearNotaAjuste,
+    anularNotaAjuste,
+    revertirAnulacionNotaAjuste,
   } = useFacturacion();
 
   // ── Post-filter client-side (statusFilter: derivado de estadoSiat) ───
@@ -329,6 +337,44 @@ export const SalesListPage: React.FC = () => {
     return false;
   };
 
+  // ── Anulación / reversión de notas C/D ────────────────────────────────
+  const notaToAnularDto = (nota: NotaAjusteResumen): NotaAjusteParaAnular => ({
+    id: nota.id,
+    numeroNotaCreditoDebito: nota.numeroNotaCreditoDebito,
+    estadoSiat: nota.estadoSiat,
+    montoTotalDevuelto: nota.montoTotalDevuelto,
+  });
+
+  const handleAnularNotaAjusteSiatByNota = (nota: NotaAjusteResumen) => {
+    setNotaParaAnular(notaToAnularDto(nota));
+  };
+
+  const handleConfirmAnularNotaAjusteSiat = async (
+    notaId: number,
+    codigoMotivo: number,
+    nota?: string,
+  ) => {
+    const res = await anularNotaAjuste(notaId, codigoMotivo, nota);
+    if (res?.Siat?.Transaccion) {
+      await refresh();
+      return true;
+    }
+    return false;
+  };
+
+  const handleRevertirAnulacionNotaAjusteSiatByNota = (nota: NotaAjusteResumen) => {
+    setNotaParaRevertirAnulacion(notaToAnularDto(nota));
+  };
+
+  const handleConfirmRevertirAnulacionNotaAjusteSiat = async (notaId: number) => {
+    const res = await revertirAnulacionNotaAjuste(notaId);
+    if (res?.Siat?.Transaccion) {
+      await refresh();
+      return true;
+    }
+    return false;
+  };
+
   // ── Static options ───────────────────────────────────────────────────
   const statusOptions = [
     { value: '',                   label: 'Todos los estados' },
@@ -466,6 +512,8 @@ export const SalesListPage: React.FC = () => {
           onAnularSiat={handleAnularSiatById}
           onRevertirAnulacionSiat={handleRevertirAnulacionSiatById}
           onNotaAjusteSiat={handleNotaAjusteSiatById}
+          onAnularNotaAjusteSiat={handleAnularNotaAjusteSiatByNota}
+          onRevertirAnulacionNotaAjusteSiat={handleRevertirAnulacionNotaAjusteSiatByNota}
         />
 
         <RefundModal
@@ -494,6 +542,20 @@ export const SalesListPage: React.FC = () => {
           onClose={() => setNotaAjusteSale(null)}
           sale={notaAjusteSale}
           onConfirm={handleConfirmNotaAjuste}
+        />
+
+        <AnularNotaAjusteModal
+          isOpen={!!notaParaAnular}
+          onClose={() => setNotaParaAnular(null)}
+          nota={notaParaAnular}
+          onConfirm={handleConfirmAnularNotaAjusteSiat}
+        />
+
+        <RevertirAnulacionNotaAjusteModal
+          isOpen={!!notaParaRevertirAnulacion}
+          onClose={() => setNotaParaRevertirAnulacion(null)}
+          nota={notaParaRevertirAnulacion}
+          onConfirm={handleConfirmRevertirAnulacionNotaAjusteSiat}
         />
 
         <PrintComandaModal

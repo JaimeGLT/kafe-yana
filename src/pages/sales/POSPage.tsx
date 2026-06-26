@@ -47,6 +47,8 @@ import { ProdCard } from '../../components/modals/ProdCard';
 import { TIPO_DOC_NIT, DEFAULT_CF_NUMERO_DOC, DEFAULT_CF_COMPLEMENTO, DEFAULT_SIN_NOMBRE } from '../../constants/facturacion';
 import { findConsumidorFinal, esConsumidorFinal } from '../../utils/consumidorFinal';
 import { useFacturacion } from '../../hooks/useFacturacion';
+import { usePuntoVenta } from '../../contexts';
+import type { PuntoVentaSeleccionado } from '../../contexts';
 
 const ReviewPanel = lazy(() => import('../../components/pos/ReviewPanel').then(m => ({ default: m.ReviewPanel })));
 const PagoPanel = lazy(() => import('../../components/pos/PagoPanel').then(m => ({ default: m.PagoPanel })));
@@ -131,6 +133,19 @@ interface PagosObject {
  *  4) CF puro (sin nada)      → defaults CF (5/NULL/0/NULL).
  *  5) Cliente del dropdown    → el backend resuelve del id_Cliente.
  */
+/**
+ * Construye el body JSON del cobro a partir de los inputs del modal.
+ *
+ * Incluye codigoSucursal/codigoPuntoVenta cuando el cajero eligió un PV
+ * desde el selector del header (ver PuntoVentaContext). El backend valida
+ * que el (suc, pv) exista y esté activo en PuntosVentaSiat; si no, lanza
+ * VentaException (HTTP 409).
+ *
+ * Si el selector no tiene PV activo (puntoVenta=null) o el cajero todavía
+ * no eligió, NO se envían los campos y el backend cae al fallback
+ * ResolverPuntoVentaActivo() (que solo funciona si hay EXACTAMENTE 1
+ * PV activo; si hay >1 o 0, lanza VentaException claro).
+ */
 function construirBodyCobro(params: {
   reviewClienteId: string | null;
   customers: Customer[];
@@ -143,6 +158,7 @@ function construirBodyCobro(params: {
   pedidoId: number;
   pagos: PagosObject;
   aplicarDescuento: boolean;
+  puntoVenta: PuntoVentaSeleccionado | null;
 }): Record<string, unknown> {
   const clienteEfectivo = params.reviewClienteId
     ? params.customers.find(c => String(c.id) === params.reviewClienteId) ?? null
@@ -156,6 +172,17 @@ function construirBodyCobro(params: {
     (docTrim !== '' && docTrim !== DEFAULT_CF_NUMERO_DOC)
     || nombreTrim !== ''
     || compTrim !== '';
+
+  // Campos PV: si el cajero eligió uno en el header, se envía; si no, null.
+  const pvFields = params.puntoVenta
+    ? {
+        codigoSucursal: params.puntoVenta.codigoSucursal,
+        codigoPuntoVenta: params.puntoVenta.codigoPuntoVenta,
+      }
+    : {
+        codigoSucursal: null,
+        codigoPuntoVenta: null,
+      };
 
   // 1) "No facturar" — no se emite factura SIAT, pero el backend igualmente
   // requiere `id_Cliente` (se envía el del cliente seleccionado del dropdown
@@ -171,6 +198,7 @@ function construirBodyCobro(params: {
       nombre: null,
       dni: null,
       complemento: null,
+      ...pvFields,
     };
   }
 
@@ -186,6 +214,7 @@ function construirBodyCobro(params: {
       nombre: DEFAULT_SIN_NOMBRE,
       dni: 99001,
       complemento: '',
+      ...pvFields,
     };
   }
 
@@ -203,6 +232,7 @@ function construirBodyCobro(params: {
       nombre: nombreTrim || null,
       dni: dniNum !== null && Number.isFinite(dniNum) && dniNum > 0 ? dniNum : null,
       complemento: compTrim || null,
+      ...pvFields,
     };
   }
 
@@ -218,6 +248,7 @@ function construirBodyCobro(params: {
       nombre: null,
       dni: 0,
       complemento: null,
+      ...pvFields,
     };
   }
 
@@ -232,6 +263,7 @@ function construirBodyCobro(params: {
     nombre: null,
     dni: null,
     complemento: null,
+    ...pvFields,
   };
 }
 
@@ -328,6 +360,11 @@ export const POSPage: React.FC = () => {
   } = usePOSMesas();
 
   const { cobrarParaLlevar } = useVenta();
+
+  // Punto de Venta activo del cajero (selector del header). Si es null,
+  // construirBodyCobro NO envía codigoSucursal/codigoPuntoVenta y el
+  // backend cae al fallback ResolverPuntoVentaActivo().
+  const { puntoVentaActual } = usePuntoVenta();
 
   useEffect(() => {
     api.get<{ Url: string }>('/Qr')
@@ -617,6 +654,10 @@ export const POSPage: React.FC = () => {
   const [noFacturar, setNoFacturar] = useState<boolean>(false);
   const [editingRonda, setEditingRonda] = useState<{ rondaId: number; rondaNumber: number; items: CartItem[] } | null>(null);
   const [confirmDeleteRondaId, setConfirmDeleteRondaId] = useState<{ rondaId: number; rondaNumber: number } | null>(null);
+
+  // El Punto de Venta SIAT activo lo resuelve el backend desde la tabla
+  // PuntosVentaSiat (debe haber EXACTAMENTE UNO activo). El frontend ya
+  // no envía codigoSucursal/codigoPuntoVenta en el body del cobro.
 
   const dragScrollDetalleCat = useDragScroll<HTMLDivElement>();
   const dragScrollDetalleProd = useDragScroll<HTMLDivElement>();
@@ -1155,6 +1196,7 @@ export const POSPage: React.FC = () => {
           pedidoId,
           pagos,
           aplicarDescuento,
+          puntoVenta: puntoVentaActual,
         });
 
         let res: RespuestaCobro | null = null;
@@ -1236,6 +1278,7 @@ export const POSPage: React.FC = () => {
         pedidoId: pedidoId ?? 0,
         pagos,
         aplicarDescuento: false,
+        puntoVenta: puntoVentaActual,
       });
 
       let res: RespuestaCobro | null = null;
