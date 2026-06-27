@@ -15,6 +15,18 @@ export interface Customer {
   puntos: number;
   numeroCompras?: number;
   estado: boolean;
+  /**
+   * País de origen del documento, sólo presente para clientes extranjeros
+   * (CEX / PAS). Bolivianos (CI / NIT / OD) lo tienen `undefined`.
+   *
+   * Se setea automáticamente cuando el cajero selecciona un cliente con
+   * `IdPaisOrigen` persistido en BD — el dropdown de país en
+   * `DatosFiscalesForm` se autocompleta con este valor.
+   */
+  paisOrigen?: {
+    codigo: number;
+    descripcion: string;
+  };
 }
 
 export interface CustomerInput {
@@ -158,10 +170,11 @@ export interface Sale extends BaseEntity {
   /** Σ(montoTotalDevuelto) de las notas válidas. Derivado: no se guarda en BD,
    *  lo calcula el mapper a partir de `notasAjuste`. */
   montoNotasAjuste?: number;
-  /** Cantidad de items cuyo `cantidadDevuelta >= quantity` (agotados).
-   *  Derivado: lo calcula el mapper a partir de `items[].cantidadDevuelta`.
-   *  Sirve para mostrar un aviso en la lista y deshabilitar el modal. */
-  itemsAgotados?: number;
+  /** Cantidad de líneas de detalle de la venta. Lo expone el backend como
+   *  `cantidadProductos` en `GET_VENTAS` (lista) — sin necesidad de cargar
+   *  `detalles`. El listado lo usa para el badge "N items". Cuando se carga
+   *  el detalle con `GET_VENTA_CON_DETALLES`, `items.length === itemsCount`. */
+  itemsCount?: number;
 }
 
 export interface SaleInput {
@@ -267,21 +280,8 @@ export interface SalesStats {
   pendingReceivables: number;
 }
 
-// Facturación SIAT — tipos de documento de identidad
-// Códigos definidos por el SIN para identificar al cliente en la factura.
-// Lista fija por ahora (son los "documentos por defecto"); si el backend
-// empieza a exponerlos vía API, reemplazar por una query.
-export interface TipoDocumento {
-  codigo: number;
-  nombre: string;
-}
-
-export const TIPOS_DOCUMENTO: readonly TipoDocumento[] = [
-  { codigo: 1, nombre: 'CI - Cédula de Identidad' },
-  { codigo: 2, nombre: 'CEX - Cédula de Extranjero' },
-  { codigo: 3, nombre: 'PAS - Pasaporte' },
-  { codigo: 4, nombre: 'OD - Otro Documento' },
-  { codigo: 5, nombre: 'NIT - Nro. Identificación Tributaria' },
-] as const;
-
-export const TIPO_DOCUMENTO_DEFAULT = 1;
+// Facturación SIAT — los tipos de documento de identidad vienen del backend.
+// La fuente es `GET /api/catalogos/tipos-documento-identidad`, consumido vía
+// `useTiposDocumentoIdentidad` (ver `lib/queries/catalogos.ts`). No hardcodear
+// acá: si el SIN agrega códigos nuevos, aparecen automáticamente después del
+// sync diario a las 08:10 BOT.

@@ -81,21 +81,6 @@ export interface ReenviarFacturaRespuesta {
   Siat: SiatResultado;
 }
 
-/** Catálogo de motivos de anulación de factura (SIAT).
- *  Códigos definidos por el SIN — mantener sincronizado con
- *  KafeYana.Domain.TiposDeDatos.MotivoAnulacionSiat (backend). */
-export interface MotivoAnulacion {
-  codigo: number;
-  descripcion: string;
-}
-
-export const MOTIVOS_ANULACION: readonly MotivoAnulacion[] = [
-  { codigo: 1, descripcion: 'Factura mal emitida' },
-  { codigo: 2, descripcion: 'Nota de crédito/débito' },
-  { codigo: 3, descripcion: 'Datos del cliente incorrectos' },
-  { codigo: 4, descripcion: 'Otros' },
-] as const;
-
 /** Respuesta de POST /api/Facturacion/anular/{ventaId}. */
 export interface AnularFacturaRespuesta {
   message: string;

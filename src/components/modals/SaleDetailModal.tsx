@@ -72,9 +72,21 @@ export const SaleDetailModal: React.FC<Props> = ({
   onAnularNotaAjusteSiat,
   onRevertirAnulacionNotaAjusteSiat,
 }) => {
+  // Sin `sale` y nada cargando → modal cerrado.
   if (!sale && !isLoading && !error) return null;
 
-  if (isLoading) {
+  // Sin `sale` todavía: puede estar cargando la lista por primera vez o
+  // haber un error antes de tener datos.
+  if (!sale) {
+    if (error) {
+      return (
+        <Modal isOpen onClose={onClose} title="Error" size="md">
+          <div className="flex items-center justify-center py-12">
+            <p className="text-red-500 text-[13px]">{error}</p>
+          </div>
+        </Modal>
+      );
+    }
     return (
       <Modal isOpen onClose={onClose} title="Cargando detalle..." size="md">
         <div className="flex items-center justify-center py-12">
@@ -83,18 +95,6 @@ export const SaleDetailModal: React.FC<Props> = ({
       </Modal>
     );
   }
-
-  if (error) {
-    return (
-      <Modal isOpen onClose={onClose} title="Error" size="md">
-        <div className="flex items-center justify-center py-12">
-          <p className="text-red-500 text-[13px]">{error}</p>
-        </div>
-      </Modal>
-    );
-  }
-
-  if (!sale) return null;
 
   // ── Derivados ──────────────────────────────────────────────────────────
   const notas: NotaAjusteResumen[] = sale.notasAjuste ?? [];
@@ -174,7 +174,86 @@ export const SaleDetailModal: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* ── Sección 2 — Productos devueltos ────────────────────────── */}
+        {/* ── Sección 2 — Productos ──────────────────────────────────── */}
+        {/*
+         * Lista de TODAS las líneas vendidas. La cabecera de la venta (header
+         * arriba, resumen de pago abajo) ya viene del listado — esto sólo
+         * carga las líneas cuando el hook `useVentaDetalles` las trae.
+         *
+         * Estados:
+         *   - `isLoading` (detalles en vuelo) → 3 filas skeleton animadas.
+         *   - `sale.items.length > 0` → lista real.
+         *   - `sale.items.length === 0 && !isLoading` → venta sin líneas
+         *     (caso defensivo), no se renderiza la sección.
+         */}
+        {(isLoading || sale.items.length > 0) && (
+          <div className="px-5 py-3.5 border-b border-coffee-100">
+            <SectionLabel>Productos</SectionLabel>
+            {isLoading ? (
+              <div className="divide-y divide-coffee-100" aria-busy="true" aria-live="polite">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex items-center justify-between gap-3 py-2 animate-pulse">
+                    <div className="min-w-0 flex-1">
+                      <div className="h-3.5 w-40 bg-coffee-200 rounded" />
+                      <div className="h-3 w-24 bg-coffee-100 rounded mt-1.5" />
+                    </div>
+                    <div className="h-3.5 w-16 bg-coffee-200 rounded" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="divide-y divide-coffee-100">
+                {sale.items.map((item) => {
+                  const devueltoPorNotas = Number(item.cantidadDevuelta ?? 0);
+                  const fueDevuelto = devueltoPorNotas > 0;
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between gap-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p
+                          className={
+                            fueDevuelto
+                              ? 'text-[13px] font-medium text-coffee-500 leading-snug truncate'
+                              : 'text-[13px] font-medium text-coffee-900 leading-snug truncate'
+                          }
+                        >
+                          {item.productName ?? 'Producto'}
+                        </p>
+                        <p className="text-[12px] text-coffee-500 mt-0.5">
+                          {item.quantity} × {formatCurrency(item.unitPrice)}
+                        </p>
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        <p
+                          className={
+                            fueDevuelto
+                              ? 'text-[12px] text-coffee-400 line-through leading-snug'
+                              : 'text-[13px] font-medium text-coffee-900 leading-snug'
+                          }
+                        >
+                          {formatCurrency(item.total)}
+                        </p>
+                        {fueDevuelto && (
+                          <p
+                            className="text-[12px] font-medium inline-flex items-center gap-1 mt-0.5"
+                            style={{ color: '#3B6D11' }}
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                            {devueltoPorNotas} devuelto{devueltoPorNotas === 1 ? '' : 's'}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Sección 3 — Productos devueltos ────────────────────────── */}
         {itemsDevueltos.length > 0 && (
           <div className="px-5 py-3.5 border-b border-coffee-100">
             <SectionLabel>Productos devueltos</SectionLabel>
@@ -213,7 +292,7 @@ export const SaleDetailModal: React.FC<Props> = ({
           </div>
         )}
 
-        {/* ── Sección 3 — Resumen de pago ────────────────────────────── */}
+        {/* ── Sección 4 — Resumen de pago ────────────────────────────── */}
         <div className="px-5 py-3.5 border-b border-coffee-100">
           <SectionLabel>Resumen de pago</SectionLabel>
           <div className="grid grid-cols-2 gap-y-1.5 text-[12px]">
@@ -267,7 +346,7 @@ export const SaleDetailModal: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* ── Sección 4 — Notas de ajuste emitidas ───────────────────── */}
+        {/* ── Sección 5 — Notas de ajuste emitidas ───────────────────── */}
         {tieneNotas && (
           <div className="px-5 py-3.5">
             <SectionLabel>Notas de ajuste emitidas</SectionLabel>

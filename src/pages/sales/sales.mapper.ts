@@ -60,7 +60,18 @@ export interface BackendVenta {
   numeroTarjeta: string | null;
   cuf?: string | null;
   numeroDocumento?: string | null;
-  detalles: BackendVentaDetalle[];
+  /**
+   * Cantidad de líneas de detalle. Lo expone el backend como campo derivado
+   * (`Detalles.Count`) y siempre viene en la respuesta. Se usa en la lista
+   * para mostrar el badge "N items" sin cargar las líneas completas.
+   */
+  cantidadProductos: number;
+  /**
+   * Líneas de detalle completas. Sólo las trae `GET_VENTA_CON_DETALLES`
+   * (modal de detalle). En la lista (`GET_VENTAS`) viene `undefined` —
+   * usamos `itemsCount` en su lugar.
+   */
+  detalles?: BackendVentaDetalle[];
   notasAjuste?: BackendVentaNotaAjuste[] | null;
 }
 
@@ -138,7 +149,11 @@ export const mapBackendVentaToSale = (v: BackendVenta): Sale => {
     taxPercentage: 18,
     total: monto,
     paymentMethods,
-    items: v.detalles.map((d) => ({
+    // Items: la lista (`GET_VENTAS`) NO trae `detalles` para mantener el
+    // payload liviano — `items` queda vacío y `itemsCount` lleva la cuenta.
+    // El modal dispara `GET_VENTA_CON_DETALLES` (on-demand) y re-mappea la
+    // venta con `detalles` poblados.
+    items: (v.detalles ?? []).map((d) => ({
       // Antes se inventaba un id sintético `${codeLabel}-${i}`, lo que rompía
       // cualquier flujo que necesitara el `Detalle_Pago.Id` real (notas de
       // ajuste SIAT). Ahora se usa el id numérico de BD como string (la
@@ -186,11 +201,8 @@ export const mapBackendVentaToSale = (v: BackendVenta): Sale => {
     notasAjuste: todasNotas,
     montoNotasAjuste,
 
-    // Conteo de items 100% devueltos (cantidadDevuelta >= quantity).
-    // Útil para mostrar un aviso en la lista y deshabilitar el botón
-    // "Emitir Nota" cuando la venta está completamente devuelta.
-    itemsAgotados: v.detalles.filter(
-      (d) => Number(d.cantidadDevuelta ?? 0) >= d.cantidad,
-    ).length,
+    // Conteo de líneas de detalle. Lo usa el badge "N items" del listado.
+    // En el modal (donde `items` viene poblado) coincide con `items.length`.
+    itemsCount: v.cantidadProductos,
   };
 };

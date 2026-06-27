@@ -41,6 +41,7 @@ import type { CartItem } from '../../hooks/usePOSCart';
 import type { DtoRondaDetalleEditar } from '../../hooks/useMesas';
 import type { Product, Category, Customer, PaymentMethodType, VariacionAtributo } from '../../types';
 import type { MilestoneReward, PointsCalculation } from '../../types/loyalty';
+import { mapPaymentMethodToSinCode } from '../../lib/mappers/metodosPago';
 import { VariacionPickerModal } from '../../components/modals/VariacionPickerModal';
 import { ElaboradoDetailModal } from '../../components/modals/ElaboradoDetailModal';
 import { ProdCard } from '../../components/modals/ProdCard';
@@ -115,10 +116,21 @@ interface SaleResult {
   fechaEmision: string | null;
 }
 
+/**
+ * Shape del body `DtoPagos` que va al backend.
+ *
+ * Desde el Sync 11 (`sincronizarParametricaTipoMetodoPago`), KafeYana
+ * abandonó la estructura fija `{efectivo, tarjeta, qr, total}` a favor de
+ * una lista de líneas `{codigo, monto}` validadas contra el catálogo
+ * SIAT sincronizado (`CatMetodosPago` + `MetodoPagoSiatCatalogo`).
+ *
+ * Cada `CodigoMetodoPago` debe existir en el catálogo vigente y estar
+ * `Activo=true`. El backend setea `Venta.CodigoMetodoPago` (campo XML
+ * al SIAT) con la línea de mayor monto y persiste el resto en
+ * `VentaPagos` para auditoría.
+ */
 interface PagosObject {
-  efectivo: number;
-  tarjeta: number;
-  qr: number;
+  lineas: Array<{ codigo: number; monto: number }>;
   total: number;
 }
 
@@ -155,6 +167,13 @@ function construirBodyCobro(params: {
   numeroDocumento: string;
   facturacionNombre: string;
   complemento: string;
+  /**
+   * Código SIN del país de origen del documento (1..211). Sólo viaja al
+   * backend en la rama "Datos tipeados a mano" cuando esExtranjero
+   * (CEX=2 o PAS=3). En las otras ramas es null (CF / S/N / cliente del
+   * dropdown con país persistido en BD).
+   */
+  paisOrigenCodigo: number | null;
   pedidoId: number;
   pagos: PagosObject;
   aplicarDescuento: boolean;
@@ -174,14 +193,17 @@ function construirBodyCobro(params: {
     || compTrim !== '';
 
   // Campos PV: si el cajero eligió uno en el header, se envía; si no, null.
+  // Las claves del body son PascalCase para consistencia con el shape que el
+  // backend serializa. ASP.NET Core deserializa case-insensitive, así que el
+  // cobro funciona idéntico independientemente de camelCase o PascalCase.
   const pvFields = params.puntoVenta
     ? {
-        codigoSucursal: params.puntoVenta.codigoSucursal,
-        codigoPuntoVenta: params.puntoVenta.codigoPuntoVenta,
+        CodigoSucursal: params.puntoVenta.CodigoSucursal,
+        CodigoPuntoVenta: params.puntoVenta.CodigoPuntoVenta,
       }
     : {
-        codigoSucursal: null,
-        codigoPuntoVenta: null,
+        CodigoSucursal: null,
+        CodigoPuntoVenta: null,
       };
 
   // 1) "No facturar" — no se emite factura SIAT, pero el backend igualmente
@@ -222,6 +244,8 @@ function construirBodyCobro(params: {
   if (tieneDatosTipeados) {
     const dniSanitizado = docTrim.replace(/\D/g, '');
     const dniNum = dniSanitizado ? parseInt(dniSanitizado, 10) : null;
+    const esExtranjero =
+      params.codigoTipoDocumento === 2 || params.codigoTipoDocumento === 3;
     return {
       id_Pedido: params.pedidoId,
       id_Cliente: null,
@@ -232,6 +256,9 @@ function construirBodyCobro(params: {
       nombre: nombreTrim || null,
       dni: dniNum !== null && Number.isFinite(dniNum) && dniNum > 0 ? dniNum : null,
       complemento: compTrim || null,
+      // País sólo si es extranjero — el backend valida que venga y bloquea
+      // la factura si falta. Si es CI/NIT/OD queda null (Bolivia implícito).
+      codigoPaisOrigen: esExtranjero ? params.paisOrigenCodigo : null,
       ...pvFields,
     };
   }
@@ -652,6 +679,11 @@ export const POSPage: React.FC = () => {
   // "No facturar" — toggle excluyente con S/N. Si está activo, la venta se
   // registra internamente sin emitir factura al SIAT (factura=false en el body).
   const [noFacturar, setNoFacturar] = useState<boolean>(false);
+  // País de origen del documento (código SIN 1..211). Sólo se exige cuando
+  // el cajero elige tipo CEX (2) o PAS (3) Y no asignó un cliente del dropdown
+  // (con cliente del dropdown, el país viene del cliente persistido en BD).
+  // Se resetea a null cuando cambia el tipo de documento o se asigna un cliente.
+  const [paisOrigenCodigo, setPaisOrigenCodigo] = useState<number | null>(null);
   const [editingRonda, setEditingRonda] = useState<{ rondaId: number; rondaNumber: number; items: CartItem[] } | null>(null);
   const [confirmDeleteRondaId, setConfirmDeleteRondaId] = useState<{ rondaId: number; rondaNumber: number } | null>(null);
 
@@ -784,6 +816,14 @@ export const POSPage: React.FC = () => {
     setFacturacionNombre(v);
     if (noFacturar && v.trim() !== '') setNoFacturar(false);
   }, [noFacturar]);
+
+  // Cambio de tipo de documento: si deja de ser CEX/PAS, limpiar el país.
+  // (Si pasa a CEX/PAS, se mantiene el país previo si estaba seteado, así el
+  // cajero puede alternar entre tipos sin re-tipear.)
+  const handleCodigoTipoDocumentoChange = useCallback((v: number) => {
+    setCodigoTipoDocumento(v);
+    if (v !== 2 && v !== 3) setPaisOrigenCodigo(null);
+  }, []);
 
   const mesaTotal = mesaSubtotal;
   const cashNum = parseFloat(cashReceived) || 0;
@@ -993,6 +1033,11 @@ export const POSPage: React.FC = () => {
     setReviewClienteId(String(c.id));
     if (c.dni != null) setNumeroDocumento(String(c.dni));
     if (c.nombre) setFacturacionNombre(c.nombre);
+    // País: si el cliente persistido en BD tiene IdPaisOrigen, autocompletar
+    // el dropdown de país (el cajero lo ve pero no puede cambiarlo para esta
+    // venta — el backend siempre lee del cliente persistido en este path).
+    // Si el cliente no tiene país persistido (Boliviano), dejar null.
+    setPaisOrigenCodigo(c.paisOrigen?.codigo ?? null);
     setDocSearchResults([]);
     setDocSearchActive(false);
     setNombreSearchResults([]);
@@ -1179,9 +1224,15 @@ export const POSPage: React.FC = () => {
         const efectivoTotal = aplicarDescuento && descuentoPreview?.DescuentoRecomendado
           ? descuentoPreview.DescuentoRecomendado.TotalConDescuento
           : mesaTotal;
-        const pagos: PagosObject = { efectivo: 0, tarjeta: 0, qr: 0, total: efectivoTotal };
-        if (paymentMethod === 'cash') pagos.efectivo = efectivoTotal;
-        else if (paymentMethod === 'transfer') pagos.qr = efectivoTotal;
+        // Sync 11: armar el body de pagos como {lineas:[{codigo, monto}]}
+        // usando el mapper que traduce `PaymentMethodType` → código SIN
+        // oficial (1=EFECTIVO, 7=TRANSFERENCIA, ...). El backend valida
+        // cada línea contra `MetodoPagoSiatCatalogo.EsValidoYActivo`.
+        const codigoSin = mapPaymentMethodToSinCode(paymentMethod);
+        const pagos: PagosObject = {
+          lineas: [{ codigo: codigoSin, monto: efectivoTotal }],
+          total: efectivoTotal,
+        };
 
         // Body del cobro — ver `construirBodyCobro` para la cascada completa.
         const bodyCobro = construirBodyCobro({
@@ -1193,6 +1244,7 @@ export const POSPage: React.FC = () => {
           numeroDocumento,
           facturacionNombre,
           complemento,
+          paisOrigenCodigo,
           pedidoId,
           pagos,
           aplicarDescuento,
@@ -1275,6 +1327,7 @@ export const POSPage: React.FC = () => {
         numeroDocumento,
         facturacionNombre,
         complemento,
+        paisOrigenCodigo,
         pedidoId: pedidoId ?? 0,
         pagos,
         aplicarDescuento: false,
@@ -2058,13 +2111,15 @@ export const POSPage: React.FC = () => {
                 esSinNombre={esSinNombre}
                 onEsSinNombreChange={handleEsSinNombreChange}
                 codigoTipoDocumento={codigoTipoDocumento}
-                onCodigoTipoDocumentoChange={setCodigoTipoDocumento}
+                onCodigoTipoDocumentoChange={handleCodigoTipoDocumentoChange}
                 numeroDocumento={numeroDocumento}
                 onNumeroDocumentoChange={handleNumeroDocumentoChange}
                 complemento={complemento}
                 onComplementoChange={handleComplementoChange}
                 facturacionNombre={facturacionNombre}
                 onFacturacionNombreChange={handleFacturacionNombreChange}
+                paisOrigenCodigo={paisOrigenCodigo}
+                onPaisOrigenCodigoChange={setPaisOrigenCodigo}
                 clienteEsConsumidorFinal={clienteEsConsumidorFinal}
                 clienteAsignadoDelDropdown={clienteAsignadoDelDropdown}
                 docSearchResults={docSearchResults}
@@ -2134,7 +2189,7 @@ export const POSPage: React.FC = () => {
                 codigoTipoDocumento={codigoTipoDocumento}
                 numeroDocumento={numeroDocumento}
                 complemento={complemento}
-                onCodigoTipoDocumentoChange={setCodigoTipoDocumento}
+                onCodigoTipoDocumentoChange={handleCodigoTipoDocumentoChange}
                 onNumeroDocumentoChange={handleNumeroDocumentoChange}
                 onComplementoChange={handleComplementoChange}
                 clienteEsConsumidorFinal={clienteEsConsumidorFinal}
@@ -2143,6 +2198,8 @@ export const POSPage: React.FC = () => {
                 onEsSinNombreChange={handleEsSinNombreChange}
                 noFacturar={noFacturar}
                 onNoFacturarChange={handleNoFacturarChange}
+                paisOrigenCodigo={paisOrigenCodigo}
+                onPaisOrigenCodigoChange={setPaisOrigenCodigo}
               />
             </Suspense>
           </Overlay>

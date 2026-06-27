@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { clsx } from 'clsx';
 import { X, Star, Tag, RotateCcw, Receipt, FileText, Ban, UserX } from 'lucide-react';
 import type { PaymentMethodType, Customer } from '../../types';
@@ -6,6 +6,77 @@ import { DEFAULT_SIN_NOMBRE, DEFAULT_CF_NUMERO_DOC } from '../../constants/factu
 import { ModoFacturacionCards, type ModoFacturacion } from './ModoFacturacionCards';
 import { ClienteFacturacionSection } from './ClienteFacturacionSection';
 import { DatosFiscalesForm } from './DatosFiscalesForm';
+import { useMetodosPago } from '../../hooks/useMetodosPago';
+import type { MetodoPagoItem } from '../../lib/queries/catalogos';
+
+/**
+ * Iconos SVG inline para los 2 métodos que KafeYana habilita por default
+ * (1=EFECTIVO y 7=TRANSFERENCIA). Si en el futuro el operador activa
+ * más métodos, se renderizan con el ícono genérico de tarjeta / wallet.
+ *
+ * Se mantienen aquí porque la grilla del POS ya tiene íconos inline
+ * (no se quiere agregar dependencia de lucide-react solo para esto).
+ */
+function iconForMetodo(metodo: MetodoPagoItem): React.ReactNode {
+  switch (metodo.codigo) {
+    case 1: // EFECTIVO
+      return (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      );
+    case 7: // TRANSFERENCIA BANCARIA / QR
+      return (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+        </svg>
+      );
+    default:
+      // Tarjeta / OTROS / combinaciones — ícono genérico de tarjeta.
+      return (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+        </svg>
+      );
+  }
+}
+
+/**
+ * Traduce el código SIN del catálogo al `PaymentMethodType` legacy del
+ * frontend. El POS mantiene el string type por compatibilidad con
+ * `ReviewPanel` y `sales.ts`.
+ *
+ * Sólo el código 1=EFECTIVO y 7=TRANSFERENCIA están activos por default;
+ * los demás se mapean a `'card'` para que el botón se renderice sin
+ * tirar error si el operador los habilita más adelante.
+ */
+function metodoToPaymentType(metodo: MetodoPagoItem): PaymentMethodType {
+  switch (metodo.codigo) {
+    case 1: return 'cash';
+    case 2: return 'card';
+    case 7: return 'transfer';
+    default: return 'card';
+  }
+}
+
+/**
+ * Etiqueta legible para el botón. Si la descripción del SIN es muy larga
+ * (ej. "TRANSFERENCIA BANCARIA" → 23 chars) se trunca visualmente.
+ */
+function labelForMetodo(metodo: MetodoPagoItem): string {
+  if (metodo.codigo === 1) return 'Efectivo';
+  if (metodo.codigo === 7) return 'QR';
+  if (metodo.descripcion.length <= 12) return metodo.descripcion;
+  // Mayúsculas → Capitalizado solo primera letra, sin "DE / DEL / LA" largos.
+  const palabras = metodo.descripcion.toLowerCase().split(' ');
+  return palabras
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .slice(0, 2)
+    .join(' ');
+}
 
 interface DescuentoPreview {
   HayDescuentoDisponible: boolean;
@@ -17,10 +88,9 @@ interface DescuentoPreview {
   } | null;
 }
 
-const PAYMENT_METHODS: { type: PaymentMethodType; label: string; icon: React.ReactNode }[] = [
-  { type: 'cash',     label: 'Efectivo',  icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
-  { type: 'transfer', label: 'QR', icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg> },
-];
+// Sync 11: los métodos de pago vienen del catálogo SIAT sincronizado
+// (`useMetodosPago`). Ya no se hardcodean acá — el operador decide
+// desde el server qué métodos están `Activo=true` y la UI los renderiza.
 
 interface PointsPreview { totalPoints: number; bonusReasons: string[] }
 
@@ -80,6 +150,13 @@ interface PagoPanelProps {
   onEsSinNombreChange: (v: boolean) => void;
   noFacturar: boolean;
   onNoFacturarChange: (v: boolean) => void;
+  /**
+   * Código SIN del país de origen del documento (1..211). Sólo se usa cuando
+   * el tipo de documento es CEX (2) o PAS (3) y NO se envió Id_Cliente
+   * (cliente del dropdown ya trae su país persistido en BD).
+   */
+  paisOrigenCodigo: number | null;
+  onPaisOrigenCodigoChange: (v: number | null) => void;
 }
 
 export const PagoPanel: React.FC<PagoPanelProps> = ({
@@ -133,7 +210,31 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
   onEsSinNombreChange,
   noFacturar,
   onNoFacturarChange,
+  paisOrigenCodigo,
+  onPaisOrigenCodigoChange,
 }) => {
+  // Catálogo de métodos de pago sincronizado contra el SIAT (Sync 11).
+  // Solo trae los métodos con `activo=true` — el operador decide desde el
+  // server cuáles están habilitados.
+  const { items: metodosPago, loading: loadingMetodos, sincronizado: metodosSincronizados } = useMetodosPago();
+
+  // Mapeo a la estructura legacy `{type, label, icon}` que consume el botón.
+  // Si el catálogo está vacío (loading / error / fallback) caemos a los 2
+  // métodos por default para no romper el POS mientras el server arranca.
+  const metodosParaUi = useMemo(() => {
+    if (metodosPago.length === 0) {
+      return [
+        { type: 'cash' as PaymentMethodType, label: 'Efectivo', icon: iconForMetodo({ codigo: 1, descripcion: 'EFECTIVO', activo: true }) },
+        { type: 'transfer' as PaymentMethodType, label: 'QR', icon: iconForMetodo({ codigo: 7, descripcion: 'TRANSFERENCIA BANCARIA', activo: true }) },
+      ];
+    }
+    return metodosPago.map(m => ({
+      type: metodoToPaymentType(m),
+      label: labelForMetodo(m),
+      icon: iconForMetodo(m),
+    }));
+  }, [metodosPago]);
+
   const efectivoTotal = aplicarDescuento && discountPreview?.DescuentoRecomendado
     ? discountPreview.DescuentoRecomendado.TotalConDescuento
     : mesaTotal;
@@ -306,6 +407,8 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
                         onNumeroDocumentoChange={onNumeroDocumentoChange}
                         onComplementoChange={onComplementoChange}
                         onFacturacionNombreChange={onFacturacionNombreChange}
+                        paisOrigenCodigo={paisOrigenCodigo}
+                        onPaisOrigenCodigoChange={onPaisOrigenCodigoChange}
                         docSearchResults={docSearchResults}
                         docSearchLoading={docSearchLoading}
                         docSearchActive={docSearchActive}
@@ -371,13 +474,28 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
           {/* ── Columna derecha: Pago ────────────────────────────────── */}
           <div className="md:col-span-2 space-y-3 md:space-y-4">
             <section>
-              <p className="text-[10px] font-bold text-coffee-400 uppercase tracking-wider mb-2">
-                Método de pago
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {PAYMENT_METHODS.map((pm) => (
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-bold text-coffee-400 uppercase tracking-wider">
+                  Método de pago
+                </p>
+                {!metodosSincronizados && !loadingMetodos && (
+                  <span
+                    className="text-[9px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded uppercase tracking-wider"
+                    title="El server todavía no sincronizó el catálogo con el SIAT — se muestran los métodos por default."
+                  >
+                    Sin sync
+                  </span>
+                )}
+              </div>
+              <div
+                className={clsx(
+                  'grid gap-2',
+                  metodosParaUi.length <= 2 ? 'grid-cols-2' : 'grid-cols-2',
+                )}
+              >
+                {metodosParaUi.map((pm, idx) => (
                   <button
-                    key={pm.type}
+                    key={`${pm.type}-${idx}`}
                     onClick={() => {
                       onPaymentMethodChange(pm.type);
                       onCashReceivedChange('');
@@ -477,20 +595,38 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
           disabled={
             isProcessing ||
             (paymentMethod === 'cash' && cashNum > 0 && cashNum < efectivoTotal) ||
-            (!noFacturar && !esSinNombre && (!numeroDocumento.trim() || !facturacionNombre.trim()))
+            (!noFacturar && !esSinNombre && (!numeroDocumento.trim() || !facturacionNombre.trim())) ||
+            // Cliente extranjero (CEX/PAS) sin cliente del dropdown → exigir país.
+            // Con cliente del dropdown, el país se lee del cliente persistido en BD.
+            (!noFacturar &&
+              !esSinNombre &&
+              !clienteAsignadoDelDropdown &&
+              (codigoTipoDocumento === 2 || codigoTipoDocumento === 3) &&
+              paisOrigenCodigo == null)
           }
           className={clsx(
             'flex-1 py-3 rounded-2xl font-bold text-sm transition-all inline-flex items-center justify-center gap-2',
             isProcessing ||
             (paymentMethod === 'cash' && cashNum > 0 && cashNum < efectivoTotal) ||
-            (!noFacturar && !esSinNombre && (!numeroDocumento.trim() || !facturacionNombre.trim()))
+            (!noFacturar && !esSinNombre && (!numeroDocumento.trim() || !facturacionNombre.trim())) ||
+            (!noFacturar &&
+              !esSinNombre &&
+              !clienteAsignadoDelDropdown &&
+              (codigoTipoDocumento === 2 || codigoTipoDocumento === 3) &&
+              paisOrigenCodigo == null)
               ? 'bg-coffee-100 text-coffee-400 cursor-not-allowed'
               : 'bg-coffee-800 text-cream hover:bg-coffee-700 active:scale-95 shadow-lg',
           )}
           title={
             !noFacturar && !esSinNombre && (!numeroDocumento.trim() || !facturacionNombre.trim())
               ? 'Ingresa el nombre y el número de documento'
-              : undefined
+              : !noFacturar &&
+                  !esSinNombre &&
+                  !clienteAsignadoDelDropdown &&
+                  (codigoTipoDocumento === 2 || codigoTipoDocumento === 3) &&
+                  paisOrigenCodigo == null
+                ? 'Selecciona el país de origen del documento'
+                : undefined
           }
         >
           {isProcessing ? (

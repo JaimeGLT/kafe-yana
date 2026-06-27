@@ -68,31 +68,3 @@ export const GET_DASHBOARD_DATA = `
     }
   }
 `;
-
-export const GET_VENTA_DETALLE = `
-  query GetVentaDetalle($id: Int!) {
-    ventas(where: { id: { eq: $id } }) {
-      nodes {
-        id
-        numeroFactura
-        fechaEmision
-        nombreRazonSocial
-        usuario
-        estadoSiat
-        montoTotalSujetoIva
-        montoTotal
-        numeroTarjeta
-        detalles {
-          id
-          id_venta
-          descripcion
-          cantidad
-          precioUnitario
-          subTotal
-          codigoProducto
-          unidadMedida
-        }
-      }
-    }
-  }
-`;

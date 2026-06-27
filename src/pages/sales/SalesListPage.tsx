@@ -29,6 +29,7 @@ import { useFacturacion } from '../../hooks/useFacturacion';
 import { usePagination } from '../../hooks/usePagination';
 import { useVentasPage } from '../../hooks/useVentasPage';
 import { useVentasStats } from '../../hooks/useVentasStats';
+import { fetchVentaById, useVentaDetalles } from '../../hooks/useVentaDetalles';
 import type { VentaFilters } from '../../types/ventas';
 import { startOfDay, endOfDay } from 'date-fns';
 
@@ -145,12 +146,11 @@ export const SalesListPage: React.FC = () => {
 
   const { stats, refresh: refreshStats } = useVentasStats(where);
 
-  const refresh = async () => {
-    await Promise.all([refreshPage(), refreshStats()]);
-  };
-
   // ── Modal state ──────────────────────────────────────────────────────
-  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  // El modal de detalle abre on-demand (`selectedVentaId`) y los detalles
+  // se cargan con `useVentaDetalles`. La lista NO trae `detalles` para
+  // mantener el payload liviano — sólo el conteo (`itemsCount`).
+  const [selectedVentaId, setSelectedVentaId] = useState<number | null>(null);
   const [refundingSale, setRefundingSale] = useState<Sale | null>(null);
   const [anularSale, setAnularSale] = useState<Sale | null>(null);
   const [revertirAnulacionSale, setRevertirAnulacionSale] = useState<Sale | null>(null);
@@ -171,6 +171,31 @@ export const SalesListPage: React.FC = () => {
     revertirAnulacionNotaAjuste,
   } = useFacturacion();
 
+  // Carga lazy del detalle: la lista sólo trae cabecera; al abrir el modal
+  // disparamos `GET_VENTA_CON_DETALLES` para obtener `detalles` + `notasAjuste`.
+  const {
+    venta: selectedVentaDetalle,
+    isLoading: isLoadingDetalles,
+    refresh: refreshDetalles,
+  } = useVentaDetalles(selectedVentaId);
+
+  // `selectedSale` que consume el modal: prioriza la versión con detalles
+  // ya cargados; mientras carga, usa la versión "ligera" del listado para
+  // que el header (código, fecha, total) se vea de inmediato.
+  const selectedSale = useMemo<Sale | null>(() => {
+    if (selectedVentaDetalle) return selectedVentaDetalle;
+    if (selectedVentaId == null) return null;
+    return ventas.find((v) => v.ventaId === selectedVentaId) ?? null;
+  }, [selectedVentaDetalle, selectedVentaId, ventas]);
+
+  // Refresca lista + KPIs + (si el modal está abierto) el detalle de la venta.
+  const refresh = async () => {
+    await Promise.all([refreshPage(), refreshStats()]);
+    if (selectedVentaId != null) {
+      await refreshDetalles();
+    }
+  };
+
   // ── Post-filter client-side (statusFilter: derivado de estadoSiat) ───
   // El backend ya filtra por estadoSiat cuando hay valor; statusFilter es un
   // refinamiento secundario (completada vs reembolsada) sobre la página actual.
@@ -178,16 +203,6 @@ export const SalesListPage: React.FC = () => {
     if (!statusFilter) return ventas;
     return ventas.filter((s) => s.status === statusFilter);
   }, [ventas, statusFilter]);
-
-  // ── Sync del modal abierto tras refetch ──────────────────────────────
-  // Si el modal está abierto y la lista se refrescó (p.ej. tras anular en
-  // SIAT), sincronizamos `selectedSale` con la versión recién cargada para
-  // que el badge y los botones reflejen el estado real sin recargar.
-  useEffect(() => {
-    if (!selectedSale || selectedSale.ventaId == null) return;
-    const updated = ventas.find((s) => s.ventaId === selectedSale.ventaId);
-    if (updated && updated !== selectedSale) setSelectedSale(updated);
-  }, [ventas, selectedSale]);
 
   // ── Reembolso ────────────────────────────────────────────────────────
   const handleSimpleRefund = async (id: string, amount: number, reason: string, paymentType: string) => {
@@ -230,13 +245,31 @@ export const SalesListPage: React.FC = () => {
    * NO setea `selectedSale`: si lo hiciéramos, el `SaleDetailModal` se abriría
    * junto al modal de impresión (doble modal apilado). El usuario debe abrir
    * el detalle explícitamente desde el botón "Ver".
+   *
+   * Como la lista ya NO trae `detalles` (lazy load), si `sale.items` está
+   * vacío disparamos `fetchVentaById` para obtener las líneas antes de abrir
+   * el modal de impresión.
    */
-  const handlePrintFacturaSiat = (sale: Sale) => {
+  const handlePrintFacturaSiat = async (sale: Sale) => {
     if (!sale.ventaId) {
       toast.error('Sin identificador SIAT', 'Esta venta no tiene un id válido para reimprimir.');
       return;
     }
-    const itemsCrudos = sale.items.map((it) => ({
+    let items = sale.items;
+    if (!items.length) {
+      try {
+        const ventaCompleta = await fetchVentaById(sale.ventaId);
+        if (ventaCompleta) items = ventaCompleta.items;
+      } catch (e) {
+        toast.error('Error al cargar items', 'No se pudieron obtener las líneas para reimprimir.');
+        return;
+      }
+    }
+    if (!items.length) {
+      toast.error('Sin items', 'Esta venta no tiene items para reimprimir.');
+      return;
+    }
+    const itemsCrudos = items.map((it) => ({
       cantidad: it.quantity,
       nombre: it.productName ?? 'Producto',
       precio: it.unitPrice,
@@ -263,13 +296,29 @@ export const SalesListPage: React.FC = () => {
    * Construye un `PrintComandaData` a partir de la venta (que no tiene
    * metadata de ronda original — usamos placeholders neutros).
    * NO setea `selectedSale` por la misma razón que `handlePrintFacturaSiat`.
+   *
+   * Lazy fetch de items si la lista los trae vacíos (mismo motivo que arriba).
    */
-  const handlePrintComanda = (sale: Sale) => {
-    if (!sale.items?.length) {
+  const handlePrintComanda = async (sale: Sale) => {
+    if (!sale.ventaId) {
+      toast.error('Sin identificador', 'Esta venta no tiene un id válido para reimprimir como comanda.');
+      return;
+    }
+    let items = sale.items;
+    if (!items.length) {
+      try {
+        const ventaCompleta = await fetchVentaById(sale.ventaId);
+        if (ventaCompleta) items = ventaCompleta.items;
+      } catch (e) {
+        toast.error('Error al cargar items', 'No se pudieron obtener las líneas para reimprimir.');
+        return;
+      }
+    }
+    if (!items.length) {
       toast.error('Sin items', 'Esta venta no tiene items para reimprimir como comanda.');
       return;
     }
-    const itemsCrudos = sale.items.map((it) => ({
+    const itemsCrudos = items.map((it) => ({
       cantidad: it.quantity,
       nombre: it.productName ?? 'Producto',
       nota: '',
@@ -485,7 +534,7 @@ export const SalesListPage: React.FC = () => {
               <>
                 <SalesTable
                   sales={filteredVentas}
-                  onView={(sale) => setSelectedSale(sale)}
+                  onView={(sale) => setSelectedVentaId(sale.ventaId ?? null)}
                   onRefund={(sale) => setRefundingSale(sale)}
                   onPrint={handlePrintComanda}
                   onPrintFacturaSiat={handlePrintFacturaSiat}
@@ -506,7 +555,8 @@ export const SalesListPage: React.FC = () => {
         {/* Modales */}
         <SaleDetailModal
           sale={selectedSale}
-          onClose={() => setSelectedSale(null)}
+          isLoading={isLoadingDetalles}
+          onClose={() => setSelectedVentaId(null)}
           onOpenFacturaModal={handleOpenFacturaModal}
           onReenviarSiat={handleReenviarSiatById}
           onAnularSiat={handleAnularSiatById}

@@ -56,18 +56,7 @@ export const GET_VENTAS_REPORT = `
         numeroTarjeta
         cuf
         numeroDocumento
-        detalles {
-          id
-          id_venta
-          descripcion
-          cantidad
-          precioUnitario
-          subTotal
-          codigoProducto
-          unidadMedida
-          codigoProductoSin
-          actividadEconomica
-        }
+        cantidadProductos
         notasAjuste {
           id
           idVenta
@@ -108,19 +97,7 @@ export const GET_VENTAS = `
         numeroTarjeta
         cuf
         numeroDocumento
-        detalles {
-          id
-          id_venta
-          descripcion
-          cantidad
-          precioUnitario
-          subTotal
-          codigoProducto
-          unidadMedida
-          codigoProductoSin
-          actividadEconomica
-          cantidadDevuelta
-        }
+        cantidadProductos
         notasAjuste {
           id
           idVenta
@@ -161,6 +138,65 @@ export const GET_VENTAS_STATS = `
       conteoHoy
       conteoMes
       ticketPromedioMes
+    }
+  }
+`;
+
+/**
+ * Trae UNA venta por id con sus detalles y notas de ajuste completas.
+ *
+ * Se usa para el modal de detalle (`SaleDetailModal`). La lista no incluye
+ * `detalles` para mantener el payload liviano — sólo el conteo
+ * (`cantidadProductos`); este query se dispara on-demand al abrir el modal.
+ *
+ * Patrón: reutiliza el resolver paginado `ventas(where: { id: { eq: $id } })`
+ * con `first: 1`. Es la única forma de pedir `detalles` sin duplicar resolvers.
+ */
+export const GET_VENTA_CON_DETALLES = `
+  query GetVentaConDetalles($id: Int!) {
+    ventas(where: { id: { eq: $id } }, first: 1) {
+      nodes {
+        id
+        numeroFactura
+        fechaEmision
+        nombreRazonSocial
+        usuario
+        estadoSiat
+        revertidaAnulacion
+        montoTotalSujetoIva
+        montoTotal
+        numeroTarjeta
+        cuf
+        numeroDocumento
+        codigoRecepcion
+        detalles {
+          id
+          id_venta
+          descripcion
+          cantidad
+          precioUnitario
+          subTotal
+          codigoProducto
+          unidadMedida
+          codigoProductoSin
+          actividadEconomica
+          cantidadDevuelta
+        }
+        notasAjuste {
+          id
+          idVenta
+          numeroNotaCreditoDebito
+          estadoSiat
+          codigoRecepcion
+          codigoMotivoAjuste
+          fechaEmision
+          montoTotalOriginal
+          montoTotalDevuelto
+          montoEfectivoCreditoDebito
+          cuf
+          revertidaAnulacion
+        }
+      }
     }
   }
 `;

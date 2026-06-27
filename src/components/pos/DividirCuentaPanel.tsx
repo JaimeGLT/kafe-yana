@@ -3,6 +3,7 @@ import { clsx } from 'clsx';
 import { ChevronLeft, ChevronRight, ChevronDown, Check, Users, List, SlidersHorizontal, Minus, Plus, Printer, FileText, Ban, UserX } from 'lucide-react';
 import { PrintComandaModal, type PrintComandaData } from './PrintComandaModal';
 import type { Customer } from '../../types';
+import { mapPaymentMethodToSinCode } from '../../lib/mappers/metodosPago';
 import { ModoFacturacionCards, type ModoFacturacion } from './ModoFacturacionCards';
 import { ClienteFacturacionSection } from './ClienteFacturacionSection';
 import { DatosFiscalesForm } from './DatosFiscalesForm';
@@ -36,10 +37,14 @@ interface ReviewOrderItem {
   redeemRewardId?: string;
 }
 
+/**
+ * Shape del body `DtoPagos` que va al backend (Sync 11).
+ * Lista de líneas `{codigo SIN, monto}` + total. El backend agrupa
+ * por código (suma los montos del mismo método) y rechaza códigos no
+ * activos o no presentes en `CatMetodosPago`.
+ */
 interface PagosObject {
-  efectivo: number;
-  tarjeta: number;
-  qr: number;
+  lineas: Array<{ codigo: number; monto: number }>;
   total: number;
 }
 
@@ -68,6 +73,12 @@ interface DividirCuentaPanelProps {
   onComplementoChange: (v: string) => void;
   facturacionNombre: string;
   onFacturacionNombreChange: (v: string) => void;
+  /**
+   * Código SIN del país de origen del documento (1..211). Sólo se usa
+   * cuando el tipo es CEX o PAS y NO hay cliente del dropdown.
+   */
+  paisOrigenCodigo: number | null;
+  onPaisOrigenCodigoChange: (v: number | null) => void;
   /** Si el cliente seleccionado es "Consumidor Final" o no hay cliente. */
   clienteEsConsumidorFinal: boolean;
   /** Si el cliente fue asignado del dropdown (omite verificación NIT). */
@@ -119,6 +130,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
   numeroDocumento, onNumeroDocumentoChange,
   complemento, onComplementoChange,
   facturacionNombre, onFacturacionNombreChange,
+  paisOrigenCodigo, onPaisOrigenCodigoChange,
   clienteEsConsumidorFinal, clienteAsignadoDelDropdown,
   docSearchResults, docSearchLoading, docSearchActive,
   nombreSearchResults, nombreSearchLoading, nombreSearchActive,
@@ -253,11 +265,19 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
   };
 
   const handleConfirmarVenta = () => {
-    const pagos: PagosObject = { efectivo: 0, tarjeta: 0, qr: 0, total: mesaTotal };
+    // Sync 11: agrupar las cuentas por código SIN (varias líneas pueden
+    // compartir método) y armar `DtoPagos.Lineas[]`.
+    const acumuladoPorCodigo = new Map<number, number>();
     cuentas.forEach(c => {
-      if (c.tipoPago === 'cash') pagos.efectivo += c.monto;
-      else if (c.tipoPago === 'transfer') pagos.qr += c.monto;
+      if (!c.tipoPago) return;
+      const codigo = mapPaymentMethodToSinCode(c.tipoPago);
+      acumuladoPorCodigo.set(codigo, (acumuladoPorCodigo.get(codigo) ?? 0) + c.monto);
     });
+    const lineas = Array.from(acumuladoPorCodigo.entries()).map(([codigo, monto]) => ({
+      codigo,
+      monto,
+    }));
+    const pagos: PagosObject = { lineas, total: mesaTotal };
     onAllPaid(pagos);
   };
 
@@ -630,6 +650,8 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
                         onNumeroDocumentoChange={onNumeroDocumentoChange}
                         onComplementoChange={onComplementoChange}
                         onFacturacionNombreChange={onFacturacionNombreChange}
+                        paisOrigenCodigo={paisOrigenCodigo}
+                        onPaisOrigenCodigoChange={onPaisOrigenCodigoChange}
                         docSearchResults={docSearchResults}
                         docSearchLoading={docSearchLoading}
                         docSearchActive={docSearchActive}

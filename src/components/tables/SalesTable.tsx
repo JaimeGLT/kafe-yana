@@ -559,7 +559,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                     <ClienteCell sale={sale} />
                     <td className="px-6 py-2.5 whitespace-nowrap align-middle">
                       <Badge variant="info" size="sm">
-                        {(sale.items as unknown[]).length} items
+                        {sale.itemsCount ?? sale.items.length} items
                       </Badge>
                     </td>
                     <TotalCell sale={sale} />
