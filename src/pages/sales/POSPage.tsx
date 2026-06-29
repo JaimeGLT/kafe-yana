@@ -8,6 +8,7 @@ import {
 import { MainLayout } from '../../components/layout';
 import { toast } from '../../components/ui/Toast';
 import { api, ApiError } from '../../lib/api';
+import { interpretarErrorCobro } from '../../lib/errores';
 import { gql } from '../../lib/graphql';
 import { getConnection } from '../../lib/signalr';
 import { GET_POS_DATA } from '../../lib/queries/products.queries';
@@ -1302,8 +1303,9 @@ export const POSPage: React.FC = () => {
         toast.warning('Sin pedido', 'La mesa no tiene un pedido activo para cobrar.');
       }
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'No se pudo registrar la venta.';
-      toast.error('Error al cobrar', msg);
+      const { title, message, nivel } = interpretarErrorCobro(err, 'No se pudo registrar la venta.');
+      if (nivel === 'warning') toast.warning(title, message);
+      else toast.error(title, message);
     } finally {
       setIsProcessing(false);
     }
@@ -1377,8 +1379,9 @@ export const POSPage: React.FC = () => {
         setModalView('success');
       }
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'No se pudo registrar la venta.';
-      toast.error('Error al cobrar', msg);
+      const { title, message, nivel } = interpretarErrorCobro(err, 'No se pudo registrar la venta.');
+      if (nivel === 'warning') toast.warning(title, message);
+      else toast.error(title, message);
     } finally {
       setIsProcessing(false);
     }
@@ -2234,8 +2237,13 @@ export const POSPage: React.FC = () => {
                 errorSiat={lastSaleResult.errorSiat}
                 codigoRecepcion={lastSaleResult.codigoRecepcion}
                 numeroFactura={lastSaleResult.numeroFactura}
-                onOpenFacturaModal={() => {
+                onOpenFacturaModal={async () => {
                   if (!lastSaleResult?.ventaId) return;
+                  // Traemos una leyenda aleatoria del catálogo CatLeyendas
+                  // (mismo origen que usa el backend al persistir Venta.Leyenda).
+                  const { leyenda } = await api
+                    .get<{ leyenda: string }>('/api/Facturacion/leyenda-aleatoria')
+                    .catch(() => ({ leyenda: '' }));
                   setPrintFacturaData({
                     ventaId: lastSaleResult.ventaId,
                     numeroFactura: lastSaleResult.numeroFactura,
@@ -2245,7 +2253,13 @@ export const POSPage: React.FC = () => {
                     razonSocialCliente: lastSaleResult.razonSocialCliente,
                     fechaEmision: lastSaleResult.fechaEmision,
                     total: lastSaleResult.total,
-                    items: lastSaleResult.items,
+                    leyenda: leyenda || null,
+                    items: lastSaleResult.items.map((it) => ({
+                      cantidad: it.cantidad,
+                      nombre: it.nombre,
+                      precio: it.precio,
+                      total: it.total,
+                    })),
                   });
                 }}
                 onResendSiat={async (ventaId) => {

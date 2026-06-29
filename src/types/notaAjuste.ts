@@ -125,18 +125,10 @@ export const CODIGOS_DETALLE_TRANSACCION = {
 export type CodigoDetalleTransaccion =
   (typeof CODIGOS_DETALLE_TRANSACCION)[keyof typeof CODIGOS_DETALLE_TRANSACCION];
 
-/**
- * Motivos de la nota. Espejo del enum `MotivoNotaAjuste` del backend
- * (1=Devolución, 2=Descuento, 3=Corrección, 4=Otros).
- */
-export interface MotivoAjuste {
-  codigo: number;
-  descripcion: string;
-}
-
-export const MOTIVOS_AJUSTE: readonly MotivoAjuste[] = [
-  { codigo: 1, descripcion: 'Devolución' },
-  { codigo: 2, descripcion: 'Descuento' },
-  { codigo: 3, descripcion: 'Corrección' },
-  { codigo: 4, descripcion: 'Otros' },
-] as const;
+// El dropdown "Motivo del ajuste" del NotaAjusteModal consume el mismo catálogo
+// de motivos de anulación (`useMotivosAnulacion` → `GET /api/catalogos/motivos-anulacion`)
+// porque el SIAT **no** expone una paramétrica separada para emisión de notas C/D
+// (verificado contra el WSDL de FacturacionSincronizacion, jun-2026). El backend
+// persiste `NotaAjuste.CodigoMotivoAjuste` solo como clasificación humana — el XSD
+// de emisión `notaComputarizadaCreditoDebito.xsd` no incluye el campo
+// `<codigoMotivo>`, así que el SIAT no lo valida.

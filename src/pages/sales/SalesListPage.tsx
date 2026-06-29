@@ -230,6 +230,9 @@ export const SalesListPage: React.FC = () => {
       razonSocialCliente: selectedSale.customerName ?? null,
       fechaEmision: selectedSale.date ? new Date(selectedSale.date).toISOString() : null,
       total: selectedSale.total,
+      subtotal: selectedSale.subtotal,
+      descuentoAdicional: selectedSale.discount,
+      leyenda: selectedSale.leyenda ?? null,
       items: selectedSale.items.map((it) => ({
         cantidad: it.quantity,
         nombre: it.productName ?? 'Producto',
@@ -287,6 +290,9 @@ export const SalesListPage: React.FC = () => {
       razonSocialCliente: sale.customerName ?? null,
       fechaEmision: sale.date ? new Date(sale.date).toISOString() : null,
       total: sale.total,
+      subtotal: sale.subtotal,
+      descuentoAdicional: sale.discount,
+      leyenda: sale.leyenda ?? null,
       items: consolidarItemsPorNombre(itemsCrudos),
     });
   };
@@ -373,7 +379,14 @@ export const SalesListPage: React.FC = () => {
 
   // ── Nota de Crédito/Débito ───────────────────────────────────────────
   const handleNotaAjusteSiatById = (ventaId: number) => {
-    const target = ventas.find((s) => s.ventaId === ventaId) ?? selectedSale;
+    // Priorizar selectedSale: tiene los `detalles` poblados desde
+    // GET_VENTA_CON_DETALLES. `ventas` (lista) NO trae detalles por diseño
+    // (ver comentario en líneas 151-152), y si NotaAjusteModal recibe una
+    // venta sin items muestra "Esta venta no tiene productos".
+    const target =
+      selectedSale?.ventaId === ventaId
+        ? selectedSale
+        : ventas.find((s) => s.ventaId === ventaId) ?? null;
     if (target) setNotaAjusteSale(target);
   };
 

@@ -57,6 +57,7 @@ export const GET_VENTAS_REPORT = `
         cuf
         numeroDocumento
         cantidadProductos
+        leyenda
         notasAjuste {
           id
           idVenta
@@ -98,6 +99,7 @@ export const GET_VENTAS = `
         cuf
         numeroDocumento
         cantidadProductos
+        leyenda
         notasAjuste {
           id
           idVenta

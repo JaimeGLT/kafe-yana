@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { gql } from '../lib/graphql';
 import { GET_MESAS } from '../lib/queries/mesas.queries';
 import { toast } from '../components/ui/Toast';
+import { interpretarErrorCobro } from '../lib/errores';
 
 export interface MesaBackend {
   id: string;
@@ -340,8 +341,9 @@ export function useMesas(): UseMesasReturn {
       await refreshMesas();
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo cobrar la mesa.';
-      toast.error('Error', message);
+      const { title, message, nivel } = interpretarErrorCobro(err, 'No se pudo cobrar la mesa.');
+      if (nivel === 'warning') toast.warning(title, message);
+      else toast.error(title, message);
       return false;
     }
   }, [refreshMesas]);

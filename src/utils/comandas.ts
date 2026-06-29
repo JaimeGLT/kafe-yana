@@ -1,5 +1,25 @@
+import { toast } from '../components/ui';
+
 const API = import.meta.env.VITE_API_URL || '/api';
 const IMPRESORA = `${API}/Impresora`;
+
+// Timeout generoso: el backend hace hasta 3 reintentos × 3s = ~10s por destino.
+// 18s cubre el peor caso sin colgar la UI indefinidamente.
+const FETCH_TIMEOUT_MS = 18_000;
+
+/**
+ * Wrapper de fetch con timeout vía AbortController.
+ * Lanza `Error('timeout')` si supera FETCH_TIMEOUT_MS.
+ */
+async function fetchConTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 export async function enviarCatalogo(
   comprados: Array<{ producto: { nombre: string }; ubicacion: string }>,
@@ -12,7 +32,7 @@ export async function enviarCatalogo(
     ...combos.map(i => ({ nombre: i.producto.nombre, ubicacion: 'Cocina' })),
   ];
   try {
-    const res = await fetch(`${IMPRESORA}/catalogo`, {
+    const res = await fetchConTimeout(`${IMPRESORA}/catalogo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ Productos: productos }),
@@ -33,7 +53,7 @@ export async function enviarCuenta(
   destinos: string[] = ['principal'],
 ): Promise<void> {
   try {
-    const res = await fetch(`${IMPRESORA}/cuenta`, {
+    const res = await fetchConTimeout(`${IMPRESORA}/cuenta`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -45,13 +65,17 @@ export async function enviarCuenta(
         Destinos: destinos,
       }),
     });
-    const resultado: Array<{ Ok: boolean; Destino: string }> = await res.json();
+    const resultado: Array<{ Ok: boolean; Destino: string; Error?: string }> = await res.json();
     const fallas = resultado.filter(r => !r.Ok);
     if (fallas.length > 0) {
-      alert(`⚠️ Error de impresión en: ${fallas.map(f => f.Destino).join(', ')}`);
+      toast.warning(
+        'Impresión parcial',
+        `No se pudo imprimir en: ${fallas.map(f => f.Destino).join(', ')}`,
+      );
     }
   } catch (err) {
     console.warn('Servidor de impresión no disponible:', err);
+    toast.error('Sin conexión con impresora', 'No se pudo enviar la cuenta a la térmica.');
   }
 }
 
@@ -62,7 +86,7 @@ export async function enviarPedido(
   destinos: string[] = ['principal'],
 ): Promise<void> {
   try {
-    const res = await fetch(`${IMPRESORA}/pedido`, {
+    const res = await fetchConTimeout(`${IMPRESORA}/pedido`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -78,12 +102,16 @@ export async function enviarPedido(
         Destinos: destinos,
       }),
     });
-    const resultado: Array<{ Ok: boolean; Destino: string }> = await res.json();
+    const resultado: Array<{ Ok: boolean; Destino: string; Error?: string }> = await res.json();
     const fallas = resultado.filter(r => !r.Ok);
     if (fallas.length > 0) {
-      alert(`⚠️ Error de impresión en: ${fallas.map(f => f.Destino).join(', ')}`);
+      toast.warning(
+        'Impresión parcial',
+        `No se pudo imprimir en: ${fallas.map(f => f.Destino).join(', ')}`,
+      );
     }
   } catch (err) {
     console.warn('Servidor de impresión no disponible:', err);
+    toast.error('Sin conexión con impresora', 'No se pudo enviar el pedido a la térmica.');
   }
 }

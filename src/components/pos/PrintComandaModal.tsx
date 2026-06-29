@@ -44,6 +44,7 @@ function detectDefaultDestinos(items: ComandaItem[]): Destino[] {
 
 export const PrintComandaModal: React.FC<PrintComandaModalProps> = ({ data, onClose }) => {
   const [tamaño, setTamaño] = React.useState<Tamaño>('mediano');
+  const [isPrinting, setIsPrinting] = React.useState(false);
   const [destinos, setDestinos] = React.useState<Destino[]>(() =>
     data ? detectDefaultDestinos(data.items) : ['principal']
   );
@@ -62,9 +63,14 @@ export const PrintComandaModal: React.FC<PrintComandaModalProps> = ({ data, onCl
     );
   };
 
-  const handlePrint = () => {
-    enviarPedido(data.mesaName, data.rondaDesc, data.items, destinos);
-    onClose();
+  const handlePrint = async () => {
+    setIsPrinting(true);
+    try {
+      await enviarPedido(data.mesaName, data.rondaDesc, data.items, destinos);
+    } finally {
+      setIsPrinting(false);
+      onClose();
+    }
   };
 
   return (
@@ -142,10 +148,11 @@ export const PrintComandaModal: React.FC<PrintComandaModalProps> = ({ data, onCl
         {/* Actions */}
         <button
           onClick={handlePrint}
-          className="w-full py-3 rounded-2xl bg-coffee-800 text-cream text-sm font-bold hover:bg-coffee-700 transition-colors flex items-center justify-center gap-2"
+          disabled={isPrinting}
+          className="w-full py-3 rounded-2xl bg-coffee-800 text-cream text-sm font-bold hover:bg-coffee-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
         >
           <Printer className="h-4 w-4" />
-          Imprimir
+          {isPrinting ? 'Enviando...' : 'Imprimir'}
         </button>
         <button
           onClick={onClose}

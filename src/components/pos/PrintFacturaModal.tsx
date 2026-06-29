@@ -1,11 +1,11 @@
 import React from 'react';
 import { Printer, X, MonitorCheck, UtensilsCrossed, GlassWater } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { formatCurrency } from '../../utils';
-import logoKafeYana from '../../assets/img/logo.svg';
 
 type Tamaño = 'pequeño' | 'mediano';
 type Destino = 'principal' | 'cocina' | 'barra';
+
+// ── Tipos ────────────────────────────────────────────────────────────────
 
 export interface PrintFacturaItem {
   cantidad: number;
@@ -25,39 +25,34 @@ export interface PrintFacturaData {
   total: number;
   items: PrintFacturaItem[];
 
-  // Datos del emisor (opcional, fallback a constantes si faltan)
   razonSocialEmisor?: string | null;
-  direccionEmisor?: string | null;
-  municipioEmisor?: string | null;
-  telefonoEmisor?: string | null;
   nitEmisor?: string | null;
+
+  // Para Importe Base Crédito Fiscal (= subtotal cuando no hay descuento)
+  subtotal?: number | null;
+  descuentoAdicional?: number | null;
+
+  leyenda?: string | null;
 }
 
 interface PrintFacturaModalProps {
   data: PrintFacturaData | null;
-  /** Llamado al confirmar con la selección de destinos y ancho. */
   onConfirm: (destinos: Destino[], anchoCaracteres?: number) => Promise<void> | void;
   onClose: () => void;
 }
 
 const ANCHO_CARACTERES: Record<Tamaño, number> = {
-  pequeño: 32, // 58mm@FontA
-  mediano: 48, // 80mm@FontA — el default de la factura SIAT
+  pequeño: 32,
+  mediano: 48,
 };
 
-// Ancho visual del preview (en px). Proporcional al ancho en caracteres
-// para que la preview se parezca al ticket físico.
 const PREVIEW_WIDTH_PX: Record<Tamaño, number> = {
-  pequeño: 224, // 32 chars × ~7px
-  mediano: 320, // 48 chars × ~6.7px
+  pequeño: 224,
+  mediano: 320,
 };
 
-// Defaults del emisor — caer aquí si no vienen en props.
 const EMISOR_DEFAULTS = {
   razonSocial: 'CORNEJO ARZE VARGAS GRUPO DE INVERSIONES S.R.L.',
-  direccion: 'ZONA: NORESTE, CALLE: LANZA, NRO.: 949',
-  municipio: 'Cochabamba',
-  telefono: '77133378',
   nit: '696210027',
 };
 
@@ -67,21 +62,73 @@ const DESTINO_CONFIG: { id: Destino; label: string; icon: React.ReactNode }[] = 
   { id: 'barra',     label: 'Barra',     icon: <GlassWater className="h-4 w-4" /> },
 ];
 
-/** Construye la URL de consulta QR del SIAT. Devuelve null si faltan datos. */
+// ── Helpers (mínimo necesario) ──────────────────────────────────────────
+
+function formatearFechaBolivia(fecha: Date | string | null | undefined): string {
+  if (!fecha) return '—';
+  const d = new Date(fecha);
+  if (Number.isNaN(d.getTime())) return '—';
+  return new Intl.DateTimeFormat('es-BO', {
+    timeZone: 'America/La_Paz',
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: true,
+  }).format(d).replace(',', '');
+}
+
 function buildQrUrl(data: PrintFacturaData): string | null {
   if (!data.numeroFactura || !data.cuf) return null;
   const nit = data.nitEmisor || EMISOR_DEFAULTS.nit;
-  let fecha = '';
-  if (data.fechaEmision) {
-    const d = new Date(data.fechaEmision);
-    if (!Number.isNaN(d.getTime())) {
-      fecha = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-    }
-  }
-  return `https://siat.impuestos.gob.bo/consulta/QR?nit=${nit}&cuf=${data.cuf}&numero=${data.numeroFactura}&fecha=${fecha}`;
+  const f = formatearFechaBolivia(data.fechaEmision);
+  const fecha = f !== '—' ? f.split(' ')[0]?.split('/').reverse().join('') ?? '' : '';
+  return `https://siat.impuestos.gob.bo/consulta/QR?nit=${nit}&cuf=${encodeURIComponent(data.cuf)}&numero=${data.numeroFactura}&fecha=${fecha}`;
 }
 
-// ── Sub-componente: preview del ticket ────────────────────────────────────
+function partirTexto(texto: string, ancho: number): string[] {
+  if (!texto) return [];
+  const palabras = texto.trim().split(/\s+/);
+  const lineas: string[] = [];
+  let linea = '';
+  for (const palabra of palabras) {
+    if (palabra.length > ancho) {
+      if (linea) { lineas.push(linea); linea = ''; }
+      for (let i = 0; i < palabra.length; i += ancho)
+        lineas.push(palabra.substring(i, i + ancho));
+      continue;
+    }
+    if (linea && linea.length + palabra.length + 1 > ancho) {
+      lineas.push(linea); linea = '';
+    }
+    linea = linea ? `${linea} ${palabra}` : palabra;
+  }
+  if (linea) lineas.push(linea);
+  return lineas;
+}
+
+// ── Sub-componentes de línea ─────────────────────────────────────────────
+
+const Separator: React.FC<{ chars: number }> = ({ chars }) => (
+  <div className="font-mono text-coffee-700" style={{ fontSize: '9px' }}>
+    {new String('=').repeat(chars)}
+  </div>
+);
+
+const Dash: React.FC<{ chars: number }> = ({ chars }) => (
+  <div className="font-mono text-coffee-300" style={{ fontSize: '9px' }}>
+    {new String('-').repeat(chars)}
+  </div>
+);
+
+const Line: React.FC<{ children: React.ReactNode; bold?: boolean; size?: number; center?: boolean }> =
+  ({ children, bold, size = 10, center }) => (
+  <div
+    className={`${center ? 'text-center' : ''} font-mono ${bold ? 'font-bold' : ''} text-coffee-900`}
+    style={{ fontSize: `${size}px`, lineHeight: 1.2 }}
+  >
+    {children}
+  </div>
+);
+
+// ── Preview del ticket (solo lo exigido por SIN) ─────────────────────────
 
 interface FacturaPreviewProps {
   data: PrintFacturaData;
@@ -90,192 +137,90 @@ interface FacturaPreviewProps {
 }
 
 const FacturaPreview: React.FC<FacturaPreviewProps> = ({ data, tamaño, qrUrl }) => {
-  const fechaTxt = data.fechaEmision
-    ? new Date(data.fechaEmision).toLocaleString('es-BO', {
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit',
-      })
-    : '—';
-
-  const emisor = {
-    razonSocial: data.razonSocialEmisor || EMISOR_DEFAULTS.razonSocial,
-    direccion: data.direccionEmisor || EMISOR_DEFAULTS.direccion,
-    municipio: data.municipioEmisor || EMISOR_DEFAULTS.municipio,
-    telefono: data.telefonoEmisor || EMISOR_DEFAULTS.telefono,
-  };
-
   const widthPx = PREVIEW_WIDTH_PX[tamaño];
-  const isPequeño = tamaño === 'pequeño';
+  const ancho = ANCHO_CARACTERES[tamaño];
 
-  // Tamaños escalonados según ancho del papel. Aseguramos legibilidad en 58mm.
-  const wordmarkSize = isPequeño ? 18 : 22;
-  const razonSocialSize = 8;
-  const contactoSize = 8;
-  const tipoDocSize = isPequeño ? 11 : 12;
-  const labelSize = 10;
-  const valueSize = 10;
-  const totalSize = 13;
-  const qrSize = 128; // >= 3cm a 96 DPI — mínimo para escaneo fiable
+  const razonSocial = data.razonSocialEmisor || EMISOR_DEFAULTS.razonSocial;
+  const nit = data.nitEmisor || EMISOR_DEFAULTS.nit;
+  const qrSize = tamaño === 'pequeño' ? 120 : 140;
+
+  const descuentoTotal = data.descuentoAdicional ?? 0;
+  const baseCreditoFiscal = data.subtotal ?? data.total;
 
   return (
     <div
       className="mx-auto bg-white border border-coffee-300 rounded-md shadow-sm text-coffee-900"
-      style={{
-        width: `${widthPx}px`,
-        padding: '14px 10px 12px 10px',
-      }}
+      style={{ width: `${widthPx}px`, padding: '10px 8px' }}
     >
-      {/* ── Cabecera de marca ──────────────────────────────────────── */}
-      <div className="flex flex-col items-center text-center">
-        <img
-          src={logoKafeYana}
-          alt="Kafe Yana"
-          style={{
-            width: `${isPequeño ? 44 : 56}px`,
-            height: 'auto',
-            marginBottom: '6px',
-          }}
-        />
-        <div
-          className="font-display font-extrabold tracking-[0.18em] text-coffee-900"
-          style={{ fontSize: `${wordmarkSize}px`, lineHeight: 1 }}
-        >
-          KAFE YANA
-        </div>
-        <div
-          className="italic text-coffee-500 mt-1"
-          style={{ fontSize: `${razonSocialSize}px`, lineHeight: 1.2 }}
-        >
-          {emisor.razonSocial}
-        </div>
-        <div
-          className="text-coffee-500 mt-1.5"
-          style={{ fontSize: `${contactoSize}px`, lineHeight: 1.3 }}
-        >
-          {emisor.direccion}
-          <br />
-          {emisor.municipio} · Tel: {emisor.telefono}
-        </div>
-      </div>
+      {/* Emisor */}
+      <Line bold center size={11}>{razonSocial}</Line>
+      <Line center size={9}>NIT: {nit}</Line>
+      <div className="my-1"><Separator chars={ancho} /></div>
 
-      <div className="border-t border-dashed border-coffee-400 my-2.5" />
+      {/* Tipo de documento */}
+      <Line bold center size={12}>FACTURA</Line>
+      <Line bold center size={9}>(Con Derecho a Crédito Fiscal)</Line>
+      <div className="my-1"><Separator chars={ancho} /></div>
 
-      {/* ── Tipo de documento ─────────────────────────────────────── */}
-      <div className="text-center">
-        <div
-          className="font-bold text-coffee-900"
-          style={{ fontSize: `${tipoDocSize}px`, letterSpacing: '0.1em' }}
-        >
-          FACTURA
-        </div>
-        <div
-          className="text-coffee-600 mt-0.5"
-          style={{ fontSize: '8px' }}
-        >
-          Con Derecho a Crédito Fiscal
-        </div>
-      </div>
+      {/* Cabecera factura */}
+      <Line bold size={10}>FACTURA Nro.: {data.numeroFactura ?? '—'}</Line>
+      <Line size={9}>Fecha: {formatearFechaBolivia(data.fechaEmision)}</Line>
+      <Line size={9}>Nombre/Razón Social: {data.razonSocialCliente ?? '—'}</Line>
+      <Line size={9}>NIT/CI/CEX: {data.nitCliente ?? '—'}</Line>
+      <div className="my-1"><Separator chars={ancho} /></div>
 
-      <div className="border-t border-dashed border-coffee-400 my-2" />
-
-      {/* ── Datos de la factura ───────────────────────────────────── */}
-      <div className="font-mono space-y-0.5">
-        <div className="flex justify-between" style={{ fontSize: `${labelSize}px` }}>
-          <span className="text-coffee-600">FACTURA N°:</span>
-          <span className="font-bold">{data.numeroFactura ?? '—'}</span>
-        </div>
-        {data.cuf && (
-          <div className="break-all" style={{ fontSize: '9px' }}>
-            <span className="text-coffee-600">CUF: </span>
-            <span className="font-bold">{data.cuf}</span>
-          </div>
-        )}
-        {data.codigoRecepcion && (
-          <div className="break-all" style={{ fontSize: '9px' }}>
-            <span className="text-coffee-600">Cód. Recepción: </span>
-            <span className="font-bold">{data.codigoRecepcion}</span>
-          </div>
-        )}
-        <div style={{ fontSize: `${valueSize}px` }}>Fecha: {fechaTxt}</div>
-        {data.razonSocialCliente && (
-          <div style={{ fontSize: `${valueSize}px` }}>
-            <span className="text-coffee-600">Cliente: </span>
-            <span className="font-bold">{data.razonSocialCliente}</span>
-          </div>
-        )}
-        {data.nitCliente && (
-          <div style={{ fontSize: `${valueSize}px` }}>
-            <span className="text-coffee-600">NIT/CI: </span>
-            <span className="font-bold">{data.nitCliente}</span>
-          </div>
-        )}
-      </div>
-
-      <div className="border-t border-dashed border-coffee-400 my-2" />
-
-      {/* ── Items ─────────────────────────────────────────────────── */}
-      <div className="font-mono">
-        <div
-          className="flex justify-between text-coffee-500 mb-0.5"
-          style={{ fontSize: '9px' }}
-        >
-          <span>DESCRIPCIÓN</span>
-          <span>SUBTOTAL</span>
-        </div>
-        <div className="border-b border-dashed border-coffee-300 mb-1" />
-        <div className="space-y-1">
-          {data.items.map((item, i) => (
-            <div
-              key={i}
-              className="flex justify-between gap-2"
-              style={{ fontSize: `${valueSize}px` }}
-            >
-              <span className="truncate">
-                <span className="font-bold">{item.cantidad}</span>× {item.nombre}
-              </span>
-              <span className="font-bold flex-shrink-0">
-                {formatCurrency(item.total)}
-              </span>
-            </div>
+      {/* Detalle */}
+      {data.items.map((item, i) => (
+        <div key={i} className="mb-1">
+          {partirTexto(`${item.cantidad} x ${item.nombre}`, ancho - 2).map((l, j) => (
+            <Line key={j} size={9}>  {l}</Line>
           ))}
-        </div>
-      </div>
-
-      <div className="border-t border-dashed border-coffee-400 my-2" />
-
-      {/* ── Total ─────────────────────────────────────────────────── */}
-      <div
-        className="flex justify-between font-mono font-bold text-coffee-900"
-        style={{ fontSize: `${totalSize}px` }}
-      >
-        <span>TOTAL Bs:</span>
-        <span>{formatCurrency(data.total)}</span>
-      </div>
-
-      <div className="border-t border-dashed border-coffee-400 my-3" />
-
-      {/* ── QR (≥3cm) ─────────────────────────────────────────────── */}
-      {qrUrl ? (
-        <div className="flex flex-col items-center gap-1.5">
-          <QRCodeSVG
-            value={qrUrl}
-            size={qrSize}
-            level="M"
-          />
-          <div
-            className="text-center text-coffee-500"
-            style={{ fontSize: '7px' }}
-          >
-            Consulta en siat.impuestos.gob.bo
+          <div className="flex justify-between font-mono text-coffee-900" style={{ fontSize: '9px' }}>
+            <span>  Bs/{item.precio.toFixed(2)} c/u</span>
+            <span>Bs/{item.total.toFixed(2)}</span>
           </div>
+          <Dash chars={ancho} />
         </div>
-      ) : (
-        <div
-          className="text-center text-coffee-400 italic"
-          style={{ fontSize: '9px' }}
-        >
-          QR no disponible (sin CUF/N°)
+      ))}
+
+      {/* Totales */}
+      {descuentoTotal > 0 && (
+        <Line bold size={10}><span className="flex justify-between"><span>SUBTOTAL:</span><span>Bs/{(data.subtotal ?? data.total).toFixed(2)}</span></span></Line>
+      )}
+      {descuentoTotal > 0 && (
+        <Line size={9}><span className="flex justify-between"><span>DESCUENTO:</span><span>-Bs/{descuentoTotal.toFixed(2)}</span></span></Line>
+      )}
+      <Line bold size={11}><span className="flex justify-between"><span>TOTAL:</span><span>Bs/{data.total.toFixed(2)}</span></span></Line>
+      <Line size={8}><span className="flex justify-between"><span>Importe Base Crédito Fiscal:</span><span>Bs/{baseCreditoFiscal.toFixed(2)}</span></span></Line>
+
+      <div className="my-1"><Separator chars={ancho} /></div>
+
+      {/* QR + Código de recepción (a la par para ahorrar espacio) */}
+      {qrUrl && (
+        <div className="flex flex-col items-center gap-1">
+          <QRCodeSVG value={qrUrl} size={qrSize} level="M" />
+          {data.codigoRecepcion && (
+            <Line size={8} center>Cód. Recepción: {data.codigoRecepcion}</Line>
+          )}
+          <Line size={7} center>Consulta en siat.impuestos.gob.bo</Line>
         </div>
+      )}
+
+      <div className="my-1"><Separator chars={ancho} /></div>
+
+      {/* CUF (al pie, cerca del QR — referencia cruzada de validación) */}
+      {data.cuf && (
+        <Line size={8}><span className="font-bold">CUF:</span> {data.cuf}</Line>
+      )}
+
+      {/* Leyenda del CUFD (viene del backend) */}
+      {data.leyenda?.trim() && (
+        <>
+          <div className="my-1"><Separator chars={ancho} /></div>
+          {partirTexto(data.leyenda, ancho).map((l, i) => (
+            <Line key={i} size={8} center>{l}</Line>
+          ))}
+        </>
       )}
     </div>
   );
@@ -314,7 +259,6 @@ export const PrintFacturaModal: React.FC<PrintFacturaModalProps> = ({ data, onCo
       <div className="absolute inset-0 bg-black/40" />
       <div className="relative bg-white w-full sm:max-w-md max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 space-y-5">
 
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="h-9 w-9 rounded-xl bg-emerald-100 flex items-center justify-center">
@@ -335,7 +279,6 @@ export const PrintFacturaModal: React.FC<PrintFacturaModalProps> = ({ data, onCo
           </button>
         </div>
 
-        {/* Preview del ticket (lo que va a salir en la impresora) */}
         <div className="space-y-2">
           <p className="text-xs font-semibold text-coffee-600 uppercase tracking-wide">Vista previa</p>
           <div className="bg-coffee-100 rounded-2xl p-4 max-h-[50vh] overflow-y-auto">
@@ -343,7 +286,6 @@ export const PrintFacturaModal: React.FC<PrintFacturaModalProps> = ({ data, onCo
           </div>
         </div>
 
-        {/* Tamaño de papel */}
         <div className="space-y-2">
           <p className="text-xs font-semibold text-coffee-600 uppercase tracking-wide">Tamaño de papel</p>
           <div className="grid grid-cols-2 gap-2">
@@ -367,7 +309,6 @@ export const PrintFacturaModal: React.FC<PrintFacturaModalProps> = ({ data, onCo
           </div>
         </div>
 
-        {/* Destinos */}
         <div className="space-y-2">
           <p className="text-xs font-semibold text-coffee-600 uppercase tracking-wide">Enviar a</p>
           <div className="grid grid-cols-3 gap-2">

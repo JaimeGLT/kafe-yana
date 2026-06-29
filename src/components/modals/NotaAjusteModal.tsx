@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollText, AlertTriangle } from 'lucide-react';
+import { ScrollText, AlertTriangle, AlertCircle } from 'lucide-react';
 import { Modal, Button, Select } from '../ui';
 import { formatCurrency } from '../../utils';
 import { esEstadoValidadaSiat } from '../../types/siat';
-import { MOTIVOS_AJUSTE, type CrearNotaAjusteRequest } from '../../types/notaAjuste';
+import type { CrearNotaAjusteRequest } from '../../types/notaAjuste';
 import type { Sale, SaleItem } from '../../types';
+import { useMotivosAnulacion } from '../../hooks/useMotivosAnulacion';
 import {
   calcularCantidadDisponible,
   calcularMontoDevuelto,
@@ -27,21 +28,34 @@ interface Props {
 }
 
 export const NotaAjusteModal: React.FC<Props> = ({ isOpen, onClose, sale, onConfirm }) => {
+  // Catálogo de motivos sincronizado contra el SIAT vía
+  // `sincronizarParametricaMotivoAnulacion` (única paramétrica de motivos que
+  // expone el SIAT — ver WSDL FacturacionSincronizacion). Lo usamos acá para
+  // `CodigoMotivoAjuste` del dropdown "Motivo del ajuste" porque el SIAT no
+  // publica una paramétrica separada para emisión de notas C/D.
+  const {
+    items: motivos,
+    loading: motivosLoading,
+    error: motivosError,
+    sincronizado: motivosSincronizado,
+    isEmpty: motivosEmpty,
+  } = useMotivosAnulacion(isOpen);
+
   // Cantidad a devolver por cada item seleccionado. Clave = `SaleItem.id` (UUID string).
   // Si el item no está en el mapa, no se devuelve.
   const [selectedItems, setSelectedItems] = useState<Record<string, number>>({});
-  const [codigoMotivo, setCodigoMotivo] = useState<string>('1');
+  const [codigoMotivo, setCodigoMotivo] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset al abrir/cerrar.
+  // Reset al abrir/cerrar y preseleccionar el primer motivo del catálogo sincronizado.
   useEffect(() => {
     if (isOpen) {
       setSelectedItems({});
-      setCodigoMotivo('1');
+      setCodigoMotivo(motivos.length > 0 ? String(motivos[0].codigo) : '');
       setError(null);
     }
-  }, [isOpen]);
+  }, [isOpen, motivos]);
 
   // ── Derivados ────────────────────────────────────────────────────────────
   const items = sale?.items ?? [];
@@ -112,7 +126,7 @@ export const NotaAjusteModal: React.FC<Props> = ({ isOpen, onClose, sale, onConf
     }
 
     const motivoParsed = parseInt(codigoMotivo, 10);
-    if (!motivoParsed || !MOTIVOS_AJUSTE.some((m) => m.codigo === motivoParsed)) {
+    if (!motivoParsed || !motivos.some((m) => m.codigo === motivoParsed)) {
       setError('Selecciona un motivo de ajuste válido.');
       return;
     }
@@ -151,9 +165,32 @@ export const NotaAjusteModal: React.FC<Props> = ({ isOpen, onClose, sale, onConf
 
   if (!sale) return null;
 
-  const motivoOptions = [
-    ...MOTIVOS_AJUSTE.map((m) => ({ value: String(m.codigo), label: `${m.codigo} — ${m.descripcion}` })),
-  ];
+  // Motivos no utilizables: todavía cargando, error de fetch, catálogo vacío o
+  // server reporta que NO se sincronizó contra el SIAT (sigue con fallback hardcoded).
+  const motivosBloqueados =
+    motivosLoading || !!motivosError || motivosEmpty || !motivosSincronizado;
+
+  const motivoOptions = (() => {
+    if (motivosLoading) {
+      return [{ value: '', label: 'Cargando motivos...', disabled: true }];
+    }
+    if (motivosError) {
+      return [{ value: '', label: 'Error al cargar motivos', disabled: true }];
+    }
+    if (!motivosSincronizado) {
+      return [{ value: '', label: 'Catálogo no sincronizado con SIAT', disabled: true }];
+    }
+    if (motivosEmpty) {
+      return [{ value: '', label: 'No hay motivos disponibles', disabled: true }];
+    }
+    return [
+      { value: '', label: 'Seleccionar motivo...', disabled: true },
+      ...motivos.map((m) => ({
+        value: String(m.codigo),
+        label: `${m.codigo} — ${m.descripcion}`,
+      })),
+    ];
+  })();
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Emitir Nota de Crédito/Débito" size="md" bottomSheet>
@@ -274,6 +311,22 @@ export const NotaAjusteModal: React.FC<Props> = ({ isOpen, onClose, sale, onConf
           </div>
         </div>
 
+        {/* Aviso: catálogo de motivos no disponible (loading/error/no sync/empty) */}
+        {motivosBloqueados && (
+          <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-lg p-3">
+            <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-700 leading-relaxed">
+              {motivosLoading && 'Cargando catálogo de motivos de ajuste…'}
+              {motivosError && `No se pudo cargar el catálogo: ${motivosError}`}
+              {!motivosLoading && !motivosError && !motivosSincronizado &&
+                'El catálogo de motivos aún no se sincronizó contra el SIAT. ' +
+                'Pedile al administrador que ejecute la sincronización antes de emitir notas.'}
+              {!motivosLoading && !motivosError && motivosSincronizado && motivosEmpty &&
+                'El catálogo de motivos está vacío. Contactá al administrador.'}
+            </p>
+          </div>
+        )}
+
         {/* Selector de motivo */}
         <div>
           <label className="block text-sm font-medium text-coffee-700 mb-1">Motivo del ajuste</label>
@@ -320,6 +373,7 @@ export const NotaAjusteModal: React.FC<Props> = ({ isOpen, onClose, sale, onConf
             onClick={handleConfirm}
             isLoading={isLoading}
             disabled={
+              motivosBloqueados ||
               selectedCount === 0 ||
               !esEstadoValidadaSiat(sale.estadoSiat) ||
               saldoEfectivo <= 0 ||

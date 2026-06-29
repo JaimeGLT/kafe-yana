@@ -9,6 +9,7 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { AuthProvider, UIProvider, SettingsProvider, NotificationsProvider, PuntoVentaProvider } from './contexts';
 import { ToastProvider } from './components/ui';
 import { PageLoader } from './components/ui/PageLoader';
+import { ContingencyBanner } from './components/layout/ContingencyBanner';
  
 // Pages — lazy loaded
 const DashboardPage        = lazy(() => import('./pages/DashboardPage'));
@@ -59,6 +60,9 @@ function App() {
             <ToastProvider>
               <NotificationsProvider>
                 <BrowserRouter>
+                  {/* FIX #5 — banner persistente de contingencia SIAT. Polls /api/contingencia/estado
+                     cada 15s; solo renderiza si hay contingencia activa o ventas pendientes. */}
+                  <ContingencyBanner />
                   <Suspense fallback={<PageLoader />}>
                     <Routes>
                       {/* Ruta pública */}

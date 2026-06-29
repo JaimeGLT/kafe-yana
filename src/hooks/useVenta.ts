@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { gql } from '../lib/graphql';
 import { GET_PARA_LLEVAR } from '../lib/queries/ventas.queries';
 import { toast } from '../components/ui/Toast';
+import { interpretarErrorCobro } from '../lib/errores';
 import type { RondaCreatedResponse, DtoRondaEditar, DtoRondaDetalleEditar } from './useMesas';
 
 export interface ParaLlevarPedido {
@@ -194,8 +195,9 @@ export function useVenta(): UseVentaReturn {
       const res = await api.post<RespuestaCobro>('/Venta/cobrar', { id_Pedido: pedidoId, ...body });
       return res;
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'No se pudo cobrar el pedido.';
-      toast.error('Error', msg);
+      const { title, message, nivel } = interpretarErrorCobro(err, 'No se pudo cobrar el pedido.');
+      if (nivel === 'warning') toast.warning(title, message);
+      else toast.error(title, message);
       return null;
     }
   }, []);

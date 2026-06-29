@@ -67,6 +67,12 @@ export interface BackendVenta {
    */
   cantidadProductos: number;
   /**
+   * Leyenda obligatoria del CUFD vigente, persistida en `Venta.Leyenda` por
+   * el SIAT preparer. Se imprime al pie de la factura. Si la venta aún no
+   * pasó por SIAT (sin facturar) viene `undefined`.
+   */
+  leyenda?: string | null;
+  /**
    * Líneas de detalle completas. Sólo las trae `GET_VENTA_CON_DETALLES`
    * (modal de detalle). En la lista (`GET_VENTAS`) viene `undefined` —
    * usamos `itemsCount` en su lugar.
@@ -204,5 +210,8 @@ export const mapBackendVentaToSale = (v: BackendVenta): Sale => {
     // Conteo de líneas de detalle. Lo usa el badge "N items" del listado.
     // En el modal (donde `items` viene poblado) coincide con `items.length`.
     itemsCount: v.cantidadProductos,
+
+    // Leyenda obligatoria del CUFD — al pie de la factura.
+    leyenda: v.leyenda ?? null,
   };
 };

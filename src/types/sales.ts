@@ -175,6 +175,9 @@ export interface Sale extends BaseEntity {
    *  `detalles`. El listado lo usa para el badge "N items". Cuando se carga
    *  el detalle con `GET_VENTA_CON_DETALLES`, `items.length === itemsCount`. */
   itemsCount?: number;
+  /** Leyenda obligatoria del CUFD vigente (persistida en `Venta.Leyenda`).
+   *  Solo presente cuando la venta ya pasó por el SIAT preparer. */
+  leyenda?: string | null;
 }
 
 export interface SaleInput {

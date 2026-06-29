@@ -41,6 +41,7 @@ export async function getMotivosAnulacion(): Promise<MotivosAnulacionResponse> {
   return api.get<MotivosAnulacionResponse>('/catalogos/motivos-anulacion');
 }
 
+
 /**
  * Un país de origen devuelto por el backend (catálogo sincronizado contra el SIAT).
  *

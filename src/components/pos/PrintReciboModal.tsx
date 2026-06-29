@@ -32,16 +32,19 @@ export const PrintReciboModal: React.FC<PrintReciboModalProps> = ({ data, onClos
 
   const handlePrint = async () => {
     setIsPrinting(true);
-    await enviarCuenta(
-      data.mesaName,
-      data.saleCode,
-      data.items,
-      data.total,
-      data.metodoPago,
-      ['principal'],
-    );
-    setIsPrinting(false);
-    onClose();
+    try {
+      await enviarCuenta(
+        data.mesaName,
+        data.saleCode,
+        data.items,
+        data.total,
+        data.metodoPago,
+        ['principal'],
+      );
+    } finally {
+      setIsPrinting(false);
+      onClose();
+    }
   };
 
   return (

@@ -41,7 +41,11 @@ interface Props {
   onRevertirAnulacionNotaAjusteSiat?: (nota: NotaAjusteResumen) => void;
 }
 
-// Etiqueta humana del motivo de la nota (1=Devolución, 2=Descuento, 3=Corrección, 4=Otros).
+// Etiqueta humana del motivo de la nota (espejo de los códigos SIN
+// vigentes a jun-2026: 1=Devolución, 2=Descuento, 3=Corrección, 4=Otros).
+// Se usa solo como fallback visual en el detalle cuando el catálogo
+// sincronizado no trae descripción; la fuente de verdad sigue siendo
+// el backend (`/api/catalogos/motivos-ajuste`).
 const MOTIVO_LABEL: Record<number, string> = {
   1: 'Devolución de productos',
   2: 'Descuento aplicado',
