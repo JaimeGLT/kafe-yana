@@ -65,11 +65,11 @@ export function usePromocionesPermanentes() {
     setIsLoading(true);
     try {
       const [promosRes, canjeablesRes] = await Promise.all([
-        gql<{ promocionPermanentes: { nodes: GqlPromoNode[] } }>(GET_PROMOCIONES_PERMANENTES),
-        gql<{ productosCanjeables: { nodes: GqlCanjeableNode[] } }>(GET_PRODUCTOS_CANJEABLES),
+        gql<{ promocionPermanentes: { items: GqlPromoNode[] } }>(GET_PROMOCIONES_PERMANENTES),
+        gql<{ productosCanjeables: { items: GqlCanjeableNode[] } }>(GET_PRODUCTOS_CANJEABLES),
       ]);
-      setPromociones(promosRes.promocionPermanentes.nodes);
-      setProductosCanjeables(canjeablesRes.productosCanjeables.nodes.filter(n => n.activo));
+      setPromociones(promosRes.promocionPermanentes.items);
+      setProductosCanjeables(canjeablesRes.productosCanjeables.items.filter(n => n.activo));
     } finally {
       setIsLoading(false);
     }

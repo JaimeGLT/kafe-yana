@@ -57,12 +57,12 @@ export function useReferidos() {
     try {
       const [configRes, historialRes, clientesRes] = await Promise.all([
         api.get<ReferidosConfig>('/Referidos/config'),
-        gql<{ historialReferidos: { nodes: HistorialReferido[] } }>(GET_HISTORIAL_REFERIDOS),
-        gql<{ clientes: { nodes: GqlClienteNode[] } }>(GET_CLIENTES, { first: 500 }),
+        gql<{ historialReferidos: { items: HistorialReferido[] } }>(GET_HISTORIAL_REFERIDOS),
+        gql<{ clientes: { items: GqlClienteNode[] } }>(GET_CLIENTES, { skip: 0, take: 500 }),
       ]);
       setConfig(configRes);
-      setHistorial(historialRes.historialReferidos.nodes);
-      setClientes(clientesRes.clientes.nodes.filter(c => c.estado));
+      setHistorial(historialRes.historialReferidos.items);
+      setClientes(clientesRes.clientes.items.filter(c => c.estado));
     } finally {
       setIsLoading(false);
     }
@@ -86,11 +86,11 @@ export function useReferidos() {
         input
       );
       await Promise.all([
-        gql<{ historialReferidos: { nodes: HistorialReferido[] } }>(GET_HISTORIAL_REFERIDOS).then(r =>
-          setHistorial(r.historialReferidos.nodes)
+        gql<{ historialReferidos: { items: HistorialReferido[] } }>(GET_HISTORIAL_REFERIDOS).then(r =>
+          setHistorial(r.historialReferidos.items)
         ),
-        gql<{ clientes: { nodes: GqlClienteNode[] } }>(GET_CLIENTES, { first: 500 }).then(r =>
-          setClientes(r.clientes.nodes.filter(c => c.estado))
+        gql<{ clientes: { items: GqlClienteNode[] } }>(GET_CLIENTES, { skip: 0, take: 500 }).then(r =>
+          setClientes(r.clientes.items.filter(c => c.estado))
         ),
       ]);
       return res;

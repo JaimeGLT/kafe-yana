@@ -14,13 +14,12 @@ import { GET_ALL_RECETAS } from '../../lib/queries/recetas.queries';
 import { mapInsumo } from '../../lib/mappers/insumos.mappers';
 import { mapReceta } from '../../lib/mappers/recetas.mappers';
 import { usePagination } from '../../hooks/usePagination';
-import type { InsumosResponse, RecetasResponse, InsumoFilterInput } from '../../types/graphql';
+import type { InsumosResponse, RecetasResponse } from '../../types/graphql';
 import type { Insumo, Receta } from '../../types';
 import { formatCurrency } from '../../utils';
 
 const InsumosPage: React.FC = () => {
-  const { page, pageSize, search, debouncedSearch, cursors, maxReachablePage, setPage, setSearch, setCursors } = usePagination({ pageSize: 15 });
-  const [cursorsRef] = useState(() => ({ current: {} as Record<number, string> }));
+  const { page, pageSize, search, debouncedSearch, setPage, setPageSize, setSearch, resetPage } = usePagination({ pageSize: 15 });
 
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [recetas, setRecetas] = useState<Receta[]>([]);
@@ -32,41 +31,21 @@ const InsumosPage: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
 
-  useEffect(() => {
-    cursorsRef.current = cursors;
-  }, [cursors]);
-
-  const buildWhereConditions = (): InsumoFilterInput | undefined => {
-    const conditions: InsumoFilterInput[] = [];
-    if (debouncedSearch) {
-      conditions.push({ nombre: { contains: debouncedSearch } } as InsumoFilterInput);
-      conditions.push({ categoria: { contains: debouncedSearch } } as InsumoFilterInput);
-    }
-    if (filterCategoria) {
-      conditions.push({ categoria: { eq: filterCategoria } } as InsumoFilterInput);
-    }
-    if (conditions.length === 0) return undefined;
-    return { or: conditions } as InsumoFilterInput;
-  };
-
   const fetchData = useCallback(async () => {
-    if (page > 1 && !cursorsRef.current[page - 1]) return;
     try {
       setLoading(true);
       const [insumosData, recetasData] = await Promise.all([
         gql<InsumosResponse>(GET_ALL_INSUMOS, {
-          first: pageSize,
-          after: page > 1 ? cursorsRef.current[page - 1] : undefined,
-          where: buildWhereConditions(),
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          search: debouncedSearch || null,
+          categoria: filterCategoria || null,
         }),
         gql<RecetasResponse>(GET_ALL_RECETAS),
       ]);
-      setInsumos(insumosData.insumos.nodes.map(mapInsumo));
+      setInsumos(insumosData.insumos.items.map(mapInsumo));
       setTotalCount(insumosData.insumos.totalCount);
-      if (insumosData.insumos.pageInfo?.endCursor) {
-        setCursors((prev) => ({ ...prev, [page]: insumosData.insumos.pageInfo.endCursor as string }));
-      }
-      setRecetas(recetasData.recetas.nodes.map(mapReceta).filter((r): r is Receta => r !== null));
+      setRecetas(recetasData.recetas.items.map(mapReceta).filter((r): r is Receta => r !== null));
     } catch (error) {
       console.error('Error loading insumos data:', error);
     } finally {
@@ -157,7 +136,7 @@ const InsumosPage: React.FC = () => {
           <div className="w-44">
             <Select
               value={filterCategoria}
-              onChange={setFilterCategoria}
+              onChange={(v) => { setFilterCategoria(v); resetPage(); }}
               options={categoriaOptions}
             />
           </div>
@@ -351,7 +330,7 @@ const InsumosPage: React.FC = () => {
           page={page}
           pageSize={pageSize}
           onPageChange={setPage}
-          maxPage={maxReachablePage}
+          onPageSizeChange={setPageSize}
           isLoading={loading}
         />
       </PageContainer>

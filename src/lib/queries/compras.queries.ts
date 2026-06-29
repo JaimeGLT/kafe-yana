@@ -1,7 +1,7 @@
 export const GET_ORDENES_COMPRA = `
-  query GetOrdenCompra($first: Int, $after: String, $where: OrdenCompraFilterInput) {
-    ordenes(first: $first, after: $after, where: $where, order: [{ fecha: DESC }]) {
-      nodes {
+  query GetOrdenCompra($skip: Int, $take: Int, $search: String) {
+    ordenes(skip: $skip, take: $take, search: $search) {
+      items {
         id
         codigo
         fecha
@@ -38,12 +38,6 @@ export const GET_ORDENES_COMPRA = `
           subtotal
           nombre
         }
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
-        hasPreviousPage
-        startCursor
       }
       totalCount
     }

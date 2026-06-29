@@ -66,15 +66,15 @@ interface CategoriaNode {
 }
 
 interface ElaboradosPageResponse {
-  elaborados: { nodes: ElaboradoNode[]; totalCount: number; pageInfo?: { endCursor?: string | null } };
-  insumos: { nodes: InsumoNode[] };
-  categorias: { nodes: CategoriaNode[] };
+  elaborados: { items: ElaboradoNode[]; totalCount: number };
+  // Las side-queries insumos/categorias siguen en cursor-style (no migradas en este PR).
+  insumos: { items: InsumoNode[] };
+  categorias: { items: CategoriaNode[] };
 }
 
 interface UseElaboradosPageOptions {
   page: number;
   pageSize: number;
-  afterCursor?: string;
   search?: string;
 }
 
@@ -86,41 +86,30 @@ export interface UseElaboradosPageReturn {
   totalCount: number;
   isLoading: boolean;
   refresh: () => Promise<void>;
-  endCursor: string | null;
 }
 
 export function useElaboradosPage(options: UseElaboradosPageOptions): UseElaboradosPageReturn {
-  const { page, pageSize, afterCursor, search } = options;
+  const { page, pageSize, search } = options;
   const [elaborados, setElaborados] = useState<Product[]>([]);
   const [recetas, setRecetas] = useState<Receta[]>([]);
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [categorias, setCategorias] = useState<Array<{ id: string; name: string; color: string }>>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [endCursor, setEndCursor] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    if (page > 1 && !afterCursor) return;
     setIsLoading(true);
     try {
-      const variables: Record<string, unknown> = { first: pageSize };
-      if (page > 1 && afterCursor) {
-        variables.after = afterCursor;
-      }
-      if (search) {
-        variables.where = {
-          or: [
-            { producto: { nombre: { contains: search } } },
-            { producto: { categoria: { nombre: { contains: search } } } },
-          ],
-        };
-      }
+      const variables: Record<string, unknown> = {
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        search: search || null,
+      };
 
       const data = await gql<ElaboradosPageResponse>(GET_ELABORADOS_PAGE, variables);
       setTotalCount(data.elaborados.totalCount);
-      setEndCursor(data.elaborados.pageInfo?.endCursor ?? null);
 
-      const mappedElaborados = data.elaborados.nodes.map((n) => {
+      const mappedElaborados = data.elaborados.items.map((n) => {
         const cat = n.producto.categoria;
         const rawUbicacion = n.ubicacion ?? '';
         const destino: ProductDestino =
@@ -156,7 +145,7 @@ export function useElaboradosPage(options: UseElaboradosPageOptions): UseElabora
         };
       });
 
-      const mappedInsumos: Insumo[] = data.insumos.nodes.map((n) => ({
+      const mappedInsumos: Insumo[] = data.insumos.items.map((n) => ({
         id: String(n.id),
         code: String(n.id),
         name: n.nombre,
@@ -173,7 +162,7 @@ export function useElaboradosPage(options: UseElaboradosPageOptions): UseElabora
         updatedAt: new Date(),
       }));
 
-      const mappedRecetas: Receta[] = data.elaborados.nodes
+      const mappedRecetas: Receta[] = data.elaborados.items
         .filter((n) => n.receta)
         .map((n) => {
           const receta = n.receta!;
@@ -184,7 +173,7 @@ export function useElaboradosPage(options: UseElaboradosPageOptions): UseElabora
             unidadMinima: d.insumo.unidad_min_uso,
             quantity: d.cantidad,
             merma: d.merma,
-unitCost: d.insumo.factor_conversion > 0 ? d.insumo.costo / d.insumo.factor_conversion : 0,
+            unitCost: d.insumo.factor_conversion > 0 ? d.insumo.costo / d.insumo.factor_conversion : 0,
             subtotal: d.subTotal,
           }));
           const costoTotal = ingredientes.reduce((sum, i) => sum + i.subtotal, 0);
@@ -209,7 +198,7 @@ unitCost: d.insumo.factor_conversion > 0 ? d.insumo.costo / d.insumo.factor_conv
       setRecetas(mappedRecetas);
       setInsumos(mappedInsumos as unknown as Insumo[]);
       setCategorias(
-        data.categorias.nodes.map((c) => ({
+        data.categorias.items.map((c) => ({
           id: String(c.id),
           name: c.nombre,
           color: c.color,
@@ -220,7 +209,7 @@ unitCost: d.insumo.factor_conversion > 0 ? d.insumo.costo / d.insumo.factor_conv
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, afterCursor, search]);
+  }, [page, pageSize, search]);
 
   useEffect(() => {
     loadData();
@@ -238,7 +227,6 @@ unitCost: d.insumo.factor_conversion > 0 ? d.insumo.costo / d.insumo.factor_conv
     totalCount,
     isLoading,
     refresh,
-    endCursor,
   };
 }
 

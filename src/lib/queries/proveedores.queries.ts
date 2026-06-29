@@ -1,7 +1,7 @@
 export const GET_PROVEEDORES = `
-  query GetProveedores($first: Int, $after: String) {
-    proveedores(first: $first, after: $after) {
-      nodes {
+  query GetProveedores($skip: Int!, $take: Int!) {
+    proveedores(skip: $skip, take: $take) {
+      items {
         id
         razon_Social
         dni
@@ -11,18 +11,14 @@ export const GET_PROVEEDORES = `
         direccion
       }
       totalCount
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
     }
   }
 `;
 
 export const GET_PROVEEDOR_BY_ID = `
   query GetProveedorById($id: Int!) {
-    proveedores(where: { id: { eq: $id } }) {
-      nodes {
+    proveedores(skip: 0, take: 1, id: $id) {
+      items {
         id
         razon_Social
         dni

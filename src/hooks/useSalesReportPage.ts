@@ -15,8 +15,7 @@ import type {
 
 interface VentasResponse {
   ventas: {
-    nodes: VentaNode[];
-    pageInfo: { hasNextPage: boolean; endCursor: string };
+    items: VentaNode[];
     totalCount: number;
   };
 }
@@ -72,18 +71,21 @@ export function useSalesReportPage(
       };
 
       let allNodes: VentaNode[] = [];
-      let cursor: string | undefined;
-      let hasNextPage = true;
+      let skip = 0;
+      const pageSize = 200; // MaxTake del backend
+      let totalCount = Infinity;
 
-      while (hasNextPage) {
+      while (allNodes.length < totalCount) {
         const data = await gql<VentasResponse>(GET_VENTAS_REPORT, {
           where: filters,
-          after: cursor,
+          skip,
+          take: pageSize,
         });
 
-        allNodes = [...allNodes, ...data.ventas.nodes];
-        hasNextPage = data.ventas.pageInfo.hasNextPage;
-        cursor = data.ventas.pageInfo.endCursor;
+        allNodes = [...allNodes, ...data.ventas.items];
+        totalCount = data.ventas.totalCount;
+        if (data.ventas.items.length < pageSize) break;
+        skip += pageSize;
       }
 
       const totalRevenue = allNodes.reduce((sum, v) => sum + parseDecimal(v.montoTotal), 0);

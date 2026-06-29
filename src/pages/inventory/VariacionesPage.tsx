@@ -41,8 +41,8 @@ interface InsumoNode {
 }
 
 interface VariacionesDataResponse {
-  elaborados: { nodes: ElaboradoVariacionNode[] };
-  insumos: { nodes: InsumoNode[] };
+  elaborados: { items: ElaboradoVariacionNode[] };
+  insumos: { items: InsumoNode[] };
 }
 
 // KPI card
@@ -285,7 +285,7 @@ const VariacionesPage: React.FC = () => {
     try {
       const data = await gql<VariacionesDataResponse>(GET_VARIACIONES_DATA);
 
-      const nodes = data.elaborados.nodes;
+      const nodes = data.elaborados.items;
 
       const mappedProducts: Product[] = nodes.map((node) => ({
         id: String(node.id_Producto),
@@ -350,7 +350,7 @@ const VariacionesPage: React.FC = () => {
       setProducts(mappedProducts);
       setAtributos(mappedAtributos);
       setRecetaInsumoIdsByProduct(recetaMap);
-      setInsumos(data.insumos.nodes.map(mapInsumo));
+      setInsumos(data.insumos.items.map(mapInsumo));
     } catch (error) {
       console.error('Error loading variaciones data:', error);
     } finally {

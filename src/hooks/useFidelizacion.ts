@@ -163,8 +163,8 @@ export function useFidelizacion() {
   const loadClientes = useCallback(async () => {
     setIsLoadingClientes(true);
     try {
-      const data = await gql<{ clientes: { nodes: ClienteNode[] } }>(GET_CLIENTES, { first: 500 });
-      setClientes(data.clientes.nodes.map(mapClienteNode));
+      const data = await gql<{ clientes: { items: ClienteNode[] } }>(GET_CLIENTES, { skip: 0, take: 500 });
+      setClientes(data.clientes.items.map(mapClienteNode));
     } catch (e) {
       console.error('Error loading clientes:', e);
     } finally {
@@ -174,8 +174,8 @@ export function useFidelizacion() {
 
   const loadProductosCanjeables = useCallback(async () => {
     try {
-      const data = await gql<{ productosCanjeables: { nodes: ProductoCanjeable[] } }>(GET_PRODUCTOS_CANJEABLES);
-      setProductosCanjeables(data.productosCanjeables.nodes);
+      const data = await gql<{ productosCanjeables: { items: ProductoCanjeable[] } }>(GET_PRODUCTOS_CANJEABLES);
+      setProductosCanjeables(data.productosCanjeables.items);
     } catch (e) {
       console.error('Error loading productos canjeables:', e);
     }
@@ -184,11 +184,11 @@ export function useFidelizacion() {
   const loadPromociones = useCallback(async () => {
     try {
       const [permData, tempData] = await Promise.all([
-        gql<{ promocionPermanentes: { nodes: PromocionPermanenteApi[] } }>(GET_PROMOCIONES_PERMANENTES),
-        gql<{ promocionTemporadas: { nodes: PromocionTemporadaApi[] } }>(GET_PROMOCIONES_TEMPORADA),
+        gql<{ promocionPermanentes: { items: PromocionPermanenteApi[] } }>(GET_PROMOCIONES_PERMANENTES),
+        gql<{ promocionTemporadas: { items: PromocionTemporadaApi[] } }>(GET_PROMOCIONES_TEMPORADA),
       ]);
-      setPromocionesPermanentes(permData.promocionPermanentes.nodes);
-      setPromocionesTemporada(tempData.promocionTemporadas.nodes);
+      setPromocionesPermanentes(permData.promocionPermanentes.items);
+      setPromocionesTemporada(tempData.promocionTemporadas.items);
     } catch (e) {
       console.error('Error loading promociones:', e);
     }
@@ -199,11 +199,11 @@ export function useFidelizacion() {
     setIsLoadingVentas(true);
     setVentasCliente([]);
     try {
-      const data = await gql<{ ventas: { nodes: VentaResumen[] } }>(
+      const data = await gql<{ ventas: { items: VentaResumen[] } }>(
         GET_VENTAS_CLIENTE,
         { nombre: clienteNombre },
       );
-      setVentasCliente(data.ventas.nodes);
+      setVentasCliente(data.ventas.items);
     } catch (e) {
       console.error('Error loading ventas cliente:', e);
     } finally {
@@ -215,11 +215,11 @@ export function useFidelizacion() {
     setIsLoadingHistorial(true);
     setHistorialPuntos([]);
     try {
-      const data = await gql<{ historialPuntos: { nodes: HistorialPuntosItem[] } }>(
+      const data = await gql<{ historialPuntos: { items: HistorialPuntosItem[] } }>(
         GET_HISTORIAL_PUNTOS,
         { clienteId },
       );
-      setHistorialPuntos(data.historialPuntos.nodes);
+      setHistorialPuntos(data.historialPuntos.items);
     } catch (e) {
       console.error('Error loading historial puntos:', e);
     } finally {
@@ -265,8 +265,8 @@ export function useFidelizacion() {
     }
     setIsSearching(true);
     try {
-      const data = await gql<{ clientes: { nodes: ClienteNode[] } }>(GET_CLIENTES_SEARCH, { q });
-      setSearchResults(data.clientes.nodes.map(mapClienteNode));
+      const data = await gql<{ clientes: { items: ClienteNode[] } }>(GET_CLIENTES_SEARCH, { q });
+      setSearchResults(data.clientes.items.map(mapClienteNode));
     } catch (e) {
       console.error('Error searching clientes:', e);
       setSearchResults([]);

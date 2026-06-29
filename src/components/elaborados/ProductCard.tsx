@@ -59,6 +59,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </div>
         </div>
 
+        {/* Metadatos: unidad y código SIN */}
+        <div className="flex items-center gap-3 text-xs text-coffee-400">
+          {product.unit && <span>Unidad: <span className="text-coffee-600">{product.unit}</span></span>}
+          {product.codigoSin && <span>SIN: <span className="text-coffee-600 font-mono">{product.codigoSin}</span></span>}
+        </div>
+
         {/* Receta status */}
         {receta ? (
           <div className="space-y-2">

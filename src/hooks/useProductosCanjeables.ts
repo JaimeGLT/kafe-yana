@@ -47,7 +47,7 @@ interface CanjeableNode {
 }
 
 interface CanjeablesResponse {
-  productosCanjeables: { nodes: CanjeableNode[] };
+  productosCanjeables: { items: CanjeableNode[] };
 }
 
 interface ProductoBase {
@@ -57,9 +57,9 @@ interface ProductoBase {
 }
 
 interface SelectorResponse {
-  comprados: { nodes: { producto: ProductoBase }[] };
-  elaborados: { nodes: { producto: ProductoBase }[] };
-  combos: { nodes: { producto: Omit<ProductoBase, 'categoria'> }[] };
+  comprados: { items: { producto: ProductoBase }[] };
+  elaborados: { items: { producto: ProductoBase }[] };
+  combos: { items: { producto: Omit<ProductoBase, 'categoria'> }[] };
 }
 
 export interface ProductoMutationPayload {
@@ -88,19 +88,19 @@ export function useProductosCanjeables() {
       const seen = new Set<number>();
       const allProducts: CatalogProduct[] = [];
 
-      for (const { producto } of selector.comprados.nodes) {
+      for (const { producto } of selector.comprados.items) {
         if (!seen.has(producto.id)) {
           seen.add(producto.id);
           allProducts.push({ id: producto.id, name: producto.nombre, category: producto.categoria?.nombre ?? '', color: producto.categoria?.color ?? '' });
         }
       }
-      for (const { producto } of selector.elaborados.nodes) {
+      for (const { producto } of selector.elaborados.items) {
         if (!seen.has(producto.id)) {
           seen.add(producto.id);
           allProducts.push({ id: producto.id, name: producto.nombre, category: producto.categoria?.nombre ?? '', color: producto.categoria?.color ?? '' });
         }
       }
-      for (const { producto } of selector.combos.nodes) {
+      for (const { producto } of selector.combos.items) {
         if (!seen.has(producto.id)) {
           seen.add(producto.id);
           allProducts.push({ id: producto.id, name: producto.nombre, category: 'Combo', color: '#8B5CF6' });
@@ -112,7 +112,7 @@ export function useProductosCanjeables() {
       const colorById = new Map(allProducts.map((p) => [p.id, p.color]));
 
       setProducts(
-        canjeables.productosCanjeables.nodes.map((n) => ({
+        canjeables.productosCanjeables.items.map((n) => ({
           id: n.id,
           catalogProductId: n.id_Producto,
           catalogProductName: n.nombreProducto,

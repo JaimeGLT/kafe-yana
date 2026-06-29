@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Plus, Search, ShoppingBag, Edit, Trash2,
   TrendingUp, ChevronRight, AlertTriangle, PackageX,
@@ -43,7 +43,7 @@ const getMarginColor = (pct: number) => {
 
 interface CompradoDetailResponse {
   comprados: {
-    nodes: {
+    items: {
       codigo_barra: string;
       unidad_medida: string;
       ubicacion: string;
@@ -67,22 +67,15 @@ interface CompradoDetailResponse {
 // ── Componente ─────────────────────────────────────────────────────────────────
 
 const ProductsPage: React.FC = () => {
-  const { page, pageSize, search, debouncedSearch, cursors, maxReachablePage, setPage, setSearch, setCursors } = usePagination({ pageSize: 15 });
+  const { page, pageSize, search, debouncedSearch, setPage, setPageSize, setSearch, resetPage } = usePagination({ pageSize: 15 });
   const [category, setCategory] = useState('');
 
-  const { products, categories, totalCount, isLoading, endCursor, refresh } = useProductsPage({
+  const { products, categories, totalCount, isLoading, refresh } = useProductsPage({
     page,
     pageSize,
-    afterCursor: page > 1 ? cursors[page - 1] : undefined,
     search: debouncedSearch,
     category,
   });
-
-  useEffect(() => {
-    if (endCursor) {
-      setCursors((prev) => ({ ...prev, [page]: endCursor }));
-    }
-  }, [endCursor, page]);
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
@@ -127,7 +120,7 @@ const ProductsPage: React.FC = () => {
     setIsProductModalOpen(true);
     try {
       const res = await gql<CompradoDetailResponse>(GET_COMPRADO_DETAIL, { id: Number(p.id) });
-      const d = res.comprados.nodes[0];
+      const d = res.comprados.items[0];
       if (d) {
         const detailCatId = d.producto.categoria ? String(d.producto.categoria.id) : catId;
         setEditingProduct({
@@ -249,7 +242,7 @@ const ProductsPage: React.FC = () => {
             <Input
               placeholder="Buscar por nombre o código…"
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              onChange={(e) => setSearch(e.target.value)}
               leftIcon={<Search className="h-4 w-4" />}
             />
           </div>
@@ -257,7 +250,7 @@ const ProductsPage: React.FC = () => {
             <Select
               options={categoryOptions}
               value={category}
-              onChange={(v) => { setCategory(v); setPage(1); }}
+              onChange={(v) => { setCategory(v); resetPage(); }}
               placeholder="Todas las categorías"
             />
           </div>
@@ -280,7 +273,7 @@ const ProductsPage: React.FC = () => {
             <table className="hidden sm:table min-w-full divide-y divide-coffee-100 text-sm">
               <thead className="bg-coffee-50">
                 <tr>
-                  {['Producto', 'Categoría', 'Destino', 'Precio venta', 'Costo', 'Margen', 'Stock', ''].map((h) => (
+                  {['Producto', 'Categoría', 'Destino', 'Unidad', 'Cód. SIN', 'Precio venta', 'Costo', 'Margen', 'Stock', ''].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -296,6 +289,8 @@ const ProductsPage: React.FC = () => {
                     </td>
                     <td className="px-4 py-3"><div className="h-5 w-20 bg-coffee-100 rounded-full" /></td>
                     <td className="px-4 py-3"><div className="h-5 w-16 bg-coffee-100 rounded-full" /></td>
+                    <td className="px-4 py-3"><div className="h-3 w-14 bg-coffee-100 rounded" /></td>
+                    <td className="px-4 py-3"><div className="h-3 w-16 bg-coffee-100 rounded" /></td>
                     <td className="px-4 py-3"><div className="h-3 w-14 bg-coffee-100 rounded ml-auto" /></td>
                     <td className="px-4 py-3"><div className="h-3 w-14 bg-coffee-100 rounded ml-auto" /></td>
                     <td className="px-4 py-3"><div className="h-3 w-10 bg-coffee-100 rounded ml-auto" /></td>
@@ -357,6 +352,8 @@ const ProductsPage: React.FC = () => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Producto</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Categoría</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Destino</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Unidad</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-coffee-600 uppercase tracking-wider">Cód. SIN</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Precio venta</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Costo</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-coffee-600 uppercase tracking-wider">Margen</th>
@@ -380,6 +377,12 @@ const ProductsPage: React.FC = () => {
                         </td>
                         <td className="px-4 py-3">
                           {(() => { const d = destinoBadge(p.destino); return <span className={clsx('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', d.cls)}>{d.label}</span>; })()}
+                        </td>
+                        <td className="px-4 py-3 text-coffee-700 text-sm">
+                          {p.unit || '—'}
+                        </td>
+                        <td className="px-4 py-3 text-coffee-700 text-sm font-mono">
+                          {p.codigoSin || '—'}
                         </td>
                         <td className="px-4 py-3 text-right font-medium text-coffee-900">
                           {formatCurrency(p.salePrice)}
@@ -432,7 +435,7 @@ const ProductsPage: React.FC = () => {
               page={page}
               pageSize={pageSize}
               onPageChange={setPage}
-              maxPage={maxReachablePage}
+              onPageSizeChange={setPageSize}
               isLoading={isLoading}
             />
           </div>

@@ -144,13 +144,18 @@ export const ComboCard: React.FC<ComboCardProps> = ({
           </span>
         </div>
 
-        <div className="flex gap-2 text-xs">
+        <div className="flex gap-2 text-xs flex-wrap">
           <span className="bg-coffee-50 text-coffee-600 px-2 py-0.5 rounded border border-coffee-100">
             {requiredItems.length} fijo{requiredItems.length !== 1 ? 's' : ''}
           </span>
           {optionalItems.length > 0 && (
             <span className="bg-purple-50 text-purple-600 px-2 py-0.5 rounded border border-purple-100">
               {optionalItems.length} opcional{optionalItems.length !== 1 ? 'es' : ''}
+            </span>
+          )}
+          {combo.codigoSin && (
+            <span className="bg-coffee-50 text-coffee-500 px-2 py-0.5 rounded border border-coffee-100 font-mono">
+              SIN: {combo.codigoSin}
             </span>
           )}
         </div>

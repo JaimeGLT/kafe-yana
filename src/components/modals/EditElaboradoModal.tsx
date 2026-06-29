@@ -82,7 +82,7 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
       setIsLoadingData(true);
       gql<ElaboradosResponse>(GET_ELABORADO_BY_ID, { id: Number(product.id) })
         .then((byId) => {
-          const node = byId.elaborados.nodes[0];
+          const node = byId.elaborados.items[0];
           if (node) setReceta(mapRecetaFromElaborado(node) ?? undefined);
         })
         .catch(() => {})
@@ -91,10 +91,10 @@ export const EditElaboradoModal: React.FC<EditElaboradoModalProps> = ({
   }, [isOpen, product]);
 
   const handleCategoryCreated = async (createdName?: string) => {
-    const data = await gql<{ categorias: { nodes: { id: number; nombre: string; estado: boolean }[] } }>(
-      `query { categorias { nodes { id nombre estado } } }`
+    const data = await gql<{ categorias: { items: { id: number; nombre: string; estado: boolean }[] } }>(
+      `query { categorias(skip: 0, take: 200, order: { nombre: ASC }) { items { id nombre estado } } }`
     );
-    const cats = data.categorias.nodes
+    const cats = data.categorias.items
       .filter((n) => n.estado)
       .map((n) => ({ value: String(n.id), label: n.nombre }));
     setLocalCategoryOptions(cats);

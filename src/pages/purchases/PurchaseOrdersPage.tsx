@@ -5,11 +5,13 @@ import { PageHeader, PageContainer } from '../../components/layout';
 import { Button, Modal, ConfirmModal, Select, SkeletonKpiCard } from '../../components/ui';
 import { PurchasesTable } from '../../components/tables/PurchasesTable';
 import { PurchaseOrderModal } from '../../components/modals';
+import { Pagination } from '../../components/ui/Pagination';
 import { toast } from '../../components/ui/Toast';
 import { formatCurrency, formatDate } from '../../utils';
 import { MOCK_SUPPLIERS } from '../../data/reportsMocks';
 import { api } from '../../lib/api';
 import { gql } from '../../lib/graphql';
+import { usePagination } from '../../hooks/usePagination';
 import { GET_ORDENES_COMPRA } from '../../lib/queries/compras.queries';
 import { GET_PROVEEDORES } from '../../lib/queries/proveedores.queries';
 import { GET_COMPRADOS, GET_INSUMOS_QUERY } from '../../lib/queries/inventory.queries';
@@ -63,8 +65,7 @@ interface BackendOrden {
 
 interface BackendOrdenesResponse {
   ordenes: {
-    nodes: BackendOrden[];
-    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+    items: BackendOrden[];
     totalCount: number;
   };
 }
@@ -145,69 +146,49 @@ export const PurchaseOrdersPage: React.FC = () => {
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
   const [viewingOrder, setViewingOrder] = useState<PurchaseOrder | null>(null);
   const [receivingOrder, setReceivingOrder] = useState<PurchaseOrder | null>(null);
   const [cancellingOrder, setCancellingOrder] = useState<PurchaseOrder | null>(null);
 
-  // ── Pagination ─────────────────────────────────────────────────────────────
-  const [afterCursor, setAfterCursor] = useState<string | null>(null);
-  const [hasNextPage, setHasNextPage] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  // ── Paginación skip/take sincronizada a URL ───────────────────────────────
+  const { page, pageSize, search, debouncedSearch, setPage, setPageSize, setSearch } = usePagination({ pageSize: 15 });
   const [totalCount, setTotalCount] = useState(0);
 
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(t);
-  }, [search]);
-
-  const currentWhereRef = React.useRef<Record<string, unknown>>({});
+  const skip = (page - 1) * pageSize;
 
   // ── Load ordenes from backend ───────────────────────────────────────────────
 
-  const loadOrdenes = useCallback((cursor: string | null, append: boolean, where?: Record<string, unknown>) => {
-    if (cursor === null) setIsLoading(true);
-    else setIsLoadingMore(true);
+  const loadOrdenes = useCallback(() => {
+    setIsLoading(true);
 
-    const variables: Record<string, unknown> = { first: 50 };
-    if (cursor) variables.after = cursor;
-    if (where && Object.keys(where).length) variables.where = where;
+    const variables: Record<string, unknown> = {
+      skip,
+      take: pageSize,
+      search: debouncedSearch || null,
+    };
 
     gql<BackendOrdenesResponse>(GET_ORDENES_COMPRA, variables)
       .then(data => {
-        const mapped = data.ordenes.nodes.map(mapBackendOrdenToPurchaseOrder);
-        if (append) setPurchaseOrders(prev => [...prev, ...mapped]);
-        else setPurchaseOrders(mapped);
-        setAfterCursor(data.ordenes.pageInfo.endCursor ?? null);
-        setHasNextPage(data.ordenes.pageInfo.hasNextPage ?? false);
+        const mapped = data.ordenes.items.map(mapBackendOrdenToPurchaseOrder);
+        setPurchaseOrders(mapped);
         setTotalCount(data.ordenes.totalCount ?? 0);
       })
       .finally(() => {
         setIsLoading(false);
-        setIsLoadingMore(false);
       });
-  }, []);
+  }, [skip, pageSize, debouncedSearch]);
 
   useEffect(() => {
-    const where: Record<string, unknown> = {};
-    if (debouncedSearch) {
-      where.or = [
-        { codigo: { contains: debouncedSearch } },
-        { nombre_Proveedor: { contains: debouncedSearch } },
-      ];
-    }
-    currentWhereRef.current = where;
-    loadOrdenes(null, false, where);
-  }, [debouncedSearch, loadOrdenes]);
+    loadOrdenes();
+  }, [loadOrdenes]);
 
   // ── Load suppliers for modal ─────────────────────────────────────────────────
 
   useEffect(() => {
-    gql<{ proveedores: { nodes: Supplier[] } }>(GET_PROVEEDORES, { first: 50 })
-      .then(data => setSuppliers(data.proveedores.nodes.map(n => ({
+    gql<{ proveedores: { items: Supplier[] } }>(GET_PROVEEDORES, { skip: 0, take: 50 })
+      .then(data => setSuppliers(data.proveedores.items.map(n => ({
         id: String(n.id),
         code: String(n.id),
         razon_Social: n.razon_Social,
@@ -225,8 +206,8 @@ export const PurchaseOrdersPage: React.FC = () => {
 
   // ── Load products (comprados only) ─────────────────────────────────────────
   useEffect(() => {
-    gql<{ comprados: { nodes: Array<{ id_Producto: number; producto: { id: number; nombre: string; descripcion?: string; precio: number; tipo: string }; stock_actual: number; stock_minimo: number; unidad_medida?: string; costo_compra: number; disponible: boolean }> } }>(GET_COMPRADOS, { first: 50 })
-      .then(data => setProducts(data.comprados.nodes.map(n => ({
+    gql<{ comprados: { items: Array<{ id_Producto: number; producto: { id: number; nombre: string; descripcion?: string; precio: number; tipo: string }; stock_actual: number; stock_minimo: number; unidad_medida?: string; costo_compra: number; disponible: boolean }> } }>(GET_COMPRADOS, { skip: 0, take: 50 })
+      .then(data => setProducts(data.comprados.items.map(n => ({
         id: String(n.producto.id),
         code: String(n.id_Producto),
         name: n.producto.nombre,
@@ -251,8 +232,8 @@ export const PurchaseOrdersPage: React.FC = () => {
 
   // ── Load insumos ────────────────────────────────────────────────────────────
   useEffect(() => {
-    gql<{ insumos: { nodes: Array<{ id: number; nombre: string; categoria: string; stock_actual: number; stock_min: number; costo: number; unidad_min_uso: string; unidad_compra: string; factor_conversion: number }> } }>(GET_INSUMOS_QUERY, { first: 50 })
-      .then(data => setInsumos(data.insumos.nodes.map(n => ({
+    gql<{ insumos: { items: Array<{ id: number; nombre: string; categoria: string; stock_actual: number; stock_min: number; costo: number; unidad_min_uso: string; unidad_compra: string; factor_conversion: number }> } }>(GET_INSUMOS_QUERY, { skip: 0, take: 200 })
+      .then(data => setInsumos(data.insumos.items.map(n => ({
         id: String(n.id),
         code: String(n.id),
         name: n.nombre,
@@ -270,10 +251,6 @@ export const PurchaseOrdersPage: React.FC = () => {
       }))))
       .catch(() => {});
   }, []);
-
-  const handleLoadMore = () => {
-    if (afterCursor && !isLoadingMore) loadOrdenes(afterCursor, true, currentWhereRef.current);
-  };
 
   const stats = useMemo(() => {
     const pending = purchaseOrders.filter((o) => o.status === 'pending').length;
@@ -317,7 +294,7 @@ export const PurchaseOrdersPage: React.FC = () => {
     try {
       const result = await api.post<{ Id: number; Codigo: string } | undefined>('/OrdenCompra', body);
       toast.success('Orden creada', result?.Codigo ? `Orden ${result.Codigo} creada exitosamente.` : 'Orden de compra creada exitosamente.');
-      loadOrdenes(null, false);
+      loadOrdenes();
     } catch (e) {
       toast.error('Error', e instanceof Error ? e.message : 'No se pudo crear la orden de compra.');
     }
@@ -442,7 +419,7 @@ export const PurchaseOrdersPage: React.FC = () => {
           </div>
           <div className="flex items-center gap-2 text-sm text-coffee-500 bg-white border border-coffee-100 rounded-lg px-3 py-2">
             <ShoppingCart className="h-4 w-4" />
-            {filteredOrders.length} orden{filteredOrders.length !== 1 ? 'es' : ''}
+            {totalCount} orden{totalCount !== 1 ? 'es' : ''}
           </div>
         </div>
 
@@ -463,24 +440,14 @@ export const PurchaseOrdersPage: React.FC = () => {
               onReceive={(order) => setReceivingOrder(order)}
               onCancel={(order) => setCancellingOrder(order)}
             />
-            {hasNextPage && (
-              <div className="mt-4 flex justify-center">
-                <button
-                  onClick={handleLoadMore}
-                  disabled={isLoadingMore}
-                  className="px-6 py-2.5 bg-coffee-100 hover:bg-coffee-200 text-coffee-700 font-semibold text-sm rounded-xl transition-colors disabled:opacity-60 flex items-center gap-2"
-                >
-                  {isLoadingMore ? (
-                    <>
-                      <div className="h-4 w-4 border-2 border-coffee-400 border-t-transparent rounded-full animate-spin" />
-                      Cargando más...
-                    </>
-                  ) : (
-                    <>Ver más ({purchaseOrders.length} de {totalCount})</>
-                  )}
-                </button>
-              </div>
-            )}
+            <Pagination
+              totalCount={totalCount}
+              page={page}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+              isLoading={isLoading}
+            />
           </>
         )}
 

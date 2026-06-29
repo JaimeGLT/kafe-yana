@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { api } from '../../lib/api';
 import {
   Plus,
@@ -27,21 +27,14 @@ import type { Product, Receta } from '../../types';
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const ElaboradosPage: React.FC = () => {
-  const { page, pageSize, search, debouncedSearch, cursors, maxReachablePage, setPage, setSearch, setCursors } = usePagination({ pageSize: 15 });
+  const { page, pageSize, search, debouncedSearch, setPage, setPageSize, setSearch, resetPage } = usePagination({ pageSize: 15 });
 
   const [filterStatus, setFilterStatus] = useState('');
-  const { elaborados, recetas, insumos, categorias, totalCount, isLoading, refresh, endCursor } = useElaboradosPage({
+  const { elaborados, recetas, insumos, categorias, totalCount, isLoading, refresh } = useElaboradosPage({
     page,
     pageSize,
-    afterCursor: page > 1 ? cursors[page - 1] : undefined,
     search: debouncedSearch,
   });
-
-  useEffect(() => {
-    if (endCursor) {
-      setCursors((prev) => ({ ...prev, [page]: endCursor }));
-    }
-  }, [endCursor, page]);
 
   const getRecetaByProductId = useCallback((productId: string) => {
     return recetas.find((r: Receta) => r.productId === productId);
@@ -228,7 +221,7 @@ const ElaboradosPage: React.FC = () => {
           <div className="sm:w-52">
             <Select
               value={filterStatus}
-              onChange={(v) => setFilterStatus(v)}
+              onChange={(v) => { setFilterStatus(v); resetPage(); }}
               options={[
                 { value: '', label: 'Todos los estados' },
                 { value: 'con_receta', label: 'Con receta' },
@@ -303,7 +296,7 @@ const ElaboradosPage: React.FC = () => {
               page={page}
               pageSize={pageSize}
               onPageChange={setPage}
-              maxPage={maxReachablePage}
+              onPageSizeChange={setPageSize}
               isLoading={isLoading}
             />
           </>

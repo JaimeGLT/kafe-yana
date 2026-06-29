@@ -74,14 +74,9 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, icon, accent = 'defau
 };
 
 const AdjustmentsPage: React.FC = () => {
-  const { page, pageSize, cursors, maxReachablePage, setPage, setCursors } = usePagination({ pageSize: 200 });
-  const [cursorsRef] = useState(() => ({ current: {} as Record<number, string> }));
+  const { page, pageSize, setPage, setPageSize } = usePagination({ pageSize: 200 });
 
   const [totalCount, setTotalCount] = useState(0);
-
-  useEffect(() => {
-    cursorsRef.current = cursors;
-  }, [cursors]);
 
   const [ajustes, setAjustes] = useState<AjusteNode[]>([]);
   const [comprados, setComprados] = useState<CompradoNode[]>([]);
@@ -91,22 +86,19 @@ const AdjustmentsPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const loadData = useCallback(async () => {
-    if (page > 1 && !cursorsRef.current[page - 1]) return null;
     setIsLoading(true);
-    let endCursor: string | null = null;
     try {
       const data = await gql<AdjustmentsDataResponse>(GET_ADJUSTMENTS_DATA, {
-        first: pageSize,
-        after: page > 1 ? cursorsRef.current[page - 1] : undefined,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
       });
 
-      setAjustes(data.ajustes?.nodes ?? []);
+      setAjustes(data.ajustes?.items ?? []);
       setTotalCount(data.ajustes?.totalCount ?? 0);
-      endCursor = data.ajustes?.pageInfo?.endCursor ?? null;
-      setComprados(data.comprados?.nodes ?? []);
-      setInsumos(data.insumos?.nodes ?? []);
+      setComprados(data.comprados?.items ?? []);
+      setInsumos(data.insumos?.items ?? []);
       setElaborados(
-        (data.elaborados?.nodes ?? [])
+        (data.elaborados?.items ?? [])
           .map((e) => ({
             ...e,
             tipoPreparacion: e.producible ? ('en_lote' as const) : ('al_momento' as const),
@@ -117,16 +109,10 @@ const AdjustmentsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-    return endCursor;
   }, [pageSize, page]);
 
   useEffect(() => {
-    const mounted = true;
-    loadData().then((endCursor) => {
-      if (mounted && endCursor) {
-        setCursors((prev) => ({ ...prev, [page]: endCursor }));
-      }
-    });
+    loadData();
   }, [page, pageSize]);
 
   const stats = useMemo(() => {
@@ -327,7 +313,7 @@ const AdjustmentsPage: React.FC = () => {
           page={page}
           pageSize={pageSize}
           onPageChange={setPage}
-          maxPage={maxReachablePage}
+          onPageSizeChange={setPageSize}
           isLoading={isLoading}
         />
       </PageContainer>

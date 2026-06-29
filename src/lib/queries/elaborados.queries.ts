@@ -1,7 +1,7 @@
 export const GET_ALL_ELABORADOS = `
   query {
-    elaborados {
-      nodes {
+    elaborados(skip: 0, take: 500) {
+      items {
         id_Producto
         unidad_medida
         producible
@@ -68,8 +68,8 @@ export const GET_ALL_ELABORADOS = `
 // cuando algún insumo referenciado en la receta fue eliminado.
 export const GET_ELABORADOS_VARIACIONES = `
   query {
-    elaborados(where: { producible: { eq: false } }) {
-      nodes {
+    elaborados(skip: 0, take: 500, producible: false) {
+      items {
         id_Producto
         unidad_medida
         producible
@@ -110,8 +110,8 @@ export const GET_ELABORADOS_VARIACIONES = `
 
 export const GET_VARIACIONES_DATA = `
   query {
-    elaborados(where: { producible: { eq: false } }) {
-      nodes {
+    elaborados(skip: 0, take: 500, producible: false) {
+      items {
         id_Producto
         unidad_medida
         producible
@@ -147,8 +147,8 @@ export const GET_VARIACIONES_DATA = `
         }
       }
     }
-    insumos {
-      nodes {
+    insumos(skip: 0, take: 500) {
+      items {
         id
         nombre
         categoria
@@ -165,8 +165,8 @@ export const GET_VARIACIONES_DATA = `
 
 export const GET_ELABORADO_INGREDIENTES = `
   query GetElaboradoIngredientes($id: Int!) {
-    elaborados(where: { id_Producto: { eq: $id } }) {
-      nodes {
+    elaborados(skip: 0, take: 1, idProducto: $id) {
+      items {
         receta {
           porciones
           detalles {
@@ -193,8 +193,8 @@ export const GET_ELABORADO_INGREDIENTES = `
         }
       }
     }
-    insumos {
-      nodes {
+    insumos(skip: 0, take: 500) {
+      items {
         id
         nombre
         stock_actual
@@ -205,8 +205,8 @@ export const GET_ELABORADO_INGREDIENTES = `
 
 export const GET_ELABORADO_BY_ID = `
   query GetElaboradoById($id: Int!) {
-    elaborados(where: { id_Producto: { eq: $id } }) {
-      nodes {
+    elaborados(skip: 0, take: 1, idProducto: $id) {
+      items {
         id_Producto
         unidad_medida
         producible
@@ -270,16 +270,14 @@ export const GET_ELABORADO_BY_ID = `
 `
 
 export const GET_ELABORADOS_PAGE = `
-  query GetElaboradosPage($first: Int, $after: String, $where: ElaboradoFilterInput) {
+  query GetElaboradosPage($skip: Int, $take: Int, $search: String) {
     elaborados(
-      first: $first
-      after: $after
-      where: $where
-      order: [{ producto: { nombre: ASC } }]
+      skip: $skip
+      take: $take
+      search: $search
     ) {
       totalCount
-      pageInfo { hasNextPage endCursor }
-      nodes {
+      items {
         id_Producto
         stock_actual
         producible
@@ -322,8 +320,8 @@ export const GET_ELABORADOS_PAGE = `
         }
       }
     }
-    insumos {
-      nodes {
+    insumos(skip: 0, take: 500) {
+      items {
         id
         nombre
         categoria
@@ -335,8 +333,8 @@ export const GET_ELABORADOS_PAGE = `
         stock_min
       }
     }
-    categorias {
-      nodes {
+    categorias(skip: 0, take: 200) {
+      items {
         id
         nombre
         color

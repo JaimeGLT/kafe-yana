@@ -83,9 +83,8 @@ export interface BackendVenta {
 
 export interface BackendVentasResponse {
   ventas: {
-    nodes: BackendVenta[];
+    items: BackendVenta[];
     totalCount: number;
-    pageInfo: { hasNextPage: boolean; endCursor: string | null };
   };
 }
 

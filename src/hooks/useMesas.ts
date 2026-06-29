@@ -151,12 +151,12 @@ export function useMesas(): UseMesasReturn {
     try {
       if (!silent) setLoading(true);
       setError(null);
-      const data = await gql<{ mesas: { nodes: MesaBackend[] } }>(GET_MESAS);
-      setMesas(data.mesas.nodes);
+      const data = await gql<{ mesas: { items: MesaBackend[] } }>(GET_MESAS);
+      setMesas(data.mesas.items);
 
       setPedidoPorMesa(prev => {
         const updated = { ...prev };
-        for (const mesa of data.mesas.nodes) {
+        for (const mesa of data.mesas.items) {
           if (mesa.id_Pedido != null) {
             updated[mesa.id] = mesa.id_Pedido;
           } else {

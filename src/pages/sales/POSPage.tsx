@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { toast } from '../../components/ui/Toast';
-import { api, ApiError } from '../../lib/api';
+import { api } from '../../lib/api';
 import { interpretarErrorCobro } from '../../lib/errores';
 import { gql } from '../../lib/graphql';
 import { getConnection } from '../../lib/signalr';
@@ -404,7 +404,7 @@ export const POSPage: React.FC = () => {
     if (productsLoaded) return;
     try {
       const data = await gql<{
-        elaborados: { nodes: Array<{
+        elaborados: { items: Array<{
           id_Producto: number; unidad_medida: string;
           producible: boolean; stock_actual: number; ubicacion: string;
           producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; urlImagen?: string;
@@ -414,23 +414,23 @@ export const POSPage: React.FC = () => {
             opciones: Array<{ id: number; nombre: string; ajustePrecio: number; id_variacion: number;
               ajustes: Array<{ tipoAjuste: string; cantidad: number; insumoBase: { id: number; nombre: string } | null; insumoNuevo: { id: number; nombre: string } | null }> }> }>;
         }> };
-        comprados: { nodes: Array<{
+        comprados: { items: Array<{
           costo_compra: number; stock_actual: number; disponible: boolean; ubicacion: string;
           producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; urlImagen?: string;
             categoria: { id: number; nombre: string; descripcion: string; estado: boolean; color: string } | null };
         }> };
-        combos: { nodes: Array<{
+        combos: { items: Array<{
           cantidadProducible: number;
           producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; urlImagen?: string };
           detalles: Array<{ producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; urlImagen?: string }; cantidad: number; opcional: boolean }>;
         }> };
-        categorias: { nodes: Array<{ id: number; nombre: string; descripcion: string; color: string; estado: boolean }> };
-        clientes: { nodes: Array<{ dni: string; nombre: string; celular: string; correo: string; fecha_nacimiento: string; direccion: string; puntos: number; estado: boolean; id: string }> };
-        productosCanjeables: { nodes: Array<{ id: number; id_Producto: number; puntos: number; disponible: string; activo: boolean }> };
+        categorias: { items: Array<{ id: number; nombre: string; descripcion: string; color: string; estado: boolean }> };
+        clientes: { items: Array<{ dni: string; nombre: string; celular: string; correo: string; fecha_nacimiento: string; direccion: string; puntos: number; estado: boolean; id: string }> };
+        productosCanjeables: { items: Array<{ id: number; id_Producto: number; puntos: number; disponible: string; activo: boolean }> };
       }>(GET_POS_DATA);
 
       const catMap = new Map<string, Category>();
-      data.categorias.nodes.forEach(n => {
+      data.categorias.items.forEach(n => {
         catMap.set(String(n.id), {
           id: String(n.id), name: n.nombre, description: n.descripcion,
           color: n.color || '#92400e', sortOrder: 0, isActive: n.estado,
@@ -441,7 +441,7 @@ export const POSPage: React.FC = () => {
       const elaboradoProducts: Product[] = [];
       const mappedAtributos: VariacionAtributo[] = [];
 
-      for (const n of data.elaborados.nodes) {
+      for (const n of data.elaborados.items) {
         const productId = String(n.id_Producto);
         const cat = n.producto.categoria;
         if (cat && !catMap.has(String(cat.id))) {
@@ -486,7 +486,7 @@ export const POSPage: React.FC = () => {
         }
       }
 
-      const compradoProducts: Product[] = data.comprados.nodes
+      const compradoProducts: Product[] = data.comprados.items
         .filter(n => n.disponible)
         .map(n => {
           const cat = n.producto.categoria;
@@ -526,7 +526,7 @@ export const POSPage: React.FC = () => {
       const comboProducts: Product[] = [];
       const newComboDetails: Record<string, { name: string; quantity: number; emoji: string }[]> = {};
       const newComboRecipes: Record<string, { components: Array<{ productId: string; tipo: string; cantidad: number; recipe?: { producible: boolean; porciones: number; detalles: Array<{ insumoId: string; insumoNombre: string; cantidad: number; merma: number }> } }> }> = {};
-      for (const n of data.combos.nodes) {
+      for (const n of data.combos.items) {
         const id = String(n.producto.id);
         comboProducts.push({
           id, code: id,
@@ -561,7 +561,7 @@ export const POSPage: React.FC = () => {
       setAtributos(mappedAtributos);
       setComboDetails(newComboDetails);
       setComboRecipes(newComboRecipes);
-      const loadedCustomers = data.clientes.nodes as Customer[];
+      const loadedCustomers = data.clientes.items as Customer[];
       setCustomers(loadedCustomers);
       // Autoselect del cliente "Consumidor Final" (si existe en la BD).
       setReviewClienteId(prev => {
@@ -570,7 +570,7 @@ export const POSPage: React.FC = () => {
         return cf ? String(cf.id) : null;
       });
       setProductsLoaded(true);
-      enviarCatalogo(data.comprados.nodes, data.elaborados.nodes, data.combos.nodes);
+      enviarCatalogo(data.comprados.items, data.elaborados.items, data.combos.items);
     } catch {
       toast.error('Error', 'No se pudieron cargar los productos.');
     } finally {
@@ -583,11 +583,11 @@ export const POSPage: React.FC = () => {
     const data = await gql<any>(GET_POS_DATA);
     setProducts(prev => prev.map(p => {
       if (p.tipo === 'comprado') {
-        const found = data.comprados.nodes.find((n: any) => String(n.producto.id) === p.id);
+        const found = data.comprados.items.find((n: any) => String(n.producto.id) === p.id);
         return found ? { ...p, stock: found.stock_actual } : p;
       }
       if (p.tipo === 'elaborado') {
-        const found = data.elaborados.nodes.find((n: any) => String(n.id_Producto) === p.id);
+        const found = data.elaborados.items.find((n: any) => String(n.id_Producto) === p.id);
         return found ? { ...p, stock: found.stock_actual, cantidadProducible: found.receta?.cantidadProducible } : p;
       }
       return p;
@@ -992,8 +992,8 @@ export const POSPage: React.FC = () => {
     setDocSearchLoading(true);
     const t = setTimeout(async () => {
       try {
-        const data = await gql<{ clientes: { nodes: Customer[] } }>(GET_CLIENTE_BY_DNI, { dni: asInt });
-        setDocSearchResults(data.clientes?.nodes ?? []);
+        const data = await gql<{ clientes: { items: Customer[] } }>(GET_CLIENTE_BY_DNI, { dni: asInt });
+        setDocSearchResults(data.clientes?.items ?? []);
         setDocSearchActive(true);
       } catch {
         setDocSearchResults([]);
@@ -1018,8 +1018,8 @@ export const POSPage: React.FC = () => {
     setNombreSearchLoading(true);
     const t = setTimeout(async () => {
       try {
-        const data = await gql<{ clientes: { nodes: Customer[] } }>(GET_CLIENTES_SEARCH, { q: trimmed });
-        setNombreSearchResults(data.clientes?.nodes ?? []);
+        const data = await gql<{ clientes: { items: Customer[] } }>(GET_CLIENTES_SEARCH, { q: trimmed });
+        setNombreSearchResults(data.clientes?.items ?? []);
         setNombreSearchActive(true);
       } catch {
         setNombreSearchResults([]);
@@ -1058,7 +1058,7 @@ export const POSPage: React.FC = () => {
       if (!elaboradoIngredientes[product.id]) {
         gql<any>(GET_ELABORADO_INGREDIENTES, { id: parseInt(product.id, 10) })
           .then(data => {
-            const node = data.elaborados.nodes[0];
+            const node = data.elaborados.items[0];
             if (node?.receta?.detalles) {
               const ings = node.receta.detalles
                 .filter((d: any) => d.insumo)
@@ -1093,7 +1093,7 @@ export const POSPage: React.FC = () => {
               }
             }
 
-            const insumosStock = (data.insumos?.nodes ?? [])
+            const insumosStock = (data.insumos?.items ?? [])
               .filter((i: any) => usedInsumoIds.has(String(i.id)))
               .map((i: any) => ({ id: String(i.id), nombre: i.nombre, stock: i.stock_actual ?? 0 }));
 

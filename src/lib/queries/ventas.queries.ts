@@ -1,7 +1,7 @@
 export const GET_PARA_LLEVAR = `
   query GetParaLlevar {
-    paraLlevar {
-      nodes {
+    paraLlevar(skip: 0, take: 200) {
+      items {
         disponible
         id
         id_Pedido
@@ -41,9 +41,9 @@ export const GET_PARA_LLEVAR = `
 `;
 
 export const GET_VENTAS_REPORT = `
-  query GetVentasReport($after: String, $where: VentaFilterInput) {
-    ventas(first: 50, after: $after, order: [{ fechaEmision: DESC }], where: $where) {
-      nodes {
+  query GetVentasReport($skip: Int!, $take: Int!, $fechaDesde: DateTime, $fechaHasta: DateTime, $estadoSiat: String, $search: String) {
+    ventas(skip: $skip, take: $take, fechaDesde: $fechaDesde, fechaHasta: $fechaHasta, estadoSiat: $estadoSiat, search: $search) {
+      items {
         id
         numeroFactura
         fechaEmision
@@ -72,10 +72,6 @@ export const GET_VENTAS_REPORT = `
           cuf
           revertidaAnulacion
         }
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
       }
       totalCount
     }
@@ -83,9 +79,9 @@ export const GET_VENTAS_REPORT = `
 `;
 
 export const GET_VENTAS = `
-  query GetVentas($after: String, $where: VentaFilterInput) {
-    ventas(first: 50, after: $after, order: [{ fechaEmision: DESC }], where: $where) {
-      nodes {
+  query GetVentas($skip: Int!, $take: Int!, $fechaDesde: DateTime, $fechaHasta: DateTime, $estadoSiat: String, $search: String) {
+    ventas(skip: $skip, take: $take, fechaDesde: $fechaDesde, fechaHasta: $fechaHasta, estadoSiat: $estadoSiat, search: $search) {
+      items {
         id
         numeroFactura
         fechaEmision
@@ -114,10 +110,6 @@ export const GET_VENTAS = `
           cuf
           revertidaAnulacion
         }
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
       }
       totalCount
     }
@@ -152,12 +144,12 @@ export const GET_VENTAS_STATS = `
  * (`cantidadProductos`); este query se dispara on-demand al abrir el modal.
  *
  * Patrón: reutiliza el resolver paginado `ventas(where: { id: { eq: $id } })`
- * con `first: 1`. Es la única forma de pedir `detalles` sin duplicar resolvers.
+ * con `take: 1`. Es la única forma de pedir `detalles` sin duplicar resolvers.
  */
 export const GET_VENTA_CON_DETALLES = `
   query GetVentaConDetalles($id: Int!) {
-    ventas(where: { id: { eq: $id } }, first: 1) {
-      nodes {
+    ventas(skip: 0, take: 1, id: $id) {
+      items {
         id
         numeroFactura
         fechaEmision

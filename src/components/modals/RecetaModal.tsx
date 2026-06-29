@@ -59,7 +59,7 @@ export const RecetaFormContent: React.FC<RecetaFormProps> = ({
     setInsumoModalOpen(false);
     try {
       const data = await gql<InsumosResponse>(GET_ALL_INSUMOS);
-      setLocalInsumos(data.insumos.nodes.map(mapInsumo));
+      setLocalInsumos(data.insumos.items.map(mapInsumo));
     } catch {
       if (onRefreshInventory) await onRefreshInventory();
     }

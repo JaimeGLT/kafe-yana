@@ -104,16 +104,16 @@ export const SalesListPage: React.FC = () => {
   const [estadoSiatFilter, setEstadoSiatFilter] = useState<EstadoSiatFiltro>('todos');
 
   // ── Paginación (patrón usePagination como ProductsPage) ───────────────
-  const { page, pageSize, search: debouncedSearch, cursors, maxReachablePage, setPage, setSearch, setCursors, resetPage } =
+  const { page, pageSize, search: debouncedSearch, setSearch, setPageSize, setPage, resetPage } =
     usePagination({ pageSize: 15 });
 
   // El `search` del hook de paginación se sincroniza con el input de la página.
-  // El reset a página 1 ocurre automáticamente al cambiar `debouncedSearch`
-  // (ver usePagination); para los demás filtros lo disparamos manualmente.
+  // `setSearch` ya hace skip=0 al cambiar de texto, no hace falta reset manual.
   useEffect(() => {
     setSearch(searchInput);
   }, [searchInput, setSearch]);
 
+  // Filtros que NO son search: reset explícito a la primera página.
   useEffect(() => {
     resetPage();
   }, [dateFrom, dateTo, estadoSiatFilter, statusFilter, resetPage]);
@@ -132,17 +132,11 @@ export const SalesListPage: React.FC = () => {
   // Lista y KPIs usan su propia query y su propio hook, pero comparten el
   // mismo `where` (estable vía useMemo). Si los filtros cambian, ambos se
   // re-fetchean juntos; si sólo cambia la página, sólo la lista.
-  const { ventas, isLoading, totalCount, endCursor, refresh: refreshPage } = useVentasPage({
+  const { ventas, isLoading, totalCount, refresh: refreshPage } = useVentasPage({
     page,
     pageSize,
-    afterCursor: page > 1 ? cursors[page - 1] : undefined,
     where,
   });
-
-  // Cuando llega un nuevo endCursor lo guardamos en el cache por página.
-  useEffect(() => {
-    if (endCursor) setCursors((prev) => ({ ...prev, [page]: endCursor }));
-  }, [endCursor, page, setCursors]);
 
   const { stats, refresh: refreshStats } = useVentasStats(where);
 
@@ -557,7 +551,7 @@ export const SalesListPage: React.FC = () => {
                   page={page}
                   pageSize={pageSize}
                   onPageChange={setPage}
-                  maxPage={maxReachablePage}
+                  onPageSizeChange={setPageSize}
                   isLoading={isLoading}
                 />
               </>

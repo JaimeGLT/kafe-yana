@@ -34,7 +34,7 @@ export async function fetchVentaById(
     GET_VENTA_CON_DETALLES,
     { id: ventaId },
   );
-  const first = data.ventas.nodes[0];
+  const first = data.ventas.items[0];
   return first ? mapBackendVentaToSale(first) : null;
 }
 

@@ -68,16 +68,16 @@ export function useCaja(): UseCajaReturn {
       setError(null);
       const [estadoData, movimientosData] = await Promise.all([
         gql<{ caja: CajaEstado }>(GET_CAJA_ESTADO),
-        gql<{ cajaMoviminetos: { nodes: CajaMovimiento[] } }>(GET_CAJA_MOVIMIENTOS),
+        gql<{ cajaMoviminetos: { items: CajaMovimiento[] } }>(GET_CAJA_MOVIMIENTOS),
       ]);
       setCaja(estadoData.caja);
-      setMovimientos(movimientosData.cajaMoviminetos.nodes.map(m => ({
+      setMovimientos(movimientosData.cajaMoviminetos.items.map(m => ({
         ...m,
         tipo: (m.tipo as string).toLowerCase() === 'ingreso' ? 'ingreso' : 'egreso',
       })) as CajaMovimiento[]);
       if (!estadoData.caja || !estadoData.caja.abierta) {
-        const histData = await gql<{ cajaHistorial: { nodes: CajaHistorialNode[] } }>(GET_ULTIMA_CAJA_HISTORIAL);
-        setUltimaSesion(histData.cajaHistorial.nodes[0] ?? null);
+        const histData = await gql<{ cajaHistorial: { items: CajaHistorialNode[] } }>(GET_ULTIMA_CAJA_HISTORIAL);
+        setUltimaSesion(histData.cajaHistorial.items[0] ?? null);
       } else {
         setUltimaSesion(null);
       }

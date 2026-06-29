@@ -1,26 +1,26 @@
 export const GET_KARDEX_ITEMS = `
   query GetKardexItems {
-    comprados(first: 50, order: [{ producto: { nombre: ASC } }]) {
-      nodes {
+    comprados(skip: 0, take: 50) {
+      items {
         producto { id nombre }
         stock_actual
       }
     }
-    elaborados(first: 50, order: [{ producto: { nombre: ASC } }]) {
-      nodes {
+    elaborados(skip: 0, take: 50) {
+      items {
         id_Producto
         producto { id nombre }
         stock_actual
       }
     }
-    combos(first: 50, order: [{ producto: { nombre: ASC } }]) {
-      nodes {
+    combos(skip: 0, take: 50) {
+      items {
         producto { id nombre }
         cantidadProducible
       }
     }
-    insumos(first: 50, order: [{ nombre: ASC }]) {
-      nodes {
+    insumos(skip: 0, take: 200) {
+      items {
         id
         nombre
         stock_actual
@@ -31,11 +31,10 @@ export const GET_KARDEX_ITEMS = `
 `;
 
 export const GET_PRODUCTO_MOVIMIENTOS = `
-  query GetProductoMovimientos($id: Int!, $first: Int, $after: String) {
-    movimientoProducto(id: $id, first: $first, after: $after) {
+  query GetProductoMovimientos($id: Int!, $skip: Int, $take: Int) {
+    movimientoProducto(id: $id, skip: $skip, take: $take) {
       totalCount
-      pageInfo { hasNextPage endCursor }
-      nodes {
+      items {
         cantidad
         costo_Unitario
         fecha
@@ -50,11 +49,10 @@ export const GET_PRODUCTO_MOVIMIENTOS = `
 `;
 
 export const GET_INSUMO_MOVIMIENTOS = `
-  query GetInsumoMovimientos($id: Int!, $first: Int, $after: String) {
-    insumoMovimientos(id: $id, first: $first, after: $after) {
+  query GetInsumoMovimientos($id: Int!, $skip: Int, $take: Int) {
+    insumoMovimientos(id: $id, skip: $skip, take: $take) {
       totalCount
-      pageInfo { hasNextPage endCursor }
-      nodes {
+      items {
         cantidad
         costo_Unitario
         fecha

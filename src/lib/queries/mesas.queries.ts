@@ -1,7 +1,7 @@
 export const GET_MESAS = `
   query GetMesas {
-    mesas(order: [{ nombre: ASC }]) {
-      nodes {
+    mesas(skip: 0, take: 200) {
+      items {
         id
         nombre
         disponible
@@ -68,8 +68,8 @@ export const GET_MESAS = `
 
 export const GET_MESAS_SIMPLE = `
   query GetMesasSimple {
-    mesas(order: [{ nombre: ASC }]) {
-      nodes {
+    mesas(skip: 0, take: 200) {
+      items {
         id
         nombre
         disponible
@@ -81,8 +81,8 @@ export const GET_MESAS_SIMPLE = `
 
 export const GET_MESA_BY_ID = `
   query GetMesaById($id: Int!) {
-    mesas(where: { id: { eq: $id } }) {
-      nodes {
+    mesas(skip: 0, take: 1, id: $id) {
+      items {
         id
         nombre
         disponible

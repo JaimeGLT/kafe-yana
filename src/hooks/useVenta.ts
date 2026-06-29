@@ -91,8 +91,8 @@ interface UseVentaReturn {
 export function useVenta(): UseVentaReturn {
   const syncParaLlevar = useCallback(async (): Promise<ParaLlevarPedido[]> => {
     try {
-      const data = await gql<{ paraLlevar: { nodes: ParaLlevarPedido[] } }>(GET_PARA_LLEVAR);
-      return data.paraLlevar.nodes;
+      const data = await gql<{ paraLlevar: { items: ParaLlevarPedido[] } }>(GET_PARA_LLEVAR);
+      return data.paraLlevar.items;
     } catch (err) {
       console.error('Error syncing para llevar:', err);
       toast.error('Error', 'No se pudieron sincronizar los pedidos para llevar.');

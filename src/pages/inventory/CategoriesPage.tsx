@@ -20,7 +20,7 @@ interface CategoriaNode {
 }
 
 interface CategoriasGqlResponse {
-  categorias: { nodes: CategoriaNode[] };
+  categorias: { items: CategoriaNode[]; totalCount: number };
 }
 
 const CategoriesPage: React.FC = () => {
@@ -30,7 +30,7 @@ const CategoriesPage: React.FC = () => {
   const loadCategories = useCallback(async () => {
     try {
       const data = await gql<CategoriasGqlResponse>(GET_CATEGORIAS_QUERY);
-      const mapped: Category[] = data.categorias.nodes.map((n) => ({
+      const mapped: Category[] = data.categorias.items.map((n) => ({
         id: String(n.id),
         name: n.nombre,
         description: n.descripcion,
