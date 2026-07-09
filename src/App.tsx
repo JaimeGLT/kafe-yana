@@ -9,7 +9,6 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { AuthProvider, UIProvider, SettingsProvider, NotificationsProvider, PuntoVentaProvider } from './contexts';
 import { ToastProvider } from './components/ui';
 import { PageLoader } from './components/ui/PageLoader';
-import { ContingencyBanner } from './components/layout/ContingencyBanner';
  
 // Pages — lazy loaded
 const DashboardPage        = lazy(() => import('./pages/DashboardPage'));
@@ -23,7 +22,7 @@ const VariacionesPage      = lazy(() => import('./pages/inventory/VariacionesPag
 const SalesListPage        = lazy(() => import('./pages/sales/SalesListPage').then(m => ({ default: m.SalesListPage })));
 const POSPage              = lazy(() => import('./pages/sales/POSPage').then(m => ({ default: m.POSPage })));
 const CustomersPage        = lazy(() => import('./pages/sales/CustomersPage').then(m => ({ default: m.CustomersPage })));
-const QuotesPage           = lazy(() => import('./pages/sales/QuotesPage').then(m => ({ default: m.QuotesPage })));
+
 const FidelizacionPage            = lazy(() => import('./pages/fidelizacion/FidelizacionPage').then(m => ({ default: m.FidelizacionPage })));
 const PromocionesPermanentesPage  = lazy(() => import('./pages/fidelizacion/PromocionesPermanentesPage').then(m => ({ default: m.PromocionesPermanentesPage })));
 const PromocionesTemporadaPage    = lazy(() => import('./pages/fidelizacion/PromocionesTemporadaPage').then(m => ({ default: m.PromocionesTemporadaPage })));
@@ -60,9 +59,6 @@ function App() {
             <ToastProvider>
               <NotificationsProvider>
                 <BrowserRouter>
-                  {/* FIX #5 — banner persistente de contingencia SIAT. Polls /api/contingencia/estado
-                     cada 15s; solo renderiza si hay contingencia activa o ventas pendientes. */}
-                  <ContingencyBanner />
                   <Suspense fallback={<PageLoader />}>
                     <Routes>
                       {/* Ruta pública */}
@@ -84,7 +80,6 @@ function App() {
                       <Route path="/sales/pos"       element={<ProtectedRoute allowedRoles={ALL}><POSPage /></ProtectedRoute>} />
                       <Route path="/sales"           element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><SalesListPage /></ProtectedRoute>} />
                       <Route path="/sales/customers" element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><CustomersPage /></ProtectedRoute>} />
-                      <Route path="/sales/quotes"    element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><QuotesPage /></ProtectedRoute>} />
 
                       {/* Fidelización — admin + cajero */}
                       <Route path="/fidelizacion"                         element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><FidelizacionPage /></ProtectedRoute>} />

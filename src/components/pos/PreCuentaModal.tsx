@@ -1,7 +1,8 @@
 import React from 'react';
-import { Printer, X, MonitorCheck, UtensilsCrossed, GlassWater } from 'lucide-react';
+import { Printer, X, MonitorCheck, UtensilsCrossed, GlassWater, Globe } from 'lucide-react';
 import { enviarCuenta } from '../../utils/comandas';
 import { formatCurrency } from '../../utils';
+import { escapeHtml, imprimirEnNavegador } from '../../utils/printBrowser';
 
 export interface PreCuentaItem {
   nombre: string;
@@ -85,70 +86,49 @@ export const PreCuentaModal: React.FC<PreCuentaModalProps> = ({ data, onClose })
   };
 
   const handleBrowserPrint = () => {
-    const mm = TAMAÑO_CONFIG.find(t => t.id === tamaño)?.mm ?? '80mm';
-    const previewWidth = tamaño === 'pequeño' ? 240 : 320;
-    const win = window.open('', '_blank', `width=${previewWidth},height=600`);
-    if (!win) return;
+    const anchoMM: '58' | '80' = tamaño === 'pequeño' ? '58' : '80';
 
-    const rows = data.items.map(i => `
-      <tr>
-        <td style="padding:2px 0">${i.cantidad}x ${i.nombre}</td>
-        <td style="text-align:right;padding:2px 0">${formatCurrency(i.precioFinal)}</td>
-        <td style="text-align:right;padding:2px 0">${formatCurrency(i.precioFinal * i.cantidad)}</td>
-      </tr>
-    `).join('');
+    imprimirEnNavegador({
+      titulo: `Pre-cuenta ${data.mesaName}`,
+      anchoMM,
+      buildBody: () => {
+        const rows = data.items.map(i => `
+          <tr>
+            <td style="padding:2px 0">${escapeHtml(String(i.cantidad))}x ${escapeHtml(i.nombre)}</td>
+            <td style="text-align:right;padding:2px 0">${formatCurrency(i.precioFinal)}</td>
+            <td style="text-align:right;padding:2px 0">${formatCurrency(i.precioFinal * i.cantidad)}</td>
+          </tr>
+        `).join('');
 
-    win.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8"/>
-        <title>Pre-cuenta ${data.mesaName}</title>
-        <style>
-          @page { size: ${mm} auto; margin: 0; }
-          body { font-family: monospace; font-size: 13px; margin: 0; padding: 2mm; width: ${mm}; box-sizing: border-box; }
-          h2 { text-align: center; margin: 0 0 4px; font-size: 16px; }
-          p { text-align: center; margin: 2px 0; font-size: 11px; color: #555; }
-          table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-          th { text-align: left; border-bottom: 1px solid #000; padding-bottom: 4px; font-size: 11px; }
-          th:last-child, td:last-child { text-align: right; }
-          .divider { border-top: 1px dashed #000; margin: 6px 0; }
-          .total-row td { font-weight: bold; font-size: 15px; padding-top: 4px; }
-          @media print { body { padding: 1mm; } }
-        </style>
-      </head>
-      <body>
-        <h2>Kafe Yana</h2>
-        <p>PRE-CUENTA</p>
-        <p>${data.mesaName}</p>
-        <p>${new Date().toLocaleString('es-PE')}</p>
-        <div class="divider"></div>
-        <table>
-          <thead>
-            <tr>
-              <th>Producto</th>
-              <th style="text-align:right">P.Unit</th>
-              <th style="text-align:right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-            <tr><td colspan="3"><div class="divider"></div></td></tr>
-            <tr class="total-row">
-              <td colspan="2">TOTAL</td>
-              <td>${formatCurrency(total)}</td>
-            </tr>
-          </tbody>
-        </table>
-        <div class="divider"></div>
-        <p style="margin-top:8px;font-style:italic">* Precio sujeto a cambio antes del cobro</p>
-      </body>
-      </html>
-    `);
-    win.document.close();
-    win.focus();
-    win.print();
-    win.close();
+        return `
+          <h2>Kafe Yana</h2>
+          <p class="subtitle">PRE-CUENTA</p>
+          <p class="subtitle">${escapeHtml(data.mesaName)}</p>
+          <p class="subtitle">${new Date().toLocaleString('es-PE')}</p>
+          <div class="divider"></div>
+          <table>
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th style="text-align:right">P.Unit</th>
+                <th style="text-align:right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+              <tr><td colspan="3"><div class="divider"></div></td></tr>
+              <tr class="total-row">
+                <td colspan="2">TOTAL</td>
+                <td>${formatCurrency(total)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="divider"></div>
+          <p class="subtitle" style="margin-top:8px;font-style:italic">* Precio sujeto a cambio antes del cobro</p>
+        `;
+      },
+    });
+
     onClose();
   };
 
@@ -167,9 +147,18 @@ export const PreCuentaModal: React.FC<PreCuentaModalProps> = ({ data, onClose })
               <p className="text-xs text-coffee-400">{data.mesaName} · {data.items.length} productos</p>
             </div>
           </div>
-          <button onClick={onClose} className="h-8 w-8 rounded-xl bg-coffee-100 flex items-center justify-center text-coffee-500 hover:bg-coffee-200">
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleBrowserPrint}
+              title="Imprimir por navegador"
+              className="h-8 w-8 rounded-xl bg-coffee-100 flex items-center justify-center text-coffee-500 hover:bg-coffee-200"
+            >
+              <Globe className="h-4 w-4" />
+            </button>
+            <button onClick={onClose} className="h-8 w-8 rounded-xl bg-coffee-100 flex items-center justify-center text-coffee-500 hover:bg-coffee-200">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         <div className="bg-coffee-50 rounded-2xl p-4 space-y-2 max-h-56 overflow-y-auto">
@@ -234,16 +223,9 @@ export const PreCuentaModal: React.FC<PreCuentaModalProps> = ({ data, onClose })
         </div>
 
         <button
-          onClick={handleBrowserPrint}
-          className="w-full py-3 rounded-2xl bg-coffee-800 text-cream text-sm font-bold hover:bg-coffee-700 transition-colors flex items-center justify-center gap-2"
-        >
-          <Printer className="h-4 w-4" />
-          Imprimir pre-cuenta (navegador)
-        </button>
-        <button
           onClick={handlePrint}
           disabled={isPrinting}
-          className="w-full py-3 rounded-2xl border-2 border-coffee-200 text-coffee-700 text-sm font-bold hover:bg-coffee-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+          className="w-full py-3 rounded-2xl bg-coffee-800 text-cream text-sm font-bold hover:bg-coffee-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
         >
           <Printer className="h-4 w-4" />
           {isPrinting ? 'Enviando...' : 'Enviar a impresora térmica'}

@@ -1,6 +1,7 @@
 import React from 'react';
-import { Printer, X, MonitorCheck, UtensilsCrossed, GlassWater } from 'lucide-react';
+import { Printer, X, MonitorCheck, UtensilsCrossed, GlassWater, Globe } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { escapeHtml, imprimirEnNavegador } from '../../utils/printBrowser';
 
 type Tamaño = 'pequeño' | 'mediano';
 type Destino = 'principal' | 'cocina' | 'barra';
@@ -252,6 +253,86 @@ export const PrintFacturaModal: React.FC<PrintFacturaModalProps> = ({ data, onCo
     }
   };
 
+  const handleBrowserPrint = () => {
+    const ancho = ANCHO_CARACTERES[tamaño];
+    const razonSocial = data.razonSocialEmisor || EMISOR_DEFAULTS.razonSocial;
+    const nit = data.nitEmisor || EMISOR_DEFAULTS.nit;
+    const descuentoTotal = data.descuentoAdicional ?? 0;
+    const baseCreditoFiscal = data.subtotal ?? data.total;
+    const fechaStr = formatearFechaBolivia(data.fechaEmision);
+    const qrUrlLocal = buildQrUrl(data);
+
+    imprimirEnNavegador({
+      titulo: `Factura N° ${data.numeroFactura ?? data.ventaId}`,
+      anchoMM: tamaño === 'pequeño' ? '58' : '80',
+      buildBody: () => {
+        const sep = new String('=').repeat(ancho);
+        const dash = new String('-').repeat(ancho);
+        const line = (txt: string, bold = false, center = false) => {
+          const safe = escapeHtml(txt);
+          const style = `font-family: monospace; font-size: 10px; line-height: 1.25; color: #000; ${bold ? 'font-weight: bold;' : ''} ${center ? 'text-align: center;' : ''}`;
+          return `<div style="${style}">${safe}</div>`;
+        };
+        const lines: string[] = [];
+        lines.push(line(razonSocial, true, true));
+        lines.push(line(`NIT: ${nit}`, false, true));
+        lines.push(line(sep));
+        lines.push(line('FACTURA', true, true));
+        lines.push(line('(Con Derecho a Crédito Fiscal)', false, true));
+        lines.push(line(sep));
+        lines.push(line(`FACTURA Nro.: ${data.numeroFactura ?? '—'}`, true));
+        lines.push(line(`Fecha: ${fechaStr}`));
+        lines.push(line(`Nombre/Razón Social: ${data.razonSocialCliente ?? '—'}`));
+        lines.push(line(`NIT/CI/CEX: ${data.nitCliente ?? '—'}`));
+        lines.push(line(sep));
+        for (const item of data.items) {
+          for (const l of partirTexto(`${item.cantidad} x ${item.nombre}`, ancho - 2)) {
+            lines.push(line(`  ${l}`));
+          }
+          lines.push(`<div style="display:flex;justify-content:space-between;font-family:monospace;font-size:9px;">
+            <span>  Bs/${item.precio.toFixed(2)} c/u</span>
+            <span>Bs/${item.total.toFixed(2)}</span>
+          </div>`);
+          lines.push(line(dash));
+        }
+        if (descuentoTotal > 0) {
+          lines.push(`<div style="display:flex;justify-content:space-between;font-family:monospace;font-size:10px;font-weight:bold;">
+            <span>SUBTOTAL:</span><span>Bs/${(data.subtotal ?? data.total).toFixed(2)}</span>
+          </div>`);
+          lines.push(`<div style="display:flex;justify-content:space-between;font-family:monospace;font-size:9px;">
+            <span>DESCUENTO:</span><span>-Bs/${descuentoTotal.toFixed(2)}</span>
+          </div>`);
+        }
+        lines.push(`<div style="display:flex;justify-content:space-between;font-family:monospace;font-size:11px;font-weight:bold;">
+          <span>TOTAL:</span><span>Bs/${data.total.toFixed(2)}</span>
+        </div>`);
+        lines.push(`<div style="display:flex;justify-content:space-between;font-family:monospace;font-size:8px;">
+          <span>Importe Base Crédito Fiscal:</span><span>Bs/${baseCreditoFiscal.toFixed(2)}</span>
+        </div>`);
+        lines.push(line(sep));
+        if (qrUrlLocal) {
+          const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=1&data=${encodeURIComponent(qrUrlLocal)}`;
+          lines.push(`<div style="text-align:center;margin:4px 0;">
+            <img src="${qrImg}" alt="QR SIAT" style="width:120px;height:120px;" />
+            ${data.codigoRecepcion ? `<div style="font-family:monospace;font-size:8px;text-align:center;">Cód. Recepción: ${escapeHtml(data.codigoRecepcion)}</div>` : ''}
+            <div style="font-family:monospace;font-size:7px;text-align:center;">Consulta en siat.impuestos.gob.bo</div>
+          </div>`);
+        }
+        lines.push(line(sep));
+        if (data.cuf) {
+          lines.push(line(`CUF: ${data.cuf}`));
+        }
+        if (data.leyenda?.trim()) {
+          lines.push(line(sep));
+          for (const l of partirTexto(data.leyenda, ancho)) {
+            lines.push(line(l, false, true));
+          }
+        }
+        return lines.join('');
+      },
+    });
+  };
+
   const qrUrl = buildQrUrl(data);
 
   return (
@@ -271,12 +352,21 @@ export const PrintFacturaModal: React.FC<PrintFacturaModalProps> = ({ data, onCo
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="h-8 w-8 rounded-xl bg-coffee-100 flex items-center justify-center text-coffee-500 hover:bg-coffee-200"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleBrowserPrint}
+              title="Imprimir por navegador"
+              className="h-8 w-8 rounded-xl bg-coffee-100 flex items-center justify-center text-coffee-500 hover:bg-coffee-200"
+            >
+              <Globe className="h-4 w-4" />
+            </button>
+            <button
+              onClick={onClose}
+              className="h-8 w-8 rounded-xl bg-coffee-100 flex items-center justify-center text-coffee-500 hover:bg-coffee-200"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         <div className="space-y-2">

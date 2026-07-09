@@ -21,6 +21,21 @@ import type {
 } from '../types/notaAjusteAnulacion';
 import { formatearPrimerErrorSiat } from '../lib/erroresSiat';
 
+/**
+ * Datos fiscales opcionales para actualizar una venta nunca facturada antes
+ * de reenviarla al SIAT (ver `DtoDatosFiscalesReenvio` en el backend). Todo
+ * es opcional: si se omite, el backend conserva los datos ya grabados en la
+ * venta (comportamiento de "reintentar" sin cambios).
+ */
+export interface DtoDatosFiscalesReenvio {
+  id_Cliente?: number | null;
+  codigoTipoDocumento?: number | null;
+  nombre?: string | null;
+  dni?: number | null;
+  complemento?: string | null;
+  codigoPaisOrigen?: number | null;
+}
+
 export interface UseFacturacionReturn {
   /**
    * Imprime la factura SIAT de una venta. Acepta la lista de impresoras de
@@ -32,7 +47,15 @@ export interface UseFacturacionReturn {
     destinos?: string[],
     anchoCaracteres?: number,
   ) => Promise<ImprimirFacturaRespuesta | null>;
-  reenviarFactura: (ventaId: number) => Promise<ReenviarFacturaRespuesta | null>;
+  /**
+   * Reenvía/factura una venta al SIAT. `datosFiscales` sólo aplica cuando la
+   * venta nunca fue facturada (el backend rechaza intentar modificarlos si
+   * ya está facturada); si se omite, se conservan los datos ya grabados.
+   */
+  reenviarFactura: (
+    ventaId: number,
+    datosFiscales?: DtoDatosFiscalesReenvio,
+  ) => Promise<ReenviarFacturaRespuesta | null>;
   /**
    * Anula una factura en el SIAT.
    * `nota` es una nota/justificación libre opcional. El backend actual puede
@@ -98,9 +121,9 @@ export function useFacturacion(): UseFacturacionReturn {
     }
   }, []);
 
-  const reenviarFactura = useCallback(async (ventaId: number) => {
+  const reenviarFactura = useCallback(async (ventaId: number, datosFiscales?: DtoDatosFiscalesReenvio) => {
     try {
-      const res = await api.post<ReenviarFacturaRespuesta>(`/Facturacion/reenviar/${ventaId}`);
+      const res = await api.post<ReenviarFacturaRespuesta>(`/Facturacion/reenviar/${ventaId}`, datosFiscales);
       if (res.Siat?.Transaccion) {
         toast.success('SIAT', res.message);
       } else {

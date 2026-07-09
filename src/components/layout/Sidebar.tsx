@@ -66,7 +66,6 @@ const navItems: NavItem[] = [
       { id: 'pos', label: 'Punto de Venta', icon: null, path: '/sales/pos', allowedRoles: [ADMIN, MESERO, CAJERO] },
       { id: 'sales-list', label: 'Ventas', icon: null, path: '/sales', allowedRoles: [ADMIN, CAJERO] },
       { id: 'customers', label: 'Clientes', icon: null, path: '/sales/customers', allowedRoles: [ADMIN, CAJERO] },
-      { id: 'quotes', label: 'Cotizaciones', icon: null, path: '/sales/quotes', allowedRoles: [ADMIN, CAJERO] },
     ],
   },
   {

@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { clsx } from 'clsx';
-import { ChevronLeft, ChevronRight, ChevronDown, Check, Users, List, SlidersHorizontal, Minus, Plus, Printer, FileText, Ban, UserX } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Check, Users, List, SlidersHorizontal, Minus, Plus, Printer, Receipt } from 'lucide-react';
 import { PrintComandaModal, type PrintComandaData } from './PrintComandaModal';
-import type { Customer } from '../../types';
+import type { Customer, ItemCubiertoInput } from '../../types';
 import { mapPaymentMethodToSinCode } from '../../lib/mappers/metodosPago';
-import { ModoFacturacionCards, type ModoFacturacion } from './ModoFacturacionCards';
-import { ClienteFacturacionSection } from './ClienteFacturacionSection';
-import { DatosFiscalesForm } from './DatosFiscalesForm';
-import { DEFAULT_SIN_NOMBRE } from '../../constants/facturacion';
+import { FacturacionStepCard, esFacturacionValida } from './FacturacionStepCard';
+import type { PagoParcialItem } from './PagoParcialPanel';
 
 type SplitStep = 'modo' | 'configurar' | 'facturacion' | 'cobrar';
 type SplitMode = 'partes_iguales' | 'por_items' | 'montos_libres';
@@ -54,56 +52,82 @@ interface DividirCuentaPanelProps {
   mesaTotal: number;
   formatCurrency: (n: number) => string;
   onBack: () => void;
+  /**
+   * Callback cuando todas las cuentas están pagadas en modo NORMAL
+   * (mesa completa). En modo parcial se llama `onPartialAllPaid` en su lugar.
+   */
   onAllPaid: (pagos: PagosObject) => void;
-  clientes: Customer[];
-  selectedClienteId: string;
-  onClienteChange: (id: string) => void;
+  /**
+   * Datos del cliente + facturación SIAT. Todos opcionales: en modo pago
+   * parcial (con `itemsParciales` seteado) se salta el step de facturación,
+   * por lo que ninguno de estos se necesita.
+   */
+  clientes?: Customer[];
+  selectedClienteId?: string;
+  onClienteChange?: (id: string) => void;
   qrImageUrl?: string | null;
 
   // ── Facturación (mismas props que PagoPanel) ──────────────────────────
-  noFacturar: boolean;
-  onNoFacturarChange: (v: boolean) => void;
-  esSinNombre: boolean;
-  onEsSinNombreChange: (v: boolean) => void;
-  codigoTipoDocumento: number;
-  onCodigoTipoDocumentoChange: (v: number) => void;
-  numeroDocumento: string;
-  onNumeroDocumentoChange: (v: string) => void;
-  complemento: string;
-  onComplementoChange: (v: string) => void;
-  facturacionNombre: string;
-  onFacturacionNombreChange: (v: string) => void;
+  noFacturar?: boolean;
+  onNoFacturarChange?: (v: boolean) => void;
+  esSinNombre?: boolean;
+  onEsSinNombreChange?: (v: boolean) => void;
+  codigoTipoDocumento?: number;
+  onCodigoTipoDocumentoChange?: (v: number) => void;
+  numeroDocumento?: string;
+  onNumeroDocumentoChange?: (v: string) => void;
+  complemento?: string;
+  onComplementoChange?: (v: string) => void;
+  facturacionNombre?: string;
+  onFacturacionNombreChange?: (v: string) => void;
   /**
    * Código SIN del país de origen del documento (1..211). Sólo se usa
    * cuando el tipo es CEX o PAS y NO hay cliente del dropdown.
    */
-  paisOrigenCodigo: number | null;
-  onPaisOrigenCodigoChange: (v: number | null) => void;
+  paisOrigenCodigo?: number | null;
+  onPaisOrigenCodigoChange?: (v: number | null) => void;
   /** Si el cliente seleccionado es "Consumidor Final" o no hay cliente. */
-  clienteEsConsumidorFinal: boolean;
+  clienteEsConsumidorFinal?: boolean;
   /** Si el cliente fue asignado del dropdown (omite verificación NIT). */
-  clienteAsignadoDelDropdown: boolean;
+  clienteAsignadoDelDropdown?: boolean;
 
   // Búsqueda en backend desde Datos de facturación
-  docSearchResults: Customer[];
-  docSearchLoading: boolean;
-  docSearchActive: boolean;
-  nombreSearchResults: Customer[];
-  nombreSearchLoading: boolean;
-  nombreSearchActive: boolean;
-  onAssignCustomerFromSearch: (c: Customer) => void;
-  onClearSearchResults: () => void;
+  docSearchResults?: Customer[];
+  docSearchLoading?: boolean;
+  docSearchActive?: boolean;
+  nombreSearchResults?: Customer[];
+  nombreSearchLoading?: boolean;
+  nombreSearchActive?: boolean;
+  onAssignCustomerFromSearch?: (c: Customer) => void;
+  onClearSearchResults?: () => void;
 
   // Form de "crear cliente nuevo" inline
-  reviewShowNewCustomerForm: boolean;
-  onToggleReviewNewCustomerForm: () => void;
-  reviewNewCustomerName: string;
-  onReviewNewCustomerNameChange: (v: string) => void;
-  reviewNewCustomerPhone: string;
-  onReviewNewCustomerPhoneChange: (v: string) => void;
-  isCreatingCustomer: boolean;
+  reviewShowNewCustomerForm?: boolean;
+  onToggleReviewNewCustomerForm?: () => void;
+  reviewNewCustomerName?: string;
+  onReviewNewCustomerNameChange?: (v: string) => void;
+  reviewNewCustomerPhone?: string;
+  onReviewNewCustomerPhoneChange?: (v: string) => void;
+  isCreatingCustomer?: boolean;
   /** Versión con callback (para reusar el de PagoPanel). */
-  onCreateCustomerReview: (nombre: string, celular: string, onCreated: (id: string) => void) => void;
+  onCreateCustomerReview?: (nombre: string, celular: string, onCreated: (id: string) => void) => void;
+
+  // ── Modo pago parcial (nuevo) ──────────────────────────────────────────
+  /**
+   * Si se setea, el panel opera en modo "pago parcial": sólo opera sobre
+   * estos items (no sobre todo el pedido), el monto total es la suma de
+   * los pendientes, y al confirmar se llama `onPartialAllPaid` con los
+   * pagos agrupados + el `itemsCubiertos` (NO se emite factura SIAT).
+   */
+  itemsParciales?: PagoParcialItem[];
+  /** Callback alternativo a `onAllPaid` para el modo parcial. */
+  onPartialAllPaid?: (params: {
+    pagos: PagosObject;
+    itemsCubiertos: ItemCubiertoInput[];
+  }) => Promise<void>;
+  /** Modo inicial cuando se abre el panel en modo parcial. Si se setea,
+   *  se salta el step `modo` y se entra directo a `configurar`. */
+  initialMode?: SplitMode;
 }
 
 
@@ -122,26 +146,54 @@ function buildIguales(n: number, total: number): CuentaDividida[] {
 
 export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
   mesaName, order, mesaTotal, formatCurrency, onBack, onAllPaid,
-  clientes, selectedClienteId, onClienteChange, qrImageUrl,
+  clientes = [], selectedClienteId = '', onClienteChange = () => {}, qrImageUrl = null,
   // Facturación
-  noFacturar, onNoFacturarChange,
-  esSinNombre, onEsSinNombreChange,
-  codigoTipoDocumento, onCodigoTipoDocumentoChange,
-  numeroDocumento, onNumeroDocumentoChange,
-  complemento, onComplementoChange,
-  facturacionNombre, onFacturacionNombreChange,
-  paisOrigenCodigo, onPaisOrigenCodigoChange,
-  clienteEsConsumidorFinal, clienteAsignadoDelDropdown,
-  docSearchResults, docSearchLoading, docSearchActive,
-  nombreSearchResults, nombreSearchLoading, nombreSearchActive,
-  onAssignCustomerFromSearch, onClearSearchResults,
-  reviewShowNewCustomerForm, onToggleReviewNewCustomerForm,
-  reviewNewCustomerName, onReviewNewCustomerNameChange,
-  reviewNewCustomerPhone, onReviewNewCustomerPhoneChange,
-  isCreatingCustomer, onCreateCustomerReview,
+  noFacturar = false, onNoFacturarChange = () => {},
+  esSinNombre = false, onEsSinNombreChange = () => {},
+  codigoTipoDocumento = 5, onCodigoTipoDocumentoChange = () => {},
+  numeroDocumento = '', onNumeroDocumentoChange = () => {},
+  complemento = '', onComplementoChange = () => {},
+  facturacionNombre = '', onFacturacionNombreChange = () => {},
+  paisOrigenCodigo = null, onPaisOrigenCodigoChange = () => {},
+  clienteEsConsumidorFinal = true, clienteAsignadoDelDropdown = false,
+  docSearchResults = [], docSearchLoading = false, docSearchActive = false,
+  nombreSearchResults = [], nombreSearchLoading = false, nombreSearchActive = false,
+  onAssignCustomerFromSearch = () => {}, onClearSearchResults = () => {},
+  reviewShowNewCustomerForm = false, onToggleReviewNewCustomerForm = () => {},
+  reviewNewCustomerName = '', onReviewNewCustomerNameChange = () => {},
+  reviewNewCustomerPhone = '', onReviewNewCustomerPhoneChange = () => {},
+  isCreatingCustomer = false, onCreateCustomerReview = () => {},
+  // Pago parcial
+  itemsParciales, onPartialAllPaid, initialMode,
 }) => {
-  const [step, setStep] = useState<SplitStep>('modo');
-  const [mode, setMode] = useState<SplitMode>('partes_iguales');
+  const esParcial = Array.isArray(itemsParciales) && itemsParciales.length > 0;
+
+  // En modo parcial, `itemsParciales` ya viene agregado por producto (una
+  // entrada por producto, sumando cantidad/pendiente across todas las rondas
+  // donde aparezca) — se construye orderEfectivo directamente desde ahí, sin
+  // filtrar el `order` crudo por fila de ronda (que ya no calza 1:1 con
+  // itemsParciales tras la agregación).
+  const orderEfectivo: ReviewOrderItem[] = React.useMemo(() => {
+    if (!esParcial) return order;
+    return itemsParciales!.map(p => ({
+      cartKey: p.cartKey,
+      product: { name: p.product.name, tipo: p.product.tipo },
+      precioFinal: p.precioFinal,
+      quantity: p.quantity - p.cantidadPagada,
+    }));
+  }, [esParcial, order, itemsParciales]);
+
+  const mesaTotalEfectivo: number = React.useMemo(() => {
+    if (!esParcial) return mesaTotal;
+    return itemsParciales!.reduce(
+      (s, i) => s + i.precioFinal * (i.quantity - i.cantidadPagada),
+      0,
+    );
+  }, [esParcial, mesaTotal, itemsParciales]);
+
+  const stepInicial: SplitStep = esParcial && initialMode ? 'configurar' : 'modo';
+  const [step, setStep] = useState<SplitStep>(stepInicial);
+  const [mode, setMode] = useState<SplitMode>(initialMode ?? 'partes_iguales');
 
   // partes_iguales
   const [numPersonas, setNumPersonas] = useState(2);
@@ -149,7 +201,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
   // por_items
   const [numCuentasPorItems, setNumCuentasPorItems] = useState(2);
   const [itemAssignments, setItemAssignments] = useState<Record<string, number>>(
-    () => Object.fromEntries(order.map(i => [i.cartKey, 0]))
+    () => Object.fromEntries(orderEfectivo.map(i => [i.cartKey, 0]))
   );
 
   // montos_libres
@@ -169,8 +221,8 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
   const cashNum = parseFloat(cashInput.replace(',', '.')) || 0;
   const allPaid = cuentas.length > 0 && cuentas.every(c => c.status === 'pagado');
 
-  const resetItemAssignments = (_n: number) =>
-    setItemAssignments(Object.fromEntries(order.map(i => [i.cartKey, 0])));
+  const resetItemAssignments = () =>
+    setItemAssignments(Object.fromEntries(orderEfectivo.map(i => [i.cartKey, 0])));
 
   const cycleItemAssignment = (cartKey: string) => {
     setItemAssignments(prev => ({
@@ -193,10 +245,16 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
   };
 
   const montoLibresSum = montosLibres.reduce((s, v) => s + (parseFloat(v) || 0), 0);
-  const montoLibresDiff = parseFloat((mesaTotal - montoLibresSum).toFixed(2));
+  const montoLibresDiff = parseFloat((mesaTotalEfectivo - montoLibresSum).toFixed(2));
 
   const canContinue = (() => {
-    if (mode === 'por_items') return Object.values(itemAssignments).every(v => v > 0);
+    if (mode === 'por_items') {
+      // En modo parcial, basta con que AL MENOS un item esté asignado
+      // (los no asignados quedan como saldo pendiente).
+      if (esParcial) return Object.values(itemAssignments).some(v => v > 0);
+      // Modo normal: todos los items deben estar asignados.
+      return Object.values(itemAssignments).every(v => v > 0);
+    }
     if (mode === 'montos_libres') return Math.abs(montoLibresDiff) < 0.01;
     return true;
   })();
@@ -207,13 +265,13 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
     let nuevas: CuentaDividida[] = [];
 
     if (mode === 'partes_iguales') {
-      nuevas = buildIguales(numPersonas, mesaTotal);
+      nuevas = buildIguales(numPersonas, mesaTotalEfectivo);
     } else if (mode === 'por_items') {
       nuevas = Array.from({ length: numCuentasPorItems }, (_, i) => {
         const keys = Object.entries(itemAssignments)
           .filter(([, acc]) => acc === i + 1)
           .map(([k]) => k);
-        const assigned = order.filter(item => keys.includes(item.cartKey));
+        const assigned = orderEfectivo.filter(item => keys.includes(item.cartKey));
         const monto = assigned.reduce((s, item) => s + item.precioFinal * item.quantity, 0);
         const displayItems: DisplayItem[] = assigned.map(item => ({
           name: item.product.name,
@@ -240,9 +298,37 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
     setStep('cobrar');
   };
 
+  /**
+   * En modo parcial, después de cobrar todas las cuentas, vamos a un
+   * step de confirmación simple (sin facturación SIAT) y al confirmar
+   * se llama `onPartialAllPaid` con pagos agrupados + itemsCubiertos.
+   *
+   * `itemsCubiertos` siempre = la selección completa del usuario
+   * (no se divide por cuenta); el split es sólo del lado del pago.
+   *
+   * En modo "por_items" parcial, sólo se incluyen los items asignados
+   * a alguna cuenta (los no asignados quedan como saldo pendiente).
+   */
+  const computeItemsCubiertos = (): ItemCubiertoInput[] => {
+    if (!esParcial) return [];
+    if (mode === 'por_items') {
+      const parcialMap = new Map(itemsParciales!.map(i => [i.cartKey, i]));
+      return Object.entries(itemAssignments)
+        .filter(([, acc]) => acc > 0)
+        .map(([cartKey]) => {
+          const p = parcialMap.get(cartKey)!;
+          return { producto_id: p.productoId, cantidad: p.quantity - p.cantidadPagada };
+        });
+    }
+    return itemsParciales!.map(p => ({
+      producto_id: p.productoId,
+      cantidad: p.quantity - p.cantidadPagada,
+    }));
+  };
+
   const handleCobrarCuenta = () => {
     if (!activaCuenta) return;
-    if (payMethod === 'cash' && cashNum < activaCuenta.monto) {
+    if (payMethod === 'cash' && cashNum > 0 && cashNum < activaCuenta.monto) {
       setCashError('Efectivo insuficiente');
       return;
     }
@@ -264,6 +350,10 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
     setStep('facturacion');
   };
 
+  const handleConfirmarFacturacion = () => {
+    handleConfirmarVenta();
+  };
+
   const handleConfirmarVenta = () => {
     // Sync 11: agrupar las cuentas por código SIN (varias líneas pueden
     // compartir método) y armar `DtoPagos.Lineas[]`.
@@ -277,7 +367,12 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
       codigo,
       monto,
     }));
-    const pagos: PagosObject = { lineas, total: mesaTotal };
+    const pagos: PagosObject = { lineas, total: mesaTotalEfectivo };
+
+    if (esParcial && onPartialAllPaid) {
+      onPartialAllPaid({ pagos, itemsCubiertos: computeItemsCubiertos() });
+      return;
+    }
     onAllPaid(pagos);
   };
 
@@ -298,53 +393,62 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
     });
   };
 
-  // ── Modo de facturación derivado (mismo patrón que PagoPanel) ──────────
-  const selectedMode: ModoFacturacion = noFacturar
-    ? 'no_facturar'
-    : esSinNombre
-      ? 'sin_nombre'
-      : 'con_datos';
-
-  const handleModeChange = (modo: ModoFacturacion) => {
-    if (modo === 'no_facturar') {
-      onNoFacturarChange(true);
-      onEsSinNombreChange(false);
-    } else if (modo === 'sin_nombre') {
-      onNoFacturarChange(false);
-      onEsSinNombreChange(true);
-    } else {
-      onNoFacturarChange(false);
-      onEsSinNombreChange(false);
-    }
-  };
-
   // Validación para habilitar "Siguiente" del paso facturación.
   // En modo "Con datos" se requiere tanto el nombre como el número de documento.
-  const facturacionValida =
-    noFacturar
-    || esSinNombre
-    || (numeroDocumento.trim() !== '' && facturacionNombre.trim() !== '');
+  const facturacionValida = esFacturacionValida({
+    noFacturar, esSinNombre, numeroDocumento, facturacionNombre,
+  });
 
   const headerBack =
     step === 'modo' ? onBack :
-    step === 'configurar' ? () => setStep('modo') :
+    step === 'configurar' ? (esParcial ? onBack : () => setStep('modo')) :
     step === 'cobrar' ? () => setStep('configurar') :
     () => setStep('cobrar');
+
+  // Indicador de progreso: la secuencia real de pasos difiere si el modo
+  // parcial saltea el step "modo" (siempre lo hace cuando llega con
+  // `initialMode` ya elegido desde PagoParcialPanel).
+  const stepsSecuencia: SplitStep[] = esParcial
+    ? ['configurar', 'cobrar', 'facturacion']
+    : ['modo', 'configurar', 'cobrar', 'facturacion'];
+  const stepIndex = Math.max(0, stepsSecuencia.indexOf(step));
 
   return (
     <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh]">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-coffee-100 flex-shrink-0">
-        <div>
-          <p className="text-xs text-coffee-400 uppercase tracking-wide font-semibold">Dividir cuenta</p>
-          <h3 className="font-display font-bold text-coffee-900 text-lg">{mesaName}</h3>
+      <div className="bg-coffee-800 px-4 md:px-5 py-3 md:py-3.5 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="h-8 w-8 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
+            <Receipt className="h-4 w-4 text-cream" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-cream font-semibold text-sm leading-tight truncate">
+              {esParcial ? 'Dividir pago parcial' : 'Dividir cuenta'} · {mesaName}
+            </p>
+            <p className="text-[10px] text-coffee-300">
+              Paso {stepIndex + 1} de {stepsSecuencia.length}
+            </p>
+          </div>
         </div>
         <button
           onClick={headerBack}
-          className="h-8 w-8 rounded-xl bg-coffee-100 flex items-center justify-center text-coffee-600 hover:bg-coffee-200"
+          className="h-8 w-8 rounded-lg bg-white/10 flex items-center justify-center text-coffee-300 hover:bg-white/20 flex-shrink-0"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
+      </div>
+
+      {/* Indicador de progreso */}
+      <div className="flex items-center gap-1.5 px-4 md:px-5 py-2 border-b border-coffee-100 flex-shrink-0">
+        {stepsSecuencia.map((s, i) => (
+          <div
+            key={s}
+            className={clsx(
+              'h-1.5 flex-1 rounded-full transition-colors',
+              i <= stepIndex ? 'bg-coffee-700' : 'bg-coffee-100',
+            )}
+          />
+        ))}
       </div>
 
       {/* ── STEP: MODO ── */}
@@ -428,9 +532,9 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
                 <div className="bg-coffee-50 rounded-2xl p-4 text-center">
                   <p className="text-xs text-coffee-400 uppercase tracking-wide font-semibold">{numPersonas} personas</p>
                   <p className="text-3xl font-display font-bold text-coffee-900 mt-1">
-                    {formatCurrency(mesaTotal / numPersonas)}
+                    {formatCurrency(mesaTotalEfectivo / numPersonas)}
                   </p>
-                  <p className="text-xs text-coffee-400 mt-1">por persona · Total {formatCurrency(mesaTotal)}</p>
+                  <p className="text-xs text-coffee-400 mt-1">por persona · Total {formatCurrency(mesaTotalEfectivo)}</p>
                 </div>
               </>
             )}
@@ -441,14 +545,14 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
                   <p className="text-sm font-semibold text-coffee-700">Número de cuentas</p>
                   <div className="flex items-center gap-3">
                     <button
-                      onClick={() => { const n = Math.max(2, numCuentasPorItems - 1); setNumCuentasPorItems(n); resetItemAssignments(n); }}
+                      onClick={() => { setNumCuentasPorItems(n => Math.max(2, n - 1)); resetItemAssignments(); }}
                       className="h-8 w-8 rounded-xl bg-coffee-100 flex items-center justify-center text-coffee-700 hover:bg-coffee-200"
                     >
                       <Minus className="h-4 w-4" />
                     </button>
                     <span className="text-lg font-bold text-coffee-900 w-6 text-center">{numCuentasPorItems}</span>
                     <button
-                      onClick={() => { const n = Math.min(10, numCuentasPorItems + 1); setNumCuentasPorItems(n); resetItemAssignments(n); }}
+                      onClick={() => { setNumCuentasPorItems(n => Math.min(10, n + 1)); resetItemAssignments(); }}
                       className="h-8 w-8 rounded-xl bg-coffee-100 flex items-center justify-center text-coffee-700 hover:bg-coffee-200"
                     >
                       <Plus className="h-4 w-4" />
@@ -456,10 +560,14 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
                   </div>
                 </div>
 
-                <p className="text-xs text-coffee-400">Toca el número para asignar cada ítem a una cuenta.</p>
+                <p className="text-xs text-coffee-400">
+                  {esParcial
+                    ? 'Toca el número para asignar cada ítem a una cuenta. Los ítems sin asignar quedan como saldo pendiente.'
+                    : 'Toca el número para asignar cada ítem a una cuenta.'}
+                </p>
 
                 <div className="space-y-2">
-                  {order.map(item => (
+                  {orderEfectivo.map(item => (
                     <div key={item.cartKey} className="flex items-center gap-3 p-3 bg-coffee-50 rounded-xl">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-coffee-900 truncate">{item.product.name}</p>
@@ -469,6 +577,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
                       </div>
                       <button
                         onClick={() => cycleItemAssignment(item.cartKey)}
+                        title={itemAssignments[item.cartKey] === 0 ? 'Sin asignar — toca para elegir cuenta' : undefined}
                         className={clsx(
                           'h-9 w-9 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 transition-colors',
                           itemAssignments[item.cartKey] === 0
@@ -485,7 +594,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
                 <div className="grid grid-cols-2 gap-2">
                   {Array.from({ length: numCuentasPorItems }, (_, i) => {
                     const keys = Object.entries(itemAssignments).filter(([, acc]) => acc === i + 1).map(([k]) => k);
-                    const total = order.filter(item => keys.includes(item.cartKey)).reduce((s, item) => s + item.precioFinal * item.quantity, 0);
+                    const total = orderEfectivo.filter(item => keys.includes(item.cartKey)).reduce((s, item) => s + item.precioFinal * item.quantity, 0);
                     return (
                       <div key={i} className="bg-coffee-50 rounded-xl p-3 text-center">
                         <p className="text-xs text-coffee-400 font-semibold">Cuenta {i + 1}</p>
@@ -520,7 +629,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
 
                 <div className="bg-coffee-50 rounded-xl p-3 flex justify-between text-sm">
                   <span className="text-coffee-500">Total a dividir</span>
-                  <span className="font-bold text-coffee-900">{formatCurrency(mesaTotal)}</span>
+                  <span className="font-bold text-coffee-900">{formatCurrency(mesaTotalEfectivo)}</span>
                 </div>
 
                 <div className="space-y-2">
@@ -541,7 +650,9 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
                 </div>
 
                 {Math.abs(montoLibresDiff) < 0.01 ? (
-                  <p className="text-xs text-emerald-600 font-semibold text-center">✓ Los montos cuadran</p>
+                  <p className="text-xs text-emerald-600 font-semibold text-center inline-flex items-center justify-center gap-1 w-full">
+                    <Check className="h-3.5 w-3.5" /> Los montos cuadran
+                  </p>
                 ) : montoLibresDiff > 0 ? (
                   <p className="text-xs text-amber-600 text-center">Falta {formatCurrency(montoLibresDiff)} por asignar</p>
                 ) : (
@@ -572,102 +683,43 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
       {step === 'facturacion' && (
         <>
           <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0 space-y-4">
-            {/* Sección: Cliente */}
-            <section>
-              <p className="text-[10px] font-bold text-coffee-400 uppercase tracking-wider mb-2">
-                Cliente
-              </p>
-              <ClienteFacturacionSection
-                customers={clientes}
-                reviewClienteId={selectedClienteId || null}
-                onReviewClienteChange={(id) => onClienteChange(id ?? '')}
-                reviewShowNewCustomerForm={reviewShowNewCustomerForm}
-                onToggleReviewNewCustomerForm={onToggleReviewNewCustomerForm}
-                reviewNewCustomerName={reviewNewCustomerName}
-                reviewNewCustomerPhone={reviewNewCustomerPhone}
-                onReviewNewCustomerNameChange={onReviewNewCustomerNameChange}
-                onReviewNewCustomerPhoneChange={onReviewNewCustomerPhoneChange}
-                onCreateCustomer={onCreateCustomerReview}
-                isCreatingCustomer={isCreatingCustomer}
-              />
-            </section>
-
-            {/* Sección: Datos de facturación */}
-            <section>
-              <p className="text-[10px] font-bold text-coffee-400 uppercase tracking-wider mb-2">
-                Datos de facturación
-              </p>
-              <div className="space-y-3">
-                <ModoFacturacionCards selected={selectedMode} onChange={handleModeChange} />
-
-                {esSinNombre ? (
-                  <div className="rounded-2xl border-2 border-coffee-400 bg-coffee-50/40 overflow-hidden">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-coffee-100/60 border-b border-coffee-200">
-                      <UserX className="h-3.5 w-3.5 text-amber-600 flex-shrink-0" />
-                      <p className="text-[10px] font-bold text-coffee-700 uppercase tracking-wider">
-                        Factura Sin Nombre
-                      </p>
-                    </div>
-                    <div className="p-3">
-                      <p className="text-[11px] text-coffee-700 leading-relaxed">
-                        NIT (5) · Documento <span className="font-mono">&quot;0&quot;</span> · Nombre{' '}
-                        <span className="font-mono">&quot;{DEFAULT_SIN_NOMBRE}&quot;</span>.
-                      </p>
-                    </div>
-                  </div>
-                ) : noFacturar ? (
-                  <div className="rounded-2xl border-2 border-coffee-400 bg-coffee-50/40 overflow-hidden">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-coffee-100/60 border-b border-coffee-200">
-                      <Ban className="h-3.5 w-3.5 text-coffee-600 flex-shrink-0" />
-                      <p className="text-[10px] font-bold text-coffee-700 uppercase tracking-wider">
-                        Venta sin factura
-                      </p>
-                    </div>
-                    <div className="p-3">
-                      <p className="text-[11px] text-coffee-600 leading-relaxed">
-                        Se registrará la venta internamente sin emitir factura al SIAT.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border-2 border-coffee-400 bg-coffee-50/40 overflow-hidden">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-coffee-100/60 border-b border-coffee-200">
-                      <FileText className="h-3.5 w-3.5 text-coffee-700 flex-shrink-0" />
-                      <p className="text-[10px] font-bold text-coffee-700 uppercase tracking-wider">
-                        Datos fiscales
-                      </p>
-                      <span className="ml-auto text-[9px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded uppercase tracking-wider">
-                        Requerido
-                      </span>
-                    </div>
-                    <div className="p-3">
-                      <DatosFiscalesForm
-                        codigoTipoDocumento={codigoTipoDocumento}
-                        numeroDocumento={numeroDocumento}
-                        complemento={complemento}
-                        facturacionNombre={facturacionNombre}
-                        onCodigoTipoDocumentoChange={onCodigoTipoDocumentoChange}
-                        onNumeroDocumentoChange={onNumeroDocumentoChange}
-                        onComplementoChange={onComplementoChange}
-                        onFacturacionNombreChange={onFacturacionNombreChange}
-                        paisOrigenCodigo={paisOrigenCodigo}
-                        onPaisOrigenCodigoChange={onPaisOrigenCodigoChange}
-                        docSearchResults={docSearchResults}
-                        docSearchLoading={docSearchLoading}
-                        docSearchActive={docSearchActive}
-                        nombreSearchResults={nombreSearchResults}
-                        nombreSearchLoading={nombreSearchLoading}
-                        nombreSearchActive={nombreSearchActive}
-                        onAssignCustomerFromSearch={onAssignCustomerFromSearch}
-                        onClearSearchResults={onClearSearchResults}
-                        clienteEsConsumidorFinal={clienteEsConsumidorFinal}
-                        clienteAsignadoDelDropdown={clienteAsignadoDelDropdown}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </section>
+            <FacturacionStepCard
+              clientes={clientes}
+              selectedClienteId={selectedClienteId}
+              onClienteChange={onClienteChange}
+              noFacturar={noFacturar}
+              onNoFacturarChange={onNoFacturarChange}
+              esSinNombre={esSinNombre}
+              onEsSinNombreChange={onEsSinNombreChange}
+              codigoTipoDocumento={codigoTipoDocumento}
+              onCodigoTipoDocumentoChange={onCodigoTipoDocumentoChange}
+              numeroDocumento={numeroDocumento}
+              onNumeroDocumentoChange={onNumeroDocumentoChange}
+              complemento={complemento}
+              onComplementoChange={onComplementoChange}
+              facturacionNombre={facturacionNombre}
+              onFacturacionNombreChange={onFacturacionNombreChange}
+              paisOrigenCodigo={paisOrigenCodigo}
+              onPaisOrigenCodigoChange={onPaisOrigenCodigoChange}
+              clienteEsConsumidorFinal={clienteEsConsumidorFinal}
+              clienteAsignadoDelDropdown={clienteAsignadoDelDropdown}
+              docSearchResults={docSearchResults}
+              docSearchLoading={docSearchLoading}
+              docSearchActive={docSearchActive}
+              nombreSearchResults={nombreSearchResults}
+              nombreSearchLoading={nombreSearchLoading}
+              nombreSearchActive={nombreSearchActive}
+              onAssignCustomerFromSearch={onAssignCustomerFromSearch}
+              onClearSearchResults={onClearSearchResults}
+              reviewShowNewCustomerForm={reviewShowNewCustomerForm}
+              onToggleReviewNewCustomerForm={onToggleReviewNewCustomerForm}
+              reviewNewCustomerName={reviewNewCustomerName}
+              onReviewNewCustomerNameChange={onReviewNewCustomerNameChange}
+              reviewNewCustomerPhone={reviewNewCustomerPhone}
+              onReviewNewCustomerPhoneChange={onReviewNewCustomerPhoneChange}
+              isCreatingCustomer={isCreatingCustomer}
+              onCreateCustomerReview={onCreateCustomerReview}
+            />
           </div>
 
           <div className="flex-shrink-0 border-t border-coffee-100 px-5 py-4 flex gap-2">
@@ -678,7 +730,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
               ← Atrás
             </button>
             <button
-              onClick={handleConfirmarVenta}
+              onClick={handleConfirmarFacturacion}
               disabled={!facturacionValida}
               className={clsx(
                 'flex-1 py-3 rounded-2xl font-bold text-sm transition-all inline-flex items-center justify-center gap-2',
@@ -688,7 +740,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
               )}
               title={!facturacionValida ? 'Ingresa el nombre y el número de documento' : undefined}
             >
-              <Check className="h-4 w-4" /> Confirmar venta
+              <Check className="h-4 w-4" /> {esParcial ? 'Confirmar pago parcial' : 'Confirmar venta'}
             </button>
           </div>
         </>
@@ -700,7 +752,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-0">
           <div className="bg-coffee-50 rounded-xl p-3 flex justify-between text-sm mb-2">
             <span className="text-coffee-500">{cuentas.length} cuentas</span>
-            <span className="font-bold text-coffee-900">{formatCurrency(mesaTotal)}</span>
+            <span className="font-bold text-coffee-900">{formatCurrency(mesaTotalEfectivo)}</span>
           </div>
 
           {/* Acordeón de productos para partes_iguales y montos_libres */}
@@ -715,7 +767,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
               </button>
               {showOrderList && (
                 <div className="px-4 py-3 space-y-1.5 border-t border-coffee-100">
-                  {order.map(item => (
+                  {orderEfectivo.map(item => (
                     <div key={item.cartKey} className="flex justify-between text-xs text-coffee-500">
                       <span>{item.product.name} ×{item.quantity}</span>
                       <span className="font-semibold">
@@ -733,7 +785,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
               key={cuenta.id}
               className={clsx(
                 'rounded-2xl border-2 transition-all',
-                cuenta.status === 'activo' && 'border-blue-400 shadow-md',
+                cuenta.status === 'activo' && 'border-coffee-700 shadow-md',
                 cuenta.status === 'pagado' && 'border-emerald-200 bg-emerald-50',
                 cuenta.status === 'pendiente' && 'border-coffee-100 opacity-60',
               )}
@@ -760,7 +812,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
                     </div>
                   )}
                   {cuenta.status === 'activo' && (
-                    <span className="text-xs font-bold bg-blue-100 text-blue-700 rounded-full px-2.5 py-1">Activo</span>
+                    <span className="text-xs font-bold bg-amber-100 text-amber-700 rounded-full px-2.5 py-1">Activo</span>
                   )}
                   {cuenta.status === 'pendiente' && (
                     <span className="text-xs font-semibold bg-coffee-100 text-coffee-400 rounded-full px-2.5 py-1">Pendiente</span>
@@ -781,7 +833,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
               )}
 
               {cuenta.status === 'activo' && (
-                <div className="px-4 pb-4 border-t border-blue-100 pt-3 space-y-3">
+                <div className="px-4 pb-4 border-t border-coffee-100 pt-3 space-y-3">
                   <div className="grid grid-cols-2 gap-2">
                     {PAY_METHODS.map(pm => (
                       <button
@@ -806,7 +858,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
                         value={cashInput}
                         onChange={e => { setCashInput(e.target.value); setCashError(''); }}
                         onWheel={e => e.currentTarget.blur()}
-                        className="w-full px-3 py-2.5 rounded-xl border border-coffee-200 focus:border-blue-400 focus:outline-none text-coffee-900 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-full px-3 py-2.5 rounded-xl border border-coffee-200 focus:border-coffee-500 focus:outline-none text-coffee-900 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       {cashNum >= cuenta.monto && cashInput !== '' && (
                         <p className="text-xs text-coffee-500 mt-1 text-right">
@@ -835,7 +887,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
 
                   <button
                     onClick={handleCobrarCuenta}
-                    className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-500 active:scale-95 transition-all"
+                    className="w-full py-3 rounded-xl bg-coffee-800 text-cream font-bold text-sm hover:bg-coffee-700 active:scale-95 transition-all"
                   >
                     Cobrar esta cuenta
                   </button>
@@ -859,6 +911,7 @@ export const DividirCuentaPanel: React.FC<DividirCuentaPanelProps> = ({
         )}
         </>
       )}
+
       <PrintComandaModal
         data={printCuentaData}
         onClose={() => setPrintCuentaData(null)}

@@ -12,9 +12,10 @@ import { TopProductsChart } from '../components/dashboard/TopProductsChart';
 import { RecentActivity, LowStockAlert } from '../components/dashboard/RecentActivity';
 import { SaleDetailModal } from '../components/modals/SaleDetailModal';
 import { SkeletonKpiCard, SkeletonChart, SkeletonActivityList } from '../components/ui';
-import { formatCurrency } from '../utils';
+import { formatCurrency, getPaymentMethodLabel } from '../utils';
+import { sinCodeToPaymentType } from '../lib/mappers/metodosPago';
 import { useDashboard } from '../hooks/useDashboard';
-import type { Sale } from '../types';
+import type { PaymentMethodType, Sale } from '../types';
 
 const today = new Date(2026, 3, 17);
 
@@ -29,15 +30,33 @@ const DashboardPage: React.FC = () => {
     if (!v) return null;
     const codeLabel = `V-${v.numeroFactura}`;
     const monto = Number(v.montoTotal);
-    const esTarjeta = v.numeroTarjeta != null && v.numeroTarjeta !== '';
-    const paymentMethods: Sale['paymentMethods'] = [];
-    if (esTarjeta) {
-      paymentMethods.push({ id: `${codeLabel}-card`, type: 'card', name: 'Tarjeta', amount: monto });
-    } else {
-      paymentMethods.push({ id: `${codeLabel}-cash`, type: 'cash', name: 'Efectivo', amount: monto });
-    }
     const parseDecimal = (val: string | number | null | undefined) => (val == null ? 0 : typeof val === 'number' ? val : parseFloat(val) || 0);
     const parseDate = (val: string | null | undefined) => (val ? new Date(val) : new Date());
+
+    // Métodos de pago: usar `VentaPagos` si están, sino `codigoMetodoPago`,
+    // sino fallback legacy `numeroTarjeta`. Coincide con `sales.mapper.ts`
+    // para que el modal de detalle muestre lo mismo que el historial.
+    const buildPm = (type: PaymentMethodType, amount: number, suffix: string) => ({
+      id: `${codeLabel}-${suffix}`,
+      type,
+      name: getPaymentMethodLabel(type),
+      amount,
+    });
+    const pagosLines = (v.pagos ?? []).filter((p) => parseDecimal(p.monto) > 0);
+    let paymentMethods: Sale['paymentMethods'];
+    if (pagosLines.length > 0) {
+      paymentMethods = pagosLines.map((p, idx) => {
+        const tipo = sinCodeToPaymentType(p.codigoMetodoPago);
+        return buildPm(tipo, parseDecimal(p.monto), `${tipo}-${idx}`);
+      });
+    } else if (v.codigoMetodoPago != null) {
+      const tipo = sinCodeToPaymentType(v.codigoMetodoPago);
+      paymentMethods = [buildPm(tipo, monto, tipo)];
+    } else if (v.numeroTarjeta != null && v.numeroTarjeta !== '') {
+      paymentMethods = [buildPm('card', monto, 'card')];
+    } else {
+      paymentMethods = [buildPm('cash', monto, 'cash')];
+    }
     return {
       id: String(v.id),
       code: codeLabel,

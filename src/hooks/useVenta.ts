@@ -5,6 +5,7 @@ import { GET_PARA_LLEVAR } from '../lib/queries/ventas.queries';
 import { toast } from '../components/ui/Toast';
 import { interpretarErrorCobro } from '../lib/errores';
 import type { RondaCreatedResponse, DtoRondaEditar, DtoRondaDetalleEditar } from './useMesas';
+import type { PedidoActualizado, ItemCubiertoInput } from '../types';
 
 export interface ParaLlevarPedido {
   disponible: boolean;
@@ -32,7 +33,9 @@ export interface ParaLlevarPedido {
       subTotal: number;
       detalle: {
         cantidad: number;
+        cantidadDescontada?: number;
         id: number;
+        id_Producto: number;
         id_Ronda: number;
         nombre_Producto: string;
         precio: number;
@@ -71,6 +74,12 @@ export interface RespuestaCobro {
   CodigoHash: string | null;
   Siat: import('../types/siat').SiatResultado | null;
   XmlGenerado: boolean;
+
+  // ── Pago parcial ──
+  /** `true` cuando el cobro fue un pago parcial (mesa/pedido sigue abierto). */
+  EsAbono?: boolean | null;
+  /** Estado del pedido tras el cobro (parcial o final). */
+  pedidoActualizado?: PedidoActualizado | null;
 }
 
 interface UseVentaReturn {
@@ -83,6 +92,16 @@ interface UseVentaReturn {
   eliminarDetalleParaLlevar: (detalleId: number, pedidoId: number) => Promise<boolean>;
   cobrarParaLlevar: (
     pedidoId: number,
+    body: Record<string, unknown>,
+  ) => Promise<RespuestaCobro | null>;
+  /**
+   * Registra un pago parcial sobre un pedido para llevar.
+   * Body debe incluir `itemsCubiertos: ItemCubiertoInput[]` y
+   * `mantenerMesaAbierta: true`. El backend deja el pedido abierto.
+   */
+  aplicarAbonoParaLlevar: (
+    pedidoId: number,
+    itemsCubiertos: ItemCubiertoInput[],
     body: Record<string, unknown>,
   ) => Promise<RespuestaCobro | null>;
   liberarPedido: () => Promise<boolean>;
@@ -202,6 +221,31 @@ export function useVenta(): UseVentaReturn {
     }
   }, []);
 
+  const aplicarAbonoParaLlevar = useCallback(async (
+    pedidoId: number,
+    itemsCubiertos: ItemCubiertoInput[],
+    body: Record<string, unknown>,
+  ): Promise<RespuestaCobro | null> => {
+    if (!itemsCubiertos.length) {
+      toast.error('Sin selección', 'Selecciona al menos un item para cobrar.');
+      return null;
+    }
+    try {
+      const res = await api.post<RespuestaCobro>('/Venta/cobrar', {
+        id_Pedido: pedidoId,
+        ...body,
+        itemsCubiertos,
+        mantenerMesaAbierta: true,
+      });
+      return res;
+    } catch (err) {
+      const { title, message, nivel } = interpretarErrorCobro(err, 'No se pudo registrar el pago parcial.');
+      if (nivel === 'warning') toast.warning(title, message);
+      else toast.error(title, message);
+      return null;
+    }
+  }, []);
+
   const liberarPedido = useCallback(async (): Promise<boolean> => {
     try {
       await api.put('/Venta/liberar');
@@ -222,6 +266,7 @@ export function useVenta(): UseVentaReturn {
     editarDetalleParaLlevar,
     eliminarDetalleParaLlevar,
     cobrarParaLlevar,
+    aplicarAbonoParaLlevar,
     liberarPedido,
   };
 }

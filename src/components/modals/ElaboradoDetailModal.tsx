@@ -133,7 +133,7 @@ export const ElaboradoDetailModal: React.FC<Props> = ({
   const maxProducible = React.useMemo(() => {
     if (product.producible === true) return effectiveMax ?? product.stock;
 
-    let max = effectiveMax ?? product.cantidadProducible ?? 999;
+    let max = effectiveMax ?? product.cantidadProducible ?? Number.POSITIVE_INFINITY;
 
     for (const opcionId of Object.values(selecciones)) {
       const stockInfo = opcionesStockInfo.find(o => o.opcionId === opcionId);
@@ -217,8 +217,14 @@ ajusteCantidad: opcion.ajusteCantidad,
             <p className="text-xs text-coffee-500 mb-0.5">
               {product.producible === false ? 'Producible hoy' : 'Stock disponible'}
             </p>
-            <p className={clsx('text-lg font-bold', qty > maxProducible ? 'text-red-600' : 'text-coffee-900')}>
-              {qty > maxProducible ? `Máximo: ${maxProducible}` : maxProducible} unidades
+            <p className={clsx(
+              'font-bold',
+              Number.isFinite(maxProducible) ? 'text-lg' : 'text-4xl sm:text-5xl leading-none',
+              qty > maxProducible ? 'text-red-600' : 'text-coffee-900',
+            )}>
+              {Number.isFinite(maxProducible)
+                ? `${qty > maxProducible ? `Máximo: ${maxProducible}` : maxProducible} unidades`
+                : '∞'}
             </p>
           </div>
           <div className="flex items-center gap-3">

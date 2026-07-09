@@ -33,6 +33,7 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSubmit, loading, err
     nombre: user?.nombre ?? '',
     apellido: user?.apellido ?? '',
     email: user?.email ?? '',
+    usuario: user?.userName ?? '',
     password: '',
     numeroPhone: user?.celular ?? '',
     rol: user ? (user.rol === 'Admin' ? '0' : user.rol === 'Mesero' ? '1' : '2') : '',
@@ -45,6 +46,9 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSubmit, loading, err
     if (!form.apellido.trim()) e.apellido = 'Requerido';
     if (!form.email.trim()) e.email = 'Requerido';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Email inválido';
+    if (!form.usuario.trim()) e.usuario = 'Requerido';
+    else if (!/^[a-zA-Z0-9._-]{3,20}$/.test(form.usuario)) e.usuario = '3-20 caracteres, solo letras, números, . _ -';
+    else if (form.usuario.trim().toLowerCase() === form.email.trim().toLowerCase()) e.usuario = 'Debe ser distinto del email';
     if (!isEdit && !form.password) e.password = 'Requerido';
     else if (form.password && form.password.length < 6) e.password = 'Mínimo 6 caracteres';
     if (!form.numeroPhone.trim()) e.numeroPhone = 'Requerido';
@@ -61,6 +65,7 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSubmit, loading, err
       nombre: form.nombre.trim(),
       apellido: form.apellido.trim(),
       email: form.email.trim(),
+      usuario: form.usuario.trim(),
       password: form.password,
       numeroPhone: form.numeroPhone.trim(),
       rol: parseInt(form.rol, 10),
@@ -70,7 +75,7 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSubmit, loading, err
       if (emailEditable) {
         await onSubmit(payload as CreateUserPayload);
       } else {
-        const { email, ...rest } = payload;
+        const { email, password, usuario, ...rest } = payload;
         await onSubmit({ ...rest, password: form.password || undefined } as UpdateUserPayload);
       }
     } else {
@@ -110,6 +115,15 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSubmit, loading, err
         value={form.email}
         onChange={(e) => handleChange('email', e.target.value)}
         error={errors?.email ?? localErrors.email}
+        disabled={loading || (isEdit && !emailEditable)}
+      />
+      <Input
+        label="Usuario"
+        type="text"
+        placeholder="ej. j.perez"
+        value={form.usuario}
+        onChange={(e) => handleChange('usuario', e.target.value)}
+        error={errors?.usuario ?? localErrors.usuario}
         disabled={loading || (isEdit && !emailEditable)}
       />
       {showPasswordField && (

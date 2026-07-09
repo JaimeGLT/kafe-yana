@@ -38,6 +38,7 @@ function toStatsWhere(listWhere?: VentaFilters): Record<string, unknown> | undef
   if (listWhere.fechaEmision?.gte) out.fechaDesde = listWhere.fechaEmision.gte;
   if (listWhere.fechaEmision?.lte) out.fechaHasta = listWhere.fechaEmision.lte;
   if (listWhere.estadoSiat?.eq)    out.estadoSiat  = listWhere.estadoSiat.eq;
+  if (listWhere.facturado?.eq !== undefined) out.facturado = listWhere.facturado.eq;
   return Object.keys(out).length > 0 ? out : undefined;
 }
 

@@ -26,6 +26,7 @@ export const GET_MESAS = `
               id_Producto
               nombre_Producto
               cantidad
+              cantidadDescontada
               nota
               precio
               ubicacion
@@ -111,6 +112,7 @@ export const GET_MESA_BY_ID = `
               id_Producto
               nombre_Producto
               cantidad
+              cantidadDescontada
               nota
               precio
               ubicacion

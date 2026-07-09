@@ -90,7 +90,6 @@ export interface SystemSettings {
   currencySymbol: string;
   taxPercentage: number;
   invoicePrefix: string;
-  quotePrefix: string;
   purchaseOrderPrefix: string;
   receiptPrefix: string;
   defaultPaymentTerms: number;
@@ -109,7 +108,6 @@ export interface SystemSettingsInput {
   currencySymbol?: string;
   taxPercentage?: number;
   invoicePrefix?: string;
-  quotePrefix?: string;
   purchaseOrderPrefix?: string;
   receiptPrefix?: string;
   defaultPaymentTerms?: number;

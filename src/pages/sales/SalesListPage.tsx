@@ -9,6 +9,7 @@ import { SalesTable } from '../../components/tables/SalesTable';
 import { SaleDetailModal } from '../../components/modals/SaleDetailModal';
 import { RefundModal } from '../../components/modals/RefundModal';
 import { AnularFacturaModal } from '../../components/modals/AnularFacturaModal';
+import { FacturarSinFacturarModal } from '../../components/modals/FacturarSinFacturarModal';
 import { RevertirAnulacionFacturaModal } from '../../components/modals/RevertirAnulacionFacturaModal';
 import { NotaAjusteModal } from '../../components/modals/NotaAjusteModal';
 import { AnularNotaAjusteModal } from '../../components/modals/AnularNotaAjusteModal';
@@ -26,6 +27,7 @@ import type { Sale } from '../../types';
 import type { CrearNotaAjusteRequest } from '../../types/notaAjuste';
 import type { NotaAjusteResumen } from '../../types/notaAjuste';
 import { useFacturacion } from '../../hooks/useFacturacion';
+import type { DtoDatosFiscalesReenvio } from '../../hooks/useFacturacion';
 import { usePagination } from '../../hooks/usePagination';
 import { useVentasPage } from '../../hooks/useVentasPage';
 import { useVentasStats } from '../../hooks/useVentasStats';
@@ -36,13 +38,13 @@ import { startOfDay, endOfDay } from 'date-fns';
 // ── Page-level filter state ────────────────────────────────────────────────
 
 type StatusFilter = '' | 'completed' | 'refunded' | 'partially_refunded';
-type EstadoSiatFiltro = 'todos' | 'validada' | 'observada' | 'pendiente' | 'anulada';
+type EstadoSiatFiltro = 'todos' | 'validada' | 'observada' | 'pendiente' | 'anulada' | 'sin_facturar';
 
 const isStatusFilter = (v: string): v is StatusFilter =>
   v === '' || v === 'completed' || v === 'refunded' || v === 'partially_refunded';
 
 const isEstadoSiatFiltro = (v: string): v is EstadoSiatFiltro =>
-  v === 'todos' || v === 'validada' || v === 'observada' || v === 'pendiente' || v === 'anulada';
+  v === 'todos' || v === 'validada' || v === 'observada' || v === 'pendiente' || v === 'anulada' || v === 'sin_facturar';
 
 const mapEstadoSiatToApi = (f: EstadoSiatFiltro): string => {
   switch (f) {
@@ -70,7 +72,9 @@ function buildWhere(opts: {
     if (opts.dateTo)   where.fechaEmision.lte = endOfDay(new Date(opts.dateTo + 'T00:00:00')).toISOString();
   }
 
-  if (opts.estadoSiatFilter !== 'todos') {
+  if (opts.estadoSiatFilter === 'sin_facturar') {
+    where.facturado = { eq: false };
+  } else if (opts.estadoSiatFilter !== 'todos') {
     where.estadoSiat = { eq: mapEstadoSiatToApi(opts.estadoSiatFilter) };
   }
 
@@ -147,6 +151,7 @@ export const SalesListPage: React.FC = () => {
   const [selectedVentaId, setSelectedVentaId] = useState<number | null>(null);
   const [refundingSale, setRefundingSale] = useState<Sale | null>(null);
   const [anularSale, setAnularSale] = useState<Sale | null>(null);
+  const [facturarSinFacturarSale, setFacturarSinFacturarSale] = useState<Sale | null>(null);
   const [revertirAnulacionSale, setRevertirAnulacionSale] = useState<Sale | null>(null);
   const [notaAjusteSale, setNotaAjusteSale] = useState<Sale | null>(null);
   const [notaParaAnular, setNotaParaAnular] = useState<NotaAjusteParaAnular | null>(null);
@@ -336,14 +341,23 @@ export const SalesListPage: React.FC = () => {
       items: consolidarItemsPorNombre(itemsCrudos),
     });
   };
-  const handleReenviarSiatById = async (ventaId: number) => {
-    await reenviarFactura(ventaId);
-    await refresh();
-  };
-
   const handleAnularSiatById = (ventaId: number) => {
     const target = ventas.find((s) => s.ventaId === ventaId) ?? selectedSale;
     if (target) setAnularSale(target);
+  };
+
+  const handleFacturarSinFacturarById = (ventaId: number) => {
+    const target = ventas.find((s) => s.ventaId === ventaId) ?? selectedSale;
+    if (target) setFacturarSinFacturarSale(target);
+  };
+
+  const handleConfirmFacturarSinFacturar = async (ventaId: number, datosFiscales: DtoDatosFiscalesReenvio) => {
+    const res = await reenviarFactura(ventaId, datosFiscales);
+    if (res) {
+      await refresh();
+      return true;
+    }
+    return false;
   };
 
   // Confirma la anulación: basta con Transaccion=true (el backend garantiza
@@ -440,7 +454,8 @@ export const SalesListPage: React.FC = () => {
   ];
 
   const estadoSiatOptions: { value: EstadoSiatFiltro; label: string }[] = [
-    { value: 'todos',     label: 'Todos los estados SIAT' },
+    { value: 'todos',         label: 'Todos los estados SIAT' },
+    { value: 'sin_facturar',  label: 'Sin facturar' },
     { value: 'validada',  label: 'SIAT: Validada' },
     { value: 'observada', label: 'SIAT: Observada' },
     { value: 'pendiente', label: 'SIAT: Pendiente' },
@@ -565,7 +580,7 @@ export const SalesListPage: React.FC = () => {
           isLoading={isLoadingDetalles}
           onClose={() => setSelectedVentaId(null)}
           onOpenFacturaModal={handleOpenFacturaModal}
-          onReenviarSiat={handleReenviarSiatById}
+          onFacturarSinFacturar={handleFacturarSinFacturarById}
           onAnularSiat={handleAnularSiatById}
           onRevertirAnulacionSiat={handleRevertirAnulacionSiatById}
           onNotaAjusteSiat={handleNotaAjusteSiatById}
@@ -585,6 +600,14 @@ export const SalesListPage: React.FC = () => {
           onClose={() => setAnularSale(null)}
           sale={anularSale}
           onConfirm={handleConfirmAnularSiat}
+        />
+
+        <FacturarSinFacturarModal
+          key={facturarSinFacturarSale?.ventaId ?? 'closed'}
+          isOpen={!!facturarSinFacturarSale}
+          onClose={() => setFacturarSinFacturarSale(null)}
+          sale={facturarSinFacturarSale}
+          onConfirm={handleConfirmFacturarSinFacturar}
         />
 
         <RevertirAnulacionFacturaModal

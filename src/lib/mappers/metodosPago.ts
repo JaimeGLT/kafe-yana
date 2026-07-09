@@ -11,7 +11,7 @@
  *   - `'cash'`     → 1 (EFECTIVO)         — seed Activo=true en el server.
  *   - `'transfer'` → 7 (TRANSFERENCIA BANCARIA — alias QR en KafeYana) — seed Activo=true.
  *   - `'qr'`       → 7 (alias legacy)      — seed Activo=true.
- *   - `'card'`     → 2 (TARJETA)          — Activo=false por default, requiere habilitación manual del operador.
+ *   - `'card'`     → 2 (TARJETA)          — seed Activo=true en el server.
  *   - `'credit'`   → 5 (OTROS)            — Activo=false por default (categoría genérica para crédito / otros).
  *   - `'mixed'`    → 5 (OTROS)            — solo se usa cuando el cobro se divide en varias líneas.
  *
@@ -57,4 +57,94 @@ export function mapPaymentMethodToSinCode(method: PaymentMethodType): number {
       throw new Error(`PaymentMethodType desconocido: ${String(_exhaustive)}`);
     }
   }
+}
+
+/**
+ * Inversa de `mapPaymentMethodToSinCode`. Se usa al DERIVAR los métodos de
+ * pago de una venta persistida (historial / reportes / detalle) a partir del
+ * código SIN que expone el backend en `Venta.CodigoMetodoPago` y/o en cada
+ * `VentaPago.CodigoMetodoPago`.
+ *
+ * Reglas:
+ *   - 1  → 'cash'      (EFECTIVO)
+ *   - 2  → 'card'      (TARJETA)
+ *   - 5  → 'credit'    (OTROS — categoría genérica)
+ *   - 7  → 'transfer'  (TRANSFERENCIA — alias QR en KafeYana)
+ *   - default → 'cash' (defensa: códigos nuevos del SIN caen a efectivo para
+ *     no romper render del historial)
+ *
+ * No lanza excepción: el backend puede recibir códigos nuevos del SIN
+ * (catálogo semanal) antes que este mapper se actualice.
+ */
+export function sinCodeToPaymentType(codigo: number): PaymentMethodType {
+  switch (codigo) {
+    case SIN_CODIGO.EFECTIVO:
+      return 'cash';
+    case SIN_CODIGO.TARJETA:
+      return 'card';
+    case SIN_CODIGO.OTROS:
+      return 'credit';
+    case SIN_CODIGO.TRANSFERENCIA:
+      return 'transfer';
+    case 32: // legacy: código Qr previo al bugfix jun-2026 (ver TipoPagos.cs)
+      return 'transfer';
+    default:
+      return 'cash';
+  }
+}
+
+/**
+ * Indica si un código SIN corresponde a un método de pago "digital"
+ * (sin manejo de efectivo físico). Se usa como regla de desempate cuando
+ * hay que elegir un método predominante: en empate de montos, el digital
+ * gana sobre el efectivo para la factura SIAT.
+ *
+ * Por ahora el único digital activo por default es TRANSFERENCIA (7) —
+ * alias QR en KafeYana. TARJETA (2) queda fuera intencionalmente porque
+ * por default no está habilitada en el operador; si en el futuro se
+ * activa, basta agregarla al OR.
+ */
+export function esCodigoDigital(codigo: number): boolean {
+  return codigo === SIN_CODIGO.TRANSFERENCIA;
+}
+
+/**
+ * Consolida un `PagosObject` con N líneas en una sola línea predominante
+ * con el monto total. Diseñado para cuando se va a EMITIR FACTURA SIAT
+ * tras una división de cuenta: el SIAT solo admite un `codigoMetodoPago`
+ * por factura, así que se reporta el método predominante con el 100% del
+ * monto. El bloque original (con el split) sigue viajando aparte para
+ * que `VentaPagos` y los acumuladores de caja preserven la auditoría.
+ *
+ * Reglas de predominio:
+ *   1. Gana el método con mayor monto.
+ *   2. En empate de montos, gana el método digital (`esCodigoDigital`)
+ *      sobre el efectivo.
+ *
+ * Si el bloque ya tiene 0 o 1 líneas, se devuelve el mismo objeto (no-op).
+ * El `total` siempre se preserva (es la suma de las líneas originales y
+ * debe coincidir con el monto facturado).
+ */
+export function consolidarPagoParaFactura(pagos: {
+  lineas: Array<{ codigo: number; monto: number }>;
+  total: number;
+}): {
+  lineas: Array<{ codigo: number; monto: number }>;
+  total: number;
+} {
+  if (pagos.lineas.length <= 1) return pagos;
+
+  const ordenadas = [...pagos.lineas].sort((a, b) => {
+    if (b.monto !== a.monto) return b.monto - a.monto;
+    const aEsDigital = esCodigoDigital(a.codigo);
+    const bEsDigital = esCodigoDigital(b.codigo);
+    if (aEsDigital && !bEsDigital) return -1;
+    if (!aEsDigital && bEsDigital) return 1;
+    return 0;
+  });
+
+  return {
+    lineas: [{ codigo: ordenadas[0].codigo, monto: pagos.total }],
+    total: pagos.total,
+  };
 }

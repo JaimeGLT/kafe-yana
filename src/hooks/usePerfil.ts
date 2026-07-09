@@ -8,6 +8,7 @@ export interface UpdatePerfilPayload {
   nombre: string;
   apellido: string;
   telefono: string;
+  usuario: string;
 }
 
 export interface ChangePasswordPayload {
@@ -41,6 +42,7 @@ export function usePerfil() {
         nombre: payload.nombre.trim(),
         apellido: payload.apellido.trim(),
         email,
+        usuario: payload.usuario.trim(),
         telefono: payload.telefono.trim(),
       });
       return true;

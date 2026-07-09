@@ -1,9 +1,9 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { api, ApiError } from '../lib/api';
 import { gql } from '../lib/graphql';
 import { GET_CAJA_ESTADO, GET_CAJA_MOVIMIENTOS, GET_ULTIMA_CAJA_HISTORIAL } from '../lib/queries/caja.queries';
 import { toast } from '../components/ui/Toast';
-import { getConnection, startConnection } from '../lib/signalr';
+import { useSignalRSubscription } from './useSignalRSubscription';
 import type { CajaHistorialNode } from '../types/cajaHistorial';
 
 export interface CajaEstado {
@@ -150,33 +150,18 @@ export function useCaja(): UseCajaReturn {
     }
   }, [syncCaja]);
 
-  const syncCajaRef = useRef(syncCaja);
-  syncCajaRef.current = syncCaja;
-
-  useEffect(() => {
-    const conn = getConnection();
-
-    const onVentaProcesada = (data: { Total: number }) => {
-      setCaja(prev => prev ? { ...prev, totalVentas: prev.totalVentas + data.Total } : prev);
-      syncCajaRef.current();
-    };
-
-    conn.on('VentaProcesada', onVentaProcesada);
-
-    conn.onreconnected(async () => {
-      await conn.invoke('UnirseAGrupo', 'caja');
-      syncCajaRef.current();
-    });
-
-    startConnection()
-      .then(() => conn.invoke('UnirseAGrupo', 'caja'))
-      .catch(console.error);
-
-    return () => {
-      conn.off('VentaProcesada', onVentaProcesada);
-      conn.invoke('AbandonarGrupo', 'caja').catch(() => {});
-    };
-  }, []);
+  useSignalRSubscription(
+    {
+      VentaProcesada: (data: { Total: number }) => {
+        setCaja(prev => prev ? { ...prev, totalVentas: prev.totalVentas + data.Total } : prev);
+        syncCaja();
+      },
+    },
+    {
+      group: 'caja',
+      onReconnect: () => { syncCaja(); },
+    },
+  );
 
   return {
     caja,

@@ -8,6 +8,7 @@ export interface CreateUserPayload {
   nombre: string;
   apellido: string;
   email: string;
+  usuario: string;
   password: string;
   numeroPhone: string;
   rol: number;
@@ -46,6 +47,7 @@ export function useUsuarios() {
         nombre: payload.nombre.trim(),
         apellido: payload.apellido.trim(),
         email: payload.email.trim(),
+        usuario: payload.usuario.trim(),
         password: payload.password,
         numeroPhone: payload.numeroPhone.trim(),
         rol: payload.rol,

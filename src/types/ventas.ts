@@ -7,7 +7,12 @@ export interface VentaNode {
   estadoSiat: string | null;
   montoTotalSujetoIva: number | string;
   montoTotal: number | string;
-  numeroTarjeta: string | null;
+  numeroTarjeta?: string | null;
+  /** Código SIN del método principal (el de mayor monto) persistido en
+   * `Venta.CodigoMetodoPago`. Lo emite el SIAT en el XML. */
+  codigoMetodoPago?: number | null;
+  /** Líneas de pago (`VentaPagos`) para soportar pagos mixtos. */
+  pagos?: Array<{ codigoMetodoPago: number; monto: number | string }> | null;
   detalles?: DetalleVentaNode[];
 }
 
@@ -34,6 +39,9 @@ export interface VentaFilters {
   estadoSiat?: {
     eq?: string;
     in?: string[];
+  };
+  facturado?: {
+    eq?: boolean;
   };
   /** Búsqueda por OR — usado para matchear nombre de cliente o usuario. */
   or?: Array<{

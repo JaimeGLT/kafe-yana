@@ -115,3 +115,89 @@ export function interpretarErrorCobro(
   const mensaje = err instanceof Error ? err.message : fallback;
   return { title: 'Error', message: mensaje, nivel: 'error' };
 }
+
+/**
+ * Interpreta errores de edición/eliminación de rondas y detalles.
+ * El backend tira errores crudos de EF Core cuando hay pagos parciales
+ * involucrados (reglas de negocio + FK no-nullable). Mapeamos los patrones
+ * conocidos a mensajes claros para el cajero.
+ *
+ * Casos cubiertos:
+ *
+ * 1. `"association between entity types 'Producto' and 'Detalle_ronda'"`
+ *    o `"has been severed"` → el cajero intentó reducir la cantidad de un
+ *    detalle que ya tiene `cantidadPagada > 0`. El backend lo rechaza
+ *    porque la cantidad final sería menor que lo ya cobrado.
+ *
+ * 2. `"registro pertenece a otro"` / `"no puede eliminarse"` → típico de
+ *    reglas de auditoría (Kardex / integridad referencial con pagos).
+ *    Suele aparecer al eliminar una ronda cuyos detalles tienen
+ *    `cantidadPagada > 0`.
+ */
+export function interpretarErrorEdicion(
+  err: unknown,
+  fallback: string,
+): ErrorInterpretado {
+  if (err instanceof ApiError) {
+    const msg = err.message ?? '';
+    const lower = msg.toLowerCase();
+
+    // ─── Ronda/detalle con pagos parciales (severed relationship) ─────
+    if (
+      lower.includes('association between entity types')
+      || lower.includes('has been severed')
+    ) {
+      return {
+        title: 'Items con pagos parciales',
+        message:
+          'No se puede modificar este ítem porque tiene pagos parciales. '
+          + 'Podés agregar nuevos ítems o editar los no pagados.',
+        nivel: 'warning',
+      };
+    }
+
+    // ─── No se puede eliminar por integridad con pagos ─────────────────
+    if (
+      lower.includes('registro pertenece a otro')
+      || lower.includes('no puede eliminarse')
+      || (lower.includes('no se puede eliminar') && lower.includes('pago'))
+    ) {
+      return {
+        title: 'No se puede eliminar',
+        message:
+          'La ronda tiene items con pagos parciales. Reversá los pagos primero '
+          + 'o cobrá el saldo pendiente antes de eliminar.',
+        nivel: 'warning',
+      };
+    }
+
+    // ─── Status 0 = sin red ─────────────────────────────────────────
+    if (err.status === 0) {
+      return {
+        title: 'Sin conexión',
+        message:
+          'No se pudo contactar al servidor. Verificá tu red e intentá de nuevo.',
+        nivel: 'error',
+      };
+    }
+
+    // ─── Errores 4xx: ya vienen claros del backend ────────────────────
+    if (err.status >= 400 && err.status < 500) {
+      return { title: 'No se pudo completar la acción', message: msg || fallback, nivel: 'error' };
+    }
+
+    // ─── Status 5xx genérico ─────────────────────────────────────────
+    if (err.status >= 500) {
+      return {
+        title: 'Error del servidor',
+        message: 'El servidor tuvo un problema al procesar la solicitud. Intentá de nuevo.',
+        nivel: 'error',
+      };
+    }
+
+    return { title: 'Error', message: msg || fallback, nivel: 'error' };
+  }
+
+  const mensaje = err instanceof Error ? err.message : fallback;
+  return { title: 'Error', message: mensaje, nivel: 'error' };
+}

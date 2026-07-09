@@ -1,6 +1,7 @@
 import React from 'react';
-import { Printer, X, UtensilsCrossed, GlassWater, MonitorCheck } from 'lucide-react';
+import { Printer, X, UtensilsCrossed, GlassWater, MonitorCheck, Globe } from 'lucide-react';
 import { enviarPedido } from '../../utils/comandas';
+import { escapeHtml, imprimirEnNavegador } from '../../utils/printBrowser';
 
 type Tamaño = 'pequeño' | 'mediano';
 type Destino = 'principal' | 'cocina' | 'barra';
@@ -66,11 +67,39 @@ export const PrintComandaModal: React.FC<PrintComandaModalProps> = ({ data, onCl
   const handlePrint = async () => {
     setIsPrinting(true);
     try {
-      await enviarPedido(data.mesaName, data.rondaDesc, data.items, destinos);
+      const ancho = tamaño === 'pequeño' ? 32 : 48;
+      await enviarPedido(data.mesaName, data.rondaDesc, data.items, destinos, ancho);
     } finally {
       setIsPrinting(false);
       onClose();
     }
+  };
+
+  const handleBrowserPrint = () => {
+    imprimirEnNavegador({
+      titulo: `Comanda ${data.mesaName} - ${data.rondaDesc}`,
+      anchoMM: tamaño === 'pequeño' ? '58' : '80',
+      buildBody: () => {
+        const rows = data.items.map(i => `
+          <tr>
+            <td style="padding:2px 0">
+              ${escapeHtml(String(i.cantidad))}x ${escapeHtml(i.nombre)}
+              ${i.nota ? `<span class="nota">📝 ${escapeHtml(i.nota)}</span>` : ''}
+            </td>
+          </tr>
+        `).join('');
+        return `
+          <h2>Kafe Yana</h2>
+          <p class="subtitle">COMANDA</p>
+          <p class="subtitle">${escapeHtml(data.mesaName)} · ${escapeHtml(data.rondaDesc)}</p>
+          <p class="subtitle">${new Date().toLocaleString('es-PE')}</p>
+          <div class="divider"></div>
+          <table>
+            <tbody>${rows}</tbody>
+          </table>
+        `;
+      },
+    });
   };
 
   return (
@@ -89,12 +118,21 @@ export const PrintComandaModal: React.FC<PrintComandaModalProps> = ({ data, onCl
               <p className="text-xs text-coffee-400">{data.mesaName} · Ronda #{data.roundNumber}</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="h-8 w-8 rounded-xl bg-coffee-100 flex items-center justify-center text-coffee-500 hover:bg-coffee-200"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleBrowserPrint}
+              title="Imprimir por navegador"
+              className="h-8 w-8 rounded-xl bg-coffee-100 flex items-center justify-center text-coffee-500 hover:bg-coffee-200"
+            >
+              <Globe className="h-4 w-4" />
+            </button>
+            <button
+              onClick={onClose}
+              className="h-8 w-8 rounded-xl bg-coffee-100 flex items-center justify-center text-coffee-500 hover:bg-coffee-200"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Tamaño */}

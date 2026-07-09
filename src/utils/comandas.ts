@@ -51,6 +51,7 @@ export async function enviarCuenta(
   total: number,
   metodoPago: string,
   destinos: string[] = ['principal'],
+  anchoCaracteres?: number,
 ): Promise<void> {
   try {
     const res = await fetchConTimeout(`${IMPRESORA}/cuenta`, {
@@ -63,6 +64,7 @@ export async function enviarCuenta(
         Total: total,
         MetodoPago: metodoPago,
         Destinos: destinos,
+        ...(anchoCaracteres != null && { AnchoCaracteres: anchoCaracteres }),
       }),
     });
     const resultado: Array<{ Ok: boolean; Destino: string; Error?: string }> = await res.json();
@@ -84,6 +86,7 @@ export async function enviarPedido(
   ronda: string,
   items: Array<{ cantidad: number; nombre: string; nota: string; ubicacion: string; precio?: number }>,
   destinos: string[] = ['principal'],
+  anchoCaracteres?: number,
 ): Promise<void> {
   try {
     const res = await fetchConTimeout(`${IMPRESORA}/pedido`, {
@@ -100,6 +103,7 @@ export async function enviarPedido(
           Precio: i.precio,
         })),
         Destinos: destinos,
+        ...(anchoCaracteres != null && { AnchoCaracteres: anchoCaracteres }),
       }),
     });
     const resultado: Array<{ Ok: boolean; Destino: string; Error?: string }> = await res.json();

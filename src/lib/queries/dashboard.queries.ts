@@ -34,7 +34,11 @@ export const GET_DASHBOARD_DATA = `
         estadoSiat
         montoTotalSujetoIva
         montoTotal
-        numeroTarjeta
+        codigoMetodoPago
+        pagos {
+          codigoMetodoPago
+          monto
+        }
         detalles {
           id
           id_venta

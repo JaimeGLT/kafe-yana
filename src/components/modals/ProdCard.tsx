@@ -59,7 +59,13 @@ export const ProdCard: React.FC<ProdCardProps> = ({
       <p className="text-xs sm:text-sm font-bold text-coffee-900 leading-tight line-clamp-2 font-display flex-1">{product.name}</p>
       <p className="text-sm sm:text-base font-black text-coffee-800 mt-1">{formatCurrency(product.salePrice)}</p>
       {stockLabel && (
-        <p className={clsx('text-[10px] sm:text-xs font-semibold mt-0.5', unavailable ? 'text-red-500' : 'text-coffee-500')}>{stockLabel}</p>
+        <p className={clsx(
+          'mt-0.5',
+          stockLabel === '∞'
+            ? 'text-xl sm:text-2xl font-black leading-none'
+            : 'text-[10px] sm:text-xs font-semibold',
+          unavailable ? 'text-red-500' : 'text-coffee-500',
+        )}>{stockLabel}</p>
       )}
     </div>
     <div className="px-2.5 sm:px-3 pb-2.5 sm:pb-3">

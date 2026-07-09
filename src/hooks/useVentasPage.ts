@@ -49,6 +49,7 @@ export function useVentasPage({
         fechaDesde: where?.fechaEmision?.gte ?? null,
         fechaHasta: where?.fechaEmision?.lte ?? null,
         estadoSiat: where?.estadoSiat?.eq ?? null,
+        facturado: where?.facturado?.eq ?? null,
         search: where?.or?.[0]?.nombreRazonSocial?.contains ?? null,
       };
 

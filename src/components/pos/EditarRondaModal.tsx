@@ -9,11 +9,12 @@ interface EditItem {
   detalleId: number;
   productoId: number;
   nombre: string;
-  cantidad: number;
   idsOpcion: number[];
   nota: string;
   precioFinal: number;
   opciones?: CartItem['opciones'];
+  cantidad: number;
+  cantidadDescontada: number;
 }
 
 interface EditarRondaModalProps {
@@ -27,7 +28,6 @@ interface EditarRondaModalProps {
 }
 
 function parseDetalleId(cartKey: string): number {
-  // cartKey = hist_${detalleId}_${rondaId}
   return parseInt(cartKey.split('_')[1], 10);
 }
 
@@ -47,32 +47,37 @@ export const EditarRondaModal: React.FC<EditarRondaModalProps> = ({
   const [editItems, setEditItems] = useState<EditItem[]>([]);
 
   useEffect(() => {
-    if (isOpen) {
-      setEditItems(items.map(item => ({
-        cartKey: item.cartKey,
-        detalleId: parseDetalleId(item.cartKey),
-        productoId: parseInt(item.product.id, 10),
-        nombre: item.product.name,
-        cantidad: item.quantity,
-        idsOpcion: parseIdsOpcion(item.opciones),
-        nota: item.notes ?? '',
-        precioFinal: item.precioFinal,
-        opciones: item.opciones,
-      })));
-    }
+    if (!isOpen) return;
+    setEditItems(items.map(item => ({
+      cartKey: item.cartKey,
+      detalleId: parseDetalleId(item.cartKey),
+      productoId: parseInt(item.product.id, 10),
+      nombre: item.product.name,
+      idsOpcion: parseIdsOpcion(item.opciones),
+      nota: item.notes ?? '',
+      precioFinal: item.precioFinal,
+      opciones: item.opciones,
+      cantidad: Math.max(0, item.quantity - (item.cantidadDescontada ?? 0)),
+      cantidadDescontada: item.cantidadDescontada ?? 0,
+    })));
   }, [isOpen, items]);
 
   if (!isOpen) return null;
 
   const handleInc = (cartKey: string) => {
-    setEditItems(prev => prev.map(i => i.cartKey === cartKey ? { ...i, cantidad: i.cantidad + 1 } : i));
+    setEditItems(prev => prev.map(i =>
+      i.cartKey === cartKey ? { ...i, cantidad: i.cantidad + 1 } : i,
+    ));
   };
 
   const handleDec = (cartKey: string) => {
     setEditItems(prev => {
       const item = prev.find(i => i.cartKey === cartKey);
       if (!item) return prev;
-      if (item.cantidad <= 1) return prev.filter(i => i.cartKey !== cartKey);
+      if (item.cantidad <= 0) return prev;
+      if (item.cantidad === 1 && item.cantidadDescontada === 0) {
+        return prev.filter(i => i.cartKey !== cartKey);
+      }
       return prev.map(i => i.cartKey === cartKey ? { ...i, cantidad: i.cantidad - 1 } : i);
     });
   };
@@ -82,20 +87,21 @@ export const EditarRondaModal: React.FC<EditarRondaModalProps> = ({
   };
 
   const handleConfirm = async () => {
-    if (editItems.length === 0) return;
-    const detalles: DtoRondaDetalleEditar[] = editItems.map(i => ({
-      id_Detalle: isNaN(i.detalleId) ? null : i.detalleId,
-      id_Producto: i.productoId,
-      cantidad: i.cantidad,
-      ids_Opcion: i.idsOpcion,
-      nota: i.nota,
+    const detalles: DtoRondaDetalleEditar[] = editItems.map(it => ({
+      id_Detalle: isNaN(it.detalleId) ? null : it.detalleId,
+      id_Producto: it.productoId,
+      cantidad: it.cantidadDescontada + it.cantidad,
+      ids_Opcion: it.idsOpcion,
+      nota: it.nota,
     }));
     await onConfirm(detalles);
   };
 
+  const originalCantidadPorCart = new Map(items.map(item => [item.cartKey, item.quantity]));
+  const nuevaCantidadPorCart = new Map(editItems.map(it => [it.cartKey, it.cantidadDescontada + it.cantidad]));
   const hasChanges =
-    editItems.length !== items.length ||
-    editItems.some((e, idx) => e.cantidad !== items[idx]?.quantity);
+    originalCantidadPorCart.size !== nuevaCantidadPorCart.size ||
+    [...originalCantidadPorCart.entries()].some(([k, v]) => nuevaCantidadPorCart.get(k) !== v);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -117,13 +123,17 @@ export const EditarRondaModal: React.FC<EditarRondaModalProps> = ({
         <div className="flex-1 overflow-y-auto min-h-0 divide-y divide-coffee-50">
           {editItems.length === 0 ? (
             <div className="flex items-center justify-center h-32 text-coffee-400 text-sm text-center px-6">
-              Sin ítems. Usa "Eliminar ronda" si deseas borrarla completa.
+              Sin ítems. Al guardar se eliminará la ronda completa.
             </div>
           ) : (
             editItems.map(item => (
               <div key={item.cartKey} className="flex items-center gap-3 px-5 py-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-coffee-900 line-clamp-2">{item.nombre}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-sm font-semibold line-clamp-2 text-coffee-900">
+                      {item.nombre}
+                    </p>
+                  </div>
                   {item.opciones && item.opciones.length > 0 && (
                     <div className="mt-0.5 space-y-0.5">
                       {item.opciones.map((o, oi) => (
@@ -134,14 +144,20 @@ export const EditarRondaModal: React.FC<EditarRondaModalProps> = ({
                       ))}
                     </div>
                   )}
-                  <p className="text-xs text-coffee-500 mt-0.5">
+                  <p className="text-xs mt-0.5 text-coffee-500">
                     {formatCurrency(item.precioFinal * item.cantidad)}
                   </p>
+                  {item.cantidadDescontada > 0 && (
+                    <p className="text-xs mt-0.5 text-amber-600 font-medium">
+                      Ya vendido: {item.cantidadDescontada}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   <button
                     onClick={() => handleDec(item.cartKey)}
-                    className="h-7 w-7 rounded-lg bg-coffee-100 hover:bg-coffee-200 flex items-center justify-center text-coffee-600"
+                    disabled={item.cantidad <= 0}
+                    className="h-7 w-7 rounded-lg bg-coffee-100 hover:bg-coffee-200 flex items-center justify-center text-coffee-600 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Minus className="h-3.5 w-3.5" />
                   </button>
@@ -155,6 +171,7 @@ export const EditarRondaModal: React.FC<EditarRondaModalProps> = ({
                   <button
                     onClick={() => handleRemove(item.cartKey)}
                     className="h-7 w-7 rounded-lg text-coffee-200 hover:text-red-400 hover:bg-red-50 flex items-center justify-center transition-colors ml-1"
+                    title="Quitar item"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -165,17 +182,14 @@ export const EditarRondaModal: React.FC<EditarRondaModalProps> = ({
         </div>
 
         <div className="px-5 py-4 border-t border-coffee-100 flex-shrink-0 space-y-2">
-          {editItems.length === 0 && (
-            <p className="text-xs text-amber-600 text-center font-medium">
-              Debe quedar al menos 1 ítem. Usa "Eliminar ronda" para borrarla completa.
-            </p>
-          )}
           <button
             onClick={handleConfirm}
-            disabled={isSaving || !hasChanges || editItems.length === 0}
+            disabled={isSaving || !hasChanges}
             className="w-full py-3.5 rounded-2xl bg-coffee-800 text-cream font-bold text-sm hover:bg-coffee-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSaving ? 'Guardando...' : 'Guardar cambios'}
+            {isSaving
+              ? (editItems.length === 0 ? 'Eliminando...' : 'Guardando...')
+              : (editItems.length === 0 ? 'Eliminar ronda' : 'Guardar cambios')}
           </button>
         </div>
       </div>

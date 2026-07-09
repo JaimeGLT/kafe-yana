@@ -7,7 +7,6 @@ const defaultSettings: SystemSettings = {
   currencySymbol: 'S/',
   taxPercentage: 18,
   invoicePrefix: 'FAC',
-  quotePrefix: 'COT',
   purchaseOrderPrefix: 'OC',
   receiptPrefix: 'REC',
   defaultPaymentTerms: 30,

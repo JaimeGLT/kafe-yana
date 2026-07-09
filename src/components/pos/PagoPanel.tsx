@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { clsx } from 'clsx';
 import { X, Star, Tag, RotateCcw, Receipt, FileText, Ban, UserX } from 'lucide-react';
 import type { PaymentMethodType, Customer } from '../../types';
-import { DEFAULT_SIN_NOMBRE, DEFAULT_CF_NUMERO_DOC } from '../../constants/facturacion';
-import { ModoFacturacionCards, type ModoFacturacion } from './ModoFacturacionCards';
+import { DEFAULT_CF_NUMERO_DOC } from '../../constants/facturacion';
+import { ModoFacturacionCards, ModoFacturacionBanner, type ModoFacturacion } from './ModoFacturacionCards';
 import { ClienteFacturacionSection } from './ClienteFacturacionSection';
 import { DatosFiscalesForm } from './DatosFiscalesForm';
 import { useMetodosPago } from '../../hooks/useMetodosPago';
@@ -69,6 +69,7 @@ function metodoToPaymentType(metodo: MetodoPagoItem): PaymentMethodType {
 function labelForMetodo(metodo: MetodoPagoItem): string {
   if (metodo.codigo === 1) return 'Efectivo';
   if (metodo.codigo === 7) return 'QR';
+  if (metodo.codigo === 2) return 'Tarjeta';
   if (metodo.descripcion.length <= 12) return metodo.descripcion;
   // Mayúsculas → Capitalizado solo primera letra, sin "DE / DEL / LA" largos.
   const palabras = metodo.descripcion.toLowerCase().split(' ');
@@ -157,6 +158,17 @@ interface PagoPanelProps {
    */
   paisOrigenCodigo: number | null;
   onPaisOrigenCodigoChange: (v: number | null) => void;
+  /** Si la mesa ya tiene abonos previos, muestra el contexto de "saldo" en
+   *  la cabecera y etiqueta el total como "Saldo a cobrar". */
+  totalOriginal?: number;
+  totalAbonado?: number;
+  etiquetaTotal?: string;
+  /**
+   * El pago ya se hizo por partes (cobro parcial dividido entre varios que
+   * cerró el 100% del saldo) — oculta el selector de método de pago y el
+   * input de efectivo, y no exige `cashNum` para habilitar "Cobrar".
+   */
+  pagoYaDividido?: boolean;
 }
 
 export const PagoPanel: React.FC<PagoPanelProps> = ({
@@ -212,6 +224,10 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
   onNoFacturarChange,
   paisOrigenCodigo,
   onPaisOrigenCodigoChange,
+  totalOriginal,
+  totalAbonado = 0,
+  etiquetaTotal,
+  pagoYaDividido = false,
 }) => {
   // Catálogo de métodos de pago sincronizado contra el SIAT (Sync 11).
   // Solo trae los métodos con `activo=true` — el operador decide desde el
@@ -228,11 +244,13 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
         { type: 'transfer' as PaymentMethodType, label: 'QR', icon: iconForMetodo({ codigo: 7, descripcion: 'TRANSFERENCIA BANCARIA', activo: true }) },
       ];
     }
-    return metodosPago.map(m => ({
-      type: metodoToPaymentType(m),
-      label: labelForMetodo(m),
-      icon: iconForMetodo(m),
-    }));
+    return metodosPago
+      .filter(m => m.codigo !== 5) // OTROS: nunca se muestra en cobros
+      .map(m => ({
+        type: metodoToPaymentType(m),
+        label: labelForMetodo(m),
+        icon: iconForMetodo(m),
+      }));
   }, [metodosPago]);
 
   const efectivoTotal = aplicarDescuento && discountPreview?.DescuentoRecomendado
@@ -307,9 +325,21 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
       {/* ── Total a pagar (ancla visual superior) ───────────────────────── */}
       <div className="px-4 md:px-5 pt-3 md:pt-4 pb-2.5 md:pb-3 flex-shrink-0 border-b border-coffee-100">
         <p className="text-[10px] text-coffee-400 uppercase tracking-widest font-semibold mb-0.5 text-center">
-          Total a pagar
+          {etiquetaTotal ?? 'Total a pagar'}
         </p>
-        {aplicarDescuento && discountPreview?.DescuentoRecomendado ? (
+        {typeof totalOriginal === 'number' && totalOriginal > mesaTotal ? (
+          <div className="flex flex-col items-center gap-0">
+            <p className="text-base font-display font-bold text-coffee-400 line-through">
+              {formatCurrency(totalOriginal)}
+            </p>
+            <p className="text-[10px] text-emerald-700 -mt-0.5">
+              Pagado antes {formatCurrency(totalAbonado)}
+            </p>
+            <p className="text-4xl md:text-5xl font-display font-black text-coffee-900 leading-none">
+              {formatCurrency(mesaTotal)}
+            </p>
+          </div>
+        ) : aplicarDescuento && discountPreview?.DescuentoRecomendado ? (
           <div className="flex flex-col items-center gap-0">
             <p className="text-base font-display font-bold text-coffee-400 line-through">
               {formatCurrency(mesaTotal)}
@@ -358,75 +388,53 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
                 <ModoFacturacionCards selected={selectedMode} onChange={handleModeChange} />
 
                 {esSinNombre ? (
-                  <div className="rounded-2xl border-2 border-coffee-400 bg-coffee-50/40 overflow-hidden">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-coffee-100/60 border-b border-coffee-200">
-                      <UserX className="h-3.5 w-3.5 text-amber-600 flex-shrink-0" />
-                      <p className="text-[10px] font-bold text-coffee-700 uppercase tracking-wider">
-                        Factura Sin Nombre
-                      </p>
-                    </div>
-                    <div className="p-3">
-                      <p className="text-[11px] text-coffee-700 leading-relaxed">
-                        NIT (5) · Documento <span className="font-mono">&quot;0&quot;</span> · Nombre{' '}
-                        <span className="font-mono">&quot;{DEFAULT_SIN_NOMBRE}&quot;</span>.
-                      </p>
-                    </div>
-                  </div>
+                  <ModoFacturacionBanner
+                    icon={<UserX className="h-3.5 w-3.5 text-amber-600 flex-shrink-0" />}
+                    label="Factura Sin Nombre"
+                  />
                 ) : noFacturar ? (
-                  <div className="rounded-2xl border-2 border-coffee-400 bg-coffee-50/40 overflow-hidden">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-coffee-100/60 border-b border-coffee-200">
-                      <Ban className="h-3.5 w-3.5 text-coffee-600 flex-shrink-0" />
-                      <p className="text-[10px] font-bold text-coffee-700 uppercase tracking-wider">
-                        Venta sin factura
-                      </p>
-                    </div>
-                    <div className="p-3">
-                      <p className="text-[11px] text-coffee-600 leading-relaxed">
-                        Se registrará la venta internamente sin emitir factura al SIAT.
-                      </p>
-                    </div>
-                  </div>
+                  <ModoFacturacionBanner
+                    icon={<Ban className="h-3.5 w-3.5 text-coffee-600 flex-shrink-0" />}
+                    label="Venta sin factura"
+                  />
                 ) : (
-                  <div className="rounded-2xl border-2 border-coffee-400 bg-coffee-50/40 overflow-hidden">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-coffee-100/60 border-b border-coffee-200">
-                      <FileText className="h-3.5 w-3.5 text-coffee-700 flex-shrink-0" />
-                      <p className="text-[10px] font-bold text-coffee-700 uppercase tracking-wider">
-                        Datos fiscales
-                      </p>
+                  <ModoFacturacionBanner
+                    icon={<FileText className="h-3.5 w-3.5 text-coffee-700 flex-shrink-0" />}
+                    label="Datos fiscales"
+                    badge={
                       <span className="ml-auto text-[9px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded uppercase tracking-wider">
                         Requerido
                       </span>
-                    </div>
-                    <div className="p-3">
-                      <DatosFiscalesForm
-                        codigoTipoDocumento={codigoTipoDocumento}
-                        numeroDocumento={numeroDocumento}
-                        complemento={complemento}
-                        facturacionNombre={facturacionNombre}
-                        onCodigoTipoDocumentoChange={onCodigoTipoDocumentoChange}
-                        onNumeroDocumentoChange={onNumeroDocumentoChange}
-                        onComplementoChange={onComplementoChange}
-                        onFacturacionNombreChange={onFacturacionNombreChange}
-                        paisOrigenCodigo={paisOrigenCodigo}
-                        onPaisOrigenCodigoChange={onPaisOrigenCodigoChange}
-                        docSearchResults={docSearchResults}
-                        docSearchLoading={docSearchLoading}
-                        docSearchActive={docSearchActive}
-                        nombreSearchResults={nombreSearchResults}
-                        nombreSearchLoading={nombreSearchLoading}
-                        nombreSearchActive={nombreSearchActive}
-                        onAssignCustomerFromSearch={onAssignCustomerFromSearch}
-                        onClearSearchResults={onClearSearchResults}
-                        clienteEsConsumidorFinal={clienteEsConsumidorFinal}
-                        clienteAsignadoDelDropdown={clienteAsignadoDelDropdown}
-                        clienteAsignadoNombre={clienteAsignado?.nombre}
-                        clienteAsignadoDni={clienteAsignado?.dni}
-                        onUsarDatosCliente={handleUsarDatosCliente}
-                        onDismissClienteBanner={handleDismissClienteBanner}
-                        clienteBannerDismissed={clienteBannerDismissed}
-                      />
-                    </div>
-                  </div>
+                    }
+                  >
+                    <DatosFiscalesForm
+                      codigoTipoDocumento={codigoTipoDocumento}
+                      numeroDocumento={numeroDocumento}
+                      complemento={complemento}
+                      facturacionNombre={facturacionNombre}
+                      onCodigoTipoDocumentoChange={onCodigoTipoDocumentoChange}
+                      onNumeroDocumentoChange={onNumeroDocumentoChange}
+                      onComplementoChange={onComplementoChange}
+                      onFacturacionNombreChange={onFacturacionNombreChange}
+                      paisOrigenCodigo={paisOrigenCodigo}
+                      onPaisOrigenCodigoChange={onPaisOrigenCodigoChange}
+                      docSearchResults={docSearchResults}
+                      docSearchLoading={docSearchLoading}
+                      docSearchActive={docSearchActive}
+                      nombreSearchResults={nombreSearchResults}
+                      nombreSearchLoading={nombreSearchLoading}
+                      nombreSearchActive={nombreSearchActive}
+                      onAssignCustomerFromSearch={onAssignCustomerFromSearch}
+                      onClearSearchResults={onClearSearchResults}
+                      clienteEsConsumidorFinal={clienteEsConsumidorFinal}
+                      clienteAsignadoDelDropdown={clienteAsignadoDelDropdown}
+                      clienteAsignadoNombre={clienteAsignado?.nombre}
+                      clienteAsignadoDni={clienteAsignado?.dni}
+                      onUsarDatosCliente={handleUsarDatosCliente}
+                      onDismissClienteBanner={handleDismissClienteBanner}
+                      clienteBannerDismissed={clienteBannerDismissed}
+                    />
+                  </ModoFacturacionBanner>
                 )}
               </div>
             </section>
@@ -473,6 +481,15 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
 
           {/* ── Columna derecha: Pago ────────────────────────────────── */}
           <div className="md:col-span-2 space-y-3 md:space-y-4">
+            {pagoYaDividido ? (
+              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-center">
+                <p className="text-xs font-bold text-emerald-700">Pago ya dividido entre varios</p>
+                <p className="text-[11px] text-emerald-600 mt-0.5">
+                  {formatCurrency(efectivoTotal)} ya cobrados por partes — solo falta confirmar cliente/factura.
+                </p>
+              </div>
+            ) : (
+              <>
             <section>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-[10px] font-bold text-coffee-400 uppercase tracking-wider">
@@ -487,12 +504,7 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
                   </span>
                 )}
               </div>
-              <div
-                className={clsx(
-                  'grid gap-2',
-                  metodosParaUi.length <= 2 ? 'grid-cols-2' : 'grid-cols-2',
-                )}
-              >
+              <div className="grid grid-cols-3 gap-1.5">
                 {metodosParaUi.map((pm, idx) => (
                   <button
                     key={`${pm.type}-${idx}`}
@@ -501,14 +513,14 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
                       onCashReceivedChange('');
                     }}
                     className={clsx(
-                      'flex flex-col items-center gap-1 py-3 px-1 rounded-2xl text-xs font-semibold transition-all',
+                      'flex flex-col items-center justify-center gap-0.5 py-2 px-1 rounded-xl text-xs font-semibold transition-all [&_svg]:h-4 [&_svg]:w-4',
                       paymentMethod === pm.type
                         ? 'bg-coffee-800 text-cream shadow-lg scale-[1.02]'
                         : 'bg-coffee-100 text-coffee-600 hover:bg-coffee-200',
                     )}
                   >
                     {pm.icon}
-                    <span className="leading-tight text-center text-[11px]">{pm.label}</span>
+                    <span className="leading-tight text-center text-[10px] truncate w-full">{pm.label}</span>
                   </button>
                 ))}
               </div>
@@ -540,7 +552,7 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
                 </label>
                 <div className="relative mt-1.5">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-coffee-500 font-bold text-sm">
-                    S/
+                    Bs.
                   </span>
                   <input
                     type="number"
@@ -561,6 +573,8 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
                   </div>
                 )}
               </section>
+            )}
+              </>
             )}
 
             {pointsPreview && pointsPreview.totalPoints > 0 && (
@@ -594,7 +608,7 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
           onClick={onConfirm}
           disabled={
             isProcessing ||
-            (paymentMethod === 'cash' && cashNum > 0 && cashNum < efectivoTotal) ||
+            (!pagoYaDividido && paymentMethod === 'cash' && cashNum > 0 && cashNum < efectivoTotal) ||
             (!noFacturar && !esSinNombre && (!numeroDocumento.trim() || !facturacionNombre.trim())) ||
             // Cliente extranjero (CEX/PAS) sin cliente del dropdown → exigir país.
             // Con cliente del dropdown, el país se lee del cliente persistido en BD.
@@ -607,7 +621,7 @@ export const PagoPanel: React.FC<PagoPanelProps> = ({
           className={clsx(
             'flex-1 py-3 rounded-2xl font-bold text-sm transition-all inline-flex items-center justify-center gap-2',
             isProcessing ||
-            (paymentMethod === 'cash' && cashNum > 0 && cashNum < efectivoTotal) ||
+            (!pagoYaDividido && paymentMethod === 'cash' && cashNum > 0 && cashNum < efectivoTotal) ||
             (!noFacturar && !esSinNombre && (!numeroDocumento.trim() || !facturacionNombre.trim())) ||
             (!noFacturar &&
               !esSinNombre &&

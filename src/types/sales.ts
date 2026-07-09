@@ -148,6 +148,10 @@ export interface Sale extends BaseEntity {
   estadoSiat?: string | null;   // 'Validada' | 'Observada' | 'Pendiente' | 'Anulada'
   codigoRecepcion?: string | null;
   siatAceptada?: boolean;
+  /** `Venta.Facturado`: false mientras nunca fue confirmada por el SIAT (aunque
+   *  haya intentos rechazados). Decide si el detalle ofrece "Facturar" (modal
+   *  editable) o "Reenviar al SIAT" (retry directo). */
+  facturado?: boolean;
   errorSiat?: string | null;
   numeroFactura?: number | null;
   /** CUF (Código Único de Factura) generado por SIAT. Necesario para construir
@@ -155,6 +159,10 @@ export interface Sale extends BaseEntity {
   cuf?: string | null;
   /** NIT/CI del cliente (mapea a Venta.NumeroDocumento en backend). */
   nitCliente?: string | null;
+  /** Complemento del NIT/CI (mapea a Venta.Complemento en backend). */
+  complemento?: string | null;
+  /** Código de tipo de documento de identidad SIAT (mapea a Venta.CodigoTipoDocumentoIdentidad). */
+  codigoTipoDocumentoIdentidad?: number | null;
   /** True cuando la anulación en SIAT ya fue revertida (operación permitida una sola vez). */
   revertidaAnulacion?: boolean;
 
@@ -190,32 +198,6 @@ export interface SaleInput {
     amount: number;
     reference?: string;
   }[];
-  notes?: string;
-}
-
-// Quote
-export interface Quote extends BaseEntity {
-  id: UUID;
-  code: string;
-  date: Date;
-  validUntil: Date;
-  customerId?: UUID;
-  customerName?: string;
-  items: SaleItem[];
-  subtotal: number;
-  discount: number;
-  tax: number;
-  total: number;
-  notes?: string;
-  status: 'pending' | 'approved' | 'rejected' | 'expired';
-  convertedToSaleId?: UUID;
-}
-
-export interface QuoteInput {
-  customerId?: UUID;
-  items: SaleItemInput[];
-  validUntil: Date;
-  discount?: number;
   notes?: string;
 }
 
@@ -279,8 +261,108 @@ export interface SalesStats {
   totalSalesMonth: number;
   totalProductsSold: number;
   averageTicket: number;
-  pendingQuotes: number;
   pendingReceivables: number;
+}
+
+// ── Sub-venta: cobro parcial sobre una mesa / pedido para llevar ──────
+// Cobra una porción de lo consumido: el usuario elige PRODUCTO + cantidad
+// (nunca una fila de ronda específica); el backend busca ese producto en
+// TODAS las rondas activas del pedido con cantidad pendiente y descuenta
+// FIFO (ronda más antigua primero). El resto queda como saldo pendiente.
+// La mesa / pedido se libera automáticamente cuando el pendiente llega a 0
+// (no hace falta un botón manual de "cerrar mesa").
+//
+// A diferencia del modelo anterior (roto), la sub-venta SÍ puede facturar
+// al momento del cobro (`factura: true` + datos fiscales) — antes estaba
+// hardcodeado a `factura: false` para todo cobro parcial.
+//
+// El modelo de datos en backend es:
+//   POST /Mesa/cobrar/{id}  o  POST /Venta/cobrar
+//   Body (campos nuevos, opcionales — comportamiento legacy si ausentes):
+//     itemsCubiertos:  [{ producto_id, cantidad }]   // qué producto/cuánto se paga
+//     mantenerMesaAbierta: boolean                    // true → no cierra por completo si queda saldo
+//     factura: boolean + datos fiscales               // puede facturar el parcial al momento
+//   Response extendidos:
+//     esAbono: boolean                                // true si fue sub-venta (cobro parcial)
+//     pedidoActualizado: PedidoActualizado            // estado post-pago
+//
+// Si `itemsCubiertos` está vacío/missing, el cobro cierra toda la mesa
+// (comportamiento legacy, sólo válido si el pedido no tiene sub-ventas previas).
+
+/** Línea del body de cobro parcial: producto del catálogo + cantidad a cobrar. */
+export interface ItemCubiertoInput {
+  producto_id: number;
+  cantidad: number;
+}
+
+/** Estado de un detalle (fila de ronda) del pedido: cantidad original y ya descontada. */
+export interface ItemDetallePagado {
+  id_Detalle: number;
+  id_Producto: number;
+  nombre_Producto: string;
+  cantidad: number;             // cantidad original en la ronda
+  cantidadDescontada: number;   // cantidad ya descontada por sub-ventas
+  precio: number;
+  id_Ronda: number;
+}
+
+/** Una sub-venta (cobro parcial) registrada contra un pedido. */
+export interface Abono {
+  id: number;
+  pedidoId: number;
+  monto: number;
+  fecha: string;
+  pagos: PaymentMethod[];
+  itemsCubiertos: ItemCubiertoInput[];
+  vendedorId: UUID;
+  reciboNumero?: string;
+  /** Si `true`, el saldo llegó a 0 y esta sub-venta cerró el pedido (generó Venta). */
+  esPagoFinal: boolean;
+  /** Si la sub-venta ya tiene factura emitida (al momento del cobro o después). */
+  facturada?: boolean;
+  /** Si la sub-venta facturó, referencia a la Venta generada. */
+  ventaId?: number | null;
+  numeroFactura?: number | null;
+  /** Código SIN del método predominante (CodigoMetodoPago del backend, serializado camelCase). */
+  codigoMetodoPago?: number;
+}
+
+/** Estado del pedido devuelto por el backend tras un cobro (parcial o final). */
+export interface PedidoActualizado {
+  id_Pedido: number;
+  total: number;
+  totalAbonado: number;
+  saldo: number;
+  abonos: Abono[];
+  detalles: ItemDetallePagado[];
+}
+
+/** Línea (snapshot) cobrada por una sub-venta — independiente del estado actual de la ronda de origen. */
+export interface SubVentaDetalleResumen {
+  nombreProducto: string;
+  cantidad: number;
+  precio: number;
+}
+
+/**
+ * Sub-venta (cobro parcial). Se usa tanto para "pendientes de facturar"
+ * (GET /SubVenta/pendientes, solo `facturada === false`) como para el
+ * historial completo de un pedido (GET /SubVenta/pedido/{id}, incluye
+ * facturadas) — misma forma, fuente de verdad en BD (no depende de sesión).
+ */
+export interface SubVentaPendiente {
+  id: number;
+  fecha: string;
+  monto: number;
+  pedidoId: number;
+  origen: string;
+  cajero: string;
+  cantidadLineas: number;
+  facturada: boolean;
+  esPagoFinal: boolean;
+  idVenta: number | null;
+  codigoMetodoPago: number;
+  detalles: SubVentaDetalleResumen[];
 }
 
 // Facturación SIAT — los tipos de documento de identidad vienen del backend.

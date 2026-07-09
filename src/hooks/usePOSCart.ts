@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import type { Product, OpcionSeleccionada } from '../types';
 import type { ElaboradoIngrediente } from '../components/modals/ElaboradoDetailModal';
 import { toast } from '../components/ui';
+import { formatStockQty } from '../utils';
 
 export interface ConsumoInsumo {
   insumoId: string;
@@ -19,6 +20,8 @@ export interface CartItem {
   notes?: string;
   roundNumber?: number;
   consumoInsumos: ConsumoInsumo[];
+  /** Cantidad de este ítem ya descontada por sub-ventas (cobro parcial). */
+  cantidadDescontada?: number;
 }
 
 export interface RondaRecord {
@@ -183,7 +186,7 @@ export function usePOSCart() {
       }
 
       const stockMax = item.product.tipo === 'elaborado' && !item.product.producible
-        ? (item.product.cantidadProducible ?? 999)
+        ? (item.product.cantidadProducible ?? Number.POSITIVE_INFINITY)
         : item.product.stock;
 
       const totalInCart = prev
@@ -191,7 +194,7 @@ export function usePOSCart() {
         .reduce((s, i) => s + i.quantity, 0);
 
       if (totalInCart >= stockMax) {
-        toast.error('Stock insuficiente', `Solo hay ${stockMax} unidad(es) de ${item.product.name}.`);
+        toast.error('Stock insuficiente', `Solo hay ${formatStockQty(stockMax)} unidad(es) de ${item.product.name}.`);
         return prev;
       }
 

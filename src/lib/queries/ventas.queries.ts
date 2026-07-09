@@ -27,7 +27,9 @@ export const GET_PARA_LLEVAR = `
             subTotal
             detalle {
               cantidad
+              cantidadDescontada
               id
+              id_Producto
               id_Ronda
               nombre_Producto
               precio
@@ -53,9 +55,17 @@ export const GET_VENTAS_REPORT = `
         revertidaAnulacion
         montoTotalSujetoIva
         montoTotal
-        numeroTarjeta
+        codigoMetodoPago
+        pagos {
+          codigoMetodoPago
+          monto
+        }
         cuf
         numeroDocumento
+        detalles {
+          id
+          cantidad
+        }
         cantidadProductos
         leyenda
         notasAjuste {
@@ -79,8 +89,8 @@ export const GET_VENTAS_REPORT = `
 `;
 
 export const GET_VENTAS = `
-  query GetVentas($skip: Int!, $take: Int!, $fechaDesde: DateTime, $fechaHasta: DateTime, $estadoSiat: String, $search: String) {
-    ventas(skip: $skip, take: $take, fechaDesde: $fechaDesde, fechaHasta: $fechaHasta, estadoSiat: $estadoSiat, search: $search) {
+  query GetVentas($skip: Int!, $take: Int!, $fechaDesde: DateTime, $fechaHasta: DateTime, $estadoSiat: String, $facturado: Boolean, $search: String) {
+    ventas(skip: $skip, take: $take, fechaDesde: $fechaDesde, fechaHasta: $fechaHasta, estadoSiat: $estadoSiat, facturado: $facturado, search: $search) {
       items {
         id
         numeroFactura
@@ -88,12 +98,21 @@ export const GET_VENTAS = `
         nombreRazonSocial
         usuario
         estadoSiat
+        facturado
         revertidaAnulacion
         montoTotalSujetoIva
         montoTotal
-        numeroTarjeta
+        codigoMetodoPago
+        pagos {
+          codigoMetodoPago
+          monto
+        }
         cuf
         numeroDocumento
+        detalles {
+          id
+          cantidad
+        }
         cantidadProductos
         leyenda
         notasAjuste {
@@ -156,12 +175,19 @@ export const GET_VENTA_CON_DETALLES = `
         nombreRazonSocial
         usuario
         estadoSiat
+        facturado
         revertidaAnulacion
         montoTotalSujetoIva
         montoTotal
-        numeroTarjeta
+        codigoMetodoPago
+        pagos {
+          codigoMetodoPago
+          monto
+        }
         cuf
         numeroDocumento
+        complemento
+        codigoTipoDocumentoIdentidad
         codigoRecepcion
         detalles {
           id
