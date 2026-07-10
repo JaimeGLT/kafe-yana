@@ -1,5 +1,5 @@
 export const GET_DASHBOARD_DATA = `
-  query GetDashboardData($fechaDesde: DateTime, $fechaHasta: DateTime, $estadoSiat: String) {
+  query GetDashboardData($fechaDesde: DateTime, $fechaHasta: DateTime) {
     caja {
       id
       nombre
@@ -24,7 +24,7 @@ export const GET_DASHBOARD_DATA = `
         referencia
       }
     }
-    ventas(skip: 0, take: 50, fechaDesde: $fechaDesde, fechaHasta: $fechaHasta, estadoSiat: $estadoSiat) {
+    ventas(skip: 0, take: 50, fechaDesde: $fechaDesde, fechaHasta: $fechaHasta) {
       items {
         id
         numeroFactura
