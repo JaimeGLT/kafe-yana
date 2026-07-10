@@ -39,6 +39,8 @@ const SalesReportPage      = lazy(() => import('./pages/reports/SalesReportPage'
 const InventoryReportPage  = lazy(() => import('./pages/reports/InventoryReportPage'));
 const PurchasesReportPage  = lazy(() => import('./pages/reports/PurchasesReportPage'));
 const CashReportPage       = lazy(() => import('./pages/reports/CashReportPage'));
+const DailyCashReportPage       = lazy(() => import('./pages/reports/DailyCashReportPage'));
+const MonthlyProductsReportPage = lazy(() => import('./pages/reports/MonthlyProductsReportPage'));
 const SettingsIndexPage    = lazy(() => import('./pages/settings/SettingsIndexPage').then(m => ({ default: m.SettingsIndexPage })));
 const SettingsUsersPage    = lazy(() => import('./pages/settings/SettingsUsersPage').then(m => ({ default: m.SettingsUsersPage })));
 const InsumosPage          = lazy(() => import('./pages/recipes/InsumosPage'));
@@ -104,6 +106,8 @@ function App() {
                       <Route path="/reports/inventory" element={<ProtectedRoute allowedRoles={[ADMIN]}><InventoryReportPage /></ProtectedRoute>} />
                       <Route path="/reports/purchases" element={<ProtectedRoute allowedRoles={[ADMIN]}><PurchasesReportPage /></ProtectedRoute>} />
                       <Route path="/reports/cash"      element={<ProtectedRoute allowedRoles={[ADMIN]}><CashReportPage /></ProtectedRoute>} />
+                      <Route path="/reports/daily"     element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><DailyCashReportPage /></ProtectedRoute>} />
+                      <Route path="/reports/monthly"   element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><MonthlyProductsReportPage /></ProtectedRoute>} />
 
                       {/* Recipes — admin + cajero */}
                       <Route path="/recipes/insumos" element={<ProtectedRoute allowedRoles={ADMIN_CAJERO}><InsumosPage /></ProtectedRoute>} />

@@ -118,6 +118,8 @@ const navItems: NavItem[] = [
       { id: 'sales-reports', label: 'Ventas', icon: null, path: '/reports/sales' },
       { id: 'purchase-reports', label: 'Compras', icon: null, path: '/reports/purchases' },
       { id: 'cash-reports', label: 'Caja', icon: null, path: '/reports/cash' },
+      { id: 'daily-reports', label: 'Reporte Diario (Caja)', icon: null, path: '/reports/daily', allowedRoles: [ADMIN, CAJERO] },
+      { id: 'monthly-reports', label: 'Reporte Mensual (Productos)', icon: null, path: '/reports/monthly', allowedRoles: [ADMIN, CAJERO] },
     ],
   },
   {
