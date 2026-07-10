@@ -35,11 +35,13 @@ export const SettingsProfilePage: React.FC<SettingsProfilePageProps> = ({ embedd
   const handleEditProfile = async (data: CreateUserPayload | UpdateUserPayload) => {
     if (!perfil) return;
     setSubmitLoading(true);
-    const email = (data as CreateUserPayload).email ?? perfil.email;
+    const createData = data as CreateUserPayload;
+    const email = createData.email ?? perfil.email;
     const ok = await updatePerfil(email, {
       nombre: data.nombre,
       apellido: data.apellido,
       telefono: data.numeroPhone,
+      usuario: createData.usuario ?? perfil.userName,
     });
     setSubmitLoading(false);
     if (ok) {
@@ -126,6 +128,10 @@ export const SettingsProfilePage: React.FC<SettingsProfilePageProps> = ({ embedd
               <p className="text-sm font-medium text-coffee-900">{perfil.email}</p>
             </div>
             <div className="bg-coffee-50 rounded-xl p-4">
+              <p className="text-xs text-coffee-400 mb-1">Usuario</p>
+              <p className="text-sm font-medium text-coffee-900">{perfil.userName || '—'}</p>
+            </div>
+            <div className="bg-coffee-50 rounded-xl p-4 sm:col-span-2">
               <p className="text-xs text-coffee-400 mb-1">Teléfono</p>
               <p className="text-sm font-medium text-coffee-900">{perfil.celular || '—'}</p>
             </div>

@@ -2,14 +2,8 @@ import { gql } from '../graphql';
 
 const SEARCH_CODIGOS_SIAT = `
   query SearchCodigosSiat($contains: String!) {
-    codigosSiat(where: {
-      or: [
-        { codigoProducto: { contains: $contains } }
-        { descripcionProducto: { contains: $contains } }
-        { descripcionActividad: { contains: $contains } }
-      ]
-    }) {
-      nodes {
+    codigosSiat(skip: 0, take: 50, search: $contains) {
+      items {
         id
         codigoProducto
         descripcionProducto
@@ -27,12 +21,12 @@ export interface CodigoSiatNode {
 }
 
 interface CodigosSiatResponse {
-  codigosSiat: { nodes: CodigoSiatNode[] };
+  codigosSiat: { items: CodigoSiatNode[] };
 }
 
 export async function searchCodigosSiat(q: string): Promise<CodigoSiatNode[]> {
   // Sin filtro en el frontend: con `contains: ""` el backend devuelve todos los códigos.
   // El catálogo es chico (11 códigos), así que no hace falta paginar ni exigir mínimo de caracteres.
   const data = await gql<CodigosSiatResponse>(SEARCH_CODIGOS_SIAT, { contains: q });
-  return data.codigosSiat.nodes;
+  return data.codigosSiat.items;
 }

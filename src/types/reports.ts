@@ -108,3 +108,102 @@ export type ExpiringItem = {
   unidad?: string;
   ratio: number;
 };
+
+// ── Reporte Diario de Caja ────────────────────────────────────────────────
+
+export interface ResumenDiarioCaja {
+  cajasIniciadas: number;
+  cajasCerradas: number;
+  hayCajaAbierta: boolean;
+  totalVentas: number;
+  totalEfectivo: number;
+  totalTarjeta: number;
+  totalQr: number;
+  totalIngresos: number;
+  totalEgresos: number;
+  saldoInicialTotal: number;
+  balanceNeto: number;
+}
+
+export interface CajaDelDia {
+  id: number;
+  codigo: string;
+  apertura: string;
+  cierre: string | null;
+  abiertaPor: string;
+  cerradaPor: string | null;
+  saldoInicial: number;
+  totalVentas: number;
+  totalEfectivo: number;
+  totalTarjeta: number;
+  totalQr: number;
+  totalIngresos: number;
+  totalEgresos: number;
+  diferencia: number;
+  estado: string;
+  abiertaActualmente: boolean;
+  movimientos: MovimientoCajaDelDia[];
+}
+
+export interface MovimientoCajaDelDia {
+  id: number;
+  codigoCaja: string;
+  fecha: string;
+  tipo: string;
+  categoria: string;
+  descripcion: string;
+  monto: number;
+  referencia?: string | null;
+  nota?: string | null;
+}
+
+export interface ReporteCajaDiario {
+  fecha: string;
+  generadoEn: string;
+  resumen: ResumenDiarioCaja;
+  cajas: CajaDelDia[];
+  movimientos: MovimientoCajaDelDia[];
+}
+
+// ── Reporte Mensual de Productos ──────────────────────────────────────────
+
+export interface ResumenMensualProductos {
+  totalFacturado: number;
+  numeroFacturas: number;
+  unidadesVendidas: number;
+  productosDistintos: number;
+  categoriasActivas: number;
+}
+
+export interface ProductoTop {
+  idProducto: number;
+  codigo: string;
+  nombre: string;
+  categoria: string;
+  unidadesVendidas: number;
+  ingresos: number;
+  precioPromedio: number;
+  numeroVentas: number;
+  stockFinMes: number;
+  stockInicioMes: number;
+  stockPromedio: number;
+  rotacion: number;
+}
+
+export interface ProductoPorCategoria {
+  categoria: string;
+  unidadesVendidas: number;
+  ingresos: number;
+  productosDistintos: number;
+}
+
+export interface ReporteProductosMensual {
+  mes: number;
+  anio: number;
+  generadoEn: string;
+  resumen: ResumenMensualProductos;
+  topUnidades: ProductoTop[];
+  topIngresos: ProductoTop[];
+  topRotacion: ProductoTop[];
+  porCategoria: ProductoPorCategoria[];
+}

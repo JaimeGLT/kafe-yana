@@ -24,7 +24,8 @@ interface SuccessPanelProps {
   errorSiat?: string | null;
   codigoRecepcion?: string | null;
   numeroFactura?: number | null;
-  onPrintSiat?: (ventaId: number) => void | Promise<void>;
+  /** Abre el modal de impresión de factura SIAT. */
+  onOpenFacturaModal?: () => void;
   onResendSiat?: (ventaId: number) => void | Promise<void>;
 }
 
@@ -48,13 +49,13 @@ export const SuccessPanel: React.FC<SuccessPanelProps> = ({
   errorSiat = null,
   codigoRecepcion = null,
   numeroFactura = null,
-  onPrintSiat,
+  onOpenFacturaModal,
   onResendSiat,
 }) => {
   const totalPuntosReales = puntosPorVenta + puntosPromocion;
   // estadoSiat puede llegar como string ('Validada') o como número (908) — el helper maneja ambos.
   const esAnulada = esEstadoAnuladaSiat(estadoSiat);
-  const puedeReimprimir = !!ventaId && siatAceptada === true && !!onPrintSiat;
+  const puedeReimprimir = !!ventaId && siatAceptada === true && !!onOpenFacturaModal;
   const puedeReenviar = !!ventaId && siatAceptada === false && !esAnulada && !!onResendSiat;
   return (
   <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
@@ -189,7 +190,7 @@ export const SuccessPanel: React.FC<SuccessPanelProps> = ({
           )}
           {puedeReimprimir && (
             <button
-              onClick={() => onPrintSiat!(ventaId)}
+              onClick={() => onOpenFacturaModal!()}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 active:scale-95 transition-all"
             >
               <FileText className="h-4 w-4" /> Imprimir factura SIAT

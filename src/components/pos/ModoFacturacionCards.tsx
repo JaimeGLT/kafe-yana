@@ -9,6 +9,12 @@ interface ModoFacturacionCardsProps {
   selected: ModoFacturacion;
   /** Se invoca al elegir un modo. El padre se encarga de fijar esSinNombre / noFacturar. */
   onChange: (modo: ModoFacturacion) => void;
+  /**
+   * Restringe qué tarjetas se muestran. Default: las 3. Usado por el modal de
+   * "facturar sub-venta" para omitir "No facturar" (no aplica: la acción
+   * explícita ahí siempre es emitir factura).
+   */
+  modes?: ModoFacturacion[];
 }
 
 const MODES: {
@@ -37,13 +43,45 @@ const MODES: {
   },
 ];
 
+interface ModoFacturacionBannerProps {
+  icon: React.ReactNode;
+  label: string;
+  /** Ej. chip "Requerido" para el modo con_datos. */
+  badge?: React.ReactNode;
+  /** Ej. `<DatosFiscalesForm />` para el modo con_datos. */
+  children?: React.ReactNode;
+}
+
+/**
+ * Confirmación visual liviana del modo de facturación elegido. Sin párrafo
+ * explicativo: los valores reales (NIT/documento/nombre por default) los
+ * arma `useFacturacionForm`/`buildDatosFiscales()` sin depender de este texto.
+ */
+export const ModoFacturacionBanner: React.FC<ModoFacturacionBannerProps> = ({
+  icon,
+  label,
+  badge,
+  children,
+}) => (
+  <div className="rounded-xl border border-coffee-200 bg-coffee-50 px-3 py-2.5">
+    <div className="flex items-center gap-2">
+      {icon}
+      <p className="text-[10px] font-bold text-coffee-700 uppercase tracking-wider">{label}</p>
+      {badge}
+    </div>
+    {children && <div className="mt-2.5">{children}</div>}
+  </div>
+);
+
 export const ModoFacturacionCards: React.FC<ModoFacturacionCardsProps> = ({
   selected,
   onChange,
+  modes,
 }) => {
+  const visibleModes = modes ? MODES.filter(m => modes.includes(m.id)) : MODES;
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-      {MODES.map((mode) => {
+    <div className={clsx('grid grid-cols-1 gap-2', visibleModes.length >= 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
+      {visibleModes.map((mode) => {
         const isSelected = selected === mode.id;
         return (
           <button

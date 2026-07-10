@@ -8,6 +8,8 @@ export { StockAdjustmentModal } from './StockAdjustmentModal';
 export { AnularFacturaModal } from './AnularFacturaModal';
 export { RevertirAnulacionFacturaModal } from './RevertirAnulacionFacturaModal';
 export { NotaAjusteModal } from './NotaAjusteModal';
+export { AnularNotaAjusteModal } from './AnularNotaAjusteModal';
+export { RevertirAnulacionNotaAjusteModal } from './RevertirAnulacionNotaAjusteModal';
 export { CodigoSinModal } from './CodigoSinModal';
 export { SaleDetailModal } from './SaleDetailModal';
 export { SaleReceiptModal } from './SaleReceiptModal';

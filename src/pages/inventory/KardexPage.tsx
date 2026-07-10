@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { BookOpen, Package, FlaskConical, Layers, Cookie } from 'lucide-react';
 import { clsx } from 'clsx';
 import { MainLayout } from '../../components/layout';
@@ -11,6 +11,7 @@ import {
   GET_PRODUCTO_MOVIMIENTOS,
   GET_INSUMO_MOVIMIENTOS,
 } from '../../lib/queries/kardex.queries';
+import { usePagination } from '../../hooks/usePagination';
 import { formatCurrency, formatDateTime } from '../../utils';
 import type {
   KardexSelectorItem,
@@ -86,8 +87,6 @@ const TIPO_PREFIX: Record<ItemTipo, string> = {
   insumo: '[I]',
 };
 
-const DEFAULT_PAGE_SIZE = 20;
-
 const KardexPage: React.FC = () => {
   const [allItems, setAllItems] = useState<KardexSelectorItem[]>([]);
   const [isLoadingItems, setIsLoadingItems] = useState(true);
@@ -95,19 +94,13 @@ const KardexPage: React.FC = () => {
   const [selectedItemId, setSelectedItemId] = useState('');
   const [movements, setMovements] = useState<UnifiedMovement[]>([]);
   const [isLoadingMovements, setIsLoadingMovements] = useState(false);
-
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(DEFAULT_PAGE_SIZE);
   const [totalCount, setTotalCount] = useState(0);
 
-  const [cursors, setCursors] = useState<Record<number, string>>({});
-  const cursorsRef = useRef<Record<number, string>>({});
-  cursorsRef.current = cursors;
-
-  useEffect(() => {
-    setCursors({});
-    setPage(1);
-  }, [selectedItemId]);
+  // ── Paginación skip/take sincronizada a URL (compartida por ambos
+  //    endpoints: producto/insumo). El reset al cambiar de item lo
+  //    hace el handler de `selectedItemId` abajo. ────────────────────────
+  const { page, pageSize, setPage, setPageSize, resetPage } = usePagination({ pageSize: 20 });
+  const skip = (page - 1) * pageSize;
 
   const loadAllItems = useCallback(async () => {
     setIsLoadingItems(true);
@@ -115,28 +108,28 @@ const KardexPage: React.FC = () => {
       const data = await gql<KardexItemsResponse>(GET_KARDEX_ITEMS);
 
       const mapped: KardexSelectorItem[] = [
-        ...data.comprados.nodes.map((c: KardexCompradoNode) => ({
+        ...data.comprados.items.map((c: KardexCompradoNode) => ({
           id: `comprado-${c.producto.id}`,
           name: c.producto.nombre,
           tipo: 'comprado' as const,
           stock: c.stock_actual,
           unit: 'unidad',
         })),
-        ...data.elaborados.nodes.map((e: KardexElaboradoNode) => ({
+        ...data.elaborados.items.map((e: KardexElaboradoNode) => ({
           id: `elaborado-${e.id_Producto}`,
           name: e.producto.nombre,
           tipo: 'elaborado' as const,
           stock: e.stock_actual,
           unit: 'unidad',
         })),
-        ...data.combos.nodes.map((c: KardexComboNode) => ({
+        ...data.combos.items.map((c: KardexComboNode) => ({
           id: `combo-${c.producto.id}`,
           name: c.producto.nombre,
           tipo: 'combo' as const,
           stock: c.cantidadProducible,
           unit: 'unidad',
         })),
-        ...data.insumos.nodes.map((i: KardexInsumoNode) => ({
+        ...data.insumos.items.map((i: KardexInsumoNode) => ({
           id: `insumo-${i.id}`,
           name: i.nombre,
           tipo: 'insumo' as const,
@@ -167,27 +160,21 @@ const KardexPage: React.FC = () => {
     return null;
   };
 
-  const loadMovements = useCallback(async (fullItemId: string, currentPage: number) => {
+  const loadMovements = useCallback(async (fullItemId: string) => {
     const parsed = parseItemId(fullItemId);
     if (!parsed) return;
 
     setIsLoadingMovements(true);
     try {
-      const variables: Record<string, unknown> = { id: parsed.id, first: pageSize };
-      if (currentPage > 1 && cursorsRef.current[currentPage - 1]) {
-        variables.after = cursorsRef.current[currentPage - 1];
-      }
+      const variables = { id: parsed.id, skip, take: pageSize };
 
-      let nodes: UnifiedMovement[] = [];
+      let items: UnifiedMovement[] = [];
       let total = 0;
 
       if (parsed.tipo === 'insumo') {
         const data = await gql<InsumoMovimientosResponse>(GET_INSUMO_MOVIMIENTOS, variables);
         total = data.insumoMovimientos.totalCount;
-        if (data.insumoMovimientos.pageInfo?.endCursor) {
-          setCursors((prev) => ({ ...prev, [currentPage]: data.insumoMovimientos.pageInfo!.endCursor as string }));
-        }
-        nodes = data.insumoMovimientos.nodes.map((m: InsumoMovimientoNode) => ({
+        items = data.insumoMovimientos.items.map((m: InsumoMovimientoNode) => ({
           id: String(m.id),
           date: new Date(m.fecha),
           type: TIPO_MOVEMENT_MAP[m.tipo] ?? 'adjustment',
@@ -200,10 +187,7 @@ const KardexPage: React.FC = () => {
       } else {
         const data = await gql<MovimientoProductoResponse>(GET_PRODUCTO_MOVIMIENTOS, variables);
         total = data.movimientoProducto.totalCount;
-        if (data.movimientoProducto.pageInfo?.endCursor) {
-          setCursors((prev) => ({ ...prev, [currentPage]: data.movimientoProducto.pageInfo!.endCursor as string }));
-        }
-        nodes = data.movimientoProducto.nodes.map((m: MovimientoProductoNode) => ({
+        items = data.movimientoProducto.items.map((m: MovimientoProductoNode) => ({
           id: String(m.id),
           date: new Date(m.fecha),
           type: TIPO_MOVEMENT_MAP[m.tipo] ?? 'adjustment',
@@ -215,8 +199,8 @@ const KardexPage: React.FC = () => {
         }));
       }
 
-      nodes.sort((a, b) => b.date.getTime() - a.date.getTime());
-      setMovements(nodes);
+      items.sort((a, b) => b.date.getTime() - a.date.getTime());
+      setMovements(items);
       setTotalCount(total);
     } catch (error) {
       console.error('Error loading kardex movements:', error);
@@ -225,7 +209,13 @@ const KardexPage: React.FC = () => {
     } finally {
       setIsLoadingMovements(false);
     }
-  }, [pageSize]);
+  }, [skip, pageSize]);
+
+  // Cambio de item seleccionado: reset a página 1.
+  const handleSelectedItemChange = useCallback((value: string) => {
+    setSelectedItemId(value);
+    resetPage();
+  }, [resetPage]);
 
   useEffect(() => {
     if (!selectedItemId) {
@@ -233,8 +223,8 @@ const KardexPage: React.FC = () => {
       setTotalCount(0);
       return;
     }
-    loadMovements(selectedItemId, page);
-  }, [selectedItemId, page, loadMovements]);
+    loadMovements(selectedItemId);
+  }, [selectedItemId, loadMovements]);
 
   const itemOptions = useMemo(() => [
     { value: '', label: 'Seleccionar un producto o insumo…' },
@@ -269,7 +259,7 @@ const KardexPage: React.FC = () => {
               <SearchableSelect
                 options={itemOptions}
                 value={selectedItemId}
-                onChange={setSelectedItemId}
+                onChange={handleSelectedItemChange}
                 placeholder="Seleccionar un producto o insumo…"
               />
             )}
@@ -413,6 +403,7 @@ const KardexPage: React.FC = () => {
                   page={page}
                   pageSize={pageSize}
                   onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
                   isLoading={isLoadingMovements}
                 />
               </>

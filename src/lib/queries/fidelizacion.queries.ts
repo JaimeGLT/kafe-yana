@@ -1,8 +1,8 @@
 export const GET_PRODUCTOS_CANJEABLES = `
   query GetProductosCanjeables {
-    productosCanjeables {
+    productosCanjeables(skip: 0, take: 200) {
       totalCount
-      nodes {
+      items {
         id
         id_Producto
         nombreProducto
@@ -17,8 +17,8 @@ export const GET_PRODUCTOS_CANJEABLES = `
 
 export const GET_PRODUCTOS_SELECTOR = `
   query GetProductosSelector {
-    comprados {
-      nodes {
+    comprados(skip: 0, take: 500) {
+      items {
         producto {
           id
           nombre
@@ -26,8 +26,8 @@ export const GET_PRODUCTOS_SELECTOR = `
         }
       }
     }
-    elaborados {
-      nodes {
+    elaborados(skip: 0, take: 500) {
+      items {
         producto {
           id
           nombre
@@ -35,8 +35,8 @@ export const GET_PRODUCTOS_SELECTOR = `
         }
       }
     }
-    combos {
-      nodes {
+    combos(skip: 0, take: 200) {
+      items {
         producto {
           id
           nombre
@@ -48,8 +48,8 @@ export const GET_PRODUCTOS_SELECTOR = `
 
 export const GET_PROMOCIONES_PERMANENTES = `
   query GetPromocionPermanentes {
-    promocionPermanentes(first: 100) {
-      nodes {
+    promocionPermanentes(skip: 0, take: 200) {
+      items {
         id
         nombre
         descripcion
@@ -67,11 +67,11 @@ export const GET_PROMOCIONES_PERMANENTES = `
 export const GET_HISTORIAL_PUNTOS = `
   query GetHistorialPuntos($clienteId: Int!) {
     historialPuntos(
-      first: 100
-      where: { id_Cliente: { eq: $clienteId } }
-      order: [{ fecha: DESC }]
+      skip: 0
+      take: 200
+      idCliente: $clienteId
     ) {
-      nodes {
+      items {
         id
         id_Cliente
         codigoVenta
@@ -86,9 +86,9 @@ export const GET_HISTORIAL_PUNTOS = `
 
 export const GET_PROMOCIONES_TEMPORADA = `
   query GetPromocionesTemporada {
-    promocionTemporadas {
+    promocionTemporadas(skip: 0, take: 200) {
       totalCount
-      nodes {
+      items {
         id
         nombre
         fechaInicio
@@ -112,9 +112,9 @@ export const GET_PROMOCIONES_TEMPORADA = `
 
 export const GET_HITOS_COMPRA = `
   query GetHitosCompra {
-    hitosCompra(order: { numeroCompras: ASC }) {
+    hitosCompra(skip: 0, take: 200) {
       totalCount
-      nodes {
+      items {
         id
         numeroCompras
         id_ProductoCanjeable
@@ -136,9 +136,9 @@ export const GET_HITOS_COMPRA = `
 
 export const GET_HISTORIAL_REFERIDOS = `
   query GetHistorialReferidos {
-    historialReferidos(order: { fecha: DESC }) {
+    historialReferidos(skip: 0, take: 200) {
       totalCount
-      nodes {
+      items {
         id
         nombreReferidor
         nombreReferido
@@ -153,11 +153,11 @@ export const GET_HISTORIAL_REFERIDOS = `
 export const GET_VENTAS_CLIENTE = `
   query GetVentasCliente($nombre: String!) {
     ventas(
-      first: 100,
-      where: { nombreRazonSocial: { contains: $nombre } },
-      order: [{ fechaEmision: DESC }]
+      skip: 0,
+      take: 100,
+      search: $nombre
     ) {
-      nodes {
+      items {
         id
         numeroFactura
         fechaEmision

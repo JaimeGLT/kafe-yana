@@ -1,4 +1,13 @@
 /**
+ * Rounds a monetary amount to 2 decimals, avoiding floating-point noise
+ * (e.g. 45.900000000000006) before sending totals to the backend, which
+ * compares against clean `decimal` values.
+ */
+export function roundMoney(amount: number): number {
+  return Math.round((amount + Number.EPSILON) * 100) / 100;
+}
+
+/**
  * Formats a number as Bolivianos currency.
  * Example: 1234.5 → "Bs 1.234,50"
  */
@@ -20,6 +29,37 @@ export function formatDate(date: Date | string): string {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
+  });
+}
+
+const BOLIVIA_TZ = 'America/La_Paz';
+
+/**
+ * Formats only the time in Bolivia's timezone, regardless of the device's
+ * own timezone/clock settings. Example: "14:30".
+ */
+export function formatHoraBolivia(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleTimeString('es-BO', {
+    timeZone: BOLIVIA_TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+/**
+ * Formats date+time in Bolivia's timezone, regardless of the device's own
+ * timezone/clock settings. Example: "05/07/2026, 14:30".
+ */
+export function formatFechaHoraBolivia(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleString('es-BO', {
+    timeZone: BOLIVIA_TZ,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }
 
@@ -92,6 +132,16 @@ export function getStockStatus(
 }
 
 /**
+ * Formats a stock quantity for display. Non-finite numbers (Infinity/-Infinity/NaN)
+ * render as the infinity symbol, since the POS uses Infinity as a sentinel for
+ * "unlimited" stock (e.g. productos sin receta).
+ * Example: 12 → "12",  Infinity → "∞"
+ */
+export function formatStockQty(value: number): string {
+  return Number.isFinite(value) ? value.toString() : '∞';
+}
+
+/**
  * Returns a human-readable Spanish label for common status strings.
  */
 export function getStatusLabel(status: string): string {
@@ -115,9 +165,6 @@ export function getStatusLabel(status: string): string {
     ok: 'Stock OK',
     low: 'Stock Bajo',
     out: 'Agotado',
-    // Quote
-    expired: 'Expirado',
-    converted: 'Convertido',
   };
   return labels[status] ?? status;
 }
@@ -129,8 +176,10 @@ export function getPaymentMethodLabel(method: string): string {
   const labels: Record<string, string> = {
     cash: 'Efectivo',
     card: 'Tarjeta',
-    transfer: 'Transferencia',
+    transfer: 'QR',
+    qr: 'QR',
     credit: 'Crédito',
+    mixed: 'Pago mixto',
     check: 'Cheque',
     yape: 'Yape',
     plin: 'Plin',

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { startOfDay, endOfDay, startOfWeek, startOfMonth, differenceInDays, format } from 'date-fns';
 import { gql } from '../lib/graphql';
 import { GET_VENTAS_REPORT } from '../lib/queries/ventas.queries';
+import { SIN_CODIGO } from '../lib/mappers/metodosPago';
 import type {
   VentaNode,
   VentaFilters,
@@ -15,8 +16,7 @@ import type {
 
 interface VentasResponse {
   ventas: {
-    nodes: VentaNode[];
-    pageInfo: { hasNextPage: boolean; endCursor: string };
+    items: VentaNode[];
     totalCount: number;
   };
 }
@@ -31,14 +31,27 @@ function countProductos(detalles: VentaNode['detalles']): number {
   return (detalles ?? []).reduce((sum, d) => sum + d.cantidad, 0);
 }
 
-function pagoMetodo(v: VentaNode): { efectivo: number; tarjeta: number; qr: number } {
-  const total = parseDecimal(v.montoTotal);
-  const esTarjeta = v.numeroTarjeta != null && v.numeroTarjeta !== '';
-  return {
-    efectivo: esTarjeta ? 0 : total,
-    tarjeta: esTarjeta ? total : 0,
-    qr: 0,
-  };
+/**
+ * Suma los montos por cada código SIN presente en `VentaPagos`. Soporta
+ * pagos mixtos (la lista `pagos` tiene una entrada por método). Si no
+ * hay líneas, cae a `codigoMetodoPago` único y, en última instancia, a
+ * `numeroTarjeta` (legacy) → Efectivo.
+ */
+function agregarPagosPorCodigo(
+  v: VentaNode,
+  acumulador: Record<number, number>,
+): void {
+  const lineas = (v.pagos ?? []).filter((p) => parseDecimal(p.monto) > 0);
+  if (lineas.length > 0) {
+    lineas.forEach((p) => {
+      acumulador[p.codigoMetodoPago] = (acumulador[p.codigoMetodoPago] ?? 0) + parseDecimal(p.monto);
+    });
+    return;
+  }
+  const codigo =
+    v.codigoMetodoPago ??
+    (v.numeroTarjeta != null && v.numeroTarjeta !== '' ? SIN_CODIGO.TARJETA : SIN_CODIGO.EFECTIVO);
+  acumulador[codigo] = (acumulador[codigo] ?? 0) + parseDecimal(v.montoTotal);
 }
 
 export function useSalesReportPage(
@@ -72,18 +85,21 @@ export function useSalesReportPage(
       };
 
       let allNodes: VentaNode[] = [];
-      let cursor: string | undefined;
-      let hasNextPage = true;
+      let skip = 0;
+      const pageSize = 200; // MaxTake del backend
+      let totalCount = Infinity;
 
-      while (hasNextPage) {
+      while (allNodes.length < totalCount) {
         const data = await gql<VentasResponse>(GET_VENTAS_REPORT, {
           where: filters,
-          after: cursor,
+          skip,
+          take: pageSize,
         });
 
-        allNodes = [...allNodes, ...data.ventas.nodes];
-        hasNextPage = data.ventas.pageInfo.hasNextPage;
-        cursor = data.ventas.pageInfo.endCursor;
+        allNodes = [...allNodes, ...data.ventas.items];
+        totalCount = data.ventas.totalCount;
+        if (data.ventas.items.length < pageSize) break;
+        skip += pageSize;
       }
 
       const totalRevenue = allNodes.reduce((sum, v) => sum + parseDecimal(v.montoTotal), 0);
@@ -116,16 +132,24 @@ export function useSalesReportPage(
         Object.values(periodMap).sort((a, b) => a.fecha.localeCompare(b.fecha)),
       );
 
-      const paymentMap: Record<string, number> = {};
-      allNodes.forEach((v) => {
-        const p = pagoMetodo(v);
-        if (p.efectivo > 0) paymentMap['Efectivo'] = (paymentMap['Efectivo'] || 0) + p.efectivo;
-        if (p.tarjeta > 0) paymentMap['Tarjeta'] = (paymentMap['Tarjeta'] || 0) + p.tarjeta;
-        if (p.qr > 0) paymentMap['QR'] = (paymentMap['QR'] || 0) + p.qr;
-      });
-      setPaymentMethodData(
-        Object.entries(paymentMap).map(([metodo, total]) => ({ metodo, total })),
-      );
+      const paymentAccum: Record<number, number> = {};
+      allNodes.forEach((v) => agregarPagosPorCodigo(v, paymentAccum));
+
+      // Mapea cada código SIN acumulado a su etiqueta legible para el gráfico.
+      // Mantener el orden del catálogo SIN para que el render sea estable.
+      const labelForCode: Record<number, string> = {
+        [SIN_CODIGO.EFECTIVO]: 'Efectivo',
+        [SIN_CODIGO.TARJETA]: 'Tarjeta',
+        [SIN_CODIGO.OTROS]: 'Otros',
+        [SIN_CODIGO.TRANSFERENCIA]: 'QR',
+      };
+      const paymentEntries = Object.entries(paymentAccum)
+        .map(([codigo, total]) => ({
+          metodo: labelForCode[Number(codigo)] ?? `Método ${codigo}`,
+          total,
+        }))
+        .sort((a, b) => b.total - a.total);
+      setPaymentMethodData(paymentEntries);
 
       const productMap: Record<string, { qty: number; revenue: number }> = {};
       allNodes.forEach((v) => {

@@ -1,7 +1,8 @@
 import React from 'react';
-import { Printer, X, MonitorCheck } from 'lucide-react';
+import { Printer, X, MonitorCheck, Globe } from 'lucide-react';
 import { enviarCuenta } from '../../utils/comandas';
 import { formatCurrency } from '../../utils';
+import { escapeHtml, imprimirEnNavegador } from '../../utils/printBrowser';
 
 type Tamaño = 'pequeño' | 'mediano';
 
@@ -32,16 +33,58 @@ export const PrintReciboModal: React.FC<PrintReciboModalProps> = ({ data, onClos
 
   const handlePrint = async () => {
     setIsPrinting(true);
-    await enviarCuenta(
-      data.mesaName,
-      data.saleCode,
-      data.items,
-      data.total,
-      data.metodoPago,
-      ['principal'],
-    );
-    setIsPrinting(false);
-    onClose();
+    try {
+      const ancho = tamaño === 'pequeño' ? 32 : 48;
+      await enviarCuenta(
+        data.mesaName,
+        data.saleCode,
+        data.items,
+        data.total,
+        data.metodoPago,
+        ['principal'],
+        ancho,
+      );
+    } finally {
+      setIsPrinting(false);
+      onClose();
+    }
+  };
+
+  const handleBrowserPrint = () => {
+    imprimirEnNavegador({
+      titulo: `Recibo ${data.saleCode}`,
+      anchoMM: tamaño === 'pequeño' ? '58' : '80',
+      buildBody: () => {
+        const rows = data.items.map(i => `
+          <tr>
+            <td style="padding:2px 0">${escapeHtml(String(i.cantidad))}x ${escapeHtml(i.nombre)}</td>
+            <td style="text-align:right;padding:2px 0">${formatCurrency(i.total)}</td>
+          </tr>
+        `).join('');
+        const metodoLabel = METODO_LABEL[data.metodoPago] ?? data.metodoPago;
+        return `
+          <h2>Kafe Yana</h2>
+          <p class="subtitle">RECIBO</p>
+          <p class="subtitle">${escapeHtml(data.mesaName)}</p>
+          <p class="subtitle">${escapeHtml(data.saleCode)} · ${new Date().toLocaleString('es-PE')}</p>
+          <div class="divider"></div>
+          <table>
+            <tbody>${rows}</tbody>
+          </table>
+          <div class="divider"></div>
+          <table>
+            <tbody>
+              <tr class="total-row">
+                <td>TOTAL</td>
+                <td>${formatCurrency(data.total)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="subtitle">Pago: ${escapeHtml(metodoLabel)}</p>
+          <p class="subtitle" style="margin-top:8px">¡Gracias por su compra!</p>
+        `;
+      },
+    });
   };
 
   return (
@@ -59,12 +102,21 @@ export const PrintReciboModal: React.FC<PrintReciboModalProps> = ({ data, onClos
               <p className="text-xs text-coffee-400">{data.mesaName}</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="h-8 w-8 rounded-xl bg-coffee-100 flex items-center justify-center text-coffee-500 hover:bg-coffee-200"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleBrowserPrint}
+              title="Imprimir por navegador"
+              className="h-8 w-8 rounded-xl bg-coffee-100 flex items-center justify-center text-coffee-500 hover:bg-coffee-200"
+            >
+              <Globe className="h-4 w-4" />
+            </button>
+            <button
+              onClick={onClose}
+              className="h-8 w-8 rounded-xl bg-coffee-100 flex items-center justify-center text-coffee-500 hover:bg-coffee-200"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Lista de productos */}

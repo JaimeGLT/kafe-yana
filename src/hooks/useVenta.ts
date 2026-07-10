@@ -3,7 +3,9 @@ import { api, ApiError } from '../lib/api';
 import { gql } from '../lib/graphql';
 import { GET_PARA_LLEVAR } from '../lib/queries/ventas.queries';
 import { toast } from '../components/ui/Toast';
+import { interpretarErrorCobro } from '../lib/errores';
 import type { RondaCreatedResponse, DtoRondaEditar, DtoRondaDetalleEditar } from './useMesas';
+import type { PedidoActualizado, ItemCubiertoInput } from '../types';
 
 export interface ParaLlevarPedido {
   disponible: boolean;
@@ -31,7 +33,9 @@ export interface ParaLlevarPedido {
       subTotal: number;
       detalle: {
         cantidad: number;
+        cantidadDescontada?: number;
         id: number;
+        id_Producto: number;
         id_Ronda: number;
         nombre_Producto: string;
         precio: number;
@@ -70,7 +74,12 @@ export interface RespuestaCobro {
   CodigoHash: string | null;
   Siat: import('../types/siat').SiatResultado | null;
   XmlGenerado: boolean;
-  ImpresionFactura: import('../types/siat').SiatImpresion | null;
+
+  // ── Pago parcial ──
+  /** `true` cuando el cobro fue un pago parcial (mesa/pedido sigue abierto). */
+  EsAbono?: boolean | null;
+  /** Estado del pedido tras el cobro (parcial o final). */
+  pedidoActualizado?: PedidoActualizado | null;
 }
 
 interface UseVentaReturn {
@@ -85,14 +94,24 @@ interface UseVentaReturn {
     pedidoId: number,
     body: Record<string, unknown>,
   ) => Promise<RespuestaCobro | null>;
+  /**
+   * Registra un pago parcial sobre un pedido para llevar.
+   * Body debe incluir `itemsCubiertos: ItemCubiertoInput[]` y
+   * `mantenerMesaAbierta: true`. El backend deja el pedido abierto.
+   */
+  aplicarAbonoParaLlevar: (
+    pedidoId: number,
+    itemsCubiertos: ItemCubiertoInput[],
+    body: Record<string, unknown>,
+  ) => Promise<RespuestaCobro | null>;
   liberarPedido: () => Promise<boolean>;
 }
 
 export function useVenta(): UseVentaReturn {
   const syncParaLlevar = useCallback(async (): Promise<ParaLlevarPedido[]> => {
     try {
-      const data = await gql<{ paraLlevar: { nodes: ParaLlevarPedido[] } }>(GET_PARA_LLEVAR);
-      return data.paraLlevar.nodes;
+      const data = await gql<{ paraLlevar: { items: ParaLlevarPedido[] } }>(GET_PARA_LLEVAR);
+      return data.paraLlevar.items;
     } catch (err) {
       console.error('Error syncing para llevar:', err);
       toast.error('Error', 'No se pudieron sincronizar los pedidos para llevar.');
@@ -195,8 +214,34 @@ export function useVenta(): UseVentaReturn {
       const res = await api.post<RespuestaCobro>('/Venta/cobrar', { id_Pedido: pedidoId, ...body });
       return res;
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'No se pudo cobrar el pedido.';
-      toast.error('Error', msg);
+      const { title, message, nivel } = interpretarErrorCobro(err, 'No se pudo cobrar el pedido.');
+      if (nivel === 'warning') toast.warning(title, message);
+      else toast.error(title, message);
+      return null;
+    }
+  }, []);
+
+  const aplicarAbonoParaLlevar = useCallback(async (
+    pedidoId: number,
+    itemsCubiertos: ItemCubiertoInput[],
+    body: Record<string, unknown>,
+  ): Promise<RespuestaCobro | null> => {
+    if (!itemsCubiertos.length) {
+      toast.error('Sin selección', 'Selecciona al menos un item para cobrar.');
+      return null;
+    }
+    try {
+      const res = await api.post<RespuestaCobro>('/Venta/cobrar', {
+        id_Pedido: pedidoId,
+        ...body,
+        itemsCubiertos,
+        mantenerMesaAbierta: true,
+      });
+      return res;
+    } catch (err) {
+      const { title, message, nivel } = interpretarErrorCobro(err, 'No se pudo registrar el pago parcial.');
+      if (nivel === 'warning') toast.warning(title, message);
+      else toast.error(title, message);
       return null;
     }
   }, []);
@@ -221,6 +266,7 @@ export function useVenta(): UseVentaReturn {
     editarDetalleParaLlevar,
     eliminarDetalleParaLlevar,
     cobrarParaLlevar,
+    aplicarAbonoParaLlevar,
     liberarPedido,
   };
 }

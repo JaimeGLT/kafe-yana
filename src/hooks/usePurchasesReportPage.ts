@@ -13,8 +13,7 @@ import type {
 
 interface OrdenesResponse {
   ordenes: {
-    nodes: OrdenCompraNode[];
-    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+    items: OrdenCompraNode[];
     totalCount: number;
   };
 }
@@ -33,21 +32,26 @@ export function usePurchasesReportPage(
     setIsLoading(true);
     setError(null);
     try {
-      let nodes: OrdenCompraNode[] = [];
-      let cursor: string | null = null;
-      let hasNextPage = true;
+      // Reporte: pedimos el máximo permitido por página y agregamos si hace
+      // falta (en la práctica las compras anuales suelen caber en una sola
+      // página con take=200). Evita el walk cursor→cursor del esquema viejo.
+      const PAGE_SIZE = 200;
+      let items: OrdenCompraNode[] = [];
+      let skip = 0;
+      let totalCount = Infinity;
 
-      while (hasNextPage) {
+      while (items.length < totalCount) {
         const result: OrdenesResponse = await gql<OrdenesResponse>(
           GET_ORDENES_COMPRA,
-          cursor ? { first: 50, after: cursor } : { first: 50 },
+          { skip, take: PAGE_SIZE },
         );
-        nodes = [...nodes, ...result.ordenes.nodes];
-        hasNextPage = result.ordenes.pageInfo.hasNextPage;
-        cursor = result.ordenes.pageInfo.endCursor;
+        items = [...items, ...result.ordenes.items];
+        totalCount = result.ordenes.totalCount;
+        if (result.ordenes.items.length < PAGE_SIZE) break;
+        skip += PAGE_SIZE;
       }
 
-      setAllOrders(nodes);
+      setAllOrders(items);
     } catch (e) {
       console.error('Error loading purchases report:', e);
       setError('No se pudo cargar el reporte de compras.');

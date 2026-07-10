@@ -1,7 +1,7 @@
 export const GET_ALL_INSUMOS = `
-  query GetAllInsumos($first: Int, $after: String, $where: InsumoFilterInput) {
-    insumos(first: $first, after: $after, where: $where) {
-      nodes {
+  query GetAllInsumos($skip: Int, $take: Int, $search: String, $categoria: String) {
+    insumos(skip: $skip, take: $take, search: $search, categoria: $categoria) {
+      items {
         id
         nombre
         categoria
@@ -13,10 +13,6 @@ export const GET_ALL_INSUMOS = `
         stock_min
       }
       totalCount
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
     }
   }
 `

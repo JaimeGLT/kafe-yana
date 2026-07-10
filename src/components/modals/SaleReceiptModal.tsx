@@ -10,6 +10,7 @@ interface SaleReceiptModalProps {
 }
 
 type Destino = 'principal' | 'cocina' | 'barra';
+type Tamaño = 'pequeño' | 'mediano';
 
 const DESTINO_CONFIG: { id: Destino; label: string; icon: React.ReactNode }[] = [
   { id: 'principal', label: 'Principal', icon: <MonitorCheck className="h-4 w-4" /> },
@@ -17,9 +18,15 @@ const DESTINO_CONFIG: { id: Destino; label: string; icon: React.ReactNode }[] = 
   { id: 'barra',     label: 'Barra',     icon: <GlassWater className="h-4 w-4" /> },
 ];
 
+const TAMAÑO_CONFIG: { id: Tamaño; label: string; mm: string }[] = [
+  { id: 'pequeño', label: 'Pequeño (58mm)', mm: '58mm' },
+  { id: 'mediano', label: 'Mediano (80mm)', mm: '80mm' },
+];
+
 export const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClose }) => {
   const [isPrinting, setIsPrinting] = React.useState(false);
   const [destinos, setDestinos] = React.useState<Destino[]>(['principal']);
+  const [tamaño, setTamaño] = React.useState<Tamaño>('mediano');
 
   React.useEffect(() => {
     if (!sale) return;
@@ -45,26 +52,31 @@ export const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClos
 
   const handlePrint = async () => {
     setIsPrinting(true);
-    await enviarCuenta(
-      sale.customerName ?? sale.code,
-      sale.code,
-      sale.items.map(item => ({
-        cantidad: item.quantity,
-        nombre: item.productName ?? 'Producto',
-        precio: item.unitPrice,
-        total: item.total,
-        ubicacion: item.ubicacion,
-      })),
-      sale.total,
-      metodoPago,
-      destinos,
-    );
-    setIsPrinting(false);
-    onClose();
+    try {
+      await enviarCuenta(
+        sale.customerName ?? sale.code,
+        sale.code,
+        sale.items.map(item => ({
+          cantidad: item.quantity,
+          nombre: item.productName ?? 'Producto',
+          precio: item.unitPrice,
+          total: item.total,
+          ubicacion: item.ubicacion,
+        })),
+        sale.total,
+        metodoPago,
+        destinos,
+      );
+    } finally {
+      setIsPrinting(false);
+      onClose();
+    }
   };
 
   const handleBrowserPrint = () => {
-    const win = window.open('', '_blank', 'width=400,height=600');
+    const mm = TAMAÑO_CONFIG.find(t => t.id === tamaño)?.mm ?? '80mm';
+    const previewWidth = tamaño === 'pequeño' ? 240 : 320;
+    const win = window.open('', '_blank', `width=${previewWidth},height=600`);
     if (!win) return;
 
     const rows = sale.items.map(item => `
@@ -89,7 +101,8 @@ export const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClos
         <meta charset="utf-8"/>
         <title>Cuenta ${sale.code}</title>
         <style>
-          body { font-family: monospace; font-size: 13px; margin: 0; padding: 16px; max-width: 300px; }
+          @page { size: ${mm} auto; margin: 0; }
+          body { font-family: monospace; font-size: 13px; margin: 0; padding: 2mm; width: ${mm}; box-sizing: border-box; }
           h2 { text-align: center; margin: 0 0 4px; font-size: 16px; }
           p { text-align: center; margin: 2px 0; font-size: 11px; color: #555; }
           table { width: 100%; border-collapse: collapse; margin-top: 8px; }
@@ -97,7 +110,7 @@ export const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClos
           th:last-child, td:last-child { text-align: right; }
           .divider { border-top: 1px dashed #000; margin: 6px 0; }
           .total-row td { font-weight: bold; font-size: 15px; padding-top: 4px; }
-          @media print { body { margin: 0; padding: 8px; } }
+          @media print { body { padding: 1mm; } }
         </style>
       </head>
       <body>
@@ -200,6 +213,29 @@ export const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClos
                 >
                   {icon}
                   <span className="text-xs font-semibold">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Selector de tamaño de papel (solo afecta al fallback navegador) */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-coffee-600 uppercase tracking-wide">Tamaño papel</p>
+          <div className="grid grid-cols-2 gap-2">
+            {TAMAÑO_CONFIG.map(({ id, label }) => {
+              const active = tamaño === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setTamaño(id)}
+                  className={`py-3 rounded-2xl border-2 transition-all text-xs font-semibold ${
+                    active
+                      ? 'border-coffee-700 bg-coffee-700 text-cream'
+                      : 'border-coffee-200 hover:border-coffee-400 hover:bg-coffee-50 text-coffee-600'
+                  }`}
+                >
+                  {label}
                 </button>
               );
             })}

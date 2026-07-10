@@ -1,7 +1,7 @@
 export const GET_PARA_LLEVAR = `
   query GetParaLlevar {
-    paraLlevar {
-      nodes {
+    paraLlevar(skip: 0, take: 200) {
+      items {
         disponible
         id
         id_Pedido
@@ -27,7 +27,9 @@ export const GET_PARA_LLEVAR = `
             subTotal
             detalle {
               cantidad
+              cantidadDescontada
               id
+              id_Producto
               id_Ronda
               nombre_Producto
               precio
@@ -41,9 +43,9 @@ export const GET_PARA_LLEVAR = `
 `;
 
 export const GET_VENTAS_REPORT = `
-  query GetVentasReport($after: String, $where: VentaFilterInput) {
-    ventas(first: 50, after: $after, order: [{ fechaEmision: DESC }], where: $where) {
-      nodes {
+  query GetVentasReport($skip: Int!, $take: Int!, $fechaDesde: DateTime, $fechaHasta: DateTime, $estadoSiat: String, $search: String) {
+    ventas(skip: $skip, take: $take, fechaDesde: $fechaDesde, fechaHasta: $fechaHasta, estadoSiat: $estadoSiat, search: $search) {
+      items {
         id
         numeroFactura
         fechaEmision
@@ -53,23 +55,33 @@ export const GET_VENTAS_REPORT = `
         revertidaAnulacion
         montoTotalSujetoIva
         montoTotal
-        numeroTarjeta
+        codigoMetodoPago
+        pagos {
+          codigoMetodoPago
+          monto
+        }
+        cuf
+        numeroDocumento
         detalles {
           id
-          id_venta
-          descripcion
           cantidad
-          precioUnitario
-          subTotal
-          codigoProducto
-          unidadMedida
-          codigoProductoSin
-          actividadEconomica
         }
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
+        cantidadProductos
+        leyenda
+        notasAjuste {
+          id
+          idVenta
+          numeroNotaCreditoDebito
+          estadoSiat
+          codigoRecepcion
+          codigoMotivoAjuste
+          fechaEmision
+          montoTotalOriginal
+          montoTotalDevuelto
+          montoEfectivoCreditoDebito
+          cuf
+          revertidaAnulacion
+        }
       }
       totalCount
     }
@@ -77,35 +89,46 @@ export const GET_VENTAS_REPORT = `
 `;
 
 export const GET_VENTAS = `
-  query GetVentas($after: String, $where: VentaFilterInput) {
-    ventas(first: 50, after: $after, order: [{ fechaEmision: DESC }], where: $where) {
-      nodes {
+  query GetVentas($skip: Int!, $take: Int!, $fechaDesde: DateTime, $fechaHasta: DateTime, $estadoSiat: String, $facturado: Boolean, $search: String) {
+    ventas(skip: $skip, take: $take, fechaDesde: $fechaDesde, fechaHasta: $fechaHasta, estadoSiat: $estadoSiat, facturado: $facturado, search: $search) {
+      items {
         id
         numeroFactura
         fechaEmision
         nombreRazonSocial
         usuario
         estadoSiat
+        facturado
         revertidaAnulacion
         montoTotalSujetoIva
         montoTotal
-        numeroTarjeta
+        codigoMetodoPago
+        pagos {
+          codigoMetodoPago
+          monto
+        }
+        cuf
+        numeroDocumento
         detalles {
           id
-          id_venta
-          descripcion
           cantidad
-          precioUnitario
-          subTotal
-          codigoProducto
-          unidadMedida
-          codigoProductoSin
-          actividadEconomica
         }
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
+        cantidadProductos
+        leyenda
+        notasAjuste {
+          id
+          idVenta
+          numeroNotaCreditoDebito
+          estadoSiat
+          codigoRecepcion
+          codigoMotivoAjuste
+          fechaEmision
+          montoTotalOriginal
+          montoTotalDevuelto
+          montoEfectivoCreditoDebito
+          cuf
+          revertidaAnulacion
+        }
       }
       totalCount
     }
@@ -128,6 +151,72 @@ export const GET_VENTAS_STATS = `
       conteoHoy
       conteoMes
       ticketPromedioMes
+    }
+  }
+`;
+
+/**
+ * Trae UNA venta por id con sus detalles y notas de ajuste completas.
+ *
+ * Se usa para el modal de detalle (`SaleDetailModal`). La lista no incluye
+ * `detalles` para mantener el payload liviano — sólo el conteo
+ * (`cantidadProductos`); este query se dispara on-demand al abrir el modal.
+ *
+ * Patrón: reutiliza el resolver paginado `ventas(where: { id: { eq: $id } })`
+ * con `take: 1`. Es la única forma de pedir `detalles` sin duplicar resolvers.
+ */
+export const GET_VENTA_CON_DETALLES = `
+  query GetVentaConDetalles($id: Int!) {
+    ventas(skip: 0, take: 1, id: $id) {
+      items {
+        id
+        numeroFactura
+        fechaEmision
+        nombreRazonSocial
+        usuario
+        estadoSiat
+        facturado
+        revertidaAnulacion
+        montoTotalSujetoIva
+        montoTotal
+        codigoMetodoPago
+        pagos {
+          codigoMetodoPago
+          monto
+        }
+        cuf
+        numeroDocumento
+        complemento
+        codigoTipoDocumentoIdentidad
+        codigoRecepcion
+        detalles {
+          id
+          id_venta
+          descripcion
+          cantidad
+          precioUnitario
+          subTotal
+          codigoProducto
+          unidadMedida
+          codigoProductoSin
+          actividadEconomica
+          cantidadDevuelta
+        }
+        notasAjuste {
+          id
+          idVenta
+          numeroNotaCreditoDebito
+          estadoSiat
+          codigoRecepcion
+          codigoMotivoAjuste
+          fechaEmision
+          montoTotalOriginal
+          montoTotalDevuelto
+          montoEfectivoCreditoDebito
+          cuf
+          revertidaAnulacion
+        }
+      }
     }
   }
 `;

@@ -59,11 +59,11 @@ export function useHitosCompra() {
     setIsLoading(true);
     try {
       const [hitosRes, canjeablesRes] = await Promise.all([
-        gql<{ hitosCompra: { nodes: GqlHitoNode[] } }>(GET_HITOS_COMPRA),
-        gql<{ productosCanjeables: { nodes: GqlCanjeableNode[] } }>(GET_PRODUCTOS_CANJEABLES),
+        gql<{ hitosCompra: { items: GqlHitoNode[] } }>(GET_HITOS_COMPRA),
+        gql<{ productosCanjeables: { items: GqlCanjeableNode[] } }>(GET_PRODUCTOS_CANJEABLES),
       ]);
-      setHitos(hitosRes.hitosCompra.nodes);
-      setProductosCanjeables(canjeablesRes.productosCanjeables.nodes.filter(n => n.activo));
+      setHitos(hitosRes.hitosCompra.items);
+      setProductosCanjeables(canjeablesRes.productosCanjeables.items.filter(n => n.activo));
     } finally {
       setIsLoading(false);
     }

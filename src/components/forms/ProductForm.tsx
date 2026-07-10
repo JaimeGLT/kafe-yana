@@ -86,10 +86,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   const [isCategoryModalOpen, setIsCategoryModalOpen] = React.useState(false);
 
   const handleCategoryCreated = async (createdName?: string) => {
-    const data = await gql<{ categorias: { nodes: { id: number; nombre: string; estado: boolean; descripcion: string }[] } }>(
-      `query { categorias { nodes { id nombre estado descripcion } } }`
+    const data = await gql<{ categorias: { items: { id: number; nombre: string; estado: boolean; descripcion: string }[] } }>(
+      `query { categorias(skip: 0, take: 200, order: { nombre: ASC }) { items { id nombre estado descripcion } } }`
     );
-    const cats: Category[] = data.categorias.nodes.map((n) => ({
+    const cats: Category[] = data.categorias.items.map((n) => ({
       id: String(n.id),
       name: n.nombre,
       description: n.descripcion ?? '',

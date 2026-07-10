@@ -3,6 +3,9 @@ import { api, ApiError } from '../lib/api';
 import { gql } from '../lib/graphql';
 import { GET_MESAS } from '../lib/queries/mesas.queries';
 import { toast } from '../components/ui/Toast';
+import { interpretarErrorCobro, interpretarErrorEdicion } from '../lib/errores';
+import type { ItemCubiertoInput } from '../types';
+import type { RespuestaCobro } from './useVenta';
 
 export interface MesaBackend {
   id: string;
@@ -31,8 +34,10 @@ export interface MesaBackend {
       subTotal: number;
       detalle: {
         id: number;
+        id_Producto: number;
         nombre_Producto: string;
         cantidad: number;
+        cantidadDescontada?: number;
         precio: number;
         opciones: RondaDetalleOpcion[];
       }[];
@@ -136,6 +141,19 @@ interface UseMesasReturn {
   editarDetalle: (detalleId: number, pedidoId: number, data: Omit<DtoRondaDetalleEditar, 'id_Detalle'>) => Promise<boolean>;
   eliminarDetalle: (detalleId: number, pedidoId: number) => Promise<boolean>;
   cobrarMesa: (mesaId: string, data: { id_Pedido: number; id_Cliente: number | null; pagos: { efectivo: number; tarjeta: number; qr: number; total: number } }) => Promise<boolean>;
+  /**
+   * Registra un pago parcial sobre una mesa.
+   * El body debe incluir `itemsCubiertos: ItemCubiertoInput[]` y
+   * `mantenerMesaAbierta: true` para que la mesa no se libere.
+   * Devuelve la respuesta completa (incluye `EsAbono` y `pedidoActualizado`)
+   * para que el caller aplique el nuevo estado a `LocalMesa`.
+   */
+  aplicarAbonoMesa: (
+    mesaId: string,
+    itemsCubiertos: ItemCubiertoInput[],
+    body: Record<string, unknown>,
+  ) => Promise<RespuestaCobro | null>;
+  revertirAbono: (abonoId: number) => Promise<import('../types/sales').PedidoActualizado | null>;
   getActivePedidoId: (mesaId: string) => number | null;
   refreshMesas: (silent?: boolean) => Promise<void>;
 }
@@ -150,12 +168,12 @@ export function useMesas(): UseMesasReturn {
     try {
       if (!silent) setLoading(true);
       setError(null);
-      const data = await gql<{ mesas: { nodes: MesaBackend[] } }>(GET_MESAS);
-      setMesas(data.mesas.nodes);
+      const data = await gql<{ mesas: { items: MesaBackend[] } }>(GET_MESAS);
+      setMesas(data.mesas.items);
 
       setPedidoPorMesa(prev => {
         const updated = { ...prev };
-        for (const mesa of data.mesas.nodes) {
+        for (const mesa of data.mesas.items) {
           if (mesa.id_Pedido != null) {
             updated[mesa.id] = mesa.id_Pedido;
           } else {
@@ -278,8 +296,8 @@ export function useMesas(): UseMesasReturn {
       await refreshMesas(true);
       return true;
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'No se pudo editar la ronda.';
-      toast.error('Error', msg);
+      const msg = interpretarErrorEdicion(err, 'No se pudo editar la ronda.');
+      toast.error(msg.title, msg.message);
       return false;
     }
   }, [refreshMesas]);
@@ -294,8 +312,8 @@ export function useMesas(): UseMesasReturn {
       await refreshMesas(true);
       return true;
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'No se pudo eliminar la ronda.';
-      toast.error('Error', msg);
+      const msg = interpretarErrorEdicion(err, 'No se pudo eliminar la ronda.');
+      toast.error(msg.title, msg.message);
       return false;
     }
   }, [refreshMesas]);
@@ -340,9 +358,46 @@ export function useMesas(): UseMesasReturn {
       await refreshMesas();
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo cobrar la mesa.';
-      toast.error('Error', message);
+      const { title, message, nivel } = interpretarErrorCobro(err, 'No se pudo cobrar la mesa.');
+      if (nivel === 'warning') toast.warning(title, message);
+      else toast.error(title, message);
       return false;
+    }
+  }, [refreshMesas]);
+
+  const revertirAbono = useCallback(async (abonoId: number) => {
+    try {
+      const res = await api.delete<{ message: string; pedidoActualizado: import('../types/sales').PedidoActualizado }>(`/Mesa/abono/${abonoId}`);
+      await refreshMesas(true);
+      return res.pedidoActualizado;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo revertir el pago parcial.';
+      toast.error('Error', message);
+      return null;
+    }
+  }, [refreshMesas]);
+
+  const aplicarAbonoMesa = useCallback(async (
+    mesaId: string,
+    itemsCubiertos: ItemCubiertoInput[],
+    body: Record<string, unknown>,
+  ): Promise<RespuestaCobro | null> => {
+    if (!itemsCubiertos.length) {
+      toast.error('Sin selección', 'Selecciona al menos un item para cobrar.');
+      return null;
+    }
+    try {
+      const res = await api.post<RespuestaCobro>(`/Mesa/cobrar/${mesaId}`, {
+        ...body,
+        itemsCubiertos,
+        mantenerMesaAbierta: true,
+      });
+      return res;
+    } catch (err) {
+      const { title, message, nivel } = interpretarErrorCobro(err, 'No se pudo registrar el pago parcial.');
+      if (nivel === 'warning') toast.warning(title, message);
+      else toast.error(title, message);
+      return null;
     }
   }, [refreshMesas]);
 
@@ -361,6 +416,8 @@ export function useMesas(): UseMesasReturn {
     editarDetalle,
     eliminarDetalle,
     cobrarMesa,
+    aplicarAbonoMesa,
+    revertirAbono,
     getActivePedidoId: (mesaId: string) => pedidoPorMesa[mesaId] ?? null,
     refreshMesas,
   };

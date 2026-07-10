@@ -1,7 +1,7 @@
 export const GET_APP_INITIAL_DATA = `
   query GetAppInitialData {
-    clientes {
-      nodes {
+    clientes(skip: 0, take: 200) {
+      items {
         dni
         nombre
         celular
@@ -13,8 +13,8 @@ export const GET_APP_INITIAL_DATA = `
         id
       }
     }
-    proveedores {
-      nodes {
+    proveedores(skip: 0, take: 200) {
+      items {
         id
         razon_Social
         dni
@@ -24,8 +24,8 @@ export const GET_APP_INITIAL_DATA = `
         direccion
       }
     }
-    combos {
-      nodes {
+    combos(skip: 0, take: 200) {
+      items {
         producto { id nombre descripcion precio tipo }
         detalles {
           producto { id nombre descripcion precio tipo }
@@ -35,8 +35,8 @@ export const GET_APP_INITIAL_DATA = `
         cantidadProducible
       }
     }
-    comprados {
-      nodes {
+    comprados(skip: 0, take: 500) {
+      items {
         codigo_barra
         stock_actual
         stock_minimo
@@ -56,8 +56,8 @@ export const GET_APP_INITIAL_DATA = `
         }
       }
     }
-    elaborados {
-      nodes {
+    elaborados(skip: 0, take: 500) {
+      items {
         id_Producto
         stock_actual
         producible
@@ -118,8 +118,8 @@ export const GET_APP_INITIAL_DATA = `
         }
       }
     }
-    insumos {
-      nodes {
+    insumos(skip: 0, take: 500) {
+      items {
         id
         nombre
         categoria
@@ -131,8 +131,8 @@ export const GET_APP_INITIAL_DATA = `
         factor_conversion
       }
     }
-    categorias {
-      nodes {
+    categorias(skip: 0, take: 200) {
+      items {
         id
         nombre
         color
@@ -143,8 +143,8 @@ export const GET_APP_INITIAL_DATA = `
 
 export const GET_FULL_INVENTORY = `
   query GetFullInventory {
-    combos {
-      nodes {
+    combos(skip: 0, take: 200) {
+      items {
         producto { id nombre descripcion precio tipo }
         detalles {
           producto { id nombre descripcion precio tipo }
@@ -154,8 +154,8 @@ export const GET_FULL_INVENTORY = `
         cantidadProducible
       }
     }
-    comprados {
-      nodes {
+    comprados(skip: 0, take: 500) {
+      items {
         codigo_barra
         stock_actual
         stock_minimo
@@ -175,8 +175,8 @@ export const GET_FULL_INVENTORY = `
         }
       }
     }
-    elaborados {
-      nodes {
+    elaborados(skip: 0, take: 500) {
+      items {
         id_Producto
         stock_actual
         producible
@@ -237,8 +237,8 @@ export const GET_FULL_INVENTORY = `
         }
       }
     }
-    insumos {
-      nodes {
+    insumos(skip: 0, take: 500) {
+      items {
         id
         nombre
         categoria
@@ -250,8 +250,8 @@ export const GET_FULL_INVENTORY = `
         factor_conversion
       }
     }
-    categorias {
-      nodes {
+    categorias(skip: 0, take: 200) {
+      items {
         id
         nombre
         color
@@ -262,8 +262,8 @@ export const GET_FULL_INVENTORY = `
 
 export const GET_REPORTE_INVENTARIO = `
   query GetReporteInventario {
-    comprados {
-      nodes {
+    comprados(skip: 0, take: 500) {
+      items {
         codigo_barra
         stock_actual
         stock_minimo
@@ -282,8 +282,8 @@ export const GET_REPORTE_INVENTARIO = `
         }
       }
     }
-    elaborados {
-      nodes {
+    elaborados(skip: 0, take: 500) {
+      items {
         id_Producto
         stock_actual
         producible
@@ -298,8 +298,8 @@ export const GET_REPORTE_INVENTARIO = `
         }
       }
     }
-    insumos {
-      nodes {
+    insumos(skip: 0, take: 500) {
+      items {
         id
         nombre
         categoria
@@ -311,8 +311,8 @@ export const GET_REPORTE_INVENTARIO = `
         factor_conversion
       }
     }
-    categorias {
-      nodes {
+    categorias(skip: 0, take: 200) {
+      items {
         id
         nombre
         color
@@ -323,8 +323,8 @@ export const GET_REPORTE_INVENTARIO = `
 
 export const GET_HEADER_NOTIFICATIONS = `
   query GetHeaderNotifications {
-    comprados {
-      nodes {
+    comprados(skip: 0, take: 500) {
+      items {
         costo_compra
         stock_actual
         disponible
@@ -338,8 +338,8 @@ export const GET_HEADER_NOTIFICATIONS = `
         }
       }
     }
-    elaborados {
-      nodes {
+    elaborados(skip: 0, take: 500) {
+      items {
         id_Producto
         stock_actual
         producible
@@ -353,8 +353,8 @@ export const GET_HEADER_NOTIFICATIONS = `
         }
       }
     }
-    insumos {
-      nodes {
+    insumos(skip: 0, take: 500) {
+      items {
         id
         nombre
         categoria
@@ -370,9 +370,9 @@ export const GET_HEADER_NOTIFICATIONS = `
 `;
 
 export const GET_COMPRADOS = `
-  query GetComprados($first: Int) {
-    comprados(first: $first) {
-      nodes {
+  query GetComprados($skip: Int!, $take: Int!) {
+    comprados(skip: $skip, take: $take) {
+      items {
         id_Producto
         producto {
           id
@@ -392,9 +392,9 @@ export const GET_COMPRADOS = `
 `;
 
 export const GET_INSUMOS_QUERY = `
-  query GetInsumos($first: Int) {
-    insumos(first: $first) {
-      nodes {
+  query GetInsumos($skip: Int!, $take: Int!) {
+    insumos(skip: $skip, take: $take) {
+      items {
         id
         nombre
         categoria
@@ -410,9 +410,10 @@ export const GET_INSUMOS_QUERY = `
 `;
 
 export const GET_CATEGORIAS_QUERY = `
-  query GetCategorias {
-    categorias(order: [{ nombre: ASC }]) {
-      nodes { id nombre descripcion estado color productos { id } }
+  query GetCategorias($skip: Int, $take: Int) {
+    categorias(skip: $skip, take: $take) {
+      items { id nombre descripcion estado color productos { id } }
+      totalCount
     }
   }
 `;

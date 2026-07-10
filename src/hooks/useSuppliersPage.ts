@@ -13,39 +13,30 @@ interface ProveedorNode {
   direccion: string;
 }
 
-interface PageInfo {
-  hasNextPage: boolean;
-  endCursor: string | null;
-}
-
 interface ProveedoresResponse {
   proveedores: {
-    nodes: ProveedorNode[];
+    items: ProveedorNode[];
     totalCount: number;
-    pageInfo: PageInfo;
   };
 }
 
 export interface UseSuppliersPageOptions {
   page: number;
   pageSize: number;
-  afterCursor?: string;
 }
 
 export interface UseSuppliersPageReturn {
   proveedores: Supplier[];
   totalCount: number;
-  endCursor: string | null;
   isLoading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
 }
 
 export function useSuppliersPage(options: UseSuppliersPageOptions): UseSuppliersPageReturn {
-  const { page, pageSize, afterCursor } = options;
+  const { page, pageSize } = options;
   const [proveedores, setProveedores] = useState<Supplier[]>([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [endCursor, setEndCursor] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,11 +45,11 @@ export function useSuppliersPage(options: UseSuppliersPageOptions): UseSuppliers
     setError(null);
     try {
       const data = await gql<ProveedoresResponse>(GET_PROVEEDORES, {
-        first: pageSize,
-        after: afterCursor,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
       });
       setProveedores(
-        data.proveedores.nodes.map((n) => ({
+        data.proveedores.items.map((n) => ({
           id: String(n.id),
           code: String(n.id),
           razon_Social: n.razon_Social,
@@ -73,14 +64,13 @@ export function useSuppliersPage(options: UseSuppliersPageOptions): UseSuppliers
         })),
       );
       setTotalCount(data.proveedores.totalCount);
-      setEndCursor(data.proveedores.pageInfo.endCursor);
     } catch (e) {
       console.error('Error loading proveedores:', e);
       setError('No se pudieron cargar los proveedores.');
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, afterCursor]);
+  }, [page, pageSize]);
 
   useEffect(() => {
     loadData();
@@ -90,5 +80,5 @@ export function useSuppliersPage(options: UseSuppliersPageOptions): UseSuppliers
     await loadData();
   }, [loadData]);
 
-  return { proveedores, totalCount, endCursor, isLoading, error, refresh };
+  return { proveedores, totalCount, isLoading, error, refresh };
 }

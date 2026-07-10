@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { Plus, Search, Edit2, Trash2, User, Phone, Mail, Calendar, Star } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer, PageSection } from '../../components/layout';
@@ -10,29 +10,14 @@ import { api } from '../../lib/api';
 import { formatDate } from '../../utils';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCustomersPage } from '../../hooks/useCustomersPage';
-import { useFilters } from '../../hooks/useFilters';
+import { usePagination } from '../../hooks/usePagination';
 import type { Customer, CustomerInput } from '../../types';
 
 export const CustomersPage: React.FC = () => {
   const { user } = useAuth();
   const isAdmin = user?.rol?.toLowerCase() === 'admin';
-  const { filters, setPage, setPageSize } = useFilters('customers-filters');
+  const { page, pageSize, search, debouncedSearch, setPage, setPageSize, setSearch } = usePagination({ pageSize: 15 });
 
-  const readCursors = () => {
-    try {
-      const raw = sessionStorage.getItem('customers-cursors');
-      return raw ? JSON.parse(raw) : {};
-    } catch { return {}; }
-  };
-
-  const [cursors, setCursors] = useState<Record<number, string>>(() => readCursors());
-
-  useEffect(() => {
-    try { sessionStorage.setItem('customers-cursors', JSON.stringify(cursors)); } catch {}
-  }, [cursors]);
-
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -40,30 +25,11 @@ export const CustomersPage: React.FC = () => {
   const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
   const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
 
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(t);
-  }, [search]);
-
-  useEffect(() => {
-    setCursors({});
-    setPage(1);
-  }, [debouncedSearch]);
-
-  const { clientes, isLoading, refresh, totalCount, endCursor } = useCustomersPage({
-    page: filters.page,
-    pageSize: filters.pageSize,
-    afterCursor: filters.page > 1 ? cursors[filters.page - 1] : undefined,
+  const { clientes, isLoading, refresh, totalCount } = useCustomersPage({
+    page,
+    pageSize,
     search: debouncedSearch,
   });
-
-  const prevEndCursor = useRef<string | null>(null);
-  useEffect(() => {
-    if (endCursor && endCursor !== prevEndCursor.current) {
-      prevEndCursor.current = endCursor;
-      setCursors((prev) => ({ ...prev, [filters.page]: endCursor }));
-    }
-  }, [endCursor, filters.page]);
 
   const filteredCustomers = clientes;
 
@@ -249,8 +215,8 @@ export const CustomersPage: React.FC = () => {
 
         <Pagination
           totalCount={totalCount}
-          page={filters.page}
-          pageSize={filters.pageSize}
+          page={page}
+          pageSize={pageSize}
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
           isLoading={isLoading}

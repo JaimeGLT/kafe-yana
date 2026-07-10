@@ -14,7 +14,7 @@ import type {
 interface CajaHistorialResponse {
   cajaHistorial: {
     totalCount: number;
-    nodes: CajaHistorialNode[];
+    items: CajaHistorialNode[];
   };
 }
 
@@ -31,7 +31,7 @@ export function useCashReportPage(
     setError(null);
     try {
       const data = await gql<CajaHistorialResponse>(GET_CAJA_HISTORIAL);
-      setAllSessions(data.cajaHistorial.nodes);
+      setAllSessions(data.cajaHistorial.items);
     } catch (e) {
       console.error('Error loading cash report:', e);
       setError('No se pudo cargar el reporte de caja.');

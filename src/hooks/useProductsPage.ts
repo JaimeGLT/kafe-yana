@@ -4,8 +4,6 @@ import { GET_COMPRADOS_WITH_CATEGORIES_QUERY } from '../lib/queries/products.que
 import { toast } from '../components/ui/Toast';
 import type { Product, Category } from '../types';
 import type { ProductDestino } from '../types';
-import type { CompradoFilterInput } from '../types/graphql';
-
 interface CategoriaNode {
   id: number;
   nombre: string;
@@ -36,11 +34,10 @@ interface CompradoListNode {
 
 interface CompradosWithCategoriesResponse {
   comprados: {
-    nodes: CompradoListNode[];
+    items: CompradoListNode[];
     totalCount: number;
-    pageInfo?: { endCursor?: string | null; hasNextPage?: boolean };
   };
-  categorias: { nodes: CategoriaNode[] };
+  categorias: { items: CategoriaNode[] };
 }
 
 function mapNode(node: CompradoListNode): Product {
@@ -80,7 +77,6 @@ function mapNode(node: CompradoListNode): Product {
 interface UseProductsPageOptions {
   page: number;
   pageSize: number;
-  afterCursor?: string;
   search?: string;
   category?: string;
 }
@@ -90,14 +86,12 @@ export interface UseProductsPageReturn {
   categories: Category[];
   totalCount: number;
   isLoading: boolean;
-  endCursor: string | null;
   refresh: () => Promise<void>;
 }
 
 export function useProductsPage({
   page,
   pageSize,
-  afterCursor,
   search = '',
   category = '',
 }: UseProductsPageOptions): UseProductsPageReturn {
@@ -105,35 +99,22 @@ export function useProductsPage({
   const [categories, setCategories] = useState<Category[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [endCursor, setEndCursor] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    if (page > 1 && !afterCursor) return;
     setIsLoading(true);
     try {
-      const variables: Record<string, unknown> = { first: pageSize };
-      if (page > 1 && afterCursor) {
-        variables.after = afterCursor;
-      }
-
-      const whereConditions: CompradoFilterInput[] = [];
-      if (search) {
-        whereConditions.push({ producto: { nombre: { contains: search } } } as CompradoFilterInput);
-        whereConditions.push({ producto: { descripcion: { contains: search } } } as CompradoFilterInput);
-      }
-      if (category) {
-        whereConditions.push({ producto: { categoria: { nombre: { eq: category } } } } as CompradoFilterInput);
-      }
-      if (whereConditions.length > 0) {
-        variables.where = { or: whereConditions } as CompradoFilterInput;
-      }
+      const variables: Record<string, unknown> = {
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        search: search || null,
+        categoria: category || null,
+      };
 
       const data = await gql<CompradosWithCategoriesResponse>(GET_COMPRADOS_WITH_CATEGORIES_QUERY, variables);
       setTotalCount(data.comprados.totalCount);
-      setEndCursor(data.comprados.pageInfo?.endCursor ?? null);
-      setProducts(data.comprados.nodes.map(mapNode));
+      setProducts(data.comprados.items.map(mapNode));
       setCategories(
-        data.categorias.nodes.map((n) => ({
+        data.categorias.items.map((n) => ({
           id: String(n.id),
           name: n.nombre,
           description: '',
@@ -150,7 +131,7 @@ export function useProductsPage({
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, afterCursor, search, category]);
+  }, [page, pageSize, search, category]);
 
   useEffect(() => {
     loadData();
@@ -160,5 +141,5 @@ export function useProductsPage({
     await loadData();
   }, [loadData]);
 
-  return { products, categories, totalCount, isLoading, endCursor, refresh };
+  return { products, categories, totalCount, isLoading, refresh };
 }

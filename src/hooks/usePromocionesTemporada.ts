@@ -67,12 +67,12 @@ export function usePromocionesTemporada() {
     setIsLoading(true);
     try {
       const [promosRes, canjeablesRes] = await Promise.all([
-        gql<{ promocionTemporadas: { nodes: GqlPromocionNode[] } }>(GET_PROMOCIONES_TEMPORADA),
-        gql<{ productosCanjeables: { nodes: GqlCanjeableNode[] } }>(GET_PRODUCTOS_CANJEABLES),
+        gql<{ promocionTemporadas: { items: GqlPromocionNode[] } }>(GET_PROMOCIONES_TEMPORADA),
+        gql<{ productosCanjeables: { items: GqlCanjeableNode[] } }>(GET_PRODUCTOS_CANJEABLES),
       ]);
 
       setPromociones(
-        promosRes.promocionTemporadas.nodes.map(n => ({
+        promosRes.promocionTemporadas.items.map(n => ({
           id: n.id,
           nombre: n.nombre,
           fechaInicio: n.fechaInicio,
@@ -90,7 +90,7 @@ export function usePromocionesTemporada() {
       );
 
       setProductosCanjeables(
-        canjeablesRes.productosCanjeables.nodes.filter(n => n.activo)
+        canjeablesRes.productosCanjeables.items.filter(n => n.activo)
       );
     } finally {
       setIsLoading(false);

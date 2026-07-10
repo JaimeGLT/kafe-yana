@@ -5,7 +5,7 @@ import { toast } from '../components/ui/Toast';
 import type { Combo, Product } from '../types';
 
 interface ComboNode {
-  producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; urlImagen?: string };
+  producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string; urlImagen?: string; codigoSin?: string };
   detalles: Array<{
     producto: { id: number; nombre: string; descripcion: string; precio: number; tipo: string };
     cantidad: number;
@@ -28,15 +28,14 @@ interface ElaboradoNode {
 }
 
 interface CombosPageResponse {
-  combos: { nodes: ComboNode[]; totalCount: number; pageInfo?: { endCursor?: string | null } };
-  comprados: { nodes: ProductsNode[] };
-  elaborados: { nodes: ElaboradoNode[] };
+  combos: { items: ComboNode[]; totalCount: number };
+  comprados: { items: ProductsNode[] };
+  elaborados: { items: ElaboradoNode[] };
 }
 
 interface UseCombosPageOptions {
   page: number;
   pageSize: number;
-  afterCursor?: string;
   search?: string;
 }
 
@@ -46,35 +45,29 @@ export interface UseCombosPageReturn {
   totalCount: number;
   isLoading: boolean;
   refresh: () => Promise<void>;
-  endCursor: string | null;
 }
 
 export function useCombosPage(options: UseCombosPageOptions): UseCombosPageReturn {
-  const { page, pageSize, afterCursor, search } = options;
+  const { page, pageSize, search } = options;
   const [combos, setCombos] = useState<Combo[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [endCursor, setEndCursor] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    if (page > 1 && !afterCursor) return;
     setIsLoading(true);
     try {
-      const variables: Record<string, unknown> = { first: pageSize };
-      if (page > 1 && afterCursor) {
-        variables.after = afterCursor;
-      }
-      if (search) {
-        variables.where = { producto: { nombre: { contains: search } } };
-      }
+      const variables: Record<string, unknown> = {
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        search: search || null,
+      };
 
       const data = await gql<CombosPageResponse>(GET_COMBOS_WITH_PRODUCTS, variables);
       setTotalCount(data.combos.totalCount);
-      setEndCursor(data.combos.pageInfo?.endCursor ?? null);
 
       const mappedProducts: Product[] = [
-        ...data.comprados.nodes.map((n) => ({
+        ...data.comprados.items.map((n) => ({
           id: String(n.producto.id),
           code: String(n.producto.id),
           name: n.producto.nombre,
@@ -95,7 +88,7 @@ export function useCombosPage(options: UseCombosPageOptions): UseCombosPageRetur
           createdAt: new Date(),
           updatedAt: new Date(),
         })),
-        ...data.elaborados.nodes.map((n) => ({
+        ...data.elaborados.items.map((n) => ({
           id: String(n.producto.id),
           code: String(n.producto.id),
           name: n.producto.nombre,
@@ -125,7 +118,7 @@ export function useCombosPage(options: UseCombosPageOptions): UseCombosPageRetur
         Combo: 'combo', combo: 'combo',
       };
 
-      const mappedCombos: Combo[] = data.combos.nodes.map((n) => ({
+      const mappedCombos: Combo[] = data.combos.items.map((n) => ({
         id: String(n.producto.id),
         name: n.producto.nombre,
         description: n.producto.descripcion ?? '',
@@ -142,6 +135,7 @@ export function useCombosPage(options: UseCombosPageOptions): UseCombosPageRetur
         costoTotal: n.detalles.reduce((s, d) => s + d.producto.precio * d.cantidad, 0),
         availability: n.cantidadProducible,
         image: n.producto.urlImagen ?? undefined,
+        codigoSin: n.producto.codigoSin ?? '',
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -154,7 +148,7 @@ export function useCombosPage(options: UseCombosPageOptions): UseCombosPageRetur
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, afterCursor, search]);
+  }, [page, pageSize, search]);
 
   useEffect(() => {
     loadData();
@@ -164,5 +158,5 @@ export function useCombosPage(options: UseCombosPageOptions): UseCombosPageRetur
     await loadData();
   }, [loadData]);
 
-  return { combos, products, totalCount, isLoading, refresh, endCursor };
+  return { combos, products, totalCount, isLoading, refresh };
 }

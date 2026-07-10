@@ -12,8 +12,8 @@ const TIPO_MAP: Record<string, 'comprado' | 'elaborado' | 'combo'> = {
   combos: 'combo',
 };
 
-type CompradoItem = ProductsForComboResponse['comprados']['nodes'][number];
-type ElaboradoItem = ProductsForComboResponse['elaborados']['nodes'][number];
+type CompradoItem = ProductsForComboResponse['comprados']['items'][number];
+type ElaboradoItem = ProductsForComboResponse['elaborados']['items'][number];
 
 export function mapComprado(node: CompradoItem): Product {
   return {

@@ -11,7 +11,7 @@ interface AuthState {
 }
 
 interface AuthContextType extends AuthState {
-  login: (email: string, password: string) => Promise<void>;
+  login: (identificador: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   checkSession: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -50,9 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    await api.post('/Aunth/Login', { email, password });
-    // después de login exitoso, obtener datos del usuario con /me
+  const login = useCallback(async (identificador: string, password: string) => {
+    await api.post('/Aunth/Login', { identificador, password });
     await refreshUser();
   }, [refreshUser]);
 

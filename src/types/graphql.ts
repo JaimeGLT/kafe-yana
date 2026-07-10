@@ -112,7 +112,7 @@ export interface ElaboradoNode {
 }
 
 export interface ElaboradosResponse {
-  elaborados: { nodes: ElaboradoNode[] };
+  elaborados: { items: ElaboradoNode[] };
 }
 
 // — Ajustes de stock —
@@ -137,7 +137,7 @@ export interface CompradoNode {
 }
 
 export interface CompradosResponse {
-  comprados: { nodes: CompradoNode[] };
+  comprados: { items: CompradoNode[] };
 }
 
 export interface RecetaDetalleAjusteNode {
@@ -165,7 +165,7 @@ export interface ElaboradoAjusteNode {
 }
 
 export interface ElaboradosAjusteResponse {
-  elaborados: { nodes: ElaboradoAjusteNode[] };
+  elaborados: { items: ElaboradoAjusteNode[] };
 }
 
 export interface ElaboradoResponse {
@@ -197,7 +197,7 @@ export interface RecetaNode {
 
 // Shapes de respuesta para gql<T>()
 export interface RecetasResponse {
-  recetas: { nodes: RecetaNode[] };
+  recetas: { items: RecetaNode[] };
 }
 
 export interface RecetaResponse {
@@ -205,24 +205,20 @@ export interface RecetaResponse {
 }
 
 export interface RecetasPageResponse {
-  recetas: { nodes: RecetaNode[] };
-  insumos: { nodes: InsumoNode[] };
-  elaborados: { nodes: ElaboradoNode[] };
+  recetas: { items: RecetaNode[] };
+  insumos: { items: InsumoNode[] };
+  elaborados: { items: ElaboradoNode[] };
 }
 
 export interface InsumosResponse {
   insumos: {
-    nodes: InsumoNode[];
+    items: InsumoNode[];
     totalCount: number;
-    pageInfo: {
-      hasNextPage: boolean;
-      endCursor: string | null;
-    };
   };
 }
 
 export interface CombosResponse {
-  combos: { nodes: ComboNode[] };
+  combos: { items: ComboNode[] };
 }
 
 // — Historial de ajustes —
@@ -242,18 +238,17 @@ export interface AjusteNode {
 }
 
 export interface AjustesResponse {
-  ajustes: { nodes: AjusteNode[] };
+  ajustes: { items: AjusteNode[] };
 }
 
 export interface AdjustmentsDataResponse {
   ajustes: {
     totalCount: number;
-    pageInfo: { hasNextPage: boolean; endCursor: string | null };
-    nodes: AjusteNode[]
+    items: AjusteNode[]
   };
-  comprados: { nodes: CompradoNode[] };
-  insumos: { nodes: InsumoNode[] };
-  elaborados: { nodes: ElaboradoAjusteNode[] };
+  comprados: { items: CompradoNode[] };
+  insumos: { items: InsumoNode[] };
+  elaborados: { items: ElaboradoAjusteNode[] };
 }
 
 export interface KardexProductNode {
@@ -265,8 +260,8 @@ export interface KardexProductNode {
 }
 
 export interface KardexProductsResponse {
-  comprados: { nodes: { producto: { id: number; nombre: string }; stock_actual: number }[] };
-  elaborados: { nodes: { id_Producto: number; producto: { id: number; nombre: string }; stock_actual: number }[] };
+  comprados: { items: { producto: { id: number; nombre: string }; stock_actual: number }[] };
+  elaborados: { items: { id_Producto: number; producto: { id: number; nombre: string }; stock_actual: number }[] };
 }
 
 export interface KardexRawAjuste {
@@ -300,7 +295,7 @@ export interface KardexRawVenta {
 
 export interface KardexMovementsResponse {
   ajustes: { nodes: KardexRawAjuste[] };
-  ventas: { nodes: KardexRawVenta[] };
+  ventas: { items: KardexRawVenta[] };
 }
 
 interface SimpleProductNode {
@@ -312,8 +307,8 @@ interface SimpleProductNode {
 }
 
 export interface ProductsForComboResponse {
-  comprados: { nodes: Array<{ costo_compra: number; stock_actual: number; producto: SimpleProductNode }> };
-  elaborados: { nodes: Array<{ producto: SimpleProductNode }> };
+  comprados: { items: Array<{ costo_compra: number; stock_actual: number; producto: SimpleProductNode }> };
+  elaborados: { items: Array<{ producto: SimpleProductNode }> };
 }
 
 // — Kardex movimientos —
@@ -342,17 +337,15 @@ export interface InsumoMovimientoNode {
 
 export interface MovimientoProductoResponse {
   movimientoProducto: {
-    nodes: MovimientoProductoNode[];
+    items: MovimientoProductoNode[];
     totalCount: number;
-    pageInfo: { hasNextPage: boolean; endCursor: string | null };
   };
 }
 
 export interface InsumoMovimientosResponse {
   insumoMovimientos: {
-    nodes: InsumoMovimientoNode[];
+    items: InsumoMovimientoNode[];
     totalCount: number;
-    pageInfo: { hasNextPage: boolean; endCursor: string | null };
   };
 }
 
@@ -391,10 +384,10 @@ export interface KardexInsumoNode {
 }
 
 export interface KardexItemsResponse {
-  comprados: { nodes: KardexCompradoNode[] };
-  elaborados: { nodes: KardexElaboradoNode[] };
-  combos: { nodes: KardexComboNode[] };
-  insumos: { nodes: KardexInsumoNode[] };
+  comprados: { items: KardexCompradoNode[] };
+  elaborados: { items: KardexElaboradoNode[] };
+  combos: { items: KardexComboNode[] };
+  insumos: { items: KardexInsumoNode[] };
 }
 
 // — Filter input types (from GraphQL schema) —

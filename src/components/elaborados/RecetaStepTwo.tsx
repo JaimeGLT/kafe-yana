@@ -52,7 +52,7 @@ export const RecetaStepTwo: React.FC<RecetaStepTwoProps> = ({
   const handleInsumoCreated = useCallback(async () => {
     setInsumoModalOpen(false);
     const data = await gql<InsumosResponse>(GET_ALL_INSUMOS);
-    setLocalInsumos(data.insumos.nodes.map(mapInsumo));
+    setLocalInsumos(data.insumos.items.map(mapInsumo));
   }, []);
 
   const recetaOptions = useMemo(

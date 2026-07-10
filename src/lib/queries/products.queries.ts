@@ -1,22 +1,21 @@
 export const INITIAL_LOAD_QUERY = `
   query InitialLoad($cursor: String) {
-    productos(first: 50, after: $cursor) {
-      nodes { id nombre tipo categoriaNombre precioVenta costo stock recetaName }
-      pageInfo { hasNextPage endCursor }
+    productos(skip: 0, take: 200) {
+      items { id nombre tipo categoriaNombre precioVenta costo stock recetaName }
+      totalCount
     }
-    combos {
-      id
-      productos { productoId cantidad }
-    }
-    categorias(
-      where: {
-        productos: { some: { id: { gt: 0 } } }
+    combos(skip: 0, take: 200) {
+      items
+      {
+        id
+        productos { productoId cantidad }
       }
-    ) {
-      nodes { id nombre descripcion color estado }
     }
-    clientes {
-      nodes {
+    categorias(skip: 0, take: 200, soloConProductos: true) {
+      items { id nombre descripcion color estado }
+    }
+    clientes(skip: 0, take: 200) {
+      items {
         dni
         nombre
         celular
@@ -33,19 +32,19 @@ export const INITIAL_LOAD_QUERY = `
 
 export const GET_COMPRADOS_WITH_CATEGORIES_QUERY = `
   query GetCompradosWithCategories(
-    $first: Int
-    $after: String
-    $where: CompradoFilterInput
+    $skip: Int!
+    $take: Int!
+    $search: String
+    $categoria: String
   ) {
     comprados(
-      first: $first
-      after: $after
-      where: $where
-      order: [{ producto: { nombre: ASC } }]
+      skip: $skip
+      take: $take
+      search: $search
+      categoria: $categoria
     ) {
       totalCount
-      pageInfo { hasNextPage endCursor }
-      nodes {
+      items {
         codigo_barra
         unidad_medida
         ubicacion
@@ -66,16 +65,16 @@ export const GET_COMPRADOS_WITH_CATEGORIES_QUERY = `
         }
       }
     }
-    categorias {
-      nodes { id nombre descripcion color estado }
+    categorias(skip: 0, take: 200) {
+      items { id nombre descripcion color estado }
     }
   }
 `;
 
 export const GET_COMPRADO_DETAIL = `
   query GetCompradoDetail($id: Int!) {
-    comprados(where: { id_Producto: { eq: $id } }) {
-      nodes {
+    comprados(skip: 0, take: 1, idProducto: $id) {
+      items {
         codigo_barra
         unidad_medida
         marca
@@ -102,14 +101,22 @@ export const GET_COMPRADO_DETAIL = `
 
 export const GET_KARDEX_PRODUCTS_QUERY = `
   query {
-    productos(first: 50) {
-      nodes { id nombre tipo categoriaNombre precioVenta costo stock }
+    productos(skip: 0, take: 500) {
+      items { id nombre tipo categoriaNombre precioVenta costo stock }
     }
-    elaborados {
-      id nombre precio cantidadProducible unidad_medida
+    elaborados(skip: 0, take: 500) {
+      items {
+        id_Producto
+        producto { id nombre }
+        cantidadProducible
+        unidad_medida
+      }
     }
-    combos {
-      id nombre precio cantidadProducible
+    combos(skip: 0, take: 500) {
+      items {
+        producto { id nombre }
+        cantidadProducible
+      }
     }
   }
 `;
@@ -133,8 +140,8 @@ export const GET_KARDEX_MOVEMENTS_QUERY = `
 
 export const GET_POS_DATA = `
   query GetPOSData {
-    elaborados {
-      nodes {
+    elaborados(skip: 0, take: 500) {
+      items {
         id_Producto
         unidad_medida
         producible
@@ -158,8 +165,8 @@ export const GET_POS_DATA = `
         }
       }
     }
-    comprados {
-      nodes {
+    comprados(skip: 0, take: 500) {
+      items {
         costo_compra stock_actual disponible ubicacion
         producto {
           id nombre descripcion precio tipo urlImagen
@@ -167,8 +174,8 @@ export const GET_POS_DATA = `
         }
       }
     }
-    combos {
-      nodes {
+    combos(skip: 0, take: 500) {
+      items {
         cantidadProducible
         producto { id nombre descripcion precio tipo urlImagen }
         detalles {
@@ -180,16 +187,8 @@ export const GET_POS_DATA = `
         }
       }
     }
-    categorias(where: {
-      productos: {
-        some: {
-          id: {
-            gt: 0
-          }
-        }
-      }
-    }) {
-      nodes {
+    categorias(skip: 0, take: 200, soloConProductos: true) {
+      items {
         id
         nombre
         descripcion
@@ -197,8 +196,8 @@ export const GET_POS_DATA = `
         estado
       }
     }
-    clientes {
-      nodes {
+    clientes(skip: 0, take: 200) {
+      items {
         dni
         nombre
         celular
@@ -210,8 +209,8 @@ export const GET_POS_DATA = `
         id
       }
     }
-    productosCanjeables {
-      nodes {
+    productosCanjeables(skip: 0, take: 200) {
+      items {
         id
         id_Producto
         puntos

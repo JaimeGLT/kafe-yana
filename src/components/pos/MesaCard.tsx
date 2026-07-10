@@ -2,25 +2,42 @@ import React from 'react';
 import { clsx } from 'clsx';
 import { UtensilsCrossed, PenLine, Trash2 } from 'lucide-react';
 
-type MesaStatus = 'libre' | 'ocupada' | 'esperando_pago';
+type MesaStatus = 'libre' | 'ocupada' | 'esperando_pago' | 'parcial_pagado';
 
 type StatusCfg = Record<MesaStatus, {
   label: string; dot: string; card: string; badge: string; icon: string; iconBg: string
 }>;
 
+/** Forma mínima de una mesa que MesaCard necesita recibir. Compatible
+ *  con `LocalMesa` (extiende con `totalAbonado` que POSPage computa). */
+interface MesaCardMesa {
+  id: string;
+  number?: number;
+  name: string;
+  status: MesaStatus | string;
+  tipo?: string;
+  openedAt?: number;
+  order: Array<{ quantity: number; precioFinal: number }>;
+  customerId?: string;
+  cliente?: { id: number; nombre: string; puntos: number; celular: string; estado: boolean };
+  currentRound?: number;
+  roundsSent?: Array<{ number: number; sentAt: number; subTotal: number; rondaId?: number }>;
+  pedidoId?: number;
+  abonos?: Array<unknown>;
+  saldo?: number;
+  itemsPagados?: Record<number, number>;
+  /** Total abonado hasta el momento (computado en POSPage). */
+  totalAbonado?: number;
+  [key: string]: unknown;
+}
+
 interface MesaCardProps {
-  mesa: {
-    id: string;
-    name: string;
-    status: string;
-    tipo: string;
-    order: Array<{ quantity: number; precioFinal: number }>;
-  };
+  mesa: MesaCardMesa;
   statusCfg: StatusCfg;
   formatCurrency: (n: number) => string;
   mesaOrderTotal: (order: Array<{ precioFinal: number; quantity: number }>) => number;
   onOpen: (mesaId: string, view: 'iniciar' | 'detalle') => void;
-  onEdit: (mesa: any, e: React.MouseEvent) => void;
+  onEdit: (mesa: MesaCardMesa, e: React.MouseEvent) => void;
   onDelete: (mesaId: string, e: React.MouseEvent) => void;
   isDeletingMesa: string | null;
 }
@@ -39,6 +56,9 @@ export const MesaCard: React.FC<MesaCardProps> = ({
   const total = mesaOrderTotal(mesa.order);
   const itemCount = mesa.order.reduce((s, i) => s + i.quantity, 0);
   const isLibre = mesa.status === 'libre';
+  const isParcialPagado = mesa.status === 'parcial_pagado';
+  const saldo = mesa.saldo ?? 0;
+  const totalAbonado = mesa.totalAbonado ?? 0;
 
   return (
     <div
@@ -103,8 +123,14 @@ export const MesaCard: React.FC<MesaCardProps> = ({
           {itemCount > 0 && (
             <p className="text-xs text-coffee-300">{itemCount} item{itemCount !== 1 ? 's' : ''}</p>
           )}
-          {total > 0 && (
-            <p className="text-sm font-bold text-white">{formatCurrency(total)}</p>
+          {isParcialPagado && totalAbonado > 0 ? (
+            <>
+              <p className="text-[10px] text-emerald-300/90 line-through">{formatCurrency(total)}</p>
+              <p className="text-[11px] text-emerald-300 font-semibold">Pagado {formatCurrency(totalAbonado)}</p>
+              <p className="text-sm font-bold text-orange-200">Saldo {formatCurrency(saldo)}</p>
+            </>
+          ) : (
+            total > 0 && <p className="text-sm font-bold text-white">{formatCurrency(total)}</p>
           )}
         </div>
       )}

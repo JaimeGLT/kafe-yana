@@ -1,14 +1,12 @@
 export const GET_COMBOS_WITH_PRODUCTS = `
-  query GetCombosWithProducts($first: Int, $after: String, $where: PromocionFilterInput) {
+  query GetCombosWithProducts($skip: Int, $take: Int, $search: String) {
     combos(
-      first: $first
-      after: $after
-      where: $where
-      order: [{ producto: { nombre: ASC } }]
+      skip: $skip
+      take: $take
+      search: $search
     ) {
       totalCount
-      pageInfo { hasNextPage endCursor }
-      nodes {
+      items {
         producto { id nombre descripcion precio tipo urlImagen codigoSin }
         detalles {
           producto { id nombre descripcion precio tipo }
@@ -19,14 +17,14 @@ export const GET_COMBOS_WITH_PRODUCTS = `
       }
     }
     comprados {
-      nodes {
+      items {
         costo_compra
         stock_actual
         producto { id nombre descripcion precio tipo }
       }
     }
-    elaborados {
-      nodes {
+    elaborados(skip: 0, take: 50) {
+      items {
         producto { id nombre descripcion precio tipo }
         receta { id }
       }
@@ -36,8 +34,8 @@ export const GET_COMBOS_WITH_PRODUCTS = `
 
 export const GET_COMBO_BY_ID = `
   query GetComboById($idProducto: Int!) {
-    combos(where: { producto_Id: { eq: $idProducto } }) {
-      nodes {
+    combos(skip: 0, take: 1, idProducto: $idProducto) {
+      items {
         producto { id nombre descripcion precio tipo }
         detalles {
           producto { id nombre descripcion precio tipo }

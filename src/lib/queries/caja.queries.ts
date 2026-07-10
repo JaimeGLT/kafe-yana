@@ -22,9 +22,9 @@ export const GET_CAJA_ESTADO = `
 
 export const GET_CAJA_MOVIMIENTOS = `
   query GetCajaMovimientos {
-    cajaMoviminetos {
+    cajaMoviminetos(skip: 0, take: 200) {
       totalCount
-      nodes {
+      items {
         categoria
         descripcion
         fecha
@@ -41,9 +41,9 @@ export const GET_CAJA_MOVIMIENTOS = `
 
 export const GET_CAJA_HISTORIAL = `
   query GetCajaHistorial {
-    cajaHistorial {
+    cajaHistorial(skip: 0, take: 200) {
       totalCount
-      nodes {
+      items {
         abiertaPor
         apertura
         cerradaPor
@@ -73,8 +73,8 @@ export const GET_CAJA_HISTORIAL = `
 
 export const GET_ULTIMA_CAJA_HISTORIAL = `
   query GetUltimaCajaHistorial {
-    cajaHistorial(first: 1, order: [{ id: DESC }]) {
-      nodes {
+    cajaHistorial(skip: 0, take: 1) {
+      items {
         abiertaPor
         apertura
         cerradaPor
@@ -98,9 +98,9 @@ export const GET_ULTIMA_CAJA_HISTORIAL = `
 
 export const GET_CAJA_HISTORIAL_MOVIMIENTO = `
   query GetCajaHistorialMovimiento {
-    cajaHistorialMovimiento {
+    cajaHistorialMovimiento(skip: 0, take: 500) {
       totalCount
-      nodes {
+      items {
         categoria
         codigo
         descripcion

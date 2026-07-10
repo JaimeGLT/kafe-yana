@@ -1,5 +1,5 @@
 export const GET_DASHBOARD_DATA = `
-  query GetDashboardData($where: VentaFilterInput) {
+  query GetDashboardData($fechaDesde: DateTime, $fechaHasta: DateTime, $estadoSiat: String) {
     caja {
       id
       nombre
@@ -14,8 +14,8 @@ export const GET_DASHBOARD_DATA = `
       totalEgresos
       saldoEsperado
     }
-    cajaMoviminetos {
-      nodes {
+    cajaMoviminetos(skip: 0, take: 200) {
+      items {
         id
         fecha
         tipo
@@ -24,8 +24,8 @@ export const GET_DASHBOARD_DATA = `
         referencia
       }
     }
-    ventas(first: 50, order: [{ fechaEmision: DESC }], where: $where) {
-      nodes {
+    ventas(skip: 0, take: 50, fechaDesde: $fechaDesde, fechaHasta: $fechaHasta, estadoSiat: $estadoSiat) {
+      items {
         id
         numeroFactura
         fechaEmision
@@ -34,7 +34,11 @@ export const GET_DASHBOARD_DATA = `
         estadoSiat
         montoTotalSujetoIva
         montoTotal
-        numeroTarjeta
+        codigoMetodoPago
+        pagos {
+          codigoMetodoPago
+          monto
+        }
         detalles {
           id
           id_venta
@@ -46,8 +50,8 @@ export const GET_DASHBOARD_DATA = `
       }
       totalCount
     }
-    comprados {
-      nodes {
+    comprados(skip: 0, take: 200) {
+      items {
         stock_actual
         stock_minimo
         producto {
@@ -56,41 +60,13 @@ export const GET_DASHBOARD_DATA = `
         }
       }
     }
-    elaborados {
-      nodes {
+    elaborados(skip: 0, take: 200) {
+      items {
         stock_actual
         producible
         producto {
           id
           nombre
-        }
-      }
-    }
-  }
-`;
-
-export const GET_VENTA_DETALLE = `
-  query GetVentaDetalle($id: Int!) {
-    ventas(where: { id: { eq: $id } }) {
-      nodes {
-        id
-        numeroFactura
-        fechaEmision
-        nombreRazonSocial
-        usuario
-        estadoSiat
-        montoTotalSujetoIva
-        montoTotal
-        numeroTarjeta
-        detalles {
-          id
-          id_venta
-          descripcion
-          cantidad
-          precioUnitario
-          subTotal
-          codigoProducto
-          unidadMedida
         }
       }
     }

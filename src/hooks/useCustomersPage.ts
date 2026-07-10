@@ -18,16 +18,14 @@ interface ClienteNode {
 
 interface ClientesResponse {
   clientes: {
-    nodes: ClienteNode[];
+    items: ClienteNode[];
     totalCount: number;
-    pageInfo: { hasNextPage: boolean; endCursor: string | null };
   };
 }
 
 export interface UseCustomersPageOptions {
   page: number;
   pageSize: number;
-  afterCursor?: string;
   search?: string;
 }
 
@@ -37,39 +35,30 @@ export interface UseCustomersPageReturn {
   error: string | null;
   refresh: () => Promise<void>;
   totalCount: number;
-  endCursor: string | null;
 }
 
 export function useCustomersPage({
   page,
   pageSize,
-  afterCursor,
   search,
 }: UseCustomersPageOptions): UseCustomersPageReturn {
   const [clientes, setClientes] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
-  const [endCursor, setEndCursor] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    if (page > 1 && !afterCursor) return;
     setIsLoading(true);
     setError(null);
     try {
-      const variables: Record<string, unknown> = { first: pageSize, after: afterCursor };
-      if (search) {
-        variables.where = {
-          or: [
-            { nombre: { contains: search } },
-            { celular: { contains: search } },
-            { correo: { contains: search } },
-          ],
-        };
-      }
+      const variables: Record<string, unknown> = {
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        search: search || null,
+      };
       const data = await gql<ClientesResponse>(GET_CLIENTES, variables);
       setClientes(
-        data.clientes.nodes.map((n) => ({
+        data.clientes.items.map((n) => ({
           id: String(n.id),
           dni: n.dni,
           nombre: n.nombre,
@@ -83,14 +72,13 @@ export function useCustomersPage({
         })),
       );
       setTotalCount(data.clientes.totalCount);
-      setEndCursor(data.clientes.pageInfo.endCursor);
     } catch (e) {
       console.error('Error loading clientes:', e);
       setError('No se pudieron cargar los clientes.');
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, afterCursor, search]);
+  }, [page, pageSize, search]);
 
   useEffect(() => {
     loadData();
@@ -100,5 +88,5 @@ export function useCustomersPage({
     await loadData();
   }, [loadData]);
 
-  return { clientes, isLoading, error, refresh, totalCount, endCursor };
+  return { clientes, isLoading, error, refresh, totalCount };
 }

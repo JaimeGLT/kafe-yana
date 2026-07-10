@@ -13,6 +13,10 @@
       "dest": "https://kafeyanaapi20260321224446-bqdjh9acame8gydt.centralus-01.azurewebsites.net/graphql/"
     },
     {
+      "src": "/hubs/(.*)",
+      "dest": "https://kafeyanaapi20260321224446-bqdjh9acame8gydt.centralus-01.azurewebsites.net/hubs/$1"
+    },
+    {
       "handle": "filesystem"
     },
     {

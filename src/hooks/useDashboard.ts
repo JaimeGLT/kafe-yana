@@ -42,10 +42,10 @@ interface ElaboradoNode {
 
 interface DashboardResponse {
   caja: CajaEstadoNode | null;
-  cajaMoviminetos: { nodes: CajaMovimientoNode[] };
-  ventas: { nodes: VentaNode[] };
-  comprados: { nodes: CompradoNode[] };
-  elaborados: { nodes: ElaboradoNode[] };
+  cajaMoviminetos: { items: CajaMovimientoNode[] };
+  ventas: { items: VentaNode[] };
+  comprados: { items: CompradoNode[] };
+  elaborados: { items: ElaboradoNode[] };
 }
 
 function parseDecimal(value: string | number | null | undefined): number {
@@ -144,16 +144,12 @@ export function useDashboard(): UseDashboardReturn {
       const monthStart = format(new Date(today.getFullYear(), today.getMonth(), 1), 'yyyy-MM-dd');
 
       const data = await gql<DashboardResponse>(GET_DASHBOARD_DATA, {
-        where: {
-          fechaEmision: {
-            gte: new Date(`${monthStart}T00:00:00`).toISOString(),
-            lte: new Date(`${todayStr}T23:59:59`).toISOString(),
-          },
-          estadoSiat: { eq: 'VALIDADA' },
-        },
+        fechaDesde: new Date(`${monthStart}T00:00:00`).toISOString(),
+        fechaHasta: new Date(`${todayStr}T23:59:59`).toISOString(),
+        estadoSiat: 'VALIDADA',
       });
 
-      const allSales = data.ventas.nodes;
+      const allSales = data.ventas.items;
       setRawVentas(allSales);
       const completedSales = allSales.filter((s) => s.estadoSiat === 'VALIDADA');
 
@@ -165,23 +161,23 @@ export function useDashboard(): UseDashboardReturn {
 
       const openRegisters = data.caja?.fechaCierre == null ? 1 : 0;
 
-      const lowStockComprados = data.comprados.nodes.filter(
+      const lowStockComprados = data.comprados.items.filter(
         (p) => p.stock_minimo > 0 && p.stock_actual <= p.stock_minimo,
       ).length;
-      const lowStockElaborados = data.elaborados.nodes.filter(
+      const lowStockElaborados = data.elaborados.items.filter(
         (p) => p.stock_actual <= 0,
       ).length;
 
       setStats({
         totalSalesToday,
         totalSalesMonth,
-        activeProducts: data.comprados.nodes.length + data.elaborados.nodes.length,
+        activeProducts: data.comprados.items.length + data.elaborados.items.length,
         lowStockProducts: lowStockComprados + lowStockElaborados,
         openRegisters,
       });
 
       const expensesByDay: Record<string, number> = {};
-      data.cajaMoviminetos.nodes
+      data.cajaMoviminetos.items
         .filter((m) => m.tipo === 'Egreso')
         .forEach((m) => {
           const key = parseDate(m.fecha).toISOString().split('T')[0];
@@ -250,10 +246,10 @@ export function useDashboard(): UseDashboardReturn {
       setRecentActivities(recent);
 
       const allProducts: LowStockProduct[] = [
-        ...data.comprados.nodes
+        ...data.comprados.items
           .filter((p) => p.stock_minimo > 0 && p.stock_actual <= p.stock_minimo)
           .map((p) => ({ id: String(p.producto.id), name: p.producto.nombre, stock: p.stock_actual, minStock: p.stock_minimo })),
-        ...data.elaborados.nodes
+        ...data.elaborados.items
           .filter((p) => p.stock_actual <= 0)
           .map((p) => ({ id: String(p.producto.id), name: p.producto.nombre, stock: p.stock_actual, minStock: 0 })),
       ];

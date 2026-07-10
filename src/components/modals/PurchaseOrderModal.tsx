@@ -84,8 +84,8 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
 const handleSupplierCreated = async () => {
   setIsSupplierModalOpen(false);
   try {
-    const data = await gql<{ proveedores: { nodes: ProveedorNode[] } }>(GET_PROVEEDORES, { first: 50 });
-    setLocalSuppliers(data.proveedores.nodes.map(n => ({
+    const data = await gql<{ proveedores: { items: ProveedorNode[] } }>(GET_PROVEEDORES, { skip: 0, take: 50 });
+    setLocalSuppliers(data.proveedores.items.map(n => ({
       id: String(n.id),
       code: String(n.id),
       razon_Social: n.razon_Social,

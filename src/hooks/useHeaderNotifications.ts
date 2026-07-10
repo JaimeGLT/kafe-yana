@@ -44,9 +44,9 @@ interface ElaboradoNode {
 }
 
 interface HeaderNotificationsResponse {
-  comprados: { nodes: ProductNode[] };
-  elaborados: { nodes: ElaboradoNode[] };
-  insumos: { nodes: InsumoNode[] };
+  comprados: { items: ProductNode[] };
+  elaborados: { items: ElaboradoNode[] };
+  insumos: { items: InsumoNode[] };
 }
 
 export interface HeaderInsumo {
@@ -86,7 +86,7 @@ export function useHeaderNotifications(): UseHeaderNotificationsReturn {
       const data = await gql<HeaderNotificationsResponse>(GET_HEADER_NOTIFICATIONS);
 
       const mappedProducts: Product[] = [
-        ...data.comprados.nodes.map((n) => {
+        ...data.comprados.items.map((n) => {
           const cat = n.producto.categoria;
           return {
             id: String(n.producto.id),
@@ -110,7 +110,7 @@ export function useHeaderNotifications(): UseHeaderNotificationsReturn {
             updatedAt: new Date(),
           };
         }),
-        ...data.elaborados.nodes.map((n) => {
+        ...data.elaborados.items.map((n) => {
           const cat = n.producto.categoria;
           return {
             id: String(n.id_Producto),
@@ -136,7 +136,7 @@ export function useHeaderNotifications(): UseHeaderNotificationsReturn {
         }),
       ];
 
-      const mappedInsumos: HeaderInsumo[] = data.insumos.nodes.map((n) => ({
+      const mappedInsumos: HeaderInsumo[] = data.insumos.items.map((n) => ({
         id: String(n.id),
         name: n.nombre,
         categoria: n.categoria,

@@ -1,12 +1,11 @@
 // Hook para la página del historial de ventas (paginada por número de página).
-// Réplica del patrón de useProductsPage: el caller controla page/pageSize/where
-// y guarda el mapa cursors[page] = endCursor para poder navegar hacia atrás.
+// El caller controla page/pageSize/where; el backend hace skip/take directamente,
+// por lo que NO necesitamos guardar cursors[page] como antes.
 //
 // Por qué este hook existe:
 //   - Centraliza el fetch + mapeo GraphQL → Sale (la página sólo orquesta UI).
 //   - Recibe `where` ya construido por el caller (fecha, estado SIAT, búsqueda).
-//   - Devuelve `sales` de la página actual y el `endCursor` que la página
-//     guarda en su cache para poder volver.
+//   - Devuelve `ventas` de la página actual y `totalCount` para los KPIs.
 
 import { useState, useEffect, useCallback } from 'react';
 import { gql } from '../lib/graphql';
@@ -21,7 +20,6 @@ import type { VentaFilters } from '../types/ventas';
 export interface UseVentasPageOptions {
   page: number;
   pageSize: number;
-  afterCursor?: string;
   /** Filtro `where` ya construido por el caller (fecha, estado SIAT, búsqueda). */
   where?: VentaFilters;
 }
@@ -30,44 +28,40 @@ export interface UseVentasPageReturn {
   ventas: Sale[];
   isLoading: boolean;
   totalCount: number;
-  endCursor: string | null;
   refresh: () => Promise<void>;
 }
 
 export function useVentasPage({
   page,
   pageSize,
-  afterCursor,
   where,
 }: UseVentasPageOptions): UseVentasPageReturn {
   const [ventas, setVentas] = useState<Sale[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
-  const [endCursor, setEndCursor] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    // Sin cursor no podemos cargar páginas siguientes — evitamos un fetch vacío.
-    if (page > 1 && !afterCursor) return;
     setIsLoading(true);
     try {
-      const variables: Record<string, unknown> = { first: pageSize };
-      if (page > 1 && afterCursor) {
-        variables.after = afterCursor;
-      }
-      if (where && Object.keys(where).length > 0) {
-        variables.where = where;
-      }
+      const variables: Record<string, unknown> = {
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        fechaDesde: where?.fechaEmision?.gte ?? null,
+        fechaHasta: where?.fechaEmision?.lte ?? null,
+        estadoSiat: where?.estadoSiat?.eq ?? null,
+        facturado: where?.facturado?.eq ?? null,
+        search: where?.or?.[0]?.nombreRazonSocial?.contains ?? null,
+      };
 
       const data = await gql<BackendVentasResponse>(GET_VENTAS, variables);
-      setVentas(data.ventas.nodes.map(mapBackendVentaToSale));
+      setVentas(data.ventas.items.map(mapBackendVentaToSale));
       setTotalCount(data.ventas.totalCount);
-      setEndCursor(data.ventas.pageInfo.endCursor);
     } catch (e) {
       console.error('[useVentasPage] Error cargando ventas:', e);
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, afterCursor, where]);
+  }, [page, pageSize, where]);
 
   useEffect(() => {
     loadData();
@@ -77,5 +71,5 @@ export function useVentasPage({
     await loadData();
   }, [loadData]);
 
-  return { ventas, isLoading, totalCount, endCursor, refresh };
+  return { ventas, isLoading, totalCount, refresh };
 }

@@ -49,9 +49,9 @@ interface ElaboradoNode {
 }
 
 interface InventarioReportResponse {
-  comprados: { nodes: CompradoNode[] };
-  elaborados: { nodes: ElaboradoNode[] };
-  insumos: { nodes: InsumoNode[] };
+  comprados: { items: CompradoNode[] };
+  elaborados: { items: ElaboradoNode[] };
+  insumos: { items: InsumoNode[] };
   categorias: { nodes: CategoriaNode[] };
 }
 
@@ -81,7 +81,7 @@ export function useInventoryReportPage(): UseInventoryReportPageReturn {
     try {
       const data = await gql<InventarioReportResponse>(GET_REPORTE_INVENTARIO);
 
-      const comprados: InventoryReportItem[] = data.comprados.nodes.map((n) => {
+      const comprados: InventoryReportItem[] = data.comprados.items.map((n) => {
         const cat = n.producto.categoria;
         return {
           id: `comprado-${n.producto.id}`,
@@ -97,7 +97,7 @@ export function useInventoryReportPage(): UseInventoryReportPageReturn {
         };
       });
 
-      const elaborados: InventoryReportItem[] = data.elaborados.nodes.map((n) => {
+      const elaborados: InventoryReportItem[] = data.elaborados.items.map((n) => {
         const cat = n.producto.categoria;
         return {
           id: `elaborado-${n.id_Producto}`,
@@ -113,7 +113,7 @@ export function useInventoryReportPage(): UseInventoryReportPageReturn {
         };
       });
 
-      const insumosReport: InventoryReportItem[] = data.insumos.nodes.map((n) => ({
+      const insumosReport: InventoryReportItem[] = data.insumos.items.map((n) => ({
         id: `insumo-${n.id}`,
         code: String(n.id),
         name: n.nombre,

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Plus, Search, Layers, Tag,
   TrendingUp, AlertTriangle, CheckCircle2, XCircle,
@@ -19,21 +19,14 @@ import { formatCurrency } from '../../utils';
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const CombosPage: React.FC = () => {
-  const { page, pageSize, search, debouncedSearch, cursors, maxReachablePage, setPage, setSearch, setCursors } = usePagination({ pageSize: 15 });
+  const { page, pageSize, search, debouncedSearch, setPage, setPageSize, setSearch, resetPage } = usePagination({ pageSize: 15 });
 
   const [filterStatus, setFilterStatus] = useState('');
-  const { combos, products: allProducts, totalCount, isLoading, refresh, endCursor } = useCombosPage({
+  const { combos, products: allProducts, totalCount, isLoading, refresh } = useCombosPage({
     page,
     pageSize,
-    afterCursor: page > 1 ? cursors[page - 1] : undefined,
     search: debouncedSearch,
   });
-
-  useEffect(() => {
-    if (endCursor) {
-      setCursors((prev) => ({ ...prev, [page]: endCursor }));
-    }
-  }, [endCursor, page]);
 
   // ── Estado de UI ──
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -173,7 +166,7 @@ const CombosPage: React.FC = () => {
           <div className="sm:w-52">
             <Select
               value={filterStatus}
-              onChange={(v) => setFilterStatus(v)}
+              onChange={(v) => { setFilterStatus(v); resetPage(); }}
               options={[
                 { value: '', label: 'Todos los combos' },
                 { value: 'disponible', label: 'Disponibles hoy' },
@@ -237,7 +230,7 @@ const CombosPage: React.FC = () => {
               page={page}
               pageSize={pageSize}
               onPageChange={setPage}
-              maxPage={maxReachablePage}
+              onPageSizeChange={setPageSize}
               isLoading={isLoading}
             />
           </>

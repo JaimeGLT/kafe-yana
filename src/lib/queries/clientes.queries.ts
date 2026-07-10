@@ -1,7 +1,7 @@
 export const GET_CLIENTES = `
-  query GetClientes($first: Int, $after: String, $where: ClienteFilterInput) {
-    clientes(first: $first, after: $after, where: $where, order: [{ nombre: ASC }]) {
-      nodes {
+  query GetClientes($skip: Int!, $take: Int!, $search: String) {
+    clientes(skip: $skip, take: $take, search: $search) {
+      items {
         dni
         nombre
         celular
@@ -14,10 +14,6 @@ export const GET_CLIENTES = `
         id
       }
       totalCount
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
     }
   }
 `;
@@ -25,13 +21,11 @@ export const GET_CLIENTES = `
 export const GET_CLIENTES_SEARCH = `
   query GetClientesSearch($q: String!) {
     clientes(
-      first: 20,
-      where: { or: [
-        { nombre: { contains: $q } },
-        { celular: { contains: $q } }
-      ]}
+      skip: 0,
+      take: 20,
+      search: $q
     ) {
-      nodes {
+      items {
         id
         nombre
         celular
@@ -55,10 +49,11 @@ export const GET_CLIENTES_SEARCH = `
 export const GET_CLIENTE_BY_DNI = `
   query GetClienteByDni($dni: Int!) {
     clientes(
-      first: 5,
-      where: { dni: { eq: $dni } }
+      skip: 0,
+      take: 5,
+      dni: $dni
     ) {
-      nodes {
+      items {
         id
         nombre
         dni
@@ -73,8 +68,8 @@ export const GET_CLIENTE_BY_DNI = `
 
 export const GET_CLIENTE_BY_ID = `
   query GetClienteById($id: Int!) {
-    clientes(where: { id: { eq: $id } }) {
-      nodes {
+    clientes(skip: 0, take: 1, id: $id) {
+      items {
         dni
         nombre
         celular

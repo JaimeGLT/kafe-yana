@@ -17,7 +17,7 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [email, setEmail] = useState('');
+  const [identificador, setIdentificador] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,11 +34,11 @@ const LoginPage: React.FC = () => {
     e.preventDefault();
     setError(null);
     setNetworkError(false);
-    if (!email.trim()) { setError('Ingresa tu correo electrónico.'); return; }
+    if (!identificador.trim()) { setError('Ingresa tu correo electrónico o usuario.'); return; }
     if (!password) { setError('Ingresa tu contraseña.'); return; }
     setIsLoading(true);
     try {
-      await login(email.trim(), password);
+      await login(identificador.trim(), password);
       navigate(from === '/login' ? '/' : from, { replace: true });
     } catch (err) {
       const msg = resolveErrorMessage(err);
@@ -49,8 +49,8 @@ const LoginPage: React.FC = () => {
     }
   };
 
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEmail(e.target.value);
+  const handleIdentificadorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setIdentificador(e.target.value);
     if (error) setError(null);
   };
 
@@ -166,22 +166,22 @@ const LoginPage: React.FC = () => {
             )}
 
             <form onSubmit={handleSubmit} noValidate autoComplete="on" className="space-y-5">
-              {/* Email */}
+              {/* Identificador (correo o usuario) */}
               <div>
-                <label htmlFor="email" className="block text-xs font-semibold text-[#5a3020] mb-2 uppercase tracking-wider">
-                  Correo electrónico
+                <label htmlFor="identificador" className="block text-xs font-semibold text-[#5a3020] mb-2 uppercase tracking-wider">
+                  Correo o usuario
                 </label>
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
+                  id="identificador"
+                  name="identificador"
+                  type="text"
+                  autoComplete="username"
                   autoFocus
                   required
                   disabled={isLoading}
-                  value={email}
-                  onChange={handleEmailChange}
-                  placeholder="correo@empresa.com"
+                  value={identificador}
+                  onChange={handleIdentificadorChange}
+                  placeholder="correo@empresa.com o usuario"
                   className="w-full px-4 py-3 rounded-xl border border-[#e0d0c0] bg-white md:bg-white text-[#1a0902] placeholder-[#c0a890] text-sm focus:outline-none focus:ring-2 focus:ring-[#c07040] focus:border-transparent disabled:bg-[#f5f0ea] disabled:text-[#b09080] disabled:cursor-not-allowed transition-all"
                 />
               </div>

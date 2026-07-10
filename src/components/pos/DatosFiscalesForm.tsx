@@ -1,9 +1,17 @@
 import React from 'react';
-import { Loader2, ShieldCheck, ShieldX, User, X as XIcon, FileText } from 'lucide-react';
-import { TIPOS_DOCUMENTO } from '../../types/sales';
+import { Loader2, ShieldCheck, ShieldX, User, X as XIcon, FileText, Globe } from 'lucide-react';
 import type { Customer } from '../../types';
 import { useNitVerification } from '../../hooks/useNitVerification';
+import { usePaisesOrigen } from '../../hooks/usePaisesOrigen';
+import { useTiposDocumentoIdentidad } from '../../hooks/useTiposDocumentoIdentidad';
+import { SearchableSelect } from '../ui';
 import { TIPO_DOC_NIT, NIT_MAX_LENGTH } from '../../constants/facturacion';
+
+// Tipos de documento extranjeros que requieren país de origen del documento.
+// CEX (2) y PAS (3). Bolivianos (CI=1, OD=4, NIT=5) son implícitamente país=22
+// y este campo queda null.
+const TIPO_DOC_CEX = 2;
+const TIPO_DOC_PAS = 3;
 
 interface DatosFiscalesFormProps {
   codigoTipoDocumento: number;
@@ -14,6 +22,14 @@ interface DatosFiscalesFormProps {
   onNumeroDocumentoChange: (v: string) => void;
   onComplementoChange: (v: string) => void;
   onFacturacionNombreChange: (v: string) => void;
+
+  /**
+   * Código SIN del país de origen del documento (1..211). Sólo se usa cuando
+   * el tipo de documento es CEX o PAS. Null en otro caso. Viaja al backend
+   * en `DtoVentaPedido.CodigoPaisOrigen`.
+   */
+  paisOrigenCodigo: number | null;
+  onPaisOrigenCodigoChange: (v: number | null) => void;
 
   /** Resultado de búsqueda en backend al tipear N° de documento o nombre. */
   docSearchResults: Customer[];
@@ -48,6 +64,8 @@ export const DatosFiscalesForm: React.FC<DatosFiscalesFormProps> = ({
   onNumeroDocumentoChange,
   onComplementoChange,
   onFacturacionNombreChange,
+  paisOrigenCodigo,
+  onPaisOrigenCodigoChange,
   docSearchResults,
   docSearchLoading,
   docSearchActive,
@@ -72,6 +90,18 @@ export const DatosFiscalesForm: React.FC<DatosFiscalesFormProps> = ({
     !clienteAsignadoDelDropdown &&
     numeroDocumento.trim() !== '0';
   const nitState = useNitVerification(mostrarVerificacionNit ? numeroDocumento : '');
+
+  // País de origen: sólo se muestra y exige cuando el tipo es CEX o PAS.
+  // Lazy-fetch: si nunca eligió extranjero, no gastamos request en cargar 211 países.
+  const esExtranjero =
+    codigoTipoDocumento === TIPO_DOC_CEX || codigoTipoDocumento === TIPO_DOC_PAS;
+  const paises = usePaisesOrigen(esExtranjero);
+
+  // Catálogo de tipos de documento: siempre se renderiza el dropdown, así que
+  // auto-fetchea al montar. Si el server está sirviendo el FallbackHardcoded
+  // (sync #9 sin correr) muestra un aviso pero no bloquea el submit, porque
+  // el backend acepta los códigos 1..5 que coinciden con el SIN vigente.
+  const tiposDoc = useTiposDocumentoIdentidad();
 
   const searchResults = docSearchResults.length > 0 ? docSearchResults : nombreSearchResults;
   const searchLoading = docSearchLoading || nombreSearchLoading;
@@ -103,17 +133,38 @@ export const DatosFiscalesForm: React.FC<DatosFiscalesFormProps> = ({
           Mobile: cada input en su propia fila (grid-cols-1).
           sm+: 3 columnas (grid-cols-12, col-span-4 / 5 / 3). */}
       <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-        <select
-          value={codigoTipoDocumento}
-          onChange={(e) => onCodigoTipoDocumentoChange(parseInt(e.target.value, 10))}
-          className="sm:col-span-4 px-3 py-2.5 sm:py-2 rounded-lg border-2 border-coffee-200 text-sm text-coffee-900 focus:border-coffee-400 focus:outline-none appearance-none bg-white"
-        >
-          {TIPOS_DOCUMENTO.map((t) => (
-            <option key={t.codigo} value={t.codigo}>
-              {t.nombre}
-            </option>
-          ))}
-        </select>
+        {tiposDoc.loading ? (
+          <div className="sm:col-span-4 flex items-center gap-1.5 text-[11px] text-coffee-500 px-1">
+            <Loader2 className="h-3 w-3 animate-spin" /> Cargando catálogo de tipos de documento...
+          </div>
+        ) : tiposDoc.error ? (
+          <div className="sm:col-span-4 text-[11px] text-red-600 font-semibold px-1">
+            {tiposDoc.error}
+            <button
+              onClick={tiposDoc.refetch}
+              className="ml-2 underline text-coffee-700 hover:text-coffee-900"
+            >
+              Reintentar
+            </button>
+          </div>
+        ) : !tiposDoc.sincronizado ? (
+          <div className="sm:col-span-4 text-[11px] text-amber-700 font-semibold px-1">
+            Catálogo no sincronizado con el SIAT (usando fallback local). Pedile al admin que ejecute{' '}
+            <code className="bg-amber-50 px-1 rounded">POST /api/catalogos/sincronizar-tipos-documento-identidad</code>.
+          </div>
+        ) : (
+          <select
+            value={codigoTipoDocumento}
+            onChange={(e) => onCodigoTipoDocumentoChange(parseInt(e.target.value, 10))}
+            className="sm:col-span-4 px-3 py-2.5 sm:py-2 rounded-lg border-2 border-coffee-200 text-sm text-coffee-900 focus:border-coffee-400 focus:outline-none appearance-none bg-white"
+          >
+            {tiposDoc.items.map((t) => (
+              <option key={t.codigo} value={t.codigo}>
+                {t.codigo} · {t.descripcion}
+              </option>
+            ))}
+          </select>
+        )}
         <input
           type="text"
           inputMode="numeric"
@@ -132,6 +183,47 @@ export const DatosFiscalesForm: React.FC<DatosFiscalesFormProps> = ({
           className="sm:col-span-3 px-3 py-2.5 sm:py-2 rounded-lg border-2 border-coffee-200 text-sm text-coffee-900 placeholder:text-coffee-400 focus:border-coffee-400 focus:outline-none"
         />
       </div>
+
+      {/* Fila 1.5: País de origen del documento — sólo visible si es CEX o PAS.
+          Si el catálogo no está sincronizado o falla la carga, el botón Cobrar
+          del padre debe bloquearse (se chequea `paises.sincronizado` afuera). */}
+      {esExtranjero && (
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-coffee-600">
+            <Globe className="h-3 w-3" /> País de origen del documento
+          </div>
+          {paises.loading ? (
+            <div className="flex items-center gap-1.5 text-[11px] text-coffee-500">
+              <Loader2 className="h-3 w-3 animate-spin" /> Cargando catálogo de países...
+            </div>
+          ) : paises.error ? (
+            <div className="text-[11px] text-red-600 font-semibold">
+              {paises.error}
+              <button
+                onClick={paises.refetch}
+                className="ml-2 underline text-coffee-700 hover:text-coffee-900"
+              >
+                Reintentar
+              </button>
+            </div>
+          ) : !paises.sincronizado ? (
+            <div className="text-[11px] text-amber-700 font-semibold">
+              El catálogo de países no está sincronizado. Pedile al admin que ejecute{' '}
+              <code className="bg-amber-50 px-1 rounded">POST /api/catalogos/sincronizar-paises-origen</code>.
+            </div>
+          ) : (
+            <SearchableSelect
+              value={paisOrigenCodigo != null ? String(paisOrigenCodigo) : ''}
+              onChange={(v) => onPaisOrigenCodigoChange(v === '' ? null : parseInt(v, 10))}
+              options={paises.items.map((p) => ({
+                value: String(p.codigo),
+                label: `${p.codigo} · ${p.descripcion}`,
+              }))}
+              placeholder="Selecciona país..."
+            />
+          )}
+        </div>
+      )}
 
       {/* Fila 2: nombre */}
       <input

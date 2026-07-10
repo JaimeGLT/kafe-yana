@@ -1,7 +1,7 @@
 export const GET_ALL_RECETAS = `
   query GetRecetas {
-    recetas(where: { elaborado: { id_Producto: { gt: 0 } } }) {
-      nodes {
+    recetas(soloConElaborado: true) {
+      items {
         id
         nombre
         nota
@@ -20,8 +20,8 @@ export const GET_ALL_RECETAS = `
 
 export const GET_RECETA_BY_ID = `
   query GetRecetaById($id: Int!) {
-    recetas(where: { id: { eq: $id } }) {
-      nodes {
+    recetas(id: $id) {
+      items {
         id
         nombre
         nota
@@ -40,8 +40,8 @@ export const GET_RECETA_BY_ID = `
 
 export const GET_RECETAS_PAGE = `
   query GetRecetasPage {
-    recetas(where: { elaborado: { id_Producto: { gt: 0 } } }) {
-      nodes {
+    recetas(soloConElaborado: true) {
+      items {
         id
         nombre
         nota
@@ -56,7 +56,7 @@ export const GET_RECETAS_PAGE = `
       }
     }
     insumos {
-      nodes {
+      items {
         id
         nombre
         categoria
@@ -69,7 +69,7 @@ export const GET_RECETAS_PAGE = `
       }
     }
     elaborados {
-      nodes {
+      items {
         id_Producto
         unidad_medida
         producible

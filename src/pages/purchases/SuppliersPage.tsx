@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Plus, Search, Edit2, Trash2, Building2, Phone, Mail, Users } from 'lucide-react';
 import { MainLayout } from '../../components/layout';
 import { PageHeader, PageContainer } from '../../components/layout';
@@ -8,7 +8,7 @@ import { SupplierModal } from '../../components/modals';
 import { toast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { useSuppliersPage } from '../../hooks/useSuppliersPage';
-import { useFilters } from '../../hooks/useFilters';
+import { usePagination } from '../../hooks/usePagination';
 import type { Supplier, SupplierInput } from '../../types';
 
 const AVATAR_COLORS = [
@@ -26,37 +26,17 @@ function avatarColor(id: string | number) {
 }
 
 export const SuppliersPage: React.FC = () => {
-  const { filters, setSearch, setPage, setPageSize } = useFilters('suppliers-filters');
+  const { page, pageSize, setPage, setPageSize, resetPage } = usePagination({ pageSize: 15 });
 
-  const readCursors = () => {
-    try {
-      const raw = sessionStorage.getItem('suppliers-cursors');
-      return raw ? JSON.parse(raw) : {};
-    } catch { return {}; }
-  };
-
-  const [cursors, setCursors] = useState<Record<number, string>>(() => readCursors());
-
-  useEffect(() => {
-    try { sessionStorage.setItem('suppliers-cursors', JSON.stringify(cursors)); } catch {}
-  }, [cursors]);
-
-  const { proveedores, totalCount, endCursor, isLoading, refresh } = useSuppliersPage({
-    page: filters.page,
-    pageSize: filters.pageSize,
-    afterCursor: filters.page > 1 ? cursors[filters.page - 1] : undefined,
+  const { proveedores, totalCount, isLoading, refresh } = useSuppliersPage({
+    page,
+    pageSize,
   });
-
-  const prevEndCursor = useRef<string | null>(null);
-  useEffect(() => {
-    if (endCursor && endCursor !== prevEndCursor.current) {
-      prevEndCursor.current = endCursor;
-      setCursors((prev) => ({ ...prev, [filters.page]: endCursor }));
-    }
-  }, [endCursor, filters.page]);
 
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Búsqueda client-side (filtra proveedores ya cargados por nombre, RUC, etc.).
+  // El servidor no recibe el término — la paginación ocurre antes del filtro.
   const [search, setSearchLocal] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -164,10 +144,7 @@ export const SuppliersPage: React.FC = () => {
               type="text"
               placeholder="Buscar por nombre, RUC, email, teléfono..."
               value={search}
-              onChange={(e) => {
-                setSearchLocal(e.target.value);
-                setSearch(e.target.value);
-              }}
+              onChange={(e) => { setSearchLocal(e.target.value); resetPage(); }}
               className="w-full pl-9 pr-4 py-2 border border-coffee-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-coffee-400 bg-white"
             />
           </div>
@@ -280,8 +257,8 @@ export const SuppliersPage: React.FC = () => {
 
             <Pagination
               totalCount={totalCount}
-              page={filters.page}
-              pageSize={filters.pageSize}
+              page={page}
+              pageSize={pageSize}
               onPageChange={setPage}
               onPageSizeChange={setPageSize}
               isLoading={isLoading}
