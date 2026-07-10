@@ -146,12 +146,15 @@ export function useDashboard(): UseDashboardReturn {
       const data = await gql<DashboardResponse>(GET_DASHBOARD_DATA, {
         fechaDesde: new Date(`${monthStart}T00:00:00`).toISOString(),
         fechaHasta: new Date(`${todayStr}T23:59:59`).toISOString(),
-        estadoSiat: 'VALIDADA',
       });
 
       const allSales = data.ventas.items;
       setRawVentas(allSales);
-      const completedSales = allSales.filter((s) => s.estadoSiat === 'VALIDADA');
+      // Cuenta ventas facturadas (null = sin factura, Validada/Observada = con factura) y
+      // excluye solo las anuladas/pendientes de confirmación SIAT.
+      const completedSales = allSales.filter(
+        (s) => s.estadoSiat == null || s.estadoSiat === 'VALIDADA' || s.estadoSiat === 'OBSERVADA',
+      );
 
       const totalSalesToday = completedSales
         .filter((s) => isSameDay(parseDate(s.fechaEmision), today))

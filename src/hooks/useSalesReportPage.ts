@@ -5,7 +5,6 @@ import { GET_VENTAS_REPORT } from '../lib/queries/ventas.queries';
 import { SIN_CODIGO } from '../lib/mappers/metodosPago';
 import type {
   VentaNode,
-  VentaFilters,
   VentaReportStats,
   VentaDailyData,
   VentaPaymentData,
@@ -79,11 +78,6 @@ export function useSalesReportPage(
       const fromDate = startOfDay(new Date(dateFrom + 'T00:00:00')).toISOString();
       const toDate = endOfDay(new Date(dateTo + 'T00:00:00')).toISOString();
 
-      const filters: VentaFilters = {
-        fechaEmision: { gte: fromDate, lte: toDate },
-        estadoSiat: { eq: 'VALIDADA' },
-      };
-
       let allNodes: VentaNode[] = [];
       let skip = 0;
       const pageSize = 200; // MaxTake del backend
@@ -91,7 +85,8 @@ export function useSalesReportPage(
 
       while (allNodes.length < totalCount) {
         const data = await gql<VentasResponse>(GET_VENTAS_REPORT, {
-          where: filters,
+          fechaDesde: fromDate,
+          fechaHasta: toDate,
           skip,
           take: pageSize,
         });
@@ -101,6 +96,12 @@ export function useSalesReportPage(
         if (data.ventas.items.length < pageSize) break;
         skip += pageSize;
       }
+
+      // Cuenta ventas facturadas (null = sin factura) y sin facturar; excluye
+      // solo anuladas/pendientes de confirmación SIAT.
+      allNodes = allNodes.filter(
+        (v) => v.estadoSiat == null || v.estadoSiat === 'VALIDADA' || v.estadoSiat === 'OBSERVADA',
+      );
 
       const totalRevenue = allNodes.reduce((sum, v) => sum + parseDecimal(v.montoTotal), 0);
       const totalSalesCount = allNodes.length;
