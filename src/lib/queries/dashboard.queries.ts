@@ -24,7 +24,7 @@ export const GET_DASHBOARD_DATA = `
         referencia
       }
     }
-    ventas(skip: 0, take: 50, fechaDesde: $fechaDesde, fechaHasta: $fechaHasta) {
+    ventas(skip: 0, take: 1000, fechaDesde: $fechaDesde, fechaHasta: $fechaHasta) {
       items {
         id
         numeroFactura

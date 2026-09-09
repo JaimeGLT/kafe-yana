@@ -152,6 +152,8 @@ export interface Sale extends BaseEntity {
    *  haya intentos rechazados). Decide si el detalle ofrece "Facturar" (modal
    *  editable) o "Reenviar al SIAT" (retry directo). */
   facturado?: boolean;
+  /** `Venta.TipoEmision`: 1 = en línea, 2 = fuera de línea / contingencia. */
+  tipoEmision?: number | null;
   errorSiat?: string | null;
   numeroFactura?: number | null;
   /** CUF (Código Único de Factura) generado por SIAT. Necesario para construir

@@ -15,13 +15,14 @@ import { SkeletonKpiCard, SkeletonChart, SkeletonActivityList } from '../compone
 import { formatCurrency, getPaymentMethodLabel } from '../utils';
 import { sinCodeToPaymentType } from '../lib/mappers/metodosPago';
 import { useDashboard } from '../hooks/useDashboard';
+import { useVentasStats } from '../hooks/useVentasStats';
 import type { PaymentMethodType, Sale } from '../types';
-
-const today = new Date(2026, 3, 17);
 
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
+  const today = useMemo(() => new Date(), []);
   const { stats, revenueData, salesData, topProductsData, recentActivities, lowStockProducts, rawVentas, isLoading, error } = useDashboard();
+  const { stats: ventasStats, isLoading: statsLoading } = useVentasStats();
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
 
   const selectedSale = useMemo<Sale | null>(() => {
@@ -104,7 +105,7 @@ const DashboardPage: React.FC = () => {
     setSelectedSaleId(null);
   };
 
-  if (isLoading) {
+  if (isLoading || statsLoading) {
     return (
       <MainLayout>
         <PageContainer>
@@ -156,10 +157,10 @@ const DashboardPage: React.FC = () => {
         <KPIGrid columns={4}>
           <KPICard
             title="Ventas de Hoy"
-            value={formatCurrency(stats.totalSalesToday)}
+            value={formatCurrency(ventasStats.totalHoy)}
             icon={<ShoppingCart className="h-6 w-6" />}
             color="coffee"
-            subtitle="Ventas completadas hoy"
+            subtitle={`${ventasStats.conteoHoy} venta(s)`}
             onClick={() => {
               const todayStr = format(new Date(), 'yyyy-MM-dd');
               navigate('/sales', { state: { dateFrom: todayStr, dateTo: todayStr } });
@@ -167,10 +168,10 @@ const DashboardPage: React.FC = () => {
           />
           <KPICard
             title="Ventas del Mes"
-            value={formatCurrency(stats.totalSalesMonth)}
+            value={formatCurrency(ventasStats.totalMes)}
             icon={<TrendingUp className="h-6 w-6" />}
             color="green"
-            subtitle="Acumulado mensual"
+            subtitle={`${ventasStats.conteoMes} venta(s) este mes`}
             onClick={() => navigate('/sales', { state: {
               dateFrom: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
               dateTo: format(new Date(), 'yyyy-MM-dd'),
@@ -196,8 +197,8 @@ const DashboardPage: React.FC = () => {
 
         {/* Charts Row */}
         <div className="grid grid-cols-1 gap-6">
-          <RevenueChart data={revenueData} title="Ingresos y Gastos (últimos 1537 días)" />
-          <TopProductsChart data={topProductsData} title="Productos Más Vendidos" />
+          <RevenueChart data={revenueData} title="Ingresos y Gastos (últimos 7 días)" />
+          <TopProductsChart data={topProductsData} title="Productos Más Vendidos (últimos 7 días)" />
         </div>
 
         {/* Sales by Hour */}

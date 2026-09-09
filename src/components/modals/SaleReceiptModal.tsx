@@ -143,9 +143,23 @@ export const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClos
       </html>
     `);
     win.document.close();
-    win.focus();
-    win.print();
-    win.close();
+
+    // Cerrar la ventana solo después de imprimir: `win.close()` inmediato tras
+    // `win.print()` deja la hoja en blanco en Chrome.
+    const cerrar = () => {
+      try {
+        win.close();
+      } catch {
+        /* la ventana ya no existe */
+      }
+    };
+    win.onafterprint = cerrar;
+    setTimeout(() => {
+      win.focus();
+      win.print();
+    }, 150);
+    setTimeout(cerrar, 60_000);
+
     onClose();
   };
 

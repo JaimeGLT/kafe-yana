@@ -3,6 +3,8 @@ import { Printer, X, MonitorCheck, UtensilsCrossed, GlassWater, Globe } from 'lu
 import { QRCodeSVG } from 'qrcode.react';
 import { escapeHtml, imprimirEnNavegador } from '../../utils/printBrowser';
 import { montoEnLetras } from '../../utils/montoEnLetras';
+import logoUrl from '../../assets/img/logo.svg';
+import { UNITS } from '../../data/units';
 
 type Tamaño = 'pequeño' | 'mediano';
 type Destino = 'principal' | 'cocina' | 'barra';
@@ -14,6 +16,10 @@ export interface PrintFacturaItem {
   nombre: string;
   precio: number;
   total: number;
+  /** Código interno del producto (obligatorio en la rep. gráfica, RND 1021 Art. 69 h). */
+  codigoProducto?: string | null;
+  /** Unidad de medida ya resuelta a etiqueta (RND 1021 Art. 69 k). */
+  unidad?: string | null;
 }
 
 export interface PrintFacturaData {
@@ -35,6 +41,8 @@ export interface PrintFacturaData {
   descuentoAdicional?: number | null;
 
   leyenda?: string | null;
+  /** true si la venta se emitió fuera de línea / contingencia (Venta.TipoEmision === 2). */
+  emitidaFueraDeLinea?: boolean | null;
 
   // ── Datos de sucursal / emisor (idénticos a los que imprime el ticket
   // térmico real, ver FacturaTicketBuilder.cs) ────────────────────────
@@ -87,8 +95,19 @@ const NOMBRE_COMERCIAL = 'KAFE YANA';
 // porque la preview/navegador no tiene esa restricción.
 const LEYENDA_LEY_453 =
   'ESTA FACTURA CONTRIBUYE AL DESARROLLO DEL PAÍS, EL USO ILÍCITO SERÁ SANCIONADO PENALMENTE DE ACUERDO A LEY';
-const LEYENDA_REPRESENTACION_GRAFICA =
-  'Este documento es la Representación Gráfica de un Documento Fiscal Digital emitido en una modalidad de facturación en línea';
+// La leyenda de representación gráfica cambia según la venta se haya emitido
+// en línea o fuera de línea / contingencia (RND 102100000011 Art. 69, incisos d y e).
+const leyendaRepresentacionGrafica = (fueraDeLinea?: boolean | null) =>
+  fueraDeLinea
+    ? 'Este documento es la Representación Gráfica de un Documento Fiscal Digital emitido fuera de línea, verifique su envío con su proveedor o en la página web www.impuestos.gob.bo'
+    : 'Este documento es la Representación Gráfica de un Documento Fiscal Digital emitido en una modalidad de facturación en línea';
+
+// code (SIAT) → etiqueta legible de unidad de medida (catálogo local).
+function etiquetaUnidad(codigo: string | null | undefined): string {
+  if (!codigo) return '';
+  const n = Number(codigo);
+  return UNITS.find((u) => u.codigo === n)?.value ?? codigo;
+}
 
 const DESTINO_CONFIG: { id: Destino; label: string; icon: React.ReactNode }[] = [
   { id: 'principal', label: 'Principal', icon: <MonitorCheck className="h-4 w-4" /> },
@@ -195,7 +214,10 @@ const FacturaPreview: React.FC<FacturaPreviewProps> = ({ data, tamaño, qrUrl, q
       className="mx-auto bg-white border border-coffee-300 rounded-md shadow-sm text-coffee-900"
       style={{ width: `${widthPx}px`, padding: '10px 8px' }}
     >
-      {/* Emisor: nombre comercial destacado + razón social legal (más chica) */}
+      {/* Emisor: logo + nombre comercial destacado + razón social legal (más chica) */}
+      <div className="flex justify-center mb-1">
+        <img src={logoUrl} alt="" style={{ width: tamaño === 'pequeño' ? 56 : 68, height: 'auto' }} />
+      </div>
       <Line bold center size={14}>{NOMBRE_COMERCIAL}</Line>
       <Line center size={8}>{razonSocial}</Line>
       {data.codigoSucursal != null && (
@@ -233,14 +255,22 @@ const FacturaPreview: React.FC<FacturaPreviewProps> = ({ data, tamaño, qrUrl, q
 
       {/* Detalle */}
       {data.items.map((item, i) => (
-        <div key={i} className="mb-1">
-          {partirTexto(`${item.cantidad} x ${item.nombre}`, ancho - 2).map((l, j) => (
-            <Line key={j} size={9}>  {l}</Line>
+        <div key={i} className="mb-2 border-b border-dashed border-coffee-300 pb-1">
+          {partirTexto(item.nombre, ancho).map((l, j) => (
+            <Line key={j} size={9} bold>{l}</Line>
           ))}
           <div className="flex justify-between font-mono text-coffee-900" style={{ fontSize: '9px' }}>
-            <span>  Bs/{item.precio.toFixed(2)} c/u</span>
+            <span>  {item.cantidad} x Bs/{item.precio.toFixed(2)}</span>
             <span>Bs/{item.total.toFixed(2)}</span>
           </div>
+          {(item.codigoProducto || item.unidad) && (
+            <Line size={7}>
+              {'  '}
+              {item.codigoProducto ? `Cod: ${item.codigoProducto}` : ''}
+              {item.codigoProducto && item.unidad ? '  ' : ''}
+              {item.unidad ? `UM: ${etiquetaUnidad(item.unidad)}` : ''}
+            </Line>
+          )}
         </div>
       ))}
 
@@ -256,29 +286,31 @@ const FacturaPreview: React.FC<FacturaPreviewProps> = ({ data, tamaño, qrUrl, q
       <div className="my-1"><Separator chars={ancho} /></div>
 
       <WrappedLine texto={`Son: ${montoEnLetras(data.total)}`} ancho={ancho} size={8} />
-      {data.metodoPago && <Line size={8}>Metodo de pago: {data.metodoPago}</Line>}
 
-      {/* Leyenda del CUFD (viene del backend) + leyendas fijas obligatorias */}
-      <div className="my-1"><Separator chars={ancho} /></div>
-      {data.leyenda?.trim() && <WrappedLine texto={data.leyenda} ancho={ancho} size={8} center />}
-      <div className="my-1" />
-      <WrappedLine texto={LEYENDA_LEY_453} ancho={ancho} size={7} />
-      <div className="my-1" />
-      <WrappedLine texto={LEYENDA_REPRESENTACION_GRAFICA} ancho={ancho} size={7} />
-
-      {data.codigoRecepcion && (
-        <Line size={8}>Cod. Recepcion SIAT: {data.codigoRecepcion}</Line>
+      {/* Leyenda del CUFD (viene del backend) */}
+      {data.leyenda?.trim() && (
+        <>
+          <div className="my-1"><Separator chars={ancho} /></div>
+          <WrappedLine texto={data.leyenda} ancho={ancho} size={8} center />
+        </>
       )}
-      {data.estadoSiat && <Line size={8}>Estado SIAT: {data.estadoSiat}</Line>}
 
+      {/* QR y luego las leyendas fijas obligatorias al pie */}
       <div className="my-1"><Separator chars={ancho} /></div>
-
-      {/* QR al pie, como en el ticket térmico */}
       {qrUrl && (
         <div className="flex flex-col items-center gap-1">
           <QRCodeSVG ref={qrRef} value={qrUrl} size={qrSize} level="M" />
           <Line size={7} center>Consulta en siat.impuestos.gob.bo</Line>
         </div>
+      )}
+
+      <div className="my-1" />
+      <WrappedLine texto={LEYENDA_LEY_453} ancho={ancho} size={7} center />
+      <div className="my-1" />
+      <WrappedLine texto={leyendaRepresentacionGrafica(data.emitidaFueraDeLinea)} ancho={ancho} size={7} center />
+
+      {data.codigoRecepcion && (
+        <Line size={8}>Cod. Recepcion SIAT: {data.codigoRecepcion}</Line>
       )}
     </div>
   );
@@ -341,6 +373,7 @@ export const PrintFacturaModal: React.FC<PrintFacturaModalProps> = ({ data, onCo
           }).join('');
 
         const lines: string[] = [];
+        lines.push(`<div style="text-align:center;margin:0 0 4px;"><img src="${logoUrl}" alt="" style="width:64px;height:auto;" /></div>`);
         lines.push(line(NOMBRE_COMERCIAL, true, true, 14));
         lines.push(line(razonSocial, false, true, 8));
         if (data.codigoSucursal != null) lines.push(line(etiquetaSucursal(data.codigoSucursal), false, true));
@@ -366,13 +399,19 @@ export const PrintFacturaModal: React.FC<PrintFacturaModalProps> = ({ data, onCo
         if (data.codigoCliente) lines.push(line(`Cod. Cliente: ${data.codigoCliente}`));
         lines.push(line(sep));
         for (const item of data.items) {
-          for (const l of partirTexto(`${item.cantidad} x ${item.nombre}`, ancho - 2)) {
-            lines.push(line(`  ${l}`));
+          for (const l of partirTexto(item.nombre, ancho)) {
+            lines.push(line(l, true));
           }
           lines.push(`<div style="display:flex;justify-content:space-between;font-family:monospace;font-size:9px;">
-            <span>  Bs/${item.precio.toFixed(2)} c/u</span>
+            <span>${escapeHtml(`  ${item.cantidad} x Bs/${item.precio.toFixed(2)}`)}</span>
             <span>Bs/${item.total.toFixed(2)}</span>
           </div>`);
+          const meta = [
+            item.codigoProducto ? `Cod: ${item.codigoProducto}` : '',
+            item.unidad ? `UM: ${etiquetaUnidad(item.unidad)}` : '',
+          ].filter(Boolean).join('  ');
+          if (meta) lines.push(line(`  ${meta}`, false, false, 7));
+          lines.push(`<div style="border-bottom:1px dashed #999;margin:2px 0;"></div>`);
         }
         if (descuentoTotal > 0) {
           lines.push(`<div style="display:flex;justify-content:space-between;font-family:monospace;font-size:10px;font-weight:bold;">
@@ -390,19 +429,21 @@ export const PrintFacturaModal: React.FC<PrintFacturaModalProps> = ({ data, onCo
         </div>`);
         lines.push(line(sep));
         lines.push(wrapped(`Son: ${montoEnLetras(data.total)}`, 8));
-        if (data.metodoPago) lines.push(line(`Metodo de pago: ${data.metodoPago}`, false));
-        lines.push(line(sep));
-        if (data.leyenda?.trim()) lines.push(wrapped(data.leyenda, 8, true));
-        lines.push(wrapped(LEYENDA_LEY_453, 7));
-        lines.push(wrapped(LEYENDA_REPRESENTACION_GRAFICA, 7));
-        if (data.codigoRecepcion) lines.push(line(`Cod. Recepcion SIAT: ${data.codigoRecepcion}`));
-        if (data.estadoSiat) lines.push(line(`Estado SIAT: ${data.estadoSiat}`));
+        if (data.leyenda?.trim()) {
+          lines.push(line(sep));
+          lines.push(wrapped(data.leyenda, 8, true));
+        }
         lines.push(line(sep));
         if (qrUrlLocal) {
           // SVG generado localmente (mismo que ve la preview), embebido tal
           // cual. Nunca depende de un servicio externo, así que no puede
           // quedar en blanco por falta de internet.
-          const qrSvgMarkup = qrSvgRef.current?.outerHTML;
+          let qrSvgMarkup = qrSvgRef.current?.outerHTML;
+          // Al reinsertar el SVG en la ventana nueva, Chrome solo lo pinta si
+          // lleva el namespace SVG explícito.
+          if (qrSvgMarkup && !qrSvgMarkup.includes('xmlns')) {
+            qrSvgMarkup = qrSvgMarkup.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+          }
           const qrHtml = qrSvgMarkup
             ? `<div style="width:120px;height:120px;margin:0 auto;">${qrSvgMarkup}</div>`
             : '';
@@ -411,6 +452,10 @@ export const PrintFacturaModal: React.FC<PrintFacturaModalProps> = ({ data, onCo
             <div style="font-family:monospace;font-size:7px;text-align:center;">Consulta en siat.impuestos.gob.bo</div>
           </div>`);
         }
+        // Leyendas obligatorias al pie, debajo del QR (centradas).
+        lines.push(wrapped(LEYENDA_LEY_453, 7, true));
+        lines.push(wrapped(leyendaRepresentacionGrafica(data.emitidaFueraDeLinea), 7, true));
+        if (data.codigoRecepcion) lines.push(line(`Cod. Recepcion SIAT: ${data.codigoRecepcion}`));
         return lines.join('');
       },
     });
