@@ -1,102 +1,82 @@
 import React from 'react';
-import { Printer, X, MonitorCheck, UtensilsCrossed, GlassWater, Globe } from 'lucide-react';
+import { Printer, X, Globe } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { escapeHtml, imprimirEnNavegador } from '../../utils/printBrowser';
 import { montoEnLetras } from '../../utils/montoEnLetras';
 
 type Tamaño = 'pequeño' | 'mediano';
-type Destino = 'principal' | 'cocina' | 'barra';
 
 // ── Tipos ────────────────────────────────────────────────────────────────
 
-export interface PrintFacturaItem {
+export interface PrintNotaAjusteItem {
+  descripcion: string;
   cantidad: number;
-  nombre: string;
-  precio: number;
-  total: number;
+  precioUnitario: number;
+  subTotal: number;
 }
 
-export interface PrintFacturaData {
-  ventaId: number;
-  numeroFactura?: number | null;
-  codigoRecepcion?: string | null;
+export interface PrintNotaAjusteData {
+  notaId: number;
+  numeroNotaCreditoDebito: number;
   cuf?: string | null;
-  nitCliente?: string | null;
-  razonSocialCliente?: string | null;
+  codigoRecepcion?: string | null;
+  estadoSiat?: string | null;
   fechaEmision?: string | null;
-  total: number;
-  items: PrintFacturaItem[];
-
-  razonSocialEmisor?: string | null;
-  nitEmisor?: string | null;
-
-  // Para Importe Base Crédito Fiscal (= subtotal cuando no hay descuento)
-  subtotal?: number | null;
-  descuentoAdicional?: number | null;
-
   leyenda?: string | null;
 
-  // ── Datos de sucursal / emisor (idénticos a los que imprime el ticket
-  // térmico real, ver FacturaTicketBuilder.cs) ────────────────────────
+  // Emisor / sucursal (idéntico al de la factura original)
+  razonSocialEmisor?: string | null;
+  nitEmisor?: string | null;
   municipio?: string | null;
   direccion?: string | null;
   telefono?: string | null;
-  /** 0 = Casa Matriz, N = Sucursal N. */
   codigoSucursal?: number | null;
   codigoPuntoVenta?: number | null;
   codigoCliente?: string | null;
+
+  // Cliente
+  nombreRazonSocial?: string | null;
+  numeroDocumento?: string | null;
   complemento?: string | null;
-  /** Etiqueta ya resuelta (ej. "EFECTIVO", "TARJETA + QR / TRANSFERENCIA"). */
-  metodoPago?: string | null;
-  /** 'Validada' | 'Observada' | 'Pendiente' | 'Anulada', tal como llega del backend. */
-  estadoSiat?: string | null;
+
+  // Referencia a la factura original
+  numeroFacturaOriginal?: number | null;
+  numeroAutorizacionCuf?: string | null;
+  fechaEmisionFactura?: string | null;
+
+  // Montos
+  montoTotalOriginal: number;
+  montoTotalDevuelto: number;
+  montoDescuentoCreditoDebito?: number | null;
+  montoEfectivoCreditoDebito: number;
+
+  items: PrintNotaAjusteItem[];
 }
 
-interface PrintFacturaModalProps {
-  data: PrintFacturaData | null;
-  onConfirm: (destinos: Destino[], anchoCaracteres?: number) => Promise<void> | void;
+interface PrintNotaAjusteModalProps {
+  data: PrintNotaAjusteData | null;
   onClose: () => void;
 }
 
-const ANCHO_CARACTERES: Record<Tamaño, number> = {
-  pequeño: 32,
-  mediano: 48,
-};
-
-const PREVIEW_WIDTH_PX: Record<Tamaño, number> = {
-  pequeño: 224,
-  mediano: 320,
-};
+const ANCHO_CARACTERES: Record<Tamaño, number> = { pequeño: 32, mediano: 48 };
+const PREVIEW_WIDTH_PX: Record<Tamaño, number> = { pequeño: 224, mediano: 320 };
 
 const EMISOR_DEFAULTS = {
   razonSocial: 'CORNEJO ARZE VARGAS GRUPO DE INVERSIONES S.R.L.',
   nit: '696210027',
 };
 
-// Nombre comercial (marca) — se muestra destacado arriba de la razón social
-// legal. El SIAT exige que la razón social registrada ante el SIN siga
-// apareciendo en el documento (por eso se mantiene, más pequeña, debajo),
-// pero no impide resaltar el nombre comercial con el que el cliente conoce
-// al negocio.
+// Nombre comercial (marca) — ver PrintFacturaModal.tsx para el detalle de
+// por qué se muestra destacado sobre la razón social legal.
 const NOMBRE_COMERCIAL = 'KAFE YANA';
 
-// Leyendas fijas obligatorias bajo la modalidad "Factura Computarizada En
-// Línea". Deben coincidir EXACTAMENTE con las que imprime el ticket térmico
-// real (ver FacturaTicketBuilder.cs) — ahí van sin tildes por la limitación
-// del encoding ISO-8859-1 de la impresora; acá usamos ortografía correcta
-// porque la preview/navegador no tiene esa restricción.
+// Mismas leyendas fijas obligatorias que la factura (ver PrintFacturaModal.tsx
+// y FacturaTicketBuilder.cs) — aplican también a la representación gráfica de
+// notas de crédito/débito computarizadas emitidas en línea.
 const LEYENDA_LEY_453 =
   'ESTA FACTURA CONTRIBUYE AL DESARROLLO DEL PAÍS, EL USO ILÍCITO SERÁ SANCIONADO PENALMENTE DE ACUERDO A LEY';
 const LEYENDA_REPRESENTACION_GRAFICA =
   'Este documento es la Representación Gráfica de un Documento Fiscal Digital emitido en una modalidad de facturación en línea';
-
-const DESTINO_CONFIG: { id: Destino; label: string; icon: React.ReactNode }[] = [
-  { id: 'principal', label: 'Principal', icon: <MonitorCheck className="h-4 w-4" /> },
-  { id: 'cocina',    label: 'Cocina',    icon: <UtensilsCrossed className="h-4 w-4" /> },
-  { id: 'barra',     label: 'Barra',     icon: <GlassWater className="h-4 w-4" /> },
-];
-
-// ── Helpers (mínimo necesario) ──────────────────────────────────────────
 
 function formatearFechaBolivia(fecha: Date | string | null | undefined): string {
   if (!fecha) return '—';
@@ -114,12 +94,12 @@ function etiquetaSucursal(codigo: number | null | undefined): string {
   return codigo === 0 ? 'SUCURSAL CASA MATRIZ' : `SUCURSAL N. ${codigo}`;
 }
 
-function buildQrUrl(data: PrintFacturaData): string | null {
-  if (!data.numeroFactura || !data.cuf) return null;
+function buildQrUrl(data: PrintNotaAjusteData): string | null {
+  if (!data.numeroNotaCreditoDebito || !data.cuf) return null;
   const nit = data.nitEmisor || EMISOR_DEFAULTS.nit;
   const f = formatearFechaBolivia(data.fechaEmision);
   const fecha = f !== '—' ? f.split(' ')[0]?.split('/').reverse().join('') ?? '' : '';
-  return `https://siat.impuestos.gob.bo/consulta/QR?nit=${nit}&cuf=${encodeURIComponent(data.cuf)}&numero=${data.numeroFactura}&fecha=${fecha}`;
+  return `https://siat.impuestos.gob.bo/consulta/QR?nit=${nit}&cuf=${encodeURIComponent(data.cuf)}&numero=${data.numeroNotaCreditoDebito}&fecha=${fecha}`;
 }
 
 function partirTexto(texto: string, ancho: number): string[] {
@@ -170,40 +150,29 @@ const WrappedLine: React.FC<{ texto: string; ancho: number; size?: number; cente
   </>
 );
 
-// ── Preview del ticket (mismos datos que imprime FacturaTicketBuilder.cs) ─
+// ── Preview ────────────────────────────────────────────────────────────
 
-interface FacturaPreviewProps {
-  data: PrintFacturaData;
-  tamaño: Tamaño;
-  qrUrl: string | null;
-  qrRef?: React.Ref<SVGSVGElement>;
-}
-
-const FacturaPreview: React.FC<FacturaPreviewProps> = ({ data, tamaño, qrUrl, qrRef }) => {
+const NotaAjustePreview: React.FC<{ data: PrintNotaAjusteData; tamaño: Tamaño; qrUrl: string | null; qrRef?: React.Ref<SVGSVGElement> }> =
+  ({ data, tamaño, qrUrl, qrRef }) => {
   const widthPx = PREVIEW_WIDTH_PX[tamaño];
   const ancho = ANCHO_CARACTERES[tamaño];
-
   const razonSocial = data.razonSocialEmisor || EMISOR_DEFAULTS.razonSocial;
   const nit = data.nitEmisor || EMISOR_DEFAULTS.nit;
   const qrSize = tamaño === 'pequeño' ? 120 : 140;
 
-  const descuentoTotal = data.descuentoAdicional ?? 0;
-  const baseCreditoFiscal = data.subtotal ?? data.total;
+  // Solo mostramos las líneas de "Devolución" (trans=1); el trans=2
+  // complementario que genera el backend es contable, no de cara al cliente.
+  const itemsVisibles = data.items;
 
   return (
     <div
       className="mx-auto bg-white border border-coffee-300 rounded-md shadow-sm text-coffee-900"
       style={{ width: `${widthPx}px`, padding: '10px 8px' }}
     >
-      {/* Emisor: nombre comercial destacado + razón social legal (más chica) */}
       <Line bold center size={14}>{NOMBRE_COMERCIAL}</Line>
       <Line center size={8}>{razonSocial}</Line>
-      {data.codigoSucursal != null && (
-        <Line center size={9}>{etiquetaSucursal(data.codigoSucursal)}</Line>
-      )}
-      {data.codigoPuntoVenta != null && (
-        <Line center size={9}>No. Punto de Venta {data.codigoPuntoVenta}</Line>
-      )}
+      {data.codigoSucursal != null && <Line center size={9}>{etiquetaSucursal(data.codigoSucursal)}</Line>}
+      {data.codigoPuntoVenta != null && <Line center size={9}>No. Punto de Venta {data.codigoPuntoVenta}</Line>}
       {data.direccion && <WrappedLine texto={data.direccion} ancho={ancho} size={9} center />}
       {data.telefono && <Line center size={9}>Telefono: {data.telefono}</Line>}
       {data.municipio && <Line center size={9}>{data.municipio}</Line>}
@@ -211,13 +180,10 @@ const FacturaPreview: React.FC<FacturaPreviewProps> = ({ data, tamaño, qrUrl, q
       <Line center size={9}>NIT: {nit}</Line>
       <div className="my-1"><Separator chars={ancho} /></div>
 
-      {/* Tipo de documento */}
-      <Line bold center size={12}>FACTURA</Line>
-      <Line bold center size={9}>(Con Derecho a Crédito Fiscal)</Line>
+      <Line bold center size={12}>NOTA DE CRÉDITO-DÉBITO</Line>
       <div className="my-1"><Separator chars={ancho} /></div>
 
-      {/* Cabecera factura */}
-      <Line bold size={10}>FACTURA Nro.: {data.numeroFactura ?? '—'}</Line>
+      <Line bold size={10}>Nota Nro.: {data.numeroNotaCreditoDebito}</Line>
       {data.cuf && (
         <>
           <Line bold size={9}>COD. AUTORIZACION:</Line>
@@ -225,40 +191,44 @@ const FacturaPreview: React.FC<FacturaPreviewProps> = ({ data, tamaño, qrUrl, q
         </>
       )}
       <Line size={9}>Fecha: {formatearFechaBolivia(data.fechaEmision)}</Line>
-      <Line size={9}>Nombre/Razón Social: {data.razonSocialCliente ?? '—'}</Line>
-      <Line size={9}>NIT/CI/CEX: {data.nitCliente ?? '—'}</Line>
+      <Line size={9}>Nombre/Razón Social: {data.nombreRazonSocial ?? '—'}</Line>
+      <Line size={9}>NIT/CI/CEX: {data.numeroDocumento ?? '—'}</Line>
       {data.complemento && <Line size={9}>Complemento: {data.complemento}</Line>}
       {data.codigoCliente && <Line size={9}>Cod. Cliente: {data.codigoCliente}</Line>}
       <div className="my-1"><Separator chars={ancho} /></div>
 
-      {/* Detalle */}
-      {data.items.map((item, i) => (
+      <Line size={9}>Factura Original Nro.: {data.numeroFacturaOriginal ?? '—'}</Line>
+      <Line size={9}>Fecha Factura Original: {formatearFechaBolivia(data.fechaEmisionFactura)}</Line>
+      {data.numeroAutorizacionCuf && (
+        <>
+          <Line size={9}>CUF Factura Original:</Line>
+          <WrappedLine texto={data.numeroAutorizacionCuf} ancho={ancho} size={8} />
+        </>
+      )}
+      <div className="my-1"><Separator chars={ancho} /></div>
+
+      {itemsVisibles.map((item, i) => (
         <div key={i} className="mb-1">
-          {partirTexto(`${item.cantidad} x ${item.nombre}`, ancho - 2).map((l, j) => (
+          {partirTexto(`${item.cantidad} x ${item.descripcion}`, ancho - 2).map((l, j) => (
             <Line key={j} size={9}>  {l}</Line>
           ))}
           <div className="flex justify-between font-mono text-coffee-900" style={{ fontSize: '9px' }}>
-            <span>  Bs/{item.precio.toFixed(2)} c/u</span>
-            <span>Bs/{item.total.toFixed(2)}</span>
+            <span>  Bs/{item.precioUnitario.toFixed(2)} c/u</span>
+            <span>Bs/{item.subTotal.toFixed(2)}</span>
           </div>
         </div>
       ))}
 
-      {/* Totales */}
-      {descuentoTotal > 0 && (
-        <Line bold size={10}><span className="flex justify-between"><span>SUBTOTAL:</span><span>Bs/{(data.subtotal ?? data.total).toFixed(2)}</span></span></Line>
+      <Line size={9}><span className="flex justify-between"><span>MONTO TOTAL ORIGINAL:</span><span>Bs/{data.montoTotalOriginal.toFixed(2)}</span></span></Line>
+      <Line size={9}><span className="flex justify-between"><span>MONTO DEVUELTO:</span><span>Bs/{data.montoTotalDevuelto.toFixed(2)}</span></span></Line>
+      {(data.montoDescuentoCreditoDebito ?? 0) > 0 && (
+        <Line size={9}><span className="flex justify-between"><span>DESCUENTO:</span><span>Bs/{(data.montoDescuentoCreditoDebito ?? 0).toFixed(2)}</span></span></Line>
       )}
-      {descuentoTotal > 0 && (
-        <Line size={9}><span className="flex justify-between"><span>DESCUENTO:</span><span>-Bs/{descuentoTotal.toFixed(2)}</span></span></Line>
-      )}
-      <Line bold size={11}><span className="flex justify-between"><span>TOTAL:</span><span>Bs/{data.total.toFixed(2)}</span></span></Line>
-      <Line size={8}><span className="flex justify-between"><span>Importe Base Crédito Fiscal:</span><span>Bs/{baseCreditoFiscal.toFixed(2)}</span></span></Line>
+      <Line bold size={11}><span className="flex justify-between"><span>MONTO EFECTIVO:</span><span>Bs/{data.montoEfectivoCreditoDebito.toFixed(2)}</span></span></Line>
       <div className="my-1"><Separator chars={ancho} /></div>
 
-      <WrappedLine texto={`Son: ${montoEnLetras(data.total)}`} ancho={ancho} size={8} />
-      {data.metodoPago && <Line size={8}>Metodo de pago: {data.metodoPago}</Line>}
+      <WrappedLine texto={`Son: ${montoEnLetras(data.montoEfectivoCreditoDebito)}`} ancho={ancho} size={8} />
 
-      {/* Leyenda del CUFD (viene del backend) + leyendas fijas obligatorias */}
       <div className="my-1"><Separator chars={ancho} /></div>
       {data.leyenda?.trim() && <WrappedLine texto={data.leyenda} ancho={ancho} size={8} center />}
       <div className="my-1" />
@@ -266,14 +236,10 @@ const FacturaPreview: React.FC<FacturaPreviewProps> = ({ data, tamaño, qrUrl, q
       <div className="my-1" />
       <WrappedLine texto={LEYENDA_REPRESENTACION_GRAFICA} ancho={ancho} size={7} />
 
-      {data.codigoRecepcion && (
-        <Line size={8}>Cod. Recepcion SIAT: {data.codigoRecepcion}</Line>
-      )}
+      {data.codigoRecepcion && <Line size={8}>Cod. Recepcion SIAT: {data.codigoRecepcion}</Line>}
       {data.estadoSiat && <Line size={8}>Estado SIAT: {data.estadoSiat}</Line>}
 
       <div className="my-1"><Separator chars={ancho} /></div>
-
-      {/* QR al pie, como en el ticket térmico */}
       {qrUrl && (
         <div className="flex flex-col items-center gap-1">
           <QRCodeSVG ref={qrRef} value={qrUrl} size={qrSize} level="M" />
@@ -286,46 +252,24 @@ const FacturaPreview: React.FC<FacturaPreviewProps> = ({ data, tamaño, qrUrl, q
 
 // ── Modal principal ──────────────────────────────────────────────────────
 
-export const PrintFacturaModal: React.FC<PrintFacturaModalProps> = ({ data, onConfirm, onClose }) => {
+export const PrintNotaAjusteModal: React.FC<PrintNotaAjusteModalProps> = ({ data, onClose }) => {
   const [tamaño, setTamaño] = React.useState<Tamaño>('mediano');
-  const [destinos, setDestinos] = React.useState<Destino[]>(['principal']);
-  const [isPrinting, setIsPrinting] = React.useState(false);
-  // SVG del QR ya renderizado localmente en la preview (qrcode.react, sin
-  // depender de internet). Lo reusamos tal cual al imprimir por navegador en
-  // vez de pedirle la imagen a un servicio externo (api.qrserver.com) — si
-  // ese servicio no responde, el QR impreso queda en blanco. Ver bug reportado.
+  // SVG del QR renderizado localmente en la preview (qrcode.react, sin
+  // depender de internet). Se reusa al imprimir por navegador en vez de
+  // pedirle la imagen a un servicio externo (api.qrserver.com).
   const qrSvgRef = React.useRef<SVGSVGElement>(null);
 
-  const toggleDestino = (d: Destino) =>
-    setDestinos(prev =>
-      prev.includes(d)
-        ? prev.length > 1 ? prev.filter(x => x !== d) : prev
-        : [...prev, d]
-    );
-
   if (!data) return null;
-
-  const handlePrint = async () => {
-    setIsPrinting(true);
-    try {
-      await onConfirm(destinos, ANCHO_CARACTERES[tamaño]);
-      onClose();
-    } finally {
-      setIsPrinting(false);
-    }
-  };
 
   const handleBrowserPrint = () => {
     const ancho = ANCHO_CARACTERES[tamaño];
     const razonSocial = data.razonSocialEmisor || EMISOR_DEFAULTS.razonSocial;
     const nit = data.nitEmisor || EMISOR_DEFAULTS.nit;
-    const descuentoTotal = data.descuentoAdicional ?? 0;
-    const baseCreditoFiscal = data.subtotal ?? data.total;
     const fechaStr = formatearFechaBolivia(data.fechaEmision);
     const qrUrlLocal = buildQrUrl(data);
 
     imprimirEnNavegador({
-      titulo: `Factura N° ${data.numeroFactura ?? data.ventaId}`,
+      titulo: `Nota N° ${data.numeroNotaCreditoDebito}`,
       anchoMM: tamaño === 'pequeño' ? '58' : '80',
       buildBody: () => {
         const sep = new String('=').repeat(ancho);
@@ -351,46 +295,51 @@ export const PrintFacturaModal: React.FC<PrintFacturaModalProps> = ({ data, onCo
         lines.push(line(sep));
         lines.push(line(`NIT: ${nit}`, false, true));
         lines.push(line(sep));
-        lines.push(line('FACTURA', true, true));
-        lines.push(line('(Con Derecho a Crédito Fiscal)', false, true));
+        lines.push(line('NOTA DE CRÉDITO-DÉBITO', true, true));
         lines.push(line(sep));
-        lines.push(line(`FACTURA Nro.: ${data.numeroFactura ?? '—'}`, true));
+        lines.push(line(`Nota Nro.: ${data.numeroNotaCreditoDebito}`, true));
         if (data.cuf) {
           lines.push(line('COD. AUTORIZACION:', true));
           lines.push(wrapped(data.cuf, 9));
         }
         lines.push(line(`Fecha: ${fechaStr}`));
-        lines.push(line(`Nombre/Razón Social: ${data.razonSocialCliente ?? '—'}`));
-        lines.push(line(`NIT/CI/CEX: ${data.nitCliente ?? '—'}`));
+        lines.push(line(`Nombre/Razón Social: ${data.nombreRazonSocial ?? '—'}`));
+        lines.push(line(`NIT/CI/CEX: ${data.numeroDocumento ?? '—'}`));
         if (data.complemento) lines.push(line(`Complemento: ${data.complemento}`));
         if (data.codigoCliente) lines.push(line(`Cod. Cliente: ${data.codigoCliente}`));
         lines.push(line(sep));
+        lines.push(line(`Factura Original Nro.: ${data.numeroFacturaOriginal ?? '—'}`));
+        lines.push(line(`Fecha Factura Original: ${formatearFechaBolivia(data.fechaEmisionFactura)}`));
+        if (data.numeroAutorizacionCuf) {
+          lines.push(line('CUF Factura Original:'));
+          lines.push(wrapped(data.numeroAutorizacionCuf, 9));
+        }
+        lines.push(line(sep));
         for (const item of data.items) {
-          for (const l of partirTexto(`${item.cantidad} x ${item.nombre}`, ancho - 2)) {
+          for (const l of partirTexto(`${item.cantidad} x ${item.descripcion}`, ancho - 2)) {
             lines.push(line(`  ${l}`));
           }
           lines.push(`<div style="display:flex;justify-content:space-between;font-family:monospace;font-size:9px;">
-            <span>  Bs/${item.precio.toFixed(2)} c/u</span>
-            <span>Bs/${item.total.toFixed(2)}</span>
+            <span>  Bs/${item.precioUnitario.toFixed(2)} c/u</span>
+            <span>Bs/${item.subTotal.toFixed(2)}</span>
           </div>`);
         }
-        if (descuentoTotal > 0) {
-          lines.push(`<div style="display:flex;justify-content:space-between;font-family:monospace;font-size:10px;font-weight:bold;">
-            <span>SUBTOTAL:</span><span>Bs/${(data.subtotal ?? data.total).toFixed(2)}</span>
-          </div>`);
+        lines.push(`<div style="display:flex;justify-content:space-between;font-family:monospace;font-size:9px;">
+          <span>MONTO TOTAL ORIGINAL:</span><span>Bs/${data.montoTotalOriginal.toFixed(2)}</span>
+        </div>`);
+        lines.push(`<div style="display:flex;justify-content:space-between;font-family:monospace;font-size:9px;">
+          <span>MONTO DEVUELTO:</span><span>Bs/${data.montoTotalDevuelto.toFixed(2)}</span>
+        </div>`);
+        if ((data.montoDescuentoCreditoDebito ?? 0) > 0) {
           lines.push(`<div style="display:flex;justify-content:space-between;font-family:monospace;font-size:9px;">
-            <span>DESCUENTO:</span><span>-Bs/${descuentoTotal.toFixed(2)}</span>
+            <span>DESCUENTO:</span><span>Bs/${(data.montoDescuentoCreditoDebito ?? 0).toFixed(2)}</span>
           </div>`);
         }
         lines.push(`<div style="display:flex;justify-content:space-between;font-family:monospace;font-size:11px;font-weight:bold;">
-          <span>TOTAL:</span><span>Bs/${data.total.toFixed(2)}</span>
-        </div>`);
-        lines.push(`<div style="display:flex;justify-content:space-between;font-family:monospace;font-size:8px;">
-          <span>Importe Base Crédito Fiscal:</span><span>Bs/${baseCreditoFiscal.toFixed(2)}</span>
+          <span>MONTO EFECTIVO:</span><span>Bs/${data.montoEfectivoCreditoDebito.toFixed(2)}</span>
         </div>`);
         lines.push(line(sep));
-        lines.push(wrapped(`Son: ${montoEnLetras(data.total)}`, 8));
-        if (data.metodoPago) lines.push(line(`Metodo de pago: ${data.metodoPago}`, false));
+        lines.push(wrapped(`Son: ${montoEnLetras(data.montoEfectivoCreditoDebito)}`, 8));
         lines.push(line(sep));
         if (data.leyenda?.trim()) lines.push(wrapped(data.leyenda, 8, true));
         lines.push(wrapped(LEYENDA_LEY_453, 7));
@@ -400,8 +349,7 @@ export const PrintFacturaModal: React.FC<PrintFacturaModalProps> = ({ data, onCo
         lines.push(line(sep));
         if (qrUrlLocal) {
           // SVG generado localmente (mismo que ve la preview), embebido tal
-          // cual. Nunca depende de un servicio externo, así que no puede
-          // quedar en blanco por falta de internet.
+          // cual — nunca depende de un servicio externo.
           const qrSvgMarkup = qrSvgRef.current?.outerHTML;
           const qrHtml = qrSvgMarkup
             ? `<div style="width:120px;height:120px;margin:0 auto;">${qrSvgMarkup}</div>`
@@ -425,14 +373,12 @@ export const PrintFacturaModal: React.FC<PrintFacturaModalProps> = ({ data, onCo
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-xl bg-emerald-100 flex items-center justify-center">
-              <Printer className="h-5 w-5 text-emerald-700" />
+            <div className="h-9 w-9 rounded-xl bg-blue-100 flex items-center justify-center">
+              <Printer className="h-5 w-5 text-blue-700" />
             </div>
             <div>
-              <p className="text-sm font-bold text-coffee-900">Imprimir factura SIAT</p>
-              <p className="text-xs text-coffee-400">
-                {data.numeroFactura != null ? `N° ${data.numeroFactura}` : `Venta #${data.ventaId}`}
-              </p>
+              <p className="text-sm font-bold text-coffee-900">Imprimir Nota de Ajuste SIAT</p>
+              <p className="text-xs text-coffee-400">N° {data.numeroNotaCreditoDebito}</p>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
@@ -455,7 +401,7 @@ export const PrintFacturaModal: React.FC<PrintFacturaModalProps> = ({ data, onCo
         <div className="space-y-2">
           <p className="text-xs font-semibold text-coffee-600 uppercase tracking-wide">Vista previa</p>
           <div className="bg-coffee-100 rounded-2xl p-4 max-h-[50vh] overflow-y-auto">
-            <FacturaPreview data={data} tamaño={tamaño} qrUrl={qrUrl} qrRef={qrSvgRef} />
+            <NotaAjustePreview data={data} tamaño={tamaño} qrUrl={qrUrl} qrRef={qrSvgRef} />
           </div>
         </div>
 
@@ -482,36 +428,12 @@ export const PrintFacturaModal: React.FC<PrintFacturaModalProps> = ({ data, onCo
           </div>
         </div>
 
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-coffee-600 uppercase tracking-wide">Enviar a</p>
-          <div className="grid grid-cols-3 gap-2">
-            {DESTINO_CONFIG.map(({ id, label, icon }) => {
-              const active = destinos.includes(id);
-              return (
-                <button
-                  key={id}
-                  onClick={() => toggleDestino(id)}
-                  className={`flex flex-col items-center gap-1.5 py-3 rounded-2xl border-2 transition-all ${
-                    active
-                      ? 'border-coffee-700 bg-coffee-700 text-cream'
-                      : 'border-coffee-200 hover:border-coffee-400 hover:bg-coffee-50 text-coffee-600'
-                  }`}
-                >
-                  {icon}
-                  <span className="text-xs font-semibold">{label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         <button
-          onClick={handlePrint}
-          disabled={isPrinting}
-          className="w-full py-3 rounded-2xl bg-coffee-800 text-cream text-sm font-bold hover:bg-coffee-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+          onClick={handleBrowserPrint}
+          className="w-full py-3 rounded-2xl bg-coffee-800 text-cream text-sm font-bold hover:bg-coffee-700 transition-colors flex items-center justify-center gap-2"
         >
           <Printer className="h-4 w-4" />
-          {isPrinting ? 'Enviando...' : 'Imprimir factura'}
+          Imprimir nota
         </button>
         <button
           onClick={onClose}

@@ -97,6 +97,36 @@ export interface NotaAjusteResumen {
    * el botón "Anular en SIAT").
    */
   revertidaAnulacion?: boolean;
+
+  // ── Campos adicionales para la representación gráfica impresa ──────
+  // (PrintNotaAjusteModal). Opcionales porque las queries livianas
+  // (listas/badges) no siempre los piden — sólo GET_VENTA_CON_DETALLES.
+  leyenda?: string | null;
+  nitEmisor?: string | null;
+  razonSocialEmisor?: string | null;
+  municipio?: string | null;
+  direccion?: string | null;
+  telefono?: string | null;
+  codigoSucursal?: number | null;
+  codigoPuntoVenta?: number | null;
+  codigoCliente?: string | null;
+  complemento?: string | null;
+  nombreRazonSocial?: string | null;
+  numeroDocumento?: string | null;
+  /** Número de factura original que esta nota ajusta. */
+  numeroFacturaOriginal?: number | null;
+  /** CUF de la factura original (numeroAutorizacionCuf en el XSD). */
+  numeroAutorizacionCuf?: string | null;
+  fechaEmisionFactura?: string | null;
+  montoDescuentoCreditoDebito?: number | null;
+  /** Líneas de la nota (incluye ambos trans=1/2; la UI filtra trans=1 para mostrar). */
+  detalles?: {
+    descripcion: string;
+    cantidad: number;
+    precioUnitario: number;
+    subTotal: number;
+    codigoDetalleTransaccion: number;
+  }[];
 }
 
 /** Respuesta tipada de GET /api/NotaAjuste/por-venta/{ventaId}. */

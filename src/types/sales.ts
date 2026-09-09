@@ -166,6 +166,20 @@ export interface Sale extends BaseEntity {
   /** True cuando la anulación en SIAT ya fue revertida (operación permitida una sola vez). */
   revertidaAnulacion?: boolean;
 
+  // ── Emisor (mapea a Venta.NitEmisor/RazonSocialEmisor/Municipio/Direccion/...) ──
+  // Necesarios para que la representación gráfica impresa (PrintFacturaModal)
+  // coincida con el ticket térmico real (FacturaTicketBuilder.cs backend), que
+  // ya imprime estos campos. Antes no se pedían vía GraphQL y el modal caía
+  // siempre a un emisor hardcodeado.
+  nitEmisor?: string | null;
+  razonSocialEmisor?: string | null;
+  municipio?: string | null;
+  direccion?: string | null;
+  telefono?: string | null;
+  codigoSucursal?: number | null;
+  codigoPuntoVenta?: number | null;
+  codigoCliente?: string | null;
+
   // ── Notas de Crédito/Débito (derivado, TODOS los estados) ──────────
   /** Notas de ajuste SIAT que aplican a esta venta (incluye TODOS los
    *  estados: Validada / Anulada / Pendiente / Observada). Esto permite
