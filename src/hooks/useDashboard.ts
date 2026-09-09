@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { subDays, isSameDay, format } from 'date-fns';
+import { subDays, isSameDay, format, startOfDay, endOfDay } from 'date-fns';
 import { gql } from '../lib/graphql';
 import { GET_DASHBOARD_DATA } from '../lib/queries/dashboard.queries';
 import type { VentaNode } from '../types/ventas';
@@ -43,7 +43,7 @@ interface ElaboradoNode {
 interface DashboardResponse {
   caja: CajaEstadoNode | null;
   cajaMoviminetos: { items: CajaMovimientoNode[] };
-  ventas: { items: VentaNode[] };
+  ventas: { items: VentaNode[]; totalCount: number };
   comprados: { items: CompradoNode[] };
   elaborados: { items: ElaboradoNode[] };
 }
@@ -64,8 +64,6 @@ function countProductos(detalles: VentaNode['detalles']): number {
 }
 
 export interface DashboardStats {
-  totalSalesToday: number;
-  totalSalesMonth: number;
   activeProducts: number;
   lowStockProducts: number;
   openRegisters: number;
@@ -119,8 +117,6 @@ export interface UseDashboardReturn {
 
 export function useDashboard(): UseDashboardReturn {
   const [stats, setStats] = useState<DashboardStats>({
-    totalSalesToday: 0,
-    totalSalesMonth: 0,
     activeProducts: 0,
     lowStockProducts: 0,
     openRegisters: 0,
@@ -140,27 +136,27 @@ export function useDashboard(): UseDashboardReturn {
 
     try {
       const today = new Date();
-      const todayStr = format(today, 'yyyy-MM-dd');
-      const monthStart = format(new Date(today.getFullYear(), today.getMonth(), 1), 'yyyy-MM-dd');
+      // Los gráficos del dashboard cubren los últimos 7 días; los KPIs "Hoy"/"Mes"
+      // los calcula el backend vía `ventasEstadisticas` (ver useVentasStats).
+      const desde = startOfDay(subDays(today, 6));
 
       const data = await gql<DashboardResponse>(GET_DASHBOARD_DATA, {
-        fechaDesde: new Date(`${monthStart}T00:00:00`).toISOString(),
-        fechaHasta: new Date(`${todayStr}T23:59:59`).toISOString(),
+        fechaDesde: desde.toISOString(),
+        fechaHasta: endOfDay(today).toISOString(),
       });
 
       const allSales = data.ventas.items;
+      if (data.ventas.totalCount > allSales.length) {
+        console.warn(
+          `[useDashboard] Ventana de 7 días con ${data.ventas.totalCount} ventas (>${allSales.length} cargadas); los gráficos pueden estar incompletos.`,
+        );
+      }
       setRawVentas(allSales);
       // Cuenta ventas facturadas (null = sin factura, Validada/Observada = con factura) y
       // excluye solo las anuladas/pendientes de confirmación SIAT.
       const completedSales = allSales.filter(
         (s) => s.estadoSiat == null || s.estadoSiat === 'VALIDADA' || s.estadoSiat === 'OBSERVADA',
       );
-
-      const totalSalesToday = completedSales
-        .filter((s) => isSameDay(parseDate(s.fechaEmision), today))
-        .reduce((sum, s) => sum + parseDecimal(s.montoTotal), 0);
-
-      const totalSalesMonth = completedSales.reduce((sum, s) => sum + parseDecimal(s.montoTotal), 0);
 
       const openRegisters = data.caja?.fechaCierre == null ? 1 : 0;
 
@@ -172,8 +168,6 @@ export function useDashboard(): UseDashboardReturn {
       ).length;
 
       setStats({
-        totalSalesToday,
-        totalSalesMonth,
         activeProducts: data.comprados.items.length + data.elaborados.items.length,
         lowStockProducts: lowStockComprados + lowStockElaborados,
         openRegisters,

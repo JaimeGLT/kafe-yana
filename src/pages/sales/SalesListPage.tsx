@@ -289,6 +289,8 @@ export const SalesListPage: React.FC = () => {
       nombre: it.productName ?? 'Producto',
       precio: it.unitPrice,
       total: it.total,
+      codigoProducto: it.productCode || null,
+      unidad: it.unit || null,
     }));
     // Consolidar items por nombre: si la venta histórica tiene el mismo
     // producto en múltiples rondas, la preview muestra una sola línea.
@@ -305,6 +307,7 @@ export const SalesListPage: React.FC = () => {
       subtotal: ventaCompleta.subtotal,
       descuentoAdicional: ventaCompleta.discount,
       leyenda: ventaCompleta.leyenda ?? null,
+      emitidaFueraDeLinea: ventaCompleta.tipoEmision === 2,
       razonSocialEmisor: ventaCompleta.razonSocialEmisor ?? null,
       nitEmisor: ventaCompleta.nitEmisor ?? null,
       municipio: ventaCompleta.municipio ?? null,

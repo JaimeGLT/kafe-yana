@@ -92,6 +92,8 @@ export interface BackendVenta {
    * por el SIAT (aunque haya tenido intentos rechazados). Se usa para decidir
    * si el modal de detalle ofrece "Facturar" (editable) o "Reenviar al SIAT". */
   facturado: boolean;
+  /** `Venta.TipoEmision`: 1 = en línea, 2 = fuera de línea / contingencia. */
+  tipoEmision?: number | null;
   revertidaAnulacion: boolean;
   montoTotalSujetoIva: number | string;
   montoTotal: number | string;
@@ -317,6 +319,7 @@ export const mapBackendVentaToSale = (v: BackendVenta): Sale => {
     ventaId: v.id,
     estadoSiat: v.estadoSiat,
     facturado: v.facturado,
+    tipoEmision: v.tipoEmision ?? null,
     siatAceptada: esEstadoValidadaSiat(v.estadoSiat),
     errorSiat: null,
     numeroFactura: v.numeroFactura,

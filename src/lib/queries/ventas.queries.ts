@@ -108,6 +108,7 @@ export const GET_VENTAS = `
         usuario
         estadoSiat
         facturado
+        tipoEmision
         revertidaAnulacion
         montoTotalSujetoIva
         montoTotal
@@ -194,6 +195,7 @@ export const GET_VENTA_CON_DETALLES = `
         usuario
         estadoSiat
         facturado
+        tipoEmision
         revertidaAnulacion
         montoTotalSujetoIva
         montoTotal

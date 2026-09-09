@@ -72,7 +72,26 @@ export function imprimirEnNavegador(opts: ImprimirNavegadorOpts): void {
 </html>`);
 
   win.document.close();
-  win.focus();
-  win.print();
-  win.close();
+
+  // Cerrar la ventana SOLO después de imprimir. Llamar `win.close()` justo
+  // tras `win.print()` hace que Chrome cierre el documento antes de renderizar
+  // y pagina en blanco (más aún con el SVG del QR embebido).
+  const cerrar = () => {
+    try {
+      win.close();
+    } catch {
+      /* la ventana ya no existe */
+    }
+  };
+  const lanzar = () => {
+    win.focus();
+    win.print();
+  };
+
+  win.onafterprint = cerrar;
+  if (win.document.readyState === 'complete') setTimeout(lanzar, 150);
+  else win.onload = () => setTimeout(lanzar, 150);
+
+  // Respaldo: si el navegador no dispara `afterprint`, no dejar la ventana huérfana.
+  setTimeout(cerrar, 60_000);
 }
