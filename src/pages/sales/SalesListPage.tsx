@@ -17,6 +17,8 @@ import { RevertirAnulacionNotaAjusteModal } from '../../components/modals/Revert
 import type { NotaAjusteParaAnular } from '../../components/modals/AnularNotaAjusteModal';
 import { PrintFacturaModal } from '../../components/pos/PrintFacturaModal';
 import type { PrintFacturaData } from '../../components/pos/PrintFacturaModal';
+import { PrintNotaAjusteModal } from '../../components/pos/PrintNotaAjusteModal';
+import type { PrintNotaAjusteData } from '../../components/pos/PrintNotaAjusteModal';
 import { PrintComandaModal } from '../../components/pos/PrintComandaModal';
 import type { PrintComandaData } from '../../components/pos/PrintComandaModal';
 import { api } from '../../lib/api';
@@ -158,6 +160,7 @@ export const SalesListPage: React.FC = () => {
   const [notaParaRevertirAnulacion, setNotaParaRevertirAnulacion] = useState<NotaAjusteParaAnular | null>(null);
   const [printFacturaData, setPrintFacturaData] = useState<PrintFacturaData | null>(null);
   const [printComandaData, setPrintComandaData] = useState<PrintComandaData | null>(null);
+  const [printNotaAjusteData, setPrintNotaAjusteData] = useState<PrintNotaAjusteData | null>(null);
 
   // SIAT
   const {
@@ -232,6 +235,17 @@ export const SalesListPage: React.FC = () => {
       subtotal: selectedSale.subtotal,
       descuentoAdicional: selectedSale.discount,
       leyenda: selectedSale.leyenda ?? null,
+      razonSocialEmisor: selectedSale.razonSocialEmisor ?? null,
+      nitEmisor: selectedSale.nitEmisor ?? null,
+      municipio: selectedSale.municipio ?? null,
+      direccion: selectedSale.direccion ?? null,
+      telefono: selectedSale.telefono ?? null,
+      codigoSucursal: selectedSale.codigoSucursal ?? null,
+      codigoPuntoVenta: selectedSale.codigoPuntoVenta ?? null,
+      codigoCliente: selectedSale.codigoCliente ?? null,
+      complemento: selectedSale.complemento ?? null,
+      metodoPago: selectedSale.paymentMethods.map((p) => p.name).join(' + ') || null,
+      estadoSiat: selectedSale.estadoSiat ?? null,
       items: selectedSale.items.map((it) => ({
         cantidad: it.quantity,
         nombre: it.productName ?? 'Producto',
@@ -248,30 +262,29 @@ export const SalesListPage: React.FC = () => {
    * junto al modal de impresión (doble modal apilado). El usuario debe abrir
    * el detalle explícitamente desde el botón "Ver".
    *
-   * Como la lista ya NO trae `detalles` (lazy load), si `sale.items` está
-   * vacío disparamos `fetchVentaById` para obtener las líneas antes de abrir
-   * el modal de impresión.
+   * La lista (`GET_VENTAS`) trae `detalles` livianos (solo `id`+`cantidad`,
+   * SIN `precioUnitario`/`subTotal`) para mantener el payload chico — usarlos
+   * directamente produce precios "NaN" en el ticket. Por eso SIEMPRE pedimos
+   * la venta completa vía `fetchVentaById` (GET_VENTA_CON_DETALLES) antes de
+   * construir la impresión, en vez de confiar en `sale.items`.
    */
   const handlePrintFacturaSiat = async (sale: Sale) => {
     if (!sale.ventaId) {
       toast.error('Sin identificador SIAT', 'Esta venta no tiene un id válido para reimprimir.');
       return;
     }
-    let items = sale.items;
-    if (!items.length) {
-      try {
-        const ventaCompleta = await fetchVentaById(sale.ventaId);
-        if (ventaCompleta) items = ventaCompleta.items;
-      } catch (e) {
-        toast.error('Error al cargar items', 'No se pudieron obtener las líneas para reimprimir.');
-        return;
-      }
+    let ventaCompleta: Sale | null;
+    try {
+      ventaCompleta = await fetchVentaById(sale.ventaId);
+    } catch (e) {
+      toast.error('Error al cargar items', 'No se pudieron obtener las líneas para reimprimir.');
+      return;
     }
-    if (!items.length) {
+    if (!ventaCompleta || !ventaCompleta.items.length) {
       toast.error('Sin items', 'Esta venta no tiene items para reimprimir.');
       return;
     }
-    const itemsCrudos = items.map((it) => ({
+    const itemsCrudos = ventaCompleta.items.map((it) => ({
       cantidad: it.quantity,
       nombre: it.productName ?? 'Producto',
       precio: it.unitPrice,
@@ -282,16 +295,27 @@ export const SalesListPage: React.FC = () => {
     // El ticket físico usa `Venta.Detalles` de la BD (consolidado en backend).
     setPrintFacturaData({
       ventaId: sale.ventaId,
-      numeroFactura: sale.numeroFactura ?? null,
-      codigoRecepcion: sale.codigoRecepcion ?? null,
-      cuf: sale.cuf ?? null,
-      nitCliente: sale.nitCliente ?? null,
-      razonSocialCliente: sale.customerName ?? null,
-      fechaEmision: sale.date ? new Date(sale.date).toISOString() : null,
-      total: sale.total,
-      subtotal: sale.subtotal,
-      descuentoAdicional: sale.discount,
-      leyenda: sale.leyenda ?? null,
+      numeroFactura: ventaCompleta.numeroFactura ?? null,
+      codigoRecepcion: ventaCompleta.codigoRecepcion ?? null,
+      cuf: ventaCompleta.cuf ?? null,
+      nitCliente: ventaCompleta.nitCliente ?? null,
+      razonSocialCliente: ventaCompleta.customerName ?? null,
+      fechaEmision: ventaCompleta.date ? new Date(ventaCompleta.date).toISOString() : null,
+      total: ventaCompleta.total,
+      subtotal: ventaCompleta.subtotal,
+      descuentoAdicional: ventaCompleta.discount,
+      leyenda: ventaCompleta.leyenda ?? null,
+      razonSocialEmisor: ventaCompleta.razonSocialEmisor ?? null,
+      nitEmisor: ventaCompleta.nitEmisor ?? null,
+      municipio: ventaCompleta.municipio ?? null,
+      direccion: ventaCompleta.direccion ?? null,
+      telefono: ventaCompleta.telefono ?? null,
+      codigoSucursal: ventaCompleta.codigoSucursal ?? null,
+      codigoPuntoVenta: ventaCompleta.codigoPuntoVenta ?? null,
+      codigoCliente: ventaCompleta.codigoCliente ?? null,
+      complemento: ventaCompleta.complemento ?? null,
+      metodoPago: ventaCompleta.paymentMethods.map((p) => p.name).join(' + ') || null,
+      estadoSiat: ventaCompleta.estadoSiat ?? null,
       items: consolidarItemsPorNombre(itemsCrudos),
     });
   };
@@ -434,6 +458,52 @@ export const SalesListPage: React.FC = () => {
 
   const handleRevertirAnulacionNotaAjusteSiatByNota = (nota: NotaAjusteResumen) => {
     setNotaParaRevertirAnulacion(notaToAnularDto(nota));
+  };
+
+  // Abre la vista previa/impresión de la representación gráfica de una nota
+  // C/D. Sólo disponible cuando la nota ya trae los campos extendidos
+  // (leyenda, emisor, detalles) — es decir, cuando viene de `selectedSale`
+  // (GET_VENTA_CON_DETALLES), que es el único query que los pide.
+  const handleImprimirNotaAjuste = (nota: NotaAjusteResumen) => {
+    if (!nota.cuf) {
+      toast.error('Sin CUF', 'Esta nota aún no tiene CUF asignado por el SIAT.');
+      return;
+    }
+    setPrintNotaAjusteData({
+      notaId: nota.id,
+      numeroNotaCreditoDebito: nota.numeroNotaCreditoDebito,
+      cuf: nota.cuf,
+      codigoRecepcion: nota.codigoRecepcion,
+      estadoSiat: nota.estadoSiat,
+      fechaEmision: nota.fechaEmision,
+      leyenda: nota.leyenda ?? null,
+      razonSocialEmisor: nota.razonSocialEmisor ?? null,
+      nitEmisor: nota.nitEmisor ?? null,
+      municipio: nota.municipio ?? null,
+      direccion: nota.direccion ?? null,
+      telefono: nota.telefono ?? null,
+      codigoSucursal: nota.codigoSucursal ?? null,
+      codigoPuntoVenta: nota.codigoPuntoVenta ?? null,
+      codigoCliente: nota.codigoCliente ?? null,
+      nombreRazonSocial: nota.nombreRazonSocial ?? null,
+      numeroDocumento: nota.numeroDocumento ?? null,
+      complemento: nota.complemento ?? null,
+      numeroFacturaOriginal: nota.numeroFacturaOriginal ?? null,
+      numeroAutorizacionCuf: nota.numeroAutorizacionCuf ?? null,
+      fechaEmisionFactura: nota.fechaEmisionFactura ?? null,
+      montoTotalOriginal: nota.montoTotalOriginal,
+      montoTotalDevuelto: nota.montoTotalDevuelto,
+      montoDescuentoCreditoDebito: nota.montoDescuentoCreditoDebito ?? null,
+      montoEfectivoCreditoDebito: nota.montoEfectivoCreditoDebito,
+      items: (nota.detalles ?? [])
+        .filter((d) => d.codigoDetalleTransaccion === 1)
+        .map((d) => ({
+          descripcion: d.descripcion,
+          cantidad: d.cantidad,
+          precioUnitario: d.precioUnitario,
+          subTotal: d.subTotal,
+        })),
+    });
   };
 
   const handleConfirmRevertirAnulacionNotaAjusteSiat = async (notaId: number) => {
@@ -586,6 +656,7 @@ export const SalesListPage: React.FC = () => {
           onNotaAjusteSiat={handleNotaAjusteSiatById}
           onAnularNotaAjusteSiat={handleAnularNotaAjusteSiatByNota}
           onRevertirAnulacionNotaAjusteSiat={handleRevertirAnulacionNotaAjusteSiatByNota}
+          onImprimirNotaAjuste={handleImprimirNotaAjuste}
         />
 
         <RefundModal
@@ -650,6 +721,11 @@ export const SalesListPage: React.FC = () => {
             await imprimirFactura(printFacturaData.ventaId, destinos, ancho);
           }}
           onClose={() => setPrintFacturaData(null)}
+        />
+
+        <PrintNotaAjusteModal
+          data={printNotaAjusteData}
+          onClose={() => setPrintNotaAjusteData(null)}
         />
       </PageContainer>
     </MainLayout>

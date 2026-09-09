@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Ban,
   Undo2,
+  Printer,
 } from 'lucide-react';
 import { Badge, Modal } from '../ui';
 import { toast } from '../ui/Toast';
@@ -46,6 +47,8 @@ interface Props {
    * Abre el modal de reversión de anulación para una nota C/D específica (estado Anulada).
    */
   onRevertirAnulacionNotaAjusteSiat?: (nota: NotaAjusteResumen) => void;
+  /** Abre la vista previa/impresión de la representación gráfica de una nota C/D. */
+  onImprimirNotaAjuste?: (nota: NotaAjusteResumen) => void;
 }
 
 // Etiqueta humana del motivo de la nota (espejo de los códigos SIN
@@ -79,6 +82,7 @@ export const SaleDetailModal: React.FC<Props> = ({
   onNotaAjusteSiat,
   onAnularNotaAjusteSiat,
   onRevertirAnulacionNotaAjusteSiat,
+  onImprimirNotaAjuste,
 }) => {
   // Sin `sale` y nada cargando → modal cerrado.
   if (!sale && !isLoading && !error) return null;
@@ -328,9 +332,20 @@ export const SaleDetailModal: React.FC<Props> = ({
                   >
                     {/* Col 1: número + estado SIAT */}
                     <div>
-                      <p className="text-xs font-medium text-coffee-500">
-                        Nota Nº {nota.numeroNotaCreditoDebito}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-medium text-coffee-500">
+                          Nota Nº {nota.numeroNotaCreditoDebito}
+                        </p>
+                        {onImprimirNotaAjuste && nota.cuf && (
+                          <button
+                            onClick={() => onImprimirNotaAjuste(nota)}
+                            title="Imprimir representación gráfica"
+                            className="text-coffee-400 hover:text-coffee-700"
+                          >
+                            <Printer className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
                       {esValidada && !revertida && (
                         <p className="text-xs inline-flex items-center gap-1 mt-0.5 text-emerald-700">
                           <Check className="h-3 w-3" />

@@ -62,6 +62,15 @@ export const GET_VENTAS_REPORT = `
         }
         cuf
         numeroDocumento
+        codigoRecepcion
+        nitEmisor
+        razonSocialEmisor
+        municipio
+        direccion
+        telefono
+        codigoSucursal
+        codigoPuntoVenta
+        codigoCliente
         detalles {
           id
           cantidad
@@ -109,6 +118,15 @@ export const GET_VENTAS = `
         }
         cuf
         numeroDocumento
+        codigoRecepcion
+        nitEmisor
+        razonSocialEmisor
+        municipio
+        direccion
+        telefono
+        codigoSucursal
+        codigoPuntoVenta
+        codigoCliente
         detalles {
           id
           cantidad
@@ -189,6 +207,14 @@ export const GET_VENTA_CON_DETALLES = `
         complemento
         codigoTipoDocumentoIdentidad
         codigoRecepcion
+        nitEmisor
+        razonSocialEmisor
+        municipio
+        direccion
+        telefono
+        codigoSucursal
+        codigoPuntoVenta
+        codigoCliente
         detalles {
           id
           id_venta
@@ -213,8 +239,31 @@ export const GET_VENTA_CON_DETALLES = `
           montoTotalOriginal
           montoTotalDevuelto
           montoEfectivoCreditoDebito
+          montoDescuentoCreditoDebito
           cuf
           revertidaAnulacion
+          leyenda
+          nitEmisor
+          razonSocialEmisor
+          municipio
+          direccion
+          telefono
+          codigoSucursal
+          codigoPuntoVenta
+          codigoCliente
+          complemento
+          nombreRazonSocial
+          numeroDocumento
+          numeroFacturaOriginal
+          numeroAutorizacionCuf
+          fechaEmisionFactura
+          detalles {
+            descripcion
+            cantidad
+            precioUnitario
+            subTotal
+            codigoDetalleTransaccion
+          }
         }
       }
     }

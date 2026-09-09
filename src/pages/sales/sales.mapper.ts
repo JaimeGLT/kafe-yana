@@ -41,6 +41,14 @@ export interface BackendVentaDetalle {
   cantidadDevuelta?: number | string;
 }
 
+export interface BackendVentaNotaAjusteDetalle {
+  descripcion: string;
+  cantidad: number | string;
+  precioUnitario: number | string;
+  subTotal: number | string;
+  codigoDetalleTransaccion: number;
+}
+
 export interface BackendVentaNotaAjuste {
   id: number;
   idVenta: number;
@@ -52,8 +60,25 @@ export interface BackendVentaNotaAjuste {
   montoTotalOriginal: number | string;
   montoTotalDevuelto: number | string;
   montoEfectivoCreditoDebito: number | string;
+  montoDescuentoCreditoDebito?: number | string | null;
   cuf?: string | null;
   revertidaAnulacion?: boolean | null;
+  leyenda?: string | null;
+  nitEmisor?: number | string | null;
+  razonSocialEmisor?: string | null;
+  municipio?: string | null;
+  direccion?: string | null;
+  telefono?: string | null;
+  codigoSucursal?: number | null;
+  codigoPuntoVenta?: number | null;
+  codigoCliente?: string | null;
+  complemento?: string | null;
+  nombreRazonSocial?: string | null;
+  numeroDocumento?: string | null;
+  numeroFacturaOriginal?: number | string | null;
+  numeroAutorizacionCuf?: string | null;
+  fechaEmisionFactura?: string | null;
+  detalles?: BackendVentaNotaAjusteDetalle[] | null;
 }
 
 export interface BackendVenta {
@@ -87,6 +112,24 @@ export interface BackendVenta {
   numeroDocumento?: string | null;
   complemento?: string | null;
   codigoTipoDocumentoIdentidad?: number | null;
+  /** Código de recepción SIAT (`Venta.CodigoRecepcion`), mostrado bajo el QR. */
+  codigoRecepcion?: string | null;
+  /** NIT del emisor (`Venta.NitEmisor`), tal como quedó registrado en la factura. */
+  nitEmisor?: number | string | null;
+  /** Razón social del emisor (`Venta.RazonSocialEmisor`). */
+  razonSocialEmisor?: string | null;
+  /** Municipio de la sucursal emisora (`Venta.Municipio`). */
+  municipio?: string | null;
+  /** Dirección de la sucursal emisora (`Venta.Direccion`). */
+  direccion?: string | null;
+  /** Teléfono de la sucursal emisora (`Venta.Telefono`), opcional. */
+  telefono?: string | null;
+  /** Código de sucursal SIAT (`Venta.CodigoSucursal`); 0 = Casa Matriz. */
+  codigoSucursal?: number | null;
+  /** Código de punto de venta SIAT (`Venta.CodigoPuntoVenta`). */
+  codigoPuntoVenta?: number | null;
+  /** Código de cliente interno (`Venta.CodigoCliente`). */
+  codigoCliente?: string | null;
   /**
    * Cantidad de líneas de detalle. Lo expone el backend como campo derivado
    * (`Detalles.Count`) y siempre viene en la respuesta. Se usa en la lista
@@ -182,6 +225,29 @@ export const mapBackendVentaToSale = (v: BackendVenta): Sale => {
     montoEfectivoCreditoDebito: Number(n.montoEfectivoCreditoDebito),
     cuf: n.cuf ?? null,
     revertidaAnulacion: n.revertidaAnulacion === true,
+    leyenda: n.leyenda ?? null,
+    nitEmisor: n.nitEmisor != null ? String(n.nitEmisor) : null,
+    razonSocialEmisor: n.razonSocialEmisor ?? null,
+    municipio: n.municipio ?? null,
+    direccion: n.direccion ?? null,
+    telefono: n.telefono ?? null,
+    codigoSucursal: n.codigoSucursal ?? null,
+    codigoPuntoVenta: n.codigoPuntoVenta ?? null,
+    codigoCliente: n.codigoCliente ?? null,
+    complemento: n.complemento ?? null,
+    nombreRazonSocial: n.nombreRazonSocial ?? null,
+    numeroDocumento: n.numeroDocumento ?? null,
+    numeroFacturaOriginal: n.numeroFacturaOriginal != null ? Number(n.numeroFacturaOriginal) : null,
+    numeroAutorizacionCuf: n.numeroAutorizacionCuf ?? null,
+    fechaEmisionFactura: n.fechaEmisionFactura ?? null,
+    montoDescuentoCreditoDebito: n.montoDescuentoCreditoDebito != null ? Number(n.montoDescuentoCreditoDebito) : null,
+    detalles: (n.detalles ?? []).map((d) => ({
+      descripcion: d.descripcion,
+      cantidad: Number(d.cantidad),
+      precioUnitario: Number(d.precioUnitario),
+      subTotal: Number(d.subTotal),
+      codigoDetalleTransaccion: d.codigoDetalleTransaccion,
+    })),
   });
 
   const todasNotas: NotaAjusteResumen[] = (v.notasAjuste ?? []).map(mapNota);
@@ -259,6 +325,15 @@ export const mapBackendVentaToSale = (v: BackendVenta): Sale => {
     complemento: v.complemento ?? null,
     codigoTipoDocumentoIdentidad: v.codigoTipoDocumentoIdentidad ?? null,
     revertidaAnulacion: v.revertidaAnulacion === true,
+    codigoRecepcion: v.codigoRecepcion ?? null,
+    nitEmisor: v.nitEmisor != null ? String(v.nitEmisor) : null,
+    razonSocialEmisor: v.razonSocialEmisor ?? null,
+    municipio: v.municipio ?? null,
+    direccion: v.direccion ?? null,
+    telefono: v.telefono ?? null,
+    codigoSucursal: v.codigoSucursal ?? null,
+    codigoPuntoVenta: v.codigoPuntoVenta ?? null,
+    codigoCliente: v.codigoCliente ?? null,
 
     // Notas de Crédito/Débito (TODAS — el modal filtra por estado al renderizar;
     // `montoNotasAjuste` ya excluye anuladas para no distorsionar el saldo).

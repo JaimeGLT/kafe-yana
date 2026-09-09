@@ -2531,6 +2531,17 @@ export const POSPage: React.FC = () => {
                                           subtotal: venta.subtotal,
                                           descuentoAdicional: venta.discount,
                                           leyenda: venta.leyenda ?? null,
+                                          razonSocialEmisor: venta.razonSocialEmisor ?? null,
+                                          nitEmisor: venta.nitEmisor ?? null,
+                                          municipio: venta.municipio ?? null,
+                                          direccion: venta.direccion ?? null,
+                                          telefono: venta.telefono ?? null,
+                                          codigoSucursal: venta.codigoSucursal ?? null,
+                                          codigoPuntoVenta: venta.codigoPuntoVenta ?? null,
+                                          codigoCliente: venta.codigoCliente ?? null,
+                                          complemento: venta.complemento ?? null,
+                                          metodoPago: venta.paymentMethods.map(p => p.name).join(' + ') || null,
+                                          estadoSiat: venta.estadoSiat ?? null,
                                           items: venta.items.map(it => ({
                                             cantidad: it.quantity,
                                             nombre: it.productName ?? 'Producto',
@@ -3047,9 +3058,15 @@ export const POSPage: React.FC = () => {
                   if (!lastSaleResult?.ventaId) return;
                   // Traemos una leyenda aleatoria del catálogo CatLeyendas
                   // (mismo origen que usa el backend al persistir Venta.Leyenda).
-                  const { leyenda } = await api
-                    .get<{ leyenda: string }>('/api/Facturacion/leyenda-aleatoria')
-                    .catch(() => ({ leyenda: '' }));
+                  const [{ leyenda }, ventaCompleta] = await Promise.all([
+                    api
+                      .get<{ leyenda: string }>('/api/Facturacion/leyenda-aleatoria')
+                      .catch(() => ({ leyenda: '' })),
+                    // Trae datos de emisor/sucursal (no vienen en el resultado
+                    // directo del cobro) para que la preview coincida con el
+                    // ticket térmico real.
+                    fetchVentaById(lastSaleResult.ventaId).catch(() => null),
+                  ]);
                   setPrintFacturaData({
                     ventaId: lastSaleResult.ventaId,
                     numeroFactura: lastSaleResult.numeroFactura,
@@ -3059,7 +3076,18 @@ export const POSPage: React.FC = () => {
                     razonSocialCliente: lastSaleResult.razonSocialCliente,
                     fechaEmision: lastSaleResult.fechaEmision,
                     total: lastSaleResult.total,
-                    leyenda: leyenda || null,
+                    leyenda: ventaCompleta?.leyenda || leyenda || null,
+                    razonSocialEmisor: ventaCompleta?.razonSocialEmisor ?? null,
+                    nitEmisor: ventaCompleta?.nitEmisor ?? null,
+                    municipio: ventaCompleta?.municipio ?? null,
+                    direccion: ventaCompleta?.direccion ?? null,
+                    telefono: ventaCompleta?.telefono ?? null,
+                    codigoSucursal: ventaCompleta?.codigoSucursal ?? null,
+                    codigoPuntoVenta: ventaCompleta?.codigoPuntoVenta ?? null,
+                    codigoCliente: ventaCompleta?.codigoCliente ?? null,
+                    complemento: ventaCompleta?.complemento ?? null,
+                    metodoPago: ventaCompleta?.paymentMethods.map(p => p.name).join(' + ') || null,
+                    estadoSiat: ventaCompleta?.estadoSiat ?? null,
                     items: lastSaleResult.items.map((it) => ({
                       cantidad: it.cantidad,
                       nombre: it.nombre,
