@@ -26,7 +26,7 @@ export interface ErrorSiat {
 
 /**
  * Tabla principal. Mantener sincronizada con los códigos que devuelve el
- * SIAT en `SiatResultado.CodigosRespuesta[].codigo`.
+ * SIAT en `SiatResultado.CodigosRespuesta[].Codigo`.
  */
 export const ERRORES_SIAT: Record<number, ErrorSiat> = {
   // ── Estados de envío ────────────────────────────────────────────────────
@@ -115,9 +115,9 @@ export function formatearErroresSiat(codigos: SiatCodigoRespuesta[] | null | und
 
   return codigos
     .map((c) => {
-      const conocido = getErrorSiat(c.codigo);
+      const conocido = getErrorSiat(c.Codigo);
       if (!conocido) {
-        return `[${c.codigo}] ${c.descripcion || 'Error sin descripción del SIAT.'}`;
+        return `[${c.Codigo}] ${c.Descripcion || 'Error sin descripción del SIAT.'}`;
       }
       const lines = [`[${conocido.codigo}] ${conocido.titulo}: ${conocido.descripcionCajero}`];
       if (conocido.accion) lines.push(`  → ${conocido.accion}`);
@@ -132,11 +132,11 @@ export function formatearPrimerErrorSiat(codigos: SiatCodigoRespuesta[] | null |
     return 'El SIAT rechazó la operación sin detallar el motivo.';
   }
   const primero = codigos[0];
-  const conocido = getErrorSiat(primero.codigo);
+  const conocido = getErrorSiat(primero.Codigo);
   if (conocido) {
     return conocido.accion
       ? `${conocido.descripcionCajero} ${conocido.accion}`
       : conocido.descripcionCajero;
   }
-  return primero.descripcion || `Error ${primero.codigo} del SIAT.`;
+  return primero.Descripcion || `Error ${primero.Codigo} del SIAT.`;
 }

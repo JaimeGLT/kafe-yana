@@ -216,7 +216,7 @@ const FacturaPreview: React.FC<FacturaPreviewProps> = ({ data, tamaño, qrUrl, q
     >
       {/* Emisor: logo + nombre comercial destacado + razón social legal (más chica) */}
       <div className="flex justify-center mb-1">
-        <img src={logoUrl} alt="" style={{ width: tamaño === 'pequeño' ? 72 : 88, height: 'auto' }} />
+        <img src={logoUrl} alt="" style={{ width: tamaño === 'pequeño' ? 82 : 100, height: 'auto' }} />
       </div>
       <Line bold center size={14}>{NOMBRE_COMERCIAL}</Line>
       <Line center size={8}>{razonSocial}</Line>
@@ -373,7 +373,7 @@ export const PrintFacturaModal: React.FC<PrintFacturaModalProps> = ({ data, onCo
           }).join('');
 
         const lines: string[] = [];
-        lines.push(`<div style="text-align:center;margin:0 0 4px;"><img src="${logoUrl}" alt="" style="width:88px;height:auto;" /></div>`);
+        lines.push(`<div style="text-align:center;margin:0 0 4px;"><img src="${logoUrl}" alt="" style="width:100px;height:auto;" /></div>`);
         lines.push(line(NOMBRE_COMERCIAL, true, true, 14));
         lines.push(line(razonSocial, false, true, 8));
         if (data.codigoSucursal != null) lines.push(line(etiquetaSucursal(data.codigoSucursal), false, true));
