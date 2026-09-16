@@ -11,6 +11,7 @@ import {
   Ban,
   Undo2,
   Printer,
+  Trash2,
 } from 'lucide-react';
 import { Badge, Modal } from '../ui';
 import { toast } from '../ui/Toast';
@@ -47,6 +48,11 @@ interface Props {
    * Abre el modal de reversión de anulación para una nota C/D específica (estado Anulada).
    */
   onRevertirAnulacionNotaAjusteSiat?: (nota: NotaAjusteResumen) => void;
+  /**
+   * Abre el modal para eliminar localmente (soft-delete) una nota C/D que el
+   * SIAT nunca validó (Pendiente/Observada). No toca al SIAT.
+   */
+  onEliminarNotaAjuste?: (nota: NotaAjusteResumen) => void;
   /** Abre la vista previa/impresión de la representación gráfica de una nota C/D. */
   onImprimirNotaAjuste?: (nota: NotaAjusteResumen) => void;
 }
@@ -82,6 +88,7 @@ export const SaleDetailModal: React.FC<Props> = ({
   onNotaAjusteSiat,
   onAnularNotaAjusteSiat,
   onRevertirAnulacionNotaAjusteSiat,
+  onEliminarNotaAjuste,
   onImprimirNotaAjuste,
 }) => {
   // Sin `sale` y nada cargando → modal cerrado.
@@ -324,6 +331,10 @@ export const SaleDetailModal: React.FC<Props> = ({
                 const revertida = nota.revertidaAnulacion === true;
                 const puedeAnular = esValidada && !revertida && !!onAnularNotaAjusteSiat;
                 const puedeRevertir = esAnulada && !revertida && !!onRevertirAnulacionNotaAjusteSiat;
+                // Solo se puede eliminar una nota que el SIAT nunca validó —
+                // no tiene sentido para Validada/Anulada, esas son documentos
+                // fiscales reales con su propio flujo de anulación.
+                const puedeEliminar = !esValidada && !esAnulada && !!onEliminarNotaAjuste;
                 return (
                   <div
                     key={nota.id}
@@ -378,7 +389,7 @@ export const SaleDetailModal: React.FC<Props> = ({
                         {formatDateTime(nota.fechaEmision)}
                       </p>
                       {/* Botones SIAT per-nota */}
-                      {puedeAnular || puedeRevertir ? (
+                      {puedeAnular || puedeRevertir || puedeEliminar ? (
                         <div className="flex flex-wrap gap-1.5 mt-1.5">
                           {puedeAnular && (
                             <button
@@ -396,6 +407,15 @@ export const SaleDetailModal: React.FC<Props> = ({
                               title="Revertir la anulación en el SIAT (la nota vuelve a Validada)"
                             >
                               <Undo2 className="h-3 w-3" /> Revertir anulación
+                            </button>
+                          )}
+                          {puedeEliminar && (
+                            <button
+                              onClick={() => onEliminarNotaAjuste!(nota)}
+                              className="inline-flex items-center gap-1 rounded-lg bg-coffee-200 text-coffee-700 text-xs font-medium px-2 py-1 hover:bg-coffee-300 transition-colors"
+                              title="Eliminar esta nota (el SIAT nunca la validó, se borra permanentemente)"
+                            >
+                              <Trash2 className="h-3 w-3" /> Eliminar
                             </button>
                           )}
                         </div>
