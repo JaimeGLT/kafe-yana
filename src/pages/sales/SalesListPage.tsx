@@ -14,6 +14,7 @@ import { RevertirAnulacionFacturaModal } from '../../components/modals/RevertirA
 import { NotaAjusteModal } from '../../components/modals/NotaAjusteModal';
 import { AnularNotaAjusteModal } from '../../components/modals/AnularNotaAjusteModal';
 import { RevertirAnulacionNotaAjusteModal } from '../../components/modals/RevertirAnulacionNotaAjusteModal';
+import { EliminarNotaAjusteModal } from '../../components/modals/EliminarNotaAjusteModal';
 import type { NotaAjusteParaAnular } from '../../components/modals/AnularNotaAjusteModal';
 import { PrintFacturaModal } from '../../components/pos/PrintFacturaModal';
 import type { PrintFacturaData } from '../../components/pos/PrintFacturaModal';
@@ -158,6 +159,7 @@ export const SalesListPage: React.FC = () => {
   const [notaAjusteSale, setNotaAjusteSale] = useState<Sale | null>(null);
   const [notaParaAnular, setNotaParaAnular] = useState<NotaAjusteParaAnular | null>(null);
   const [notaParaRevertirAnulacion, setNotaParaRevertirAnulacion] = useState<NotaAjusteParaAnular | null>(null);
+  const [notaParaEliminar, setNotaParaEliminar] = useState<NotaAjusteParaAnular | null>(null);
   const [printFacturaData, setPrintFacturaData] = useState<PrintFacturaData | null>(null);
   const [printComandaData, setPrintComandaData] = useState<PrintComandaData | null>(null);
   const [printNotaAjusteData, setPrintNotaAjusteData] = useState<PrintNotaAjusteData | null>(null);
@@ -170,6 +172,7 @@ export const SalesListPage: React.FC = () => {
     revertirAnulacionFactura,
     crearNotaAjuste,
     anularNotaAjuste,
+    eliminarNotaAjuste,
     revertirAnulacionNotaAjuste,
   } = useFacturacion();
 
@@ -380,22 +383,20 @@ export const SalesListPage: React.FC = () => {
 
   const handleConfirmFacturarSinFacturar = async (ventaId: number, datosFiscales: DtoDatosFiscalesReenvio) => {
     const res = await reenviarFactura(ventaId, datosFiscales);
-    if (res) {
-      await refresh();
-      return true;
-    }
-    return false;
+    // Refrescar siempre: aunque el SIAT rechace, el backend puede haber
+    // dejado la venta en un estado distinto (Observada/Pendiente) que la
+    // pantalla debe reflejar sin esperar a un reload manual.
+    await refresh();
+    return !!res;
   };
 
-  // Confirma la anulación: basta con Transaccion=true (el backend garantiza
-  // que la factura quedó Anulada o ya lo estaba).
+  // Refrescar siempre, no solo cuando Transaccion=true: si el SIAT rechaza,
+  // el estado igual pudo cambiar en el backend (ErrorMensaje, EstadoSiat) y
+  // la pantalla debe mostrarlo sin esperar a un reload manual.
   const handleConfirmAnularSiat = async (ventaId: number, codigoMotivo: number, nota?: string) => {
     const res = await anularFactura(ventaId, codigoMotivo, nota);
-    if (res?.Siat?.Transaccion) {
-      await refresh();
-      return true;
-    }
-    return false;
+    await refresh();
+    return !!res?.Siat?.Transaccion;
   };
 
   const handleRevertirAnulacionSiatById = (ventaId: number) => {
@@ -405,11 +406,8 @@ export const SalesListPage: React.FC = () => {
 
   const handleConfirmRevertirAnulacionSiat = async (ventaId: number) => {
     const res = await revertirAnulacionFactura(ventaId);
-    if (res?.Siat?.Transaccion) {
-      await refresh();
-      return true;
-    }
-    return false;
+    await refresh();
+    return !!res?.Siat?.Transaccion;
   };
 
   // ── Nota de Crédito/Débito ───────────────────────────────────────────
@@ -427,11 +425,11 @@ export const SalesListPage: React.FC = () => {
 
   const handleConfirmNotaAjuste = async (body: CrearNotaAjusteRequest) => {
     const res = await crearNotaAjuste(body);
-    if (res?.Siat?.Transaccion) {
-      await refresh();
-      return true;
-    }
-    return false;
+    // Refrescar siempre: la nota se persiste igual aunque el SIAT la rechace
+    // (queda Observada/Pendiente), y sin este refresh no aparece en pantalla
+    // hasta recargar la página manualmente.
+    await refresh();
+    return !!res?.Siat?.Transaccion;
   };
 
   // ── Anulación / reversión de notas C/D ────────────────────────────────
@@ -452,11 +450,22 @@ export const SalesListPage: React.FC = () => {
     nota?: string,
   ) => {
     const res = await anularNotaAjuste(notaId, codigoMotivo, nota);
-    if (res?.Siat?.Transaccion) {
-      await refresh();
-      return true;
-    }
-    return false;
+    await refresh();
+    return !!res?.Siat?.Transaccion;
+  };
+
+  // DELETE real: solo para notas que el SIAT nunca validó (Pendiente/
+  // Observada). Sirve para destrabar la anulación de la factura cuando el
+  // SIAT rechazó la nota y no hay forma de anularla en el SIAT (eso exige
+  // EstadoSiat=Validada).
+  const handleEliminarNotaAjuste = async (notaId: number) => {
+    const res = await eliminarNotaAjuste(notaId);
+    await refresh();
+    return !!res;
+  };
+
+  const handleEliminarNotaAjusteByNota = (nota: NotaAjusteResumen) => {
+    setNotaParaEliminar(notaToAnularDto(nota));
   };
 
   const handleRevertirAnulacionNotaAjusteSiatByNota = (nota: NotaAjusteResumen) => {
@@ -659,6 +668,7 @@ export const SalesListPage: React.FC = () => {
           onNotaAjusteSiat={handleNotaAjusteSiatById}
           onAnularNotaAjusteSiat={handleAnularNotaAjusteSiatByNota}
           onRevertirAnulacionNotaAjusteSiat={handleRevertirAnulacionNotaAjusteSiatByNota}
+          onEliminarNotaAjuste={handleEliminarNotaAjusteByNota}
           onImprimirNotaAjuste={handleImprimirNotaAjuste}
         />
 
@@ -710,6 +720,13 @@ export const SalesListPage: React.FC = () => {
           onClose={() => setNotaParaRevertirAnulacion(null)}
           nota={notaParaRevertirAnulacion}
           onConfirm={handleConfirmRevertirAnulacionNotaAjusteSiat}
+        />
+
+        <EliminarNotaAjusteModal
+          isOpen={!!notaParaEliminar}
+          onClose={() => setNotaParaEliminar(null)}
+          nota={notaParaEliminar}
+          onConfirm={handleEliminarNotaAjuste}
         />
 
         <PrintComandaModal

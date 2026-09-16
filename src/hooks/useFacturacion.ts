@@ -86,6 +86,14 @@ export interface UseFacturacionReturn {
     nota?: string | null,
   ) => Promise<AnularNotaAjusteRespuesta | null>;
   /**
+   * Elimina (DELETE real) una nota que el SIAT nunca validó (Pendiente/
+   * Observada). No toca al SIAT — solo la borra localmente para que deje
+   * de bloquear la anulación de la factura que la originó.
+   */
+  eliminarNotaAjuste: (
+    notaId: number,
+  ) => Promise<{ message: string; NotaAjusteId: number } | null>;
+  /**
    * Revierte en el SIAT la anulación de una nota C/D. Solo se permite una
    * vez por nota (el backend rechaza llamadas posteriores). El endpoint
    * no recibe body; basta con el notaId en la URL.
@@ -238,6 +246,20 @@ export function useFacturacion(): UseFacturacionReturn {
     }
   }, []);
 
+  const eliminarNotaAjuste = useCallback(async (notaId: number) => {
+    try {
+      const res = await api.delete<{ message: string; NotaAjusteId: number }>(
+        `/NotaAjuste/${notaId}`,
+      );
+      toast.success('Nota eliminada', res.message);
+      return res;
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'No se pudo eliminar la nota.';
+      toast.error('Error al eliminar la nota', msg);
+      return null;
+    }
+  }, []);
+
   const revertirAnulacionNotaAjuste = useCallback(async (notaId: number) => {
     try {
       const res = await api.post<RevertirAnulacionNotaAjusteRespuesta>(
@@ -266,6 +288,7 @@ export function useFacturacion(): UseFacturacionReturn {
     verificarNit,
     crearNotaAjuste,
     anularNotaAjuste,
+    eliminarNotaAjuste,
     revertirAnulacionNotaAjuste,
   };
 }
