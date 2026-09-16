@@ -35,8 +35,8 @@ export const esEstadoValidadaSiat = (
 
 /** Un código/mensaje devuelto por el SIAT. */
 export interface SiatCodigoRespuesta {
-  codigo: number;
-  descripcion: string;
+  Codigo: number;
+  Descripcion: string;
 }
 
 /** Resultado del envío al SIAT. */
