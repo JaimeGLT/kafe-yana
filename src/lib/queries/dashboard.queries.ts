@@ -1,5 +1,5 @@
 export const GET_DASHBOARD_DATA = `
-  query GetDashboardData($fechaDesde: DateTime, $fechaHasta: DateTime) {
+  query GetDashboardData {
     caja {
       id
       nombre
@@ -13,42 +13,6 @@ export const GET_DASHBOARD_DATA = `
       totalIngresos
       totalEgresos
       saldoEsperado
-    }
-    cajaMoviminetos(skip: 0, take: 200) {
-      items {
-        id
-        fecha
-        tipo
-        categoria
-        monto
-        referencia
-      }
-    }
-    ventas(skip: 0, take: 1000, fechaDesde: $fechaDesde, fechaHasta: $fechaHasta) {
-      items {
-        id
-        numeroFactura
-        fechaEmision
-        nombreRazonSocial
-        usuario
-        estadoSiat
-        montoTotalSujetoIva
-        montoTotal
-        codigoMetodoPago
-        pagos {
-          codigoMetodoPago
-          monto
-        }
-        detalles {
-          id
-          id_venta
-          descripcion
-          cantidad
-          precioUnitario
-          subTotal
-        }
-      }
-      totalCount
     }
     comprados(skip: 0, take: 200) {
       items {
@@ -69,6 +33,22 @@ export const GET_DASHBOARD_DATA = `
           nombre
         }
       }
+    }
+  }
+`;
+
+export const GET_CAJA_MOVIMIENTOS_PAGE = `
+  query GetCajaMovimientosPage($skip: Int!, $take: Int!) {
+    cajaMoviminetos(skip: $skip, take: $take) {
+      items {
+        id
+        fecha
+        tipo
+        categoria
+        monto
+        referencia
+      }
+      totalCount
     }
   }
 `;

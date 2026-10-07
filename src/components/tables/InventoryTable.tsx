@@ -75,7 +75,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       width: '100px',
       render: (value: unknown) => (
         <span className="font-medium text-coffee-900">
-          S/ {Number(value).toFixed(2)}
+          Bs {Number(value).toFixed(2)}
         </span>
       ),
     },

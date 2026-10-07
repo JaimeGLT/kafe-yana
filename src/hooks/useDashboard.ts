@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { subDays, isSameDay, format, startOfDay, endOfDay } from 'date-fns';
 import { gql } from '../lib/graphql';
-import { GET_DASHBOARD_DATA } from '../lib/queries/dashboard.queries';
+import { fetchVentasRango, esVentaValida } from '../lib/fetchVentasRango';
+import { GET_DASHBOARD_DATA, GET_CAJA_MOVIMIENTOS_PAGE } from '../lib/queries/dashboard.queries';
 import type { VentaNode } from '../types/ventas';
 
 interface CajaEstadoNode {
@@ -42,8 +43,6 @@ interface ElaboradoNode {
 
 interface DashboardResponse {
   caja: CajaEstadoNode | null;
-  cajaMoviminetos: { items: CajaMovimientoNode[] };
-  ventas: { items: VentaNode[]; totalCount: number };
   comprados: { items: CompradoNode[] };
   elaborados: { items: ElaboradoNode[] };
 }
@@ -140,23 +139,31 @@ export function useDashboard(): UseDashboardReturn {
       // los calcula el backend vía `ventasEstadisticas` (ver useVentasStats).
       const desde = startOfDay(subDays(today, 6));
 
-      const data = await gql<DashboardResponse>(GET_DASHBOARD_DATA, {
-        fechaDesde: desde.toISOString(),
-        fechaHasta: endOfDay(today).toISOString(),
-      });
+      const data = await gql<DashboardResponse>(GET_DASHBOARD_DATA);
 
-      const allSales = data.ventas.items;
-      if (data.ventas.totalCount > allSales.length) {
-        console.warn(
-          `[useDashboard] Ventana de 7 días con ${data.ventas.totalCount} ventas (>${allSales.length} cargadas); los gráficos pueden estar incompletos.`,
+      // Movimientos vienen ordenados por fecha desc: se pagina hasta salir de la ventana.
+      const movimientos: CajaMovimientoNode[] = [];
+      for (let skip = 0; ; skip += 200) {
+        const page = await gql<{ cajaMoviminetos: { items: CajaMovimientoNode[]; totalCount: number } }>(
+          GET_CAJA_MOVIMIENTOS_PAGE,
+          { skip, take: 200 },
         );
+        const items = page.cajaMoviminetos.items;
+        movimientos.push(...items);
+        const oldest = items[items.length - 1];
+        if (
+          items.length < 200 ||
+          movimientos.length >= page.cajaMoviminetos.totalCount ||
+          (oldest && new Date(oldest.fecha) < desde)
+        ) break;
       }
+
+      // El backend limita a 200 por página: se pagina para no truncar los 7 días.
+      const allSales = await fetchVentasRango(desde.toISOString(), endOfDay(today).toISOString());
       setRawVentas(allSales);
       // Cuenta ventas facturadas (null = sin factura, Validada/Observada = con factura) y
       // excluye solo las anuladas/pendientes de confirmación SIAT.
-      const completedSales = allSales.filter(
-        (s) => s.estadoSiat == null || s.estadoSiat === 'VALIDADA' || s.estadoSiat === 'OBSERVADA',
-      );
+      const completedSales = allSales.filter(esVentaValida);
 
       const openRegisters = data.caja?.fechaCierre == null ? 1 : 0;
 
@@ -174,10 +181,10 @@ export function useDashboard(): UseDashboardReturn {
       });
 
       const expensesByDay: Record<string, number> = {};
-      data.cajaMoviminetos.items
+      movimientos
         .filter((m) => m.tipo === 'Egreso')
         .forEach((m) => {
-          const key = parseDate(m.fecha).toISOString().split('T')[0];
+          const key = format(parseDate(m.fecha), 'yyyy-MM-dd');
           expensesByDay[key] = (expensesByDay[key] ?? 0) + m.monto;
         });
 

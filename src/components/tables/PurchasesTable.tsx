@@ -29,7 +29,7 @@ export const PurchasesTable: React.FC<PurchasesTableProps> = ({
   isLoading = false,
 }) => {
   const fmtDate = (date: Date) => format(new Date(date), 'dd MMM yyyy', { locale: es });
-  const fmtCurrency = (n: number) => `S/ ${n.toFixed(2)}`;
+  const fmtCurrency = (n: number) => `Bs ${n.toFixed(2)}`;
 
   if (isLoading) {
     return (

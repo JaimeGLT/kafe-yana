@@ -349,7 +349,7 @@ const handleSupplierCreated = async () => {
                     {/* Subtotal */}
                     <div className="col-span-10 md:col-span-2 flex items-center justify-end">
                       <span className="text-sm font-medium text-coffee-800">
-                        S/ {formatCurrency(getItemSubtotal(item))}
+                        {formatCurrency(getItemSubtotal(item))}
                       </span>
                     </div>
 
@@ -374,7 +374,7 @@ const handleSupplierCreated = async () => {
           <div className="mt-4 ml-auto w-full max-w-xs p-4 bg-coffee-50 rounded-xl border border-coffee-100">
             <div className="flex items-center justify-between text-base font-bold text-coffee-900">
               <span>Total</span>
-              <span>S/ {formatCurrency(subtotal)}</span>
+              <span>{formatCurrency(subtotal)}</span>
             </div>
           </div>
 

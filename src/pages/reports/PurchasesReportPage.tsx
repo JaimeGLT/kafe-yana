@@ -177,10 +177,10 @@ const PurchasesReportPage: React.FC = () => {
               <BarChart data={monthlyData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E8D5C4" />
                 <XAxis dataKey="mes" tick={{ fontSize: 12, fill: '#6B4F3B' }} />
-                <YAxis tick={{ fontSize: 12, fill: '#6B4F3B' }} tickFormatter={v => `S/${v}`} />
+                <YAxis tick={{ fontSize: 12, fill: '#6B4F3B' }} tickFormatter={v => `Bs ${v}`} />
                 <Tooltip {...tooltipStyle} formatter={(value) => [formatCurrency(value as number), 'Total']} />
                 <Legend />
-                <Bar dataKey="total" name="Total Compras (S/)" fill="#8B4513" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="total" name="Total Compras (Bs)" fill="#8B4513" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (

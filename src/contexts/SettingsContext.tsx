@@ -3,8 +3,8 @@ import type { Branch, SystemSettings } from '../types';
 
 const defaultSettings: SystemSettings = {
   companyName: 'Kafe Yana',
-  currency: 'PEN',
-  currencySymbol: 'S/',
+  currency: 'BOB',
+  currencySymbol: 'Bs',
   taxPercentage: 18,
   invoicePrefix: 'FAC',
   purchaseOrderPrefix: 'OC',

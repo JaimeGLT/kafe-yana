@@ -73,7 +73,10 @@ export const GET_VENTAS_REPORT = `
         codigoCliente
         detalles {
           id
+          descripcion
           cantidad
+          precioUnitario
+          subTotal
         }
         cantidadProductos
         leyenda
