@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { startOfDay, endOfDay, startOfWeek, startOfMonth, differenceInDays, format } from 'date-fns';
-import { gql } from '../lib/graphql';
-import { GET_VENTAS_REPORT } from '../lib/queries/ventas.queries';
+import { fetchVentasRango, esVentaValida } from '../lib/fetchVentasRango';
 import { SIN_CODIGO } from '../lib/mappers/metodosPago';
 import type {
   VentaNode,
@@ -12,13 +11,6 @@ import type {
   ChartGranularity,
   UseSalesReportPageReturn,
 } from '../types/ventas';
-
-interface VentasResponse {
-  ventas: {
-    items: VentaNode[];
-    totalCount: number;
-  };
-}
 
 function parseDecimal(value: string | number | null | undefined): number {
   if (value == null) return 0;
@@ -67,6 +59,8 @@ export function useSalesReportPage(
   const [chartGranularity, setChartGranularity] = useState<ChartGranularity>('day');
   const [paymentMethodData, setPaymentMethodData] = useState<VentaPaymentData[]>([]);
   const [topProducts, setTopProducts] = useState<VentaTopProduct[]>([]);
+  const [allProducts, setAllProducts] = useState<VentaTopProduct[]>([]);
+  const [ventas, setVentas] = useState<VentaNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,30 +72,12 @@ export function useSalesReportPage(
       const fromDate = startOfDay(new Date(dateFrom + 'T00:00:00')).toISOString();
       const toDate = endOfDay(new Date(dateTo + 'T00:00:00')).toISOString();
 
-      let allNodes: VentaNode[] = [];
-      let skip = 0;
-      const pageSize = 200; // MaxTake del backend
-      let totalCount = Infinity;
-
-      while (allNodes.length < totalCount) {
-        const data = await gql<VentasResponse>(GET_VENTAS_REPORT, {
-          fechaDesde: fromDate,
-          fechaHasta: toDate,
-          skip,
-          take: pageSize,
-        });
-
-        allNodes = [...allNodes, ...data.ventas.items];
-        totalCount = data.ventas.totalCount;
-        if (data.ventas.items.length < pageSize) break;
-        skip += pageSize;
-      }
+      const fetched = await fetchVentasRango(fromDate, toDate);
 
       // Cuenta ventas facturadas (null = sin factura) y sin facturar; excluye
       // solo anuladas/pendientes de confirmación SIAT.
-      allNodes = allNodes.filter(
-        (v) => v.estadoSiat == null || v.estadoSiat === 'VALIDADA' || v.estadoSiat === 'OBSERVADA',
-      );
+      const allNodes = fetched.filter(esVentaValida);
+      setVentas(allNodes);
 
       const totalRevenue = allNodes.reduce((sum, v) => sum + parseDecimal(v.montoTotal), 0);
       const totalSalesCount = allNodes.length;
@@ -119,7 +95,7 @@ export function useSalesReportPage(
         const date = new Date(v.fechaEmision);
         let periodKey: string;
         if (granularity === 'day') {
-          periodKey = v.fechaEmision.split('T')[0];
+          periodKey = format(date, 'yyyy-MM-dd');
         } else if (granularity === 'week') {
           periodKey = format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd');
         } else {
@@ -160,12 +136,11 @@ export function useSalesReportPage(
           productMap[d.descripcion].revenue += parseDecimal(d.subTotal);
         });
       });
-      setTopProducts(
-        Object.entries(productMap)
-          .map(([name, { qty, revenue }]) => ({ name, qty, revenue }))
-          .sort((a, b) => b.qty - a.qty)
-          .slice(0, 10),
-      );
+      const productList = Object.entries(productMap)
+        .map(([name, { qty, revenue }]) => ({ name, qty, revenue }))
+        .sort((a, b) => b.qty - a.qty);
+      setAllProducts(productList);
+      setTopProducts(productList.slice(0, 10));
     } catch (e) {
       console.error('Error loading sales report:', e);
       setError('No se pudo cargar el reporte de ventas.');
@@ -182,5 +157,5 @@ export function useSalesReportPage(
     await loadData();
   }, [loadData]);
 
-  return { stats, dailySalesData, chartGranularity, paymentMethodData, topProducts, isLoading, error, refresh };
+  return { stats, dailySalesData, chartGranularity, paymentMethodData, topProducts, ventas, allProducts, isLoading, error, refresh };
 }

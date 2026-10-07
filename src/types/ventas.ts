@@ -89,6 +89,10 @@ export interface UseSalesReportPageReturn {
   chartGranularity: ChartGranularity;
   paymentMethodData: VentaPaymentData[];
   topProducts: VentaTopProduct[];
+  /** Ventas válidas del período (para exportar a Excel). */
+  ventas: VentaNode[];
+  /** Todos los productos vendidos, ordenados por unidades (sin límite). */
+  allProducts: VentaTopProduct[];
   isLoading: boolean;
   error: string | null;
   refresh: () => Promise<void>;

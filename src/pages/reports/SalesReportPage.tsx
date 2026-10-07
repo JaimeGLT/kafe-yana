@@ -8,7 +8,7 @@ import {
 } from 'recharts';
 import {
   ShoppingCart, DollarSign, TrendingUp, Package,
-  Calendar, FileText,
+  Calendar, FileText, FileSpreadsheet,
 } from 'lucide-react';
 import { MainLayout, PageHeader, PageContainer, PageSection } from '../../components/layout';
 import { Button, Input, Skeleton, SkeletonKpiCard } from '../../components/ui';
@@ -16,6 +16,8 @@ import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
 import { formatCurrency } from '../../utils';
 import { useSalesReportPage } from '../../hooks/useSalesReportPage';
 import { generateSalesReportPdf } from '../../lib/salesReportPdf';
+import { downloadSalesReportExcel } from '../../lib/salesReportExcel';
+import { toast } from '../../components/ui';
 
 const CHART_COLORS = {
   primary: '#8B4513',
@@ -47,12 +49,24 @@ const SalesReportPage: React.FC = () => {
     chartGranularity,
     paymentMethodData,
     topProducts,
+    ventas,
+    allProducts,
     isLoading,
     error,
   } = useSalesReportPage(dateFrom, dateTo);
 
   const handleExportPdf = () => {
     generateSalesReportPdf({ dateFrom, dateTo, stats, dailySalesData, paymentMethodData });
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      await downloadSalesReportExcel({ dateFrom, dateTo, stats, ventas, paymentMethodData, allProducts });
+      toast.success('Excel descargado');
+    } catch (e) {
+      console.error('Error exportando Excel:', e);
+      toast.error('No se pudo generar el Excel');
+    }
   };
 
   const dateFormatByGranularity = { day: 'dd MMM', week: "'Sem' dd MMM", month: 'MMM yyyy' };
@@ -159,6 +173,15 @@ const SalesReportPage: React.FC = () => {
               >
                 Exportar PDF
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<FileSpreadsheet className="h-4 w-4" />}
+                onClick={handleExportExcel}
+                disabled={isLoading}
+              >
+                Exportar Excel
+              </Button>
             </div>
           }
         />
@@ -207,7 +230,7 @@ const SalesReportPage: React.FC = () => {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E8D5C4" />
                 <XAxis dataKey="fecha" tick={{ fontSize: 12, fill: '#6B4F3B' }} />
-                <YAxis tick={{ fontSize: 12, fill: '#6B4F3B' }} tickFormatter={v => `S/${v}`} />
+                <YAxis tick={{ fontSize: 12, fill: '#6B4F3B' }} tickFormatter={v => `Bs ${v}`} />
                 <Tooltip
                   {...tooltipStyle}
                   formatter={(value) => [formatCurrency(value as number), 'Ingresos']}
@@ -216,7 +239,7 @@ const SalesReportPage: React.FC = () => {
                 <Area
                   type="monotone"
                   dataKey="ingresos"
-                  name="Ingresos (S/)"
+                  name="Ingresos (Bs)"
                   stroke={CHART_COLORS.primary}
                   fill="url(#colorIngresos)"
                   strokeWidth={2}
@@ -237,9 +260,9 @@ const SalesReportPage: React.FC = () => {
               <BarChart data={paymentMethodData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E8D5C4" />
                 <XAxis dataKey="metodo" tick={{ fontSize: 12, fill: '#6B4F3B' }} />
-                <YAxis tick={{ fontSize: 12, fill: '#6B4F3B' }} tickFormatter={v => `S/${v}`} />
+                <YAxis tick={{ fontSize: 12, fill: '#6B4F3B' }} tickFormatter={v => `Bs ${v}`} />
                 <Tooltip {...tooltipStyle} formatter={(value) => [formatCurrency(value as number), 'Total']} />
-                <Bar dataKey="total" name="Total (S/)" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="total" name="Total (Bs)" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -249,7 +272,7 @@ const SalesReportPage: React.FC = () => {
           )}
         </PageSection>
 
-        <PageSection title="Top 10 Productos más vendidos" description="Por unidades vendidas en el período">
+        <PageSection title="Top 10 Productos más vendidos" description="Por unidades vendidas en el período (el Excel incluye el ranking completo)">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

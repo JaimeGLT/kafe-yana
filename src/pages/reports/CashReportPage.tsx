@@ -194,7 +194,7 @@ const CashReportPage: React.FC = () => {
               <BarChart data={dailyData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E8D5C4" />
                 <XAxis dataKey="fecha" tick={{ fontSize: 12, fill: '#6B4F3B' }} />
-                <YAxis tick={{ fontSize: 12, fill: '#6B4F3B' }} tickFormatter={v => `S/${v}`} />
+                <YAxis tick={{ fontSize: 12, fill: '#6B4F3B' }} tickFormatter={v => `Bs ${v}`} />
                 <Tooltip {...tooltipStyle} formatter={(value) => [formatCurrency(Number(value))]} />
                 <Legend />
                 <Bar dataKey="ingresos" name="Ingresos" fill="#22c55e" radius={[4, 4, 0, 0]} />

@@ -192,7 +192,7 @@ export const PurchaseForm: React.FC<PurchaseFormProps> = ({
                 </div>
                 <div className="col-span-2">
                   <div className="px-3 py-2.5 bg-white border border-coffee-200 rounded-lg text-coffee-700">
-                    S/ {(item.quantity * item.unitCost).toFixed(2)}
+                    Bs {(item.quantity * item.unitCost).toFixed(2)}
                   </div>
                 </div>
                 <div className="col-span-1 flex items-center justify-center">
@@ -216,15 +216,15 @@ export const PurchaseForm: React.FC<PurchaseFormProps> = ({
             <div className="w-64 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-coffee-600">Subtotal:</span>
-                <span className="text-coffee-900">S/ {subtotal.toFixed(2)}</span>
+                <span className="text-coffee-900">Bs {subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-coffee-600">IGV ({formData.taxPercentage}%):</span>
-                <span className="text-coffee-900">S/ {tax.toFixed(2)}</span>
+                <span className="text-coffee-900">Bs {tax.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-lg font-semibold border-t border-coffee-200 pt-2">
                 <span className="text-coffee-900">Total:</span>
-                <span className="text-coffee-900">S/ {total.toFixed(2)}</span>
+                <span className="text-coffee-900">Bs {total.toFixed(2)}</span>
               </div>
             </div>
           </div>

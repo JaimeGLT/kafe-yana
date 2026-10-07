@@ -201,7 +201,7 @@ export const CashMovementModal: React.FC<CashMovementModalProps> = ({
         </FormField>
 
         <FormRow>
-          <FormField label="Monto (S/)" required error={errors.amount}>
+          <FormField label="Monto (Bs)" required error={errors.amount}>
             <Input
               type="number"
               min="0.01"

@@ -142,7 +142,7 @@ export const CashRegisterPage: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-coffee-700 mb-1">Saldo Inicial</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-coffee-500 font-medium text-sm">S/</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-coffee-500 font-medium text-sm">Bs</span>
                     <input
                       type="number"
                       min="0"
@@ -194,7 +194,7 @@ export const CashRegisterPage: React.FC = () => {
                   <div>
                     <label className="block text-sm font-medium text-coffee-700 mb-1">Saldo Inicial</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-coffee-500 font-medium text-sm">S/</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-coffee-500 font-medium text-sm">Bs</span>
                       <input
                         type="number"
                         min="0"
@@ -448,7 +448,7 @@ export const CashRegisterPage: React.FC = () => {
                 Saldo Real en Caja <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-coffee-500 text-sm font-medium">S/</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-coffee-500 text-sm font-medium">Bs</span>
                 <input
                   type="number"
                   min="0"

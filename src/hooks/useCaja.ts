@@ -94,7 +94,7 @@ export function useCaja(): UseCajaReturn {
       setLoading(true);
       await api.post('/Caja/Abrir', { saldoInicial });
       await syncCaja();
-      toast.success('Caja abierta', `Caja iniciada con S/ ${saldoInicial.toFixed(2)}.`);
+      toast.success('Caja abierta', `Caja iniciada con Bs ${saldoInicial.toFixed(2)}.`);
       return true;
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'No se pudo abrir la caja.';
