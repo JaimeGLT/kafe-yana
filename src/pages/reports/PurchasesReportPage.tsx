@@ -110,21 +110,21 @@ const PurchasesReportPage: React.FC = () => {
             { label: 'Compras' },
           ]}
           actions={
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-coffee-500" />
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+                <Calendar className="hidden sm:block h-4 w-4 text-coffee-500" />
                 <Input
                   type="date"
                   value={dateFrom}
                   onChange={e => setDateFrom(e.target.value)}
-                  className="w-40"
+                  className="w-full sm:w-40"
                 />
-                <span className="text-coffee-500 text-sm">hasta</span>
+                <span className="text-coffee-500 text-sm text-center">hasta</span>
                 <Input
                   type="date"
                   value={dateTo}
                   onChange={e => setDateTo(e.target.value)}
-                  className="w-40"
+                  className="w-full sm:w-40"
                 />
               </div>
               <Button
@@ -174,7 +174,7 @@ const PurchasesReportPage: React.FC = () => {
         <PageSection title="Compras por Mes" description="Monto total agrupado por mes">
           {monthlyData.length > 0 ? (
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={monthlyData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <BarChart data={monthlyData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E8D5C4" />
                 <XAxis dataKey="mes" tick={{ fontSize: 12, fill: '#6B4F3B' }} />
                 <YAxis tick={{ fontSize: 12, fill: '#6B4F3B' }} tickFormatter={v => `Bs ${v}`} />

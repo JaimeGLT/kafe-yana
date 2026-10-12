@@ -52,7 +52,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
           )}
         </div>
         {actions && (
-          <div className="flex items-center gap-3 sm:flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto sm:flex-shrink-0">
             {actions}
           </div>
         )}
@@ -97,7 +97,7 @@ export const PageSection: React.FC<PageSectionProps> = ({
   return (
     <div className={clsx('bg-white rounded-xl border border-coffee-100 shadow-sm', className)}>
       {(title || action) && (
-        <div className="flex items-start justify-between px-6 py-4 border-b border-coffee-100">
+        <div className="flex items-start justify-between gap-3 px-4 sm:px-6 py-4 border-b border-coffee-100">
           <div>
             {title && (
               <h2 className="text-lg font-display font-semibold text-coffee-900">
@@ -111,7 +111,7 @@ export const PageSection: React.FC<PageSectionProps> = ({
           {action && <div>{action}</div>}
         </div>
       )}
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {children}
       </div>
     </div>

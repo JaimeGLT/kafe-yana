@@ -123,7 +123,7 @@ export const KPIGrid: React.FC<KPIGridProps> = ({
   };
 
   return (
-    <div className={clsx('grid gap-6', columnClasses[columns], className)}>
+    <div className={clsx('grid gap-4 sm:gap-6', columnClasses[columns], className)}>
       {children}
     </div>
   );

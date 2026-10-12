@@ -147,21 +147,21 @@ const SalesReportPage: React.FC = () => {
             { label: 'Ventas' },
           ]}
           actions={
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-coffee-500" />
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+                <Calendar className="hidden sm:block h-4 w-4 text-coffee-500" />
                 <Input
                   type="date"
                   value={dateFrom}
                   onChange={e => setDateFrom(e.target.value)}
-                  className="w-40"
+                  className="w-full sm:w-40"
                 />
-                <span className="text-coffee-500 text-sm">hasta</span>
+                <span className="text-coffee-500 text-sm text-center">hasta</span>
                 <Input
                   type="date"
                   value={dateTo}
                   onChange={e => setDateTo(e.target.value)}
-                  className="w-40"
+                  className="w-full sm:w-40"
                 />
               </div>
               <Button
@@ -221,7 +221,7 @@ const SalesReportPage: React.FC = () => {
         <PageSection title={chartTitleByGranularity[chartGranularity]} description={chartDescByGranularity[chartGranularity]}>
           {dailyChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={dailyChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <AreaChart data={dailyChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorIngresos" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={CHART_COLORS.primary} stopOpacity={0.3} />
@@ -257,7 +257,7 @@ const SalesReportPage: React.FC = () => {
         <PageSection title="Ventas por Método de Pago" description="Distribución de ingresos por forma de pago">
           {paymentMethodData.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={paymentMethodData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <BarChart data={paymentMethodData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E8D5C4" />
                 <XAxis dataKey="metodo" tick={{ fontSize: 12, fill: '#6B4F3B' }} />
                 <YAxis tick={{ fontSize: 12, fill: '#6B4F3B' }} tickFormatter={v => `Bs ${v}`} />
