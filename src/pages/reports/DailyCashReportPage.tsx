@@ -82,14 +82,14 @@ const DailyCashReportPage: React.FC = () => {
             { label: 'Diario' },
           ]}
           actions={
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-coffee-500" />
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+                <Calendar className="hidden sm:block h-4 w-4 text-coffee-500" />
                 <Input
                   type="date"
                   value={fecha}
                   onChange={e => setFecha(e.target.value)}
-                  className="w-44"
+                  className="w-full sm:w-44"
                   max={format(today, 'yyyy-MM-dd')}
                 />
               </div>

@@ -107,13 +107,13 @@ const MonthlyProductsReportPage: React.FC = () => {
             { label: 'Mensual' },
           ]}
           actions={
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-coffee-500" />
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+                <Calendar className="hidden sm:block h-4 w-4 text-coffee-500" />
                 <select
                   value={mes}
                   onChange={e => setMes(Number(e.target.value))}
-                  className="px-3 py-2 rounded-lg border border-coffee-200 bg-white text-coffee-900 text-sm focus:outline-none focus:ring-2 focus:ring-coffee-300"
+                  className="flex-1 sm:flex-none px-3 py-2 rounded-lg border border-coffee-200 bg-white text-coffee-900 text-sm focus:outline-none focus:ring-2 focus:ring-coffee-300"
                 >
                   {MONTH_NAMES.map((name, idx) => (
                     <option key={name} value={idx + 1}>{name}</option>
@@ -122,7 +122,7 @@ const MonthlyProductsReportPage: React.FC = () => {
                 <select
                   value={anio}
                   onChange={e => setAnio(Number(e.target.value))}
-                  className="px-3 py-2 rounded-lg border border-coffee-200 bg-white text-coffee-900 text-sm focus:outline-none focus:ring-2 focus:ring-coffee-300"
+                  className="flex-1 sm:flex-none px-3 py-2 rounded-lg border border-coffee-200 bg-white text-coffee-900 text-sm focus:outline-none focus:ring-2 focus:ring-coffee-300"
                 >
                   {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
@@ -210,7 +210,7 @@ const MonthlyProductsReportPage: React.FC = () => {
         >
           {chartCategoria.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartCategoria} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
+              <BarChart data={chartCategoria} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E8D5C4" />
                 <XAxis dataKey="categoria" tick={{ fontSize: 12, fill: '#6B4F3B' }} />
                 <YAxis yAxisId="left" tick={{ fontSize: 12, fill: '#6B4F3B' }} />
