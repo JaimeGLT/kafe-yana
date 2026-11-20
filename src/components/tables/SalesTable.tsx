@@ -3,8 +3,6 @@ import { clsx } from 'clsx';
 import type { Sale } from '../../types';
 import { esEstadoAnuladaSiat, esEstadoValidadaSiat } from '../../types/siat';
 import { Badge } from '../ui';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 import {
   Eye,
   Printer,
@@ -32,10 +30,19 @@ interface SalesTableProps {
   isLoading?: boolean;
 }
 
+// Hora de Bolivia explícita: no depende de la zona horaria del dispositivo.
+const BOLIVIA_TZ = 'America/La_Paz';
 const formatDate = (date: Date) =>
-  format(new Date(date), 'dd MMM yyyy HH:mm', { locale: es });
-const formatDateShort = (date: Date) =>
-  format(new Date(date), 'dd MMM · HH:mm', { locale: es });
+  new Date(date).toLocaleString('es-BO', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false, timeZone: BOLIVIA_TZ,
+  });
+const formatDateShort = (date: Date) => {
+  const d = new Date(date);
+  const dia = d.toLocaleDateString('es-BO', { day: '2-digit', month: 'short', timeZone: BOLIVIA_TZ });
+  const hora = d.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: BOLIVIA_TZ });
+  return `${dia} · ${hora}`;
+};
 
 // ── Helpers de estado visual ─────────────────────────────────────────────
 

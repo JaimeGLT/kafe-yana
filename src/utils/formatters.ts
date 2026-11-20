@@ -64,7 +64,7 @@ export function formatFechaHoraBolivia(date: Date | string): string {
 }
 
 /**
- * Formats a date+time to short Spanish locale string.
+ * Formats a date+time to short Spanish locale string, in Bolivia's timezone.
  * Example: "15 ene 2024, 14:30"
  */
 export function formatDateTime(date: Date | string): string {
@@ -76,6 +76,7 @@ export function formatDateTime(date: Date | string): string {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    timeZone: BOLIVIA_TZ,
   });
 }
 
