@@ -8,7 +8,7 @@ import { MainLayout, PageHeader, PageContainer, PageSection } from '../../compon
 import { Button, Input, Badge, Skeleton, SkeletonKpiCard, Modal } from '../../components/ui';
 import type { CajaHistorialNode } from '../../types/cajaHistorial';
 import { KPICard, KPIGrid } from '../../components/dashboard/KPICard';
-import { formatCurrency, formatDate } from '../../utils';
+import { formatCurrency, formatFechaHoraBolivia } from '../../utils';
 import { useCashReportPage } from '../../hooks/useCashReportPage';
 import { generateCashReportPdf } from '../../lib/cashReportPdf';
 
@@ -284,13 +284,13 @@ const CashReportPage: React.FC = () => {
                       </td>
                       <td className="py-3 px-4 font-mono text-xs text-coffee-600">{s.codigo}</td>
                       <td className="py-3 px-4">
-                        <div className="text-coffee-700">{formatDate(s.apertura)}</div>
+                        <div className="text-coffee-700">{formatFechaHoraBolivia(s.apertura)}</div>
                         <div className="text-xs text-coffee-400">{s.abiertaPor}</div>
                       </td>
                       <td className="py-3 px-4">
                         {s.cierre ? (
                           <>
-                            <div className="text-coffee-700">{formatDate(s.cierre)}</div>
+                            <div className="text-coffee-700">{formatFechaHoraBolivia(s.cierre)}</div>
                             <div className="text-xs text-coffee-400">{s.cerradaPor ?? '—'}</div>
                           </>
                         ) : '—'}
@@ -327,8 +327,8 @@ const CashReportPage: React.FC = () => {
               {/* Resumen rápido */}
               <div className="grid grid-cols-2 gap-3 mb-5">
                 {[
-                  { label: 'Apertura',      value: formatDate(selectedSession.apertura),                                       sub: selectedSession.abiertaPor },
-                  { label: 'Cierre',        value: selectedSession.cierre ? formatDate(selectedSession.cierre) : '—',          sub: selectedSession.cerradaPor ?? '—' },
+                  { label: 'Apertura',      value: formatFechaHoraBolivia(selectedSession.apertura),                                       sub: selectedSession.abiertaPor },
+                  { label: 'Cierre',        value: selectedSession.cierre ? formatFechaHoraBolivia(selectedSession.cierre) : '—',          sub: selectedSession.cerradaPor ?? '—' },
                   { label: 'Total ventas',  value: formatCurrency(selectedSession.totalVentas),   color: 'text-blue-600'  },
                   { label: 'Diferencia',    value: `${selectedSession.diferencia >= 0 ? '+' : ''}${formatCurrency(selectedSession.diferencia)}`,
                     color: selectedSession.diferencia === 0 ? 'text-green-600' : selectedSession.diferencia > 0 ? 'text-blue-600' : 'text-red-600' },

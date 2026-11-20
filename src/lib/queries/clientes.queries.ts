@@ -47,7 +47,7 @@ export const GET_CLIENTES_SEARCH = `
  * si ya está registrado.
  */
 export const GET_CLIENTE_BY_DNI = `
-  query GetClienteByDni($dni: Int!) {
+  query GetClienteByDni($dni: Long!) {
     clientes(
       skip: 0,
       take: 5,

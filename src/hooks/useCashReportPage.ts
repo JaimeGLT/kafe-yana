@@ -68,7 +68,8 @@ export function useCashReportPage(
   const dailyData = useMemo<CashDailyData[]>(() => {
     const map: Record<string, CashDailyData> = {};
     filteredSessions.forEach(s => {
-      const key = s.apertura.split('T')[0];
+      // Día calendario en Bolivia (no UTC): tras las 20:00 BOT el día UTC ya es el siguiente.
+      const key = new Date(s.apertura).toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
       const label = format(new Date(s.apertura), 'dd MMM', { locale: es });
       if (!map[key]) map[key] = { fecha: label, ingresos: 0, egresos: 0, ventas: 0 };
       map[key].ingresos += s.totalIngresos;
